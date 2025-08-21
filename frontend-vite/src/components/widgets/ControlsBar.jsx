@@ -15,7 +15,7 @@ import {
   ToggleButtonGroup,
   Divider,
 } from '@mui/material';
-import { LoadingButton } from '@mui/lab';
+import Button from '@mui/material/Button';
 import { DateRange, CalendarMonth, CompareArrows } from '@mui/icons-material';
 import DatePickerTheme from '../common/DatePickerTheme';
 import dayjs from 'dayjs';
@@ -394,7 +394,7 @@ const ControlsBar = ({
             </Stack>
           )}
 
-          <LoadingButton
+          <Button
             loading={!!isLoading}
             variant="contained"
             onClick={handleApply}
@@ -403,7 +403,7 @@ const ControlsBar = ({
             sx={{ fontWeight: 700, px: 2, ml: { sm: 'auto' }, minWidth: 140 }}
           >
             {t('analytics.Buscar')}
-          </LoadingButton>
+          </Button>
         </Stack>
 
         {/* Estado */}

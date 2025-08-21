@@ -20,6 +20,11 @@ const LOWMEM = process.env.LOWMEM_BUILD === '1';
 
 export default defineConfig({
   base: '/',
+  esbuild: {
+    target: 'es2020',
+    legalComments: 'none',
+    drop: ['console', 'debugger'],
+  },
   optimizeDeps: {
     exclude: ['analytics.js', 'ajs-destination', 'lucide-react', 'react-icons', 'firebase'],
     include: ['void-elements', 'firebase/app', 'firebase/messaging'],
@@ -90,6 +95,8 @@ export default defineConfig({
       // react-icons@5.5.0 ESM build references ../lib/index.mjs, but the package ships index.js
       'react-icons/lib/index.mjs': 'react-icons/lib/index.js',
     },
+    // Ensure React is de-duplicated to prevent multiple copies (avoids invalid hook calls)
+    dedupe: ['react', 'react-dom'],
   },
 
   server: {
@@ -114,46 +121,19 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: 'assets',
     sourcemap: false,
+    modulePreload: false,
     cssCodeSplit: LOWMEM ? false : false,
     cssMinify: LOWMEM ? false : true,
-    minify: LOWMEM ? false : 'terser',
-    terserOptions: LOWMEM
-      ? undefined
-      : {
-          compress: {
-            passes: 2,
-            drop_console: true,
-          },
-          format: { comments: false },
-        },
+    target: 'es2020',
+    minify: LOWMEM ? false : 'esbuild',
+    terserOptions: undefined,
+    reportCompressedSize: false,
     chunkSizeWarningLimit: 1500, // Sube el límite del warning
     rollupOptions: {
       // Mantén fuera del bundle los paquetes de WalletConnect/Reown siempre
       external: [/^@walletconnect\//, /^@reown\//],
-      output: LOWMEM
-        ? {
-          // Grupos gruesos para bajar la carga del grafo de chunks
-          manualChunks: {
-            react: ['react', 'react-dom'],
-            mui: ['@mui/material', '@mui/icons-material', '@mui/lab', '@mui/x-date-pickers'],
-            ethers: ['ethers'],
-            chartjs: ['chart.js', 'react-chartjs-2'],
-            privy: ['@privy-io/react-auth', '@privy-io/wagmi'],
-          },
-        }
-        : {
-          // Split por paquete para reducir pico de memoria en el vendor
-          manualChunks(id) {
-              if (id.includes('node_modules')) {
-                const rel = id.split('node_modules/')[1];
-                const parts = rel.split('/');
-                const pkg = parts[0].startsWith('@') ? `${parts[0]}-${parts[1]}` : parts[0];
-                return `vendor-${pkg.replace('@','')}`;
-              }
-            },
-          },
-      // Desactiva tree-shaking en modo baja memoria
-      ...(LOWMEM ? { treeshake: false } : {}),
+      output: { inlineDynamicImports: true },
+      treeshake: false,
     },
   },
 });

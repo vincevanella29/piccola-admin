@@ -49,7 +49,7 @@ Construido sobre Vanellix Hub, combina la experiencia tradicional de la Nonna co
 |-------------------|-------------------------------|
 | UI                | React 18, TailwindCSS, Lucide  |
 | Build Tool        | Vite 6                         |
-| Web3              | Wagmi 2, Privy, ethers, viem   |
+| Web3              | Wagmi 2, Privy, ethers   |
 | Estado/Cache      | React Context, TanStack Query  |
 | Routing           | React Router DOM 6             |
 | Testing           | Vitest, Testing Library, Jest  |

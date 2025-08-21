@@ -1,111 +1,122 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-CL">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="color-scheme" content="light dark" />
 
-    <title>Club della Nonna | La Piccola Italia - ¡Abre tu Cofre del Tesoro!</title>
+    <title>Conglomerado La Piccola Italia — Sitio Oficial</title>
     <meta
       name="description"
-      content="¡El tesoro de la Nonna te espera en La Piccola Italia! Sé de los primeros 1.000 en unirte al Club y reclama tu cofre con Monedas de Oro PAZ gratis. Úsalas para ganar recompensas, canjear por comida y votar por nuevos platos. ¡No te quedís afuera, po!"
+      content="Somos el Conglomerado La Piccola Italia en Chile: restaurantes, fábrica, administración y constructora. Súmate a la familia, conoce nuestros negocios y entra al Club della Nonna para acceder a beneficios, recompensas y experiencias VIP."
     />
     <meta
       name="keywords"
-      content="La Piccola Italia, Club della Nonna, tesoro, monedas de oro, PAZ, PARE, programa de lealtad, Web3, Chile, restaurante italiano, beneficios, cupones, VIP"
+      content="La Piccola Italia, Conglomerado, restaurantes italianos, fábrica, administradora, constructora, Club della Nonna, beneficios, recompensas, Chile"
     />
-    <meta name="robots" content="index, follow" />
-    <meta name="author" content="La Famiglia de La Piccola Italia" />
-    <link rel="canonical" href="https://testing.lapiccolaitalia.cl" />
+    <meta name="robots" content="index,follow" />
+    <meta name="author" content="Conglomerado La Piccola Italia" />
 
-    <meta
-      property="og:title"
-      content="¡Un Tesoro te Espera en el Club della Nonna!"
-    />
-    <meta
-      property="og:description"
-      content="¡La Nonna tiene un regalo para ti! Únete al club de La Piccola Italia, abre tu cofre y reclama Monedas de Oro PAZ gratis. ¡Son cupos limitados!"
-    />
+    <!-- TODO: reemplazar por el dominio productivo -->
+    <link rel="canonical" href="https://www.lapiccolaitalia.cl" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Conglomerado La Piccola Italia — Sitio Oficial" />
+    <meta property="og:description" content="Conoce el ecosistema de La Piccola Italia y únete al Club della Nonna para beneficios y recompensas." />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://testing.lapiccolaitalia.cl" />
-    <meta property="og:image" content="https://testing.lapiccolaitalia.cl/images/tesoro-abierto.png" />
-    <meta property="og:site_name" content="Club della Nonna - La Piccola Italia" />
+    <meta property="og:url" content="https://www.lapiccolaitalia.cl" />
+    <meta property="og:image" content="https://www.lapiccolaitalia.cl/images/og/conglomerado.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="Conglomerado La Piccola Italia" />
+    <meta property="og:locale" content="es_CL" />
 
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta
-      name="twitter:title"
-      content="¡Abre tu Cofre del Tesoro en el Club della Nonna!"
-    />
-    <meta
-      name="twitter:description"
-      content="La Piccola Italia te regala Monedas de Oro PAZ por unirte a la familia. ¡Reclama tu tesoro antes de que se acaben los 1.000 cupos!"
-    />
-    <meta name="twitter:image" content="https://testing.lapiccolaitalia.cl/images/tesoro-abierto.png" />
+    <meta name="twitter:title" content="Conglomerado La Piccola Italia — Sitio Oficial" />
+    <meta name="twitter:description" content="Somos el Conglomerado La Piccola Italia en Chile. Descubre nuestros negocios y el Club della Nonna." />
+    <meta name="twitter:image" content="https://www.lapiccolaitalia.cl/images/og/conglomerado.jpg" />
     <meta name="twitter:site" content="@LaPiccolaItalia" />
 
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-piccola.png" />
-    <link rel="apple-touch-icon" href="/favicon-piccola.png" />
+    <!-- PWA / Theming -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0a0a" />
     <link rel="manifest" href="/manifest.json" />
 
-    <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-piccola.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
+    <!-- Fonts (performance) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <!-- Structured Data: Organization -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Club della Nonna - La Piccola Italia",
-        "url": "https://testing.lapiccolaitalia.cl",
-        "description": "Únete al Club della Nonna de La Piccola Italia y reclama tu tesoro de bienvenida. Los primeros 1.000 usuarios reciben Monedas de Oro PAZ gratis para ganar recompensas, canjear por productos y acceder a beneficios VIP.",
+        "@type": "Organization",
+        "name": "Conglomerado La Piccola Italia",
+        "url": "https://www.lapiccolaitalia.cl",
+        "logo": "https://www.lapiccolaitalia.cl/images/logo.png",
         "sameAs": [
           "https://twitter.com/LaPiccolaItalia",
-          "https://discord.gg/LaPiccolaItalia",
-          "https://github.com/LaPiccolaItalia"
+          "https://www.instagram.com/lapiccolaitalia",
+          "https://www.facebook.com/lapiccolaitalia",
+          "https://www.linkedin.com/company/la-piccola-italia"
+        ],
+        "department": [
+          { "@type": "Organization", "name": "Restaurantes La Piccola Italia", "url": "https://www.lapiccolaitalia.cl/restaurantes" },
+          { "@type": "Organization", "name": "Fábrica Piccola Italia", "url": "https://www.lapiccolaitalia.cl/fabrica" },
+          { "@type": "Organization", "name": "Administradora Piccola", "url": "https://www.lapiccolaitalia.cl/administradora" },
+          { "@type": "Organization", "name": "Constructora La Piccola Italia", "url": "https://www.lapiccolaitalia.cl/constructora" }
         ]
       }
     </script>
 
+    <!-- Basic styling for the noscript disclaimer only -->
     <style>
       .disclaimer {
         background-color: #0a0a0a;
         color: #ffffffb3;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
         font-size: 12px;
         text-align: center;
-        padding: 16px;
+        padding: 14px 16px;
         margin: 0;
         border-bottom: 1px solid #ffffff33;
       }
       @media (prefers-color-scheme: light) {
-        .disclaimer {
-          background-color: #f5f5f5;
-          color: #111827b3;
-          border-bottom: 1px solid #11182733;
-        }
+        .disclaimer { background-color: #f7f7f7; color: #111827b3; border-color: #11182733; }
       }
-      .disclaimer a {
-        color: #009246;
-        text-decoration: underline;
-      }
-      .disclaimer a:hover {
-        text-decoration: none;
-      }
+      .disclaimer a { color: #009246; text-decoration: underline; }
+      .disclaimer a:hover { text-decoration: none; }
     </style>
+
+    <!-- Alternate/Hreflang (si manejas otras regiones/idiomas) -->
+    <link rel="alternate" href="https://www.lapiccolaitalia.cl" hreflang="es-cl" />
+    <link rel="alternate" href="https://www.lapiccolaitalia.cl" hreflang="x-default" />
   </head>
   <body>
+    <!-- Mensaje visible sin JS: política de uso del Club e info general -->
     <noscript class="disclaimer">
-      Bienvenido a la familia. El Club della Nonna es una experiencia de lealtad. Las Monedas de Oro (PAZ) y de Plata (PARE) son para obtener beneficios y no tienen valor monetario. Úsalas bajo tu propio riesgo. <a href="/terms">Saber más</a>.
+      Bienvenido a la familia. El Conglomerado La Piccola Italia reúne restaurantes, fábrica y más. El Club della Nonna es una experiencia de lealtad; sus Monedas (PAZ/PARE) son para beneficios y no tienen valor monetario. <a href="/terms">Saber más</a>.
     </noscript>
 
     <noscript>
-      Necesitas activar JavaScript para usar esta aplicación.
+      Necesitas activar JavaScript para usar este sitio.
     </noscript>
+
     <div id="root"></div>
-    <script src="/env.js"></script>
+
+    <!-- App config & bundle -->
+    <script src="/env.js" defer></script>
     <script type="module" src="/src/index.jsx"></script>
   </body>
 </html>
