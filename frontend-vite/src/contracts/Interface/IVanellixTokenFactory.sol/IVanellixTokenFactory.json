@@ -1,0 +1,358 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IVanellixTokenFactory",
+  "sourceName": "contracts/Interface/IVanellixTokenFactory.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "symbol",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalSupply",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "description",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "imagePath",
+              "type": "string"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.TokenConfig",
+          "name": "tokenConfig",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "immediateWallet",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "lockedWallet",
+              "type": "address"
+            },
+            {
+              "internalType": "enum CompanyTokenStructs.VestingType",
+              "name": "vestingType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "startBlock",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "startTimestamp",
+              "type": "uint256"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "releaseBlock",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "percentage",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct CompanyTokenStructs.VestingSchedule[]",
+              "name": "vestingSchedule",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "uint8",
+              "name": "vestingScheduleCount",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bool",
+              "name": "autoMode",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint8",
+              "name": "immediateUnlockPercentage",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "progressiveYears",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.MultiVestingConfig",
+          "name": "vestingConfig",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "percentage",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.FundUsage[]",
+          "name": "fundUsages",
+          "type": "tuple[]"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "url",
+              "type": "string"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.Document[]",
+          "name": "documents",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "address",
+          "name": "caller",
+          "type": "address"
+        }
+      ],
+      "name": "finalizeCompanyToken",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTokenBasicData",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "tokenId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "companyId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "symbol",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalSupply",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "description",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "imagePath",
+              "type": "string"
+            },
+            {
+              "internalType": "address",
+              "name": "proxy",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "isCreated",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.MultiPlatformTokenData",
+          "name": "platformData",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "immediateWallet",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "lockedWallet",
+              "type": "address"
+            },
+            {
+              "internalType": "enum CompanyTokenStructs.VestingType",
+              "name": "vestingType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "startBlock",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "startTimestamp",
+              "type": "uint256"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "releaseBlock",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "percentage",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct CompanyTokenStructs.VestingSchedule[]",
+              "name": "vestingSchedule",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "uint8",
+              "name": "vestingScheduleCount",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bool",
+              "name": "autoMode",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint8",
+              "name": "immediateUnlockPercentage",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "progressiveYears",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.MultiVestingConfig",
+          "name": "vestingConfig",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "percentage",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.FundUsage[]",
+          "name": "fundUsages",
+          "type": "tuple[]"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "url",
+              "type": "string"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.Document[]",
+          "name": "documents",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTokenIdByCompanyId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

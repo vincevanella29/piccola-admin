@@ -1,0 +1,13 @@
+{
+    "staking_not_found": "Staking not found for company {company_id} in year {year}",
+    "fetching_governance_token_balance": "Error fetching governance token balance: {error}",
+    "fetching_utility_token_balance": "Error fetching utility token balance: {error}",
+    "fetching_staking_data": "Error fetching staking data: {error}",
+    "fetching_company_staking_data": "Error fetching company staking data: {error}",
+    "fetching_pool_data": "Error fetching pool data: {error}",
+    "invalid_pool_address": "Invalid pool address for company {company_id}, pool index {pool_index}",
+    "fetching_pending_rewards": "Error fetching pending rewards: {error}",
+    "selecting_staking": "Error selecting staking: {error}",
+    "error_boundary": "Error boundary: {error}",
+    "message": "An unexpected error occurred."
+}

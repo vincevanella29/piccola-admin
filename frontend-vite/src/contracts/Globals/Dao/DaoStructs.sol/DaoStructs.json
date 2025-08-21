@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "DaoStructs",
+  "sourceName": "contracts/Globals/Dao/DaoStructs.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220509ecfd2bc3e5cd8cce8e12ee3f6f26c6ec07417127326aa77f86bc22ff0875064736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220509ecfd2bc3e5cd8cce8e12ee3f6f26c6ec07417127326aa77f86bc22ff0875064736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

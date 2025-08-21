@@ -1,0 +1,13 @@
+{
+  "newsletter_prompt_title": "Would you like to subscribe to our updates?",
+  "newsletter_prompt_body": "Receive news and exclusive promotions in your inbox:",
+  "email_not_found": "No email detected",
+  "subscribe_and_update": "Subscribe",
+  "newsletter_prompt_reject": "No, thanks",
+  "newsletter_subscribed": "Subscription successful!",
+  "subscribing": "Subscribing...",
+  "field_required": "{{field}} is required",
+  "update_failed": "Update failed: {{message}}",
+  "email": "Email",
+  "newsletter.email_placeholder": "Your email"
+}

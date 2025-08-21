@@ -1,0 +1,15 @@
+{
+    "title": "Impostazioni delle Commissioni della Piattaforma",
+    "fee_token_label": "Indirizzo del Token di Commissione",
+    "fee_token_placeholder": "Inserisci l'indirizzo del token (es: USDC)",
+    "fee_token_tooltip": "L'indirizzo del token ERC-20 per addebitare le commissioni della piattaforma (es: USDC o WMATIC).",
+    "set_fee_token": "Imposta Token di Commissione",
+    "fee_percentage_label": "Percentuale di Commissione (%)",
+    "fee_percentage_placeholder": "Inserisci la percentuale di commissione (0-100)",
+    "fee_percentage_tooltip": "La percentuale di commissione addebitata per le transazioni della piattaforma (0-100%).",
+    "set_fee_percentage": "Imposta Percentuale di Commissione",
+    "success": "Transazione riuscita: {message}",
+    "gas_estimate": "Gas stimato: {gas}",
+    "error_setting_fee_token": "Errore nell'impostazione del token di commissione: {message}",
+    "error_setting_fee_percentage": "Errore nell'impostazione della percentuale di commissione: {message}"
+}

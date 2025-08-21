@@ -1,0 +1,67 @@
+# Vanellix Hub Backend - .gitignore profesional
+
+# Entornos virtuales
+venv/
+.env
+test-vpn/
+
+# Archivos temporales y cachés
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+*.db
+*.pid
+*.swp
+.DS_Store
+
+# Configuración de IDEs y editores
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Archivos de pruebas y cobertura
+test-results/
+.coverage
+htmlcov/
+
+# Archivos de despliegue y builds
+*.egg-info/
+dist/
+build/
+
+# Otros archivos sensibles o de usuario
+*.pem
+*.key
+*.crt
+*.bak
+*.old
+*.orig
+
+# Node (por si hay scripts JS)
+node_modules/
+
+# MongoDB dumps/backups
+*.bson
+*.json
+*.archive
+
+# Evita accidentalmente subir archivos grandes
+*.zip
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# Documentación generada
+docs/_build/
+
+#no obviar esto
+!.env.example
+!Dockerfile
+!contracts/
+
+# ¡Nunca borres este .gitignore! Protege tu código y credenciales.

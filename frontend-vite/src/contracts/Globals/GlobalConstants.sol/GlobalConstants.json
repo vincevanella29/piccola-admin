@@ -1,0 +1,206 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "GlobalConstants",
+  "sourceName": "contracts/Globals/GlobalConstants.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "CONSIGLIO_STELLATO_ROLE",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DAO_TRANSITION_PERIOD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DEFAULT_PENALTY_PERCENTAGE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "EMERGENCY_UPGRADE_DELAY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "IMPERATOR_VANELLIX",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "LEGATUS_STELLAE",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_ROLES",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_STAKING_POOLS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PRECISION_FACTOR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SECONDS_PER_DAY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SECONDS_PER_MINUTE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SECONDS_PER_YEAR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "TRANSFER_DELAY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "UPGRADE_DELAY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "WALLET_OPERATION_DELAY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60808060405234601957610275908161001f823930815050f35b600080fdfe6080604052600436101561001257600080fd5b60003560e01c8063045d54a41461020d57806307e7d742146101f657806310983cfb146101d85780631ac3452b1461019d57806336a0e85a1461012c5780633f63c768146100dd5780634286e9bc146101a257806347fe8b1d1461019d57806349d9c1b1146101675780636f9fac6d1461013157806374f0314f1461012c578063850d3aa414610115578063ccd34cd5146100f7578063e6a69ab8146100dd5763e9556430146100c157600080fd5b60003660031901126100d8576020604051603c8152f35b600080fd5b60003660031901126100d85760206040516301e133808152f35b60003660031901126100d8576020604051670de0b6b3a76400008152f35b60003660031901126100d857602060405160148152f35b610226565b60003660031901126100d85760206040517fa5ccb6867d103f21ecf1c41cfc2f9edaeab012c60e542a449046031f4b3422f58152f35b60003660031901126100d85760206040517ff807ff8eec250923b9076d0fbc12c4f8fc15f4a65bc3bb510202d51d46cd1ef68152f35b61020d565b60003660031901126100d85760206040517fa36640f9c3d74ee87c99b3aee39f32849dda077410057abc393a2cb9e13139a78152f35b60003660031901126100d857602060405167016345785d8a00008152f35b60003660031901126100d8576020604051600a8152f35b60003660031901126100d85760206040516202a3008152f35b60003660031901126100d8576020604051620151808152f3fea2646970667358221220e8bfb36d74ac7e22a13516b4023065d84cae13d99fbf0fbe3f782c970252bf2b64736f6c634300081c0033",
+  "deployedBytecode": "0x6080604052600436101561001257600080fd5b60003560e01c8063045d54a41461020d57806307e7d742146101f657806310983cfb146101d85780631ac3452b1461019d57806336a0e85a1461012c5780633f63c768146100dd5780634286e9bc146101a257806347fe8b1d1461019d57806349d9c1b1146101675780636f9fac6d1461013157806374f0314f1461012c578063850d3aa414610115578063ccd34cd5146100f7578063e6a69ab8146100dd5763e9556430146100c157600080fd5b60003660031901126100d8576020604051603c8152f35b600080fd5b60003660031901126100d85760206040516301e133808152f35b60003660031901126100d8576020604051670de0b6b3a76400008152f35b60003660031901126100d857602060405160148152f35b610226565b60003660031901126100d85760206040517fa5ccb6867d103f21ecf1c41cfc2f9edaeab012c60e542a449046031f4b3422f58152f35b60003660031901126100d85760206040517ff807ff8eec250923b9076d0fbc12c4f8fc15f4a65bc3bb510202d51d46cd1ef68152f35b61020d565b60003660031901126100d85760206040517fa36640f9c3d74ee87c99b3aee39f32849dda077410057abc393a2cb9e13139a78152f35b60003660031901126100d857602060405167016345785d8a00008152f35b60003660031901126100d8576020604051600a8152f35b60003660031901126100d85760206040516202a3008152f35b60003660031901126100d8576020604051620151808152f3fea2646970667358221220e8bfb36d74ac7e22a13516b4023065d84cae13d99fbf0fbe3f782c970252bf2b64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

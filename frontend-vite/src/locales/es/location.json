@@ -1,0 +1,36 @@
+{
+  "adminTitle": "{{base}} — Admin",
+  "description": "Administración de Sucursales (capacidad, mesas, sillas, fotos)",
+  "searchPlaceholder": "Buscar por nombre, dirección o comuna…",
+  "newBranch": "Nueva sucursal",
+  "comingSoon": "Próximamente",
+  "emptyFiltered": "No hay sucursales que coincidan con el filtro.",
+  "errorPrefix": "Error:",
+  "modal": {
+    "close": "Cerrar",
+    "editTitle": "Editar: {{name}}",
+    "capacity": "Capacidad (personas)",
+    "tables": "Mesas",
+    "chairs": "Sillas",
+    "description": "Descripción / Observaciones",
+    "capacityPlaceholder": "e.g. 120",
+    "tablesPlaceholder": "e.g. 35",
+    "chairsPlaceholder": "e.g. 140",
+    "notesPlaceholder": "Notas internas de la sucursal…",
+    "currentPhotos": "Fotos actuales",
+    "noPhotos": "Sin fotos aún.",
+    "uploadPhotos": "Subir nuevas fotos",
+    "selectFiles": "Seleccionar archivos",
+    "filesSelected": "{{count}} archivo(s) seleccionado(s)",
+    "noneSelected": "Ninguno seleccionado",
+    "saving": "Guardando…",
+    "saveChanges": "Guardar cambios"
+  },
+  "card": {
+    "capacityShort": "Capacidad (pers.)",
+    "tables": "Mesas",
+    "chairs": "Sillas",
+    "telPrefix": "Tel:",
+    "edit": "Editar"
+  }
+}

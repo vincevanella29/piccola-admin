@@ -1,0 +1,15 @@
+{
+    "title": "Pannello Azienda - Vanellix Hub",
+    "loading": "Caricamento",
+    "label": "Pannello Azienda",
+    "category": "Azienda",
+    "details": "Dettagli dell'Azienda",
+    "din": "DIN",
+    "physical_address": "Indirizzo Fisico",
+    "country": "Paese",
+    "status": "Stato",
+    "id": "ID",
+    "status_active": "Attivo",
+    "status_inactive": "Inattivo",
+    "description": "Visualizza e gestisci le impostazioni e le risorse della tua azienda"
+}

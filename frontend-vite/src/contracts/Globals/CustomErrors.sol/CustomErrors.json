@@ -1,0 +1,1161 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CustomErrors",
+  "sourceName": "contracts/Globals/CustomErrors.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "AccountAlreadyAssignedGlobalRole",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AccountAlreadyAssignedToCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AccountAlreadyOwnsCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AccountBelongsToCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AccountHasCompanyRole",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AccountHasGlobalRole",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AccountOwnsCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyApplied",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyDelegated",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyInitialized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyMinted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyRegistered",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadySet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyVoted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AtLeastTwoDocumentsRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BeneficiaryCannotBeZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BurnWalletAlreadyConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BurnWalletNotActive",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BurnWalletNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BurnWalletNotFound",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CallerNotDominionOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CallerNotLaunchpadOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CallerNotLockedWallet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CallerNotMultiTokenOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CannotRemoveActiveFeeToken",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CommissionWalletAlreadyConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CommissionWalletNotFound",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyAddressRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyAlreadyActive",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyAlreadyHasAToken",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyCountryRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyDINRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyIdAlreadyAssigned",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyIdMismatch",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyIsActive",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyNameRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyNotActive",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyOwnerCannotHaveOtherRoles",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ConfigurationFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ConsensusNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ConsiglioSaporisAlreadyAssigned",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DAOIsNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DailyLimitReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DaoTransitionAlreadyStarted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DelayNotPassed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DescriptionRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DirectPauseDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DirectUnpauseDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DocumentHashRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DocumentTypeRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DominionAddressMismatch",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DominionNotFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DominionTokenNotFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DominusCannotAssignLevel3",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DominusSaporisAlreadyAssigned",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ExceedsMaxRoleLevel",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ExecutionFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FailedToFetchBalance",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FailedToFetchOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FailedToFetchTotalSupply",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FeePercentageNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FeeTokenNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "GrantRoleDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ImagePathRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ImmediateUnlockMustBeLessThan100",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ImmediateWalletRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientAllowance",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientBalance",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientDocuments",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientMeritTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientPermission",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InterfaceNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAmount",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidBurnVault",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidCallDataLength",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidCompanyId",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidCompanyRoleLevel",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidContractAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidDataType",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidDelegateAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidDuration",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidExecutionFunction",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidFeeToken",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidFunctionSignature",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidGlobalRoleLevel",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidJobOffer",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidLaunchpadOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidParameterType",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidParameters",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidParametersCount",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidPaymentToken",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidPool",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidPoolIndex",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidPoolType",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidPrice",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidProposal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidQuorumPercentage",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidQuorumProposal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidRoleAssignment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidRoleForCompanyAssignment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidRoleForGlobalAssignment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidRoleLevel",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidSwapAmount",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidSwapRouter",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidToken",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTokenAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTokenData",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTokenId",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTotalRewardPercentage",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTransitionPeriod",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidYear",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LaunchpadNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LockDurationMustBeGreaterThanZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LockedWalletRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MintFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MultiTokenAddressMismatch",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NameRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NewMaxTooLow",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoDelegation",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoPendingRequest",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoPendingTransfer",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoValidConfiguration",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoValidPriceFound",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NonConsecutiveYears",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NonceAlreadyUsed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAcceptedContract",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotApprovedDAOContract",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotApprovedRoleContract",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorizedCaller",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorizedCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorizedForCompanyRegistration",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotCompanyMember",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotCompanyOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotCompanySegment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotGovernanceTokenHolder",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotOwnerNorAdmin",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotOwnerNorImplementor",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotOwnerOrAdmin",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotRegisteredCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotYourToken",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OnlyConsiglioOrGlobalAdmin",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OnlyOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OnlyProgressiveVestingSupported",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PendingRequestAlreadyExists",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PercentageMustBeBetween1And100",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PercentageOutOfRange",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PlatformTokenNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PoolNotActive",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PoolsNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PreSaleOverlap",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PresaleAlreadyConducted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PriceTooLow",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ProgressiveYearsMustBeGreaterThanZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ProposalAlreadyExecuted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ProposalBanned",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ProxyCreationFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ProxyInitializationFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "QuorumBelowMinimum",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "QuorumNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ReleaseTimeNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RenounceOwnershipDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RenounceRoleDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RewardsNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleAlreadyExists",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleAssignmentFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleDoesNotExist",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleGrantDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleOutOfCompanyScope",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleOutOfGlobalScope",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleRevokeDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RoleSetupDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RouterAlreadySet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SaleAlreadyStarted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SaleEnded",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SaleNotActive",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SameAdrressError",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SegmentRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "StakeLocked",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SwapFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SymbolRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenAlreadyCreated",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenAlreadyFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenAlreadyInitialized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenCreationFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenLimitReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenNotFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenTimelockNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenTimelockNotReleased",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TooEarlyForDAOTransition",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TooManyCompanyIds",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TooManyParameters",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TooManyVestingSchedules",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TotalFundUsagePercentageExceeds",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TotalFundUsagePercentageExceeds100",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TotalFundUsagePercentageMustEqual100",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TotalFundUsagePercentageNotEqual100",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TotalSupplyMustBeGreaterThanZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TotalVestingPercentageMustEqual100",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferDelayNotPassed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferOwnershipDirectDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferOwnershipDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UnauthorizedCaller",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UnsupportedParameterType",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UpgradeDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UpgradeToAndCallDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UpgradeToDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserBanned",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserBlocked",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserNotAllowedToJoinCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserNotFound",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserNotRegistered",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UtilityTokenNotCreated",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VanellixPresaleRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VanellixUtilityTokenNotFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VestingAlreadyConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VestingNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VestingSchedulePercentagesMustSumTo100",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VestingSchedulePercentagesNotEqual100",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VotingPeriodEnded",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VotingPeriodTooShort",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "WalletAlreadyRegisteredAsBurn",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "WalletAlreadyRegisteredAsCommission",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "WalletAlreadyRegisteredAsCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "WeeklyLimitReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ZeroAddr",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ZeroAddress",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea26469706673582212205262cb1ac0dedaae3600ee62d12e44504b55500ab65cedfc10b76a5f5cda3b0764736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea26469706673582212205262cb1ac0dedaae3600ee62d12e44504b55500ab65cedfc10b76a5f5cda3b0764736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

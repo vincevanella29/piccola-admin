@@ -1,0 +1,13 @@
+{
+  "newsletter_prompt_title": "Quer receber nossas novidades?",
+  "newsletter_prompt_body": "Receba notícias e promoções exclusivas no seu e-mail:",
+  "email_not_found": "E-mail não detectado",
+  "subscribe_and_update": "Inscrever",
+  "newsletter_prompt_reject": "Não, obrigado",
+  "newsletter_subscribed": "Inscrição bem-sucedida!",
+  "subscribing": "Inscrevendo...",
+  "field_required": "O campo {{field}} é obrigatório",
+  "update_failed": "Falha ao atualizar: {{message}}",
+  "email": "E-mail",
+  "newsletter.email_placeholder": "Seu e-mail"
+}

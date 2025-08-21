@@ -1,0 +1,15 @@
+{
+    "title": "Panel de Compañía - Vanellix Hub",
+    "loading": "Cargando",
+    "label": "Panel de Compañía",
+    "category": "Compañía",
+    "details": "Detalles de la Compañía",
+    "din": "DIN",
+    "physical_address": "Dirección Física",
+    "country": "País",
+    "status": "Estado",
+    "id": "ID",
+    "status_active": "Activo",
+    "status_inactive": "Inactivo",
+    "description": "Ver y gestionar la configuración y recursos de tu compañía"
+}

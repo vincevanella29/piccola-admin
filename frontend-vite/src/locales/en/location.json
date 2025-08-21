@@ -1,0 +1,36 @@
+{
+  "adminTitle": "{{base}} — Admin",
+  "description": "Location management (capacity, tables, chairs, photos)",
+  "searchPlaceholder": "Search by name, address or district…",
+  "newBranch": "New location",
+  "comingSoon": "Coming soon",
+  "emptyFiltered": "No locations match the filter.",
+  "errorPrefix": "Error:",
+  "modal": {
+    "close": "Close",
+    "editTitle": "Edit: {{name}}",
+    "capacity": "Capacity (people)",
+    "tables": "Tables",
+    "chairs": "Chairs",
+    "description": "Description / Notes",
+    "capacityPlaceholder": "e.g. 120",
+    "tablesPlaceholder": "e.g. 35",
+    "chairsPlaceholder": "e.g. 140",
+    "notesPlaceholder": "Internal notes for the location…",
+    "currentPhotos": "Current photos",
+    "noPhotos": "No photos yet.",
+    "uploadPhotos": "Upload new photos",
+    "selectFiles": "Select files",
+    "filesSelected": "{{count}} file(s) selected",
+    "noneSelected": "None selected",
+    "saving": "Saving…",
+    "saveChanges": "Save changes"
+  },
+  "card": {
+    "capacityShort": "Capacity (people)",
+    "tables": "Tables",
+    "chairs": "Chairs",
+    "telPrefix": "Tel:",
+    "edit": "Edit"
+  }
+}

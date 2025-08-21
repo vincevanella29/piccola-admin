@@ -1,0 +1,15 @@
+{
+    "title": "Company Panel - Vanellix Hub",
+    "loading": "Loading...",
+    "label": "Company Panel",
+    "category": "Company",
+    "details": "Company Details",
+    "din": "DIN",
+    "physical_address": "Physical Address",
+    "country": "Country",
+    "status": "Status",
+    "id": "ID",
+    "status_active": "Active",
+    "status_inactive": "Inactive",
+    "description": "View and manage your company settings and resources"
+}

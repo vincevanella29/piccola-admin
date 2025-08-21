@@ -1,0 +1,13 @@
+{
+    "staking_not_found": "Programa de staking não encontrado para a empresa {company_id} no ano {year}",
+    "fetching_governance_token_balance": "Errore no recupero do saldo dos tokens de governança: {error}",
+    "fetching_utility_token_balance": "Errore no recupero do saldo dos tokens de utilidade: {error}",
+    "fetching_staking_data": "Errore no recupero dos dados de staking: {error}",
+    "fetching_company_staking_data": "Errore no recupero dos dados de staking da empresa: {error}",
+    "fetching_pool_data": "Errore no recupero dos dados do pool: {error}",
+    "invalid_pool_address": "Endereço do pool inválido para a empresa {company_id}, índice do pool {pool_index}",
+    "fetching_pending_rewards": "Errore no recupero das recompensas pendentes: {error}",
+    "selecting_staking": "Errore na seleção do programa de staking: {error}",
+    "error_boundary": "Errore imprevisto: {error}",
+    "message": "Um erro imprevisto ocorreu."
+}

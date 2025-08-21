@@ -1,0 +1,39 @@
+import requests
+import os
+from dotenv import load_dotenv
+from datetime import datetime
+load_dotenv()
+
+def main():
+    now = datetime.now()
+    periodo_default = now.strftime("%Y%m")
+    periodo = input(f"Periodo a consultar (YYYYMM) [default: {periodo_default}]: ").strip() or periodo_default
+    API_URL = f"https://intranet.piccolaitalia.cl/appfaster.php?key=fd488926917eccac63b5026e8187ab27&cls=externalLucc&cmd=json_data_intranet&periodo={periodo}&data=ingreso_modificadores_sueldo"
+
+    print(f"Consultando API de ingreso modificadores sueldo para periodo {periodo}...")
+    try:
+        resp = requests.get(API_URL, timeout=20)
+        print("Status:", resp.status_code)
+        if resp.status_code == 200:
+            data = resp.json()
+            print(f"Recibidos {len(data)} ingresos de modificadores de sueldo. Actualizando en MongoDB...")
+            import sys
+            sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+            from utils.web3mongo import db
+            col = db['ingreso_modificadores_sueldo_intranet']
+            if data:
+                for item in data:
+                    id_ingreso = item.get("id_ingreso") or item.get("id")
+                    if not id_ingreso:
+                        continue
+                    col.update_one({"id_ingreso": id_ingreso}, {"$set": item}, upsert=True)
+                print(f"Actualizados/insertados {len(data)} ingresos en MongoDB.")
+            else:
+                print("No hay ingresos para guardar.")
+        else:
+            print("Error en request:", resp.status_code)
+    except Exception as e:
+        print("Error en request:", e)
+
+if __name__ == "__main__":
+    main()

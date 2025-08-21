@@ -1,0 +1,137 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-example}
+    ports:
+      - "${MONGO_HOST_PORT:-27018}:27017"  # Host:Container
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"  # Host:Container
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vanellix-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=${BACKEND_PORT:-8081}
+      - SECRET_KEY=${SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
+      - WEB3_PROVIDER_URL=${WEB3_PROVIDER_URL}
+      - WEB3_PROVIDER_URL2=${WEB3_PROVIDER_URL2}
+      - WEB3AUTH_CLIENT_ID=${WEB3AUTH_CLIENT_ID}
+      - WEB3AUTH_CLIENT_SECRET=${WEB3AUTH_CLIENT_SECRET}
+      - PRIVY_JWT_PUBLIC_KEY=${PRIVY_JWT_PUBLIC_KEY}
+      - PRIVY_APP_ID=${PRIVY_APP_ID}
+      - PRIVY_API_SECRET=${PRIVY_API_SECRET}
+      - WEB3STORAGE_TOKEN=${WEB3STORAGE_TOKEN}
+      - PINATA_API_KEY=${PINATA_API_KEY}
+      - PINATA_API_SECRET=${PINATA_API_SECRET}
+      - PINATA_JWT=${PINATA_JWT}
+      - CHAIN_ID=${CHAIN_ID}
+      - ALLOWED_REFERERS=${ALLOWED_REFERERS:-http://localhost:3000,http://localhost:5173}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_QUEUE=${REDIS_QUEUE:-blockchain_events}
+      # Piccola Italia Specific
+      - PRIVATE_KEY_WALLET=${PRIVATE_KEY_WALLET}
+      - TOKEN_CONTRACT_ADDRESS=${TOKEN_CONTRACT_ADDRESS}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ENDPOINT_URL=${R2_ENDPOINT_URL}
+      - R2_CDN_BASE=${R2_CDN_BASE}
+      - COMPANY_ID=${COMPANY_ID}
+      - DRIP_ACCOUNT_ID=${DRIP_ACCOUNT_ID}
+      - DRIP_API_KEY=${DRIP_API_KEY}
+      - DRIP_USER_AGENT=${DRIP_USER_AGENT}
+      - VPN_USER=${VPN_USER}
+      - VPN_PASS=${VPN_PASS}
+      - PICCOLA_API_TOKEN=${PICCOLA_API_TOKEN}
+      - URL_PICCOLA=${URL_PICCOLA}
+      - DMENU5_API_TOKEN=${DMENU5_API_TOKEN}
+      - URL_DMENU5=${URL_DMENU5}
+    ports:
+      - "${BACKEND_HOST_PORT:-8081}:8081"
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - redis
+
+  vanellix-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vanellix-worker
+    command: python utils/event_worker.py
+    working_dir: /backend
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/backend
+      - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
+      - WEB3_PROVIDER_URL=${WEB3_PROVIDER_URL}
+      - WEB3_PROVIDER_URL2=${WEB3_PROVIDER_URL2}
+      - CHAIN_ID=${CHAIN_ID}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_QUEUE=${REDIS_QUEUE:-blockchain_events}
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend-vite
+      dockerfile: Dockerfile
+    container_name: vanellix-frontend
+    environment:
+      - FRONTEND_PORT=80
+      - BACKEND_PORT=${BACKEND_PORT:-8081}
+      - VITE_WEB3AUTH_CLIENT_ID=${VITE_WEB3AUTH_CLIENT_ID}
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_API_URL_DEV=${VITE_API_URL_DEV}
+      - VITE_RPC_URL=${VITE_RPC_URL}
+      - VITE_RPC_URL2=${VITE_RPC_URL2}
+      - VITE_NETWORK=${VITE_NETWORK}
+      - VITE_PRIVY_APP_ID=${VITE_PRIVY_APP_ID}
+      - VITE_BLOCK_EXPLORER=${VITE_BLOCK_EXPLORER}
+      - VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}
+      - VITE_CHAIN_ID=${VITE_CHAIN_ID}
+      - VITE_MODE=${VITE_MODE}
+      - DOMAIN=${DOMAIN}
+      # Piccola Italia Specific
+      - VITE_GOOGLE_MAP_ID=${VITE_GOOGLE_MAP_ID}
+      - VITE_VAPID_KEY=${VITE_VAPID_KEY}
+      - VITE_COMPANY_ID=${VITE_COMPANY_ID}
+      - VITE_DRIP_ACCOUNT_ID=${VITE_DRIP_ACCOUNT_ID}
+      - VITE_DRIP_API_KEY=${VITE_DRIP_API_KEY}
+      - VITE_DRIP_USER_AGENT=${VITE_DRIP_USER_AGENT}
+    ports:
+      - "${FRONTEND_HOST_PORT:-8082}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  redis_data:

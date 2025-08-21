@@ -1,0 +1,151 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "DaoErrors",
+  "sourceName": "contracts/Globals/Dao/DaoErrors.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "AlreadyApplied",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadySet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyVoted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ConsensusNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DAOBannedFromSegment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DailyLimitReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ExecutionFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientPoolBalance",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientUtilityTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidJobOffer",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidProposal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidQuorumPercentage",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoGovernanceTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoMeritTokensForSegment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorizedToPostJobOffers",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotEnoughMeritTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotFastBanner",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotRegisteredDAO",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ProposalAlreadyExecuted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ProposalBanned",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "QuorumBelowMinimum",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "QuorumNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SegmentRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserBanned",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VotingPeriodEnded",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VotingPeriodTooShort",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "WeeklyLimitReached",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220a471f7ed3759882d3794712e8d8f195910eae994fadd168a66a6e3944430608f64736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220a471f7ed3759882d3794712e8d8f195910eae994fadd168a66a6e3944430608f64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

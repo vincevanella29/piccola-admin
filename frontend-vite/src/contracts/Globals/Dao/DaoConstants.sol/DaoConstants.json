@@ -1,0 +1,193 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "DaoConstants",
+  "sourceName": "contracts/Globals/Dao/DaoConstants.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ADD_FAST_BANNER_BY_SEGMENT_SELECTOR",
+      "outputs": [
+        {
+          "internalType": "bytes4",
+          "name": "",
+          "type": "bytes4"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "BRAINSTORM_LIMIT_WEEKLY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "BRAINSTORM_MIN_SUPPORT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DEFAULT_JOB_OFFER_COST",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DEFAULT_PROPOSAL_COST_BRAINSTORM",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DEFAULT_PROPOSAL_COST_CRITICAL",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DEFAULT_SUPPORT_BRAINSTORM_COST",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DEFAULT_VOTE_COST",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MINIMUM_MERIT_TOKENS_LEVEL_1",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MINIMUM_MERIT_TOKENS_LEVEL_3",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MINIMUM_QUORUM_PERCENTAGE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MINIMUM_VOTING_PERIOD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MIN_CONTRIBUTION_TOKENS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PROPOSAL_LIMIT_WEEKLY",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523460195761024b908161001f823930815050f35b600080fdfe6080604052600436101561001257600080fd5b60003560e01c806306edfd4c146101d8578063125c5fcb146101ba5780636db56a68146101a15780636dfa03321461018357806392b13bf214610165578063a1f86a5d146100d7578063afe1759e14610146578063b1bf5fba1461012f578063b3f4a99114610118578063dbdbc248146100fa578063e50c1990146100dc578063e6368d8a146100d7578063f514b2d0146100d25763f8df6673146100b657600080fd5b60003660031901126100cd57602060405160018152f35b600080fd5b6101d8565b6101f7565b60003660031901126100cd5760206040516729a2241af62c00008152f35b60003660031901126100cd576020604051674563918244f400008152f35b60003660031901126100cd57602060405160038152f35b60003660031901126100cd57602060405160328152f35b60003660031901126100cd57602060405168056bc75e2d631000008152f35b60003660031901126100cd57604051630dd3d05d60e31b8152602090f35b60003660031901126100cd576020604051671bc16d674ec800008152f35b60003660031901126100cd57602060405162093a808152f35b60003660031901126100cd576020604051670de0b6b3a76400008152f35b60003660031901126100cd5760206040516802b5e3af16b18800008152f35b60003660031901126100cd576020604051678ac7230489e800008152f3fea264697066735822122087d2ca69e306342a518c76cc6bcd30f7d4c7a5a9607ef644a3a97504da8d919964736f6c634300081c0033",
+  "deployedBytecode": "0x6080604052600436101561001257600080fd5b60003560e01c806306edfd4c146101d8578063125c5fcb146101ba5780636db56a68146101a15780636dfa03321461018357806392b13bf214610165578063a1f86a5d146100d7578063afe1759e14610146578063b1bf5fba1461012f578063b3f4a99114610118578063dbdbc248146100fa578063e50c1990146100dc578063e6368d8a146100d7578063f514b2d0146100d25763f8df6673146100b657600080fd5b60003660031901126100cd57602060405160018152f35b600080fd5b6101d8565b6101f7565b60003660031901126100cd5760206040516729a2241af62c00008152f35b60003660031901126100cd576020604051674563918244f400008152f35b60003660031901126100cd57602060405160038152f35b60003660031901126100cd57602060405160328152f35b60003660031901126100cd57602060405168056bc75e2d631000008152f35b60003660031901126100cd57604051630dd3d05d60e31b8152602090f35b60003660031901126100cd576020604051671bc16d674ec800008152f35b60003660031901126100cd57602060405162093a808152f35b60003660031901126100cd576020604051670de0b6b3a76400008152f35b60003660031901126100cd5760206040516802b5e3af16b18800008152f35b60003660031901126100cd576020604051678ac7230489e800008152f3fea264697066735822122087d2ca69e306342a518c76cc6bcd30f7d4c7a5a9607ef644a3a97504da8d919964736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

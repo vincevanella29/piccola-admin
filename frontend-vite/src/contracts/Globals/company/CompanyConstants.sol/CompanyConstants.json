@@ -1,0 +1,50 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CompanyConstants",
+  "sourceName": "contracts/Globals/company/CompanyConstants.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "DEFAULT_PENALTY_PERCENTAGE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_STAKING_POOLS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "REWARD_PRECISION_FACTOR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523460175760c59081601d823930815050f35b600080fdfe6080806040526004361015601257600080fd5b60003560e01c90816307e7d74214607b5750806310983cfb14605e5763bae3adb714603c57600080fd5b60003660031901126059576020604051670de0b6b3a76400008152f35b600080fd5b6000366003190112605957602060405167016345785d8a00008152f35b600036600319011260595780600a60209252f3fea26469706673582212202d39038689841b3a60197efc7d3fc5924948727c72b24a33ce3f5914e1bab0d264736f6c634300081c0033",
+  "deployedBytecode": "0x6080806040526004361015601257600080fd5b60003560e01c90816307e7d74214607b5750806310983cfb14605e5763bae3adb714603c57600080fd5b60003660031901126059576020604051670de0b6b3a76400008152f35b600080fd5b6000366003190112605957602060405167016345785d8a00008152f35b600036600319011260595780600a60209252f3fea26469706673582212202d39038689841b3a60197efc7d3fc5924948727c72b24a33ce3f5914e1bab0d264736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

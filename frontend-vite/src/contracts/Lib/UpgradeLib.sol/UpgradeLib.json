@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "UpgradeLib",
+  "sourceName": "contracts/Lib/UpgradeLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea264697066735822122025bc8fb2afe9aaccc39f8871f7d250b111082c42c6f69a6a68b78dbbb4fcf9a864736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea264697066735822122025bc8fb2afe9aaccc39f8871f7d250b111082c42c6f69a6a68b78dbbb4fcf9a864736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

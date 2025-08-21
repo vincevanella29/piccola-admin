@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MeritocracyGovernanceConfigLib",
+  "sourceName": "contracts/Lib/Meritocracy/MeritocracyGovernanceConfigLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea26469706673582212209b2b752a61fdea70de467f0069e15d6ddbdf71146b4196d1a5c474832d3603b864736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea26469706673582212209b2b752a61fdea70de467f0069e15d6ddbdf71146b4196d1a5c474832d3603b864736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

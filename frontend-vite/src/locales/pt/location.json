@@ -1,0 +1,36 @@
+{
+  "adminTitle": "{{base}} — Admin",
+  "description": "Location management (capacity, tables, chairs, photos)",
+  "searchPlaceholder": "Buscar por nome, endereço ou distrito…",
+  "newBranch": "Nova filial",
+  "comingSoon": "Em breve",
+  "emptyFiltered": "Nenhuma filial corresponde ao filtro.",
+  "errorPrefix": "Erro:",
+  "modal": {
+    "close": "Fechar",
+    "editTitle": "Editar: {{name}}",
+    "capacity": "Capacidade (pessoas)",
+    "tables": "Mesas",
+    "chairs": "Cadeiras",
+    "description": "Descrição / Observações",
+    "capacityPlaceholder": "ex. 120",
+    "tablesPlaceholder": "ex. 35",
+    "chairsPlaceholder": "ex. 140",
+    "notesPlaceholder": "Notas internas da filial…",
+    "currentPhotos": "Fotos atuais",
+    "noPhotos": "Sem fotos ainda.",
+    "uploadPhotos": "Enviar novas fotos",
+    "selectFiles": "Selecionar arquivos",
+    "filesSelected": "{{count}} arquivo(s) selecionado(s)",
+    "noneSelected": "Nenhum selecionado",
+    "saving": "Salvando…",
+    "saveChanges": "Salvar alterações"
+  },
+  "card": {
+    "capacityShort": "Capacidade (pess.)",
+    "tables": "Mesas",
+    "chairs": "Cadeiras",
+    "telPrefix": "Tel:",
+    "edit": "Editar"
+  }
+}

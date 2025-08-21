@@ -1,0 +1,15 @@
+{
+    "title": "Platform Fee Settings",
+    "fee_token_label": "Fee Token Address",
+    "fee_token_placeholder": "Enter fee token address (e.g., USDC)",
+    "fee_token_tooltip": "The ERC-20 token address to charge platform fees (e.g., USDC or WMATIC).",
+    "set_fee_token": "Set Fee Token",
+    "fee_percentage_label": "Fee Percentage (%)",
+    "fee_percentage_placeholder": "Enter fee percentage (0-100)",
+    "fee_percentage_tooltip": "The percentage fee charged for platform transactions (0-100%).",
+    "set_fee_percentage": "Set Fee Percentage",
+    "success": "Transaction successful: {message}",
+    "gas_estimate": "Estimated gas: {gas}",
+    "error_setting_fee_token": "Error setting fee token: {message}",
+    "error_setting_fee_percentage": "Error setting fee percentage: {message}"
+}

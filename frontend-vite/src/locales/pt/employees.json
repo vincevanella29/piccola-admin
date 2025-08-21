@@ -1,0 +1,170 @@
+{
+  "label": "Funcionários",
+  "description": "Lista de funcionários ativos e filtros",
+  "total": "Total",
+  "employees": "Trabalhadores",
+  "filters": {
+    "search": "Buscar nome",
+    "sucursal": "Filial",
+    "cargo": "Cargo",
+    "all": "Todos",
+    "all_f": "Todas"
+  },
+  "actions": {
+    "refresh": "Atualizar"
+  },
+  "status": {
+    "loading": "Carregando...",
+    "error": "Erro"
+  },
+  "table": {
+    "photo": "Foto",
+    "name": "Nome",
+    "rut": "RUT",
+    "cargo": "Cargo",
+    "sucursal": "Filial",
+    "ingreso": "Data de entrada",
+    "per_page": "Linhas por página",
+    "unknown": "—"
+  },
+  "attendance": {
+    "title": "Presença",
+    "daily_summary": "Presença diária",
+    "days": "dias",
+    "date": "Data",
+    "marks": "Registros",
+    "no_data": "Sem dados para o intervalo selecionado.",
+    "comparison": "Comparação",
+    "current": "Atual",
+    "previous": "Anterior",
+    "worked_ratio": "Trabalhados {{worked}} de {{total}} dias",
+    "merit_hint": "O mérito é estimado a partir da percentagem de presença e dias trabalhados",
+    "presente": "Presente",
+    "libre": "Livre/Trabalhado",
+    "vacaciones": "Férias",
+    "licencia": "Licença médica",
+    "ausencia": "Ausência",
+    "no_show": "Não compareceu",
+    "permiso_sin_goce": "Licença sem vencimento",
+    "permiso_con_goce": "Licença remunerada",
+    "huelga": "Greve",
+    "other": "Outro",
+    "absences": "Ausências",
+    "breakdown": "Detalhe",
+    "by_type": "Por tipo",
+    "achievements": "Conquistas",
+    "streak_current": "Sequência atual",
+    "streak_best": "Melhor sequência",
+    "achievement": {
+      "no_absences": "Sem ausências",
+      "perfect_week": "Semana perfeita",
+      "on_fire": "Em boa fase",
+      "vacation_taken": "Férias no período",
+      "comeback": "Recuperação"
+    }
+  },
+  "report": {
+    "attendance_rate": "Taxa de presença",
+    "days_worked": "Dias trabalhados",
+    "days_off": "Dias livres",
+    "last_payroll": "Último período salário líquido",
+    "breakdown": "Detalhe por movimento",
+    "heatmap": "Mapa de presença"
+  },
+  "payroll": {
+    "summary": "Folha de pagamento por período",
+    "records": "registros",
+    "period": "Período (YYYYMM)",
+    "count": "Quantidade",
+    "no_data": "Sem dados de salários para o intervalo selecionado.",
+    "period_current": "Período atual",
+    "period_previous": "Período anterior",
+    "period_anteprevious": "Período antepassado",
+    "kpi": {
+      "net": "Salário líquido",
+      "total": "Salário total",
+      "imponible": "Tributável",
+      "no_imponible": "Não tributável"
+    },
+    "columns": {
+      "period": "Período (YYYYMM)",
+      "net_current": "Líquido (atual)",
+      "net_previous": "Líquido (anterior)",
+      "net_anteprevious": "Líquido (antepassado)",
+      "total_current": "Total (atual)",
+      "total_previous": "Total (anterior)",
+      "total_paid": "Salário total"
+    }
+  },
+
+  "tabs": {
+    "profile": "Perfil",
+    "payroll": "Folha",
+    "attendance": "Presença"
+  },
+
+  "profile": {
+    "title": "Perfil",
+    "email": "Email",
+    "cost_center_prefix": "CC",
+    "active": "Ativo",
+    "inactive": "Inativo",
+    "blacklisted": "Não grato",
+    "rut_blocked": "RUT bloqueado",
+    "private_file": "Ficha privada",
+    "section": {
+      "personal": "Pessoal",
+      "contact": "Contato",
+      "employment": "Trabalho",
+      "status": "Status",
+      "measurements": "Medidas"
+    },
+    "gender": "Gênero",
+    "gender.female": "Feminino",
+    "gender.male": "Masculino",
+    "gender.other": "Outro",
+    "nationality": "Nacionalidade",
+    "birthdate": "Nascimento",
+    "civil_status": "Estado civil",
+    "phone1": "Telefone 1",
+    "phone2": "Telefone 2",
+    "address": "Endereço",
+    "district": "Distrito",
+    "city": "Cidade",
+    "exit": "Saída",
+    "salary": "Salário",
+    "afp": "AFP",
+    "isapre": "Isapre",
+    "with_contract": "Com contrato",
+    "with_payroll": "Com holerite",
+    "created_at": "Criado em",
+    "company_id": "ID da empresa",
+    "internal_id": "ID interno",
+    "height": "Altura",
+    "weight": "Peso",
+    "size": "Tamanho",
+    "shoe": "Número do calçado"
+  },
+
+  "merit": {
+    "title": "Mérito de presença",
+    "worked_of_total": "Trabalhados {{worked}} de {{total}} dias",
+    "labels": {
+      "excellent": "Excelente",
+      "very_good": "Muito bom",
+      "good": "Bom",
+      "acceptable": "Aceitável",
+      "low": "Baixo"
+    }
+  },
+  "kpi": {
+    "avg_employees_per_branch": "Média de funcionários/filial",
+    "avg_salary_per_branch": "Média de salário/filial"
+  },
+  "common": {
+    "current": "Atual",
+    "previous": "Anterior",
+    "change_pct": "% variação",
+    "no": "Não"
+  }
+}

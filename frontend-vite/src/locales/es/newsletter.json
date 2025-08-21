@@ -1,0 +1,13 @@
+{
+  "newsletter_prompt_title": "¿Quieres suscribirte a nuestras novedades?",
+  "newsletter_prompt_body": "Recibe noticias y promociones exclusivas en tu correo:",
+  "email_not_found": "No se detectó email",
+  "subscribe_and_update": "Suscribirme",
+  "newsletter_prompt_reject": "No, gracias",
+  "newsletter_subscribed": "¡Suscripción exitosa!",
+  "subscribing": "Suscribiendo...",
+  "field_required": "El campo {{field}} es obligatorio",
+  "update_failed": "Error al actualizar: {{message}}",
+  "email": "Correo electrónico",
+  "newsletter.email_placeholder": "Tu email"
+}

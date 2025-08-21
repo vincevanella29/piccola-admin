@@ -1,0 +1,13 @@
+{
+    "staking_not_found": "No se encontró el programa de fidelización para la empresa {company_id} en el año {year}",
+    "fetching_governance_token_balance": "Error al obtener el saldo de tokens de gobernanza: {error}",
+    "fetching_utility_token_balance": "Error al obtener el saldo de tokens de utilidad: {error}",
+    "fetching_staking_data": "Error al obtener datos de staking: {error}",
+    "fetching_company_staking_data": "Error al obtener datos de staking de la empresa: {error}",
+    "fetching_pool_data": "Error al obtener datos del pool: {error}",
+    "invalid_pool_address": "Dirección de pool inválida para la empresa {company_id}, índice de pool {pool_index}",
+    "fetching_pending_rewards": "Error al obtener las recompensas pendientes: {error}",
+    "selecting_staking": "Error al seleccionar el programa de staking: {error}",
+    "error_boundary": "Error imprevisto: {error}",
+    "message": "Ha ocurrido un error inesperado."
+}

@@ -1,0 +1,15 @@
+{
+    "title": "Configuración de Comisiones de la Plataforma",
+    "fee_token_label": "Dirección del Token de Comisión",
+    "fee_token_placeholder": "Ingresa la dirección del token (ej: USDC)",
+    "fee_token_tooltip": "La dirección del token ERC-20 para cobrar las comisiones de la plataforma (ej: USDC o WMATIC).",
+    "set_fee_token": "Setear Token de Comisión",
+    "fee_percentage_label": "Porcentaje de Comisión (%)",
+    "fee_percentage_placeholder": "Ingresa el porcentaje de comisión (0-100)",
+    "fee_percentage_tooltip": "El porcentaje de comisión cobrado por las transacciones de la plataforma (0-100%).",
+    "set_fee_percentage": "Setear Porcentaje de Comisión",
+    "success": "Transacción exitosa: {message}",
+    "gas_estimate": "Gas estimado: {gas}",
+    "error_setting_fee_token": "Error al setear el token de comisión: {message}",
+    "error_setting_fee_percentage": "Error al setear el porcentaje de comisión: {message}"
+}

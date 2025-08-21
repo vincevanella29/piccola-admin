@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "UQ112x112",
+  "sourceName": "contracts/uniswap/UQ112x112.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220c09372913271099213eba3ae7c3241d6b60db95fd32f0bd3c0e76421ac304ecd64736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220c09372913271099213eba3ae7c3241d6b60db95fd32f0bd3c0e76421ac304ecd64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

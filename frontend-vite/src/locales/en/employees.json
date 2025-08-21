@@ -1,0 +1,172 @@
+{
+  "label": "Employees",
+  "description": "Active employees list and filters",
+  "total": "Total",
+  "employees": "Employees",
+  "filters": {
+    "search": "Search name",
+    "sucursal": "Branch",
+    "cargo": "Role",
+    "all": "All",
+    "all_f": "All"
+  },
+  "actions": {
+    "refresh": "Refresh"
+  },
+  "status": {
+    "loading": "Loading...",
+    "error": "Error"
+  },
+  "table": {
+    "photo": "Photo",
+    "name": "Name",
+    "rut": "RUT",
+    "cargo": "Role",
+    "sucursal": "Branch",
+    "ingreso": "Start date",
+    "per_page": "Rows per page",
+    "unknown": "—"
+  },
+  "attendance": {
+    "title": "Attendance",
+    "daily_summary": "Daily attendance",
+    "days": "days",
+    "date": "Date",
+    "marks": "Marks",
+    "no_data": "No data for the selected range.",
+    "comparison": "Comparison",
+    "current": "Current",
+    "previous": "Previous",
+    "worked_ratio": "Worked {{worked}} of {{total}} days",
+    "merit_hint": "Merit is estimated from attendance percentage and days worked",
+    "presente": "Present",
+    "libre": "Off/Worked",
+    "vacaciones": "Vacation",
+    "licencia": "Sick leave",
+    "ausencia": "Absence",
+    "no_show": "No show",
+    "permiso_sin_goce": "Unpaid leave",
+    "permiso_con_goce": "Paid leave",
+    "huelga": "Strike",
+    "other": "Other",
+    "absences": "Absences",
+    "breakdown": "Breakdown",
+    "by_type": "By type",
+    "achievements": "Achievements",
+    "streak_current": "Current streak",
+    "streak_best": "Best streak",
+    "achievement": {
+      "no_absences": "No absences",
+      "perfect_week": "Perfect week",
+      "on_fire": "On fire",
+      "vacation_taken": "Vacation in period",
+      "comeback": "Comeback"
+    }
+  },
+  "report": {
+    "attendance_rate": "Attendance rate",
+    "days_worked": "Days worked",
+    "days_off": "Days off",
+    "last_payroll": "Last period net payroll",
+    "breakdown": "Movement breakdown",
+    "heatmap": "Attendance map"
+  },
+  "payroll": {
+    "summary": "Payroll by period",
+    "records": "records",
+    "period": "Period (YYYYMM)",
+    "count": "Count",
+    "no_data": "No payroll data for the selected range.",
+    "period_current": "Current period",
+    "period_previous": "Previous period",
+    "period_anteprevious": "Anteprevious period",
+    "kpi": {
+      "net": "Net payroll",
+      "total": "Total payroll",
+      "imponible": "Taxable",
+      "no_imponible": "Non-taxable"
+    },
+    "columns": {
+      "period": "Period (YYYYMM)",
+      "net_current": "Net (current)",
+      "net_previous": "Net (previous)",
+      "net_anteprevious": "Net (anteprevious)",
+      "total_current": "Total (current)",
+      "total_previous": "Total (previous)",
+      "total_paid": "Total salary"
+    }
+  },
+
+  "tabs": {
+    "profile": "Profile",
+    "payroll": "Payroll",
+    "attendance": "Attendance"
+  },
+
+  "profile": {
+    "title": "Profile",
+    "email": "Email",
+    "cost_center_prefix": "CC",
+    "active": "Active",
+    "inactive": "Inactive",
+    "blacklisted": "Blacklisted",
+    "rut_blocked": "RUT blocked",
+    "private_file": "Private file",
+    "section": {
+      "personal": "Personal",
+      "contact": "Contact",
+      "employment": "Employment",
+      "status": "Status",
+      "measurements": "Measurements"
+    },
+    "gender": "Gender",
+    "gender.female": "Female",
+    "gender.male": "Male",
+    "gender.other": "Other",
+    "nationality": "Nationality",
+    "birthdate": "Birthdate",
+    "civil_status": "Civil status",
+    "phone1": "Phone 1",
+    "phone2": "Phone 2",
+    "address": "Address",
+    "district": "District",
+    "city": "City",
+    "exit": "Exit date",
+    "salary": "Salary",
+    "afp": "AFP",
+    "isapre": "Isapre",
+    "with_contract": "With contract",
+    "with_payroll": "With payslip",
+    "created_at": "Created at",
+    "company_id": "Company ID",
+    "internal_id": "Internal ID",
+    "height": "Height",
+    "weight": "Weight",
+    "size": "Size",
+    "shoe": "Shoe size"
+  },
+
+  "merit": {
+    "title": "Attendance merit",
+    "worked_of_total": "Worked {{worked}} of {{total}} days",
+    "labels": {
+      "excellent": "Excellent",
+      "very_good": "Very good",
+      "good": "Good",
+      "acceptable": "Acceptable",
+      "low": "Low"
+    }
+  },
+
+  "kpi": {
+    "avg_employees_per_branch": "Avg employees/branch",
+    "avg_salary_per_branch": "Avg salary/branch"
+  },
+
+  "common": {
+    "no": "No",
+    "current": "Current",
+    "previous": "Previous",
+    "change_pct": "Change %"
+  }
+}

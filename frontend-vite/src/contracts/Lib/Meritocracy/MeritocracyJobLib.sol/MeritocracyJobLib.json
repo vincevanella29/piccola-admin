@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MeritocracyJobLib",
+  "sourceName": "contracts/Lib/Meritocracy/MeritocracyJobLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220a99166511e998f77495815b246c69e9aa931d339cb054a4295d35010f87bd79164736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220a99166511e998f77495815b246c69e9aa931d339cb054a4295d35010f87bd79164736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

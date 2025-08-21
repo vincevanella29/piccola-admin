@@ -1,0 +1,3 @@
+# Ignore all Firebase admin credentials and other secrets in this folder
+!*.json
+!*.pem

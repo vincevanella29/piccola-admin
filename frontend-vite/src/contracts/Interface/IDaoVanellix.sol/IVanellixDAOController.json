@@ -1,0 +1,34 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IVanellixDAOController",
+  "sourceName": "contracts/Interface/IDaoVanellix.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_launchpad",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_companyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_governanceTokenProxy",
+          "type": "address"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
