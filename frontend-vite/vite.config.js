@@ -137,7 +137,6 @@ export default defineConfig({
             react: ['react', 'react-dom'],
             mui: ['@mui/material', '@mui/icons-material', '@mui/lab', '@mui/x-date-pickers'],
             ethers: ['ethers'],
-            walletconnect: ['@walletconnect/utils'],
             chartjs: ['chart.js', 'react-chartjs-2'],
             privy: ['@privy-io/react-auth', '@privy-io/wagmi'],
           },
