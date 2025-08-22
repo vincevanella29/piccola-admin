@@ -1,0 +1,50 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "StakingConstants",
+  "sourceName": "contracts/Globals/staking/StakingConstants.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "DEFAULT_PENALTY_PERCENTAGE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_STAKING_POOLS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "REWARD_PRECISION_FACTOR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523460175760c59081601d823930815050f35b600080fdfe6080806040526004361015601257600080fd5b60003560e01c90816307e7d74214607b5750806310983cfb14605e5763bae3adb714603c57600080fd5b60003660031901126059576020604051670de0b6b3a76400008152f35b600080fd5b6000366003190112605957602060405167016345785d8a00008152f35b600036600319011260595780600a60209252f3fea2646970667358221220cf71d22b73337541dcb002ec95239cd2f8c74caafaadd3d3cce6163595474aeb64736f6c634300081c0033",
+  "deployedBytecode": "0x6080806040526004361015601257600080fd5b60003560e01c90816307e7d74214607b5750806310983cfb14605e5763bae3adb714603c57600080fd5b60003660031901126059576020604051670de0b6b3a76400008152f35b600080fd5b6000366003190112605957602060405167016345785d8a00008152f35b600036600319011260595780600a60209252f3fea2646970667358221220cf71d22b73337541dcb002ec95239cd2f8c74caafaadd3d3cce6163595474aeb64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

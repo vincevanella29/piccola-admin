@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "StakingGettersLib",
+  "sourceName": "contracts/modules/Lib/staking/StakingGettersLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220630c6e6a836f1d36526d6ca089c3b21f896b77319b7d76526f5f823659824eea64736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220630c6e6a836f1d36526d6ca089c3b21f896b77319b7d76526f5f823659824eea64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

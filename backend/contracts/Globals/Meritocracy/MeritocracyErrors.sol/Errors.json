@@ -1,0 +1,271 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "Errors",
+  "sourceName": "contracts/Globals/Meritocracy/MeritocracyErrors.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "AlreadyApplied",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyInitialized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadySupported",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AlreadyVoted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AmountExceedsMaxMint",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "BatchTooLarge",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ConsensusNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DAOBannedGlobally",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DAOBannedInSegment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DailyAdditionLimitReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DailyVetoLimitReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "DescriptionRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ExecutionFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientPoolBalance",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InsufficientUtilityTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidBatch",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidBrainstorm",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidBurnToken",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidDAOAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidJobOffer",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidLaunchpadAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidMultiTokenAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidProposal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTargetWallet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTokenAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidUserAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MaximumHoldersReachedEpic",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MinimumVotersNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MintFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MustBeCalledByProposal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoGeneralTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoTokensInSegment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotEnoughMeritTokens",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OnlyByProposalBrainstormOrJob",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OnlyByProposalOrBrainstorm",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OnlyRegisteredDAOs",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PageSizeMustBeGreaterThanZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PercentageOutOfRange",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ProposalNotExecuted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "QuorumNotReached",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "SegmentPaused",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TargetNotGlobalUser",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenDoesNotExist",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TooManyVotesInBlock",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserBannedGlobally",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserBannedInSegment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UserHasActiveSkillProposal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VotingPeriodEnded",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VotingPeriodTooShort",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220d6b9b339d114f0b472bd676feca64e90e6cd79ac9083c52c92a3bba3cf7a53bb64736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220d6b9b339d114f0b472bd676feca64e90e6cd79ac9083c52c92a3bba3cf7a53bb64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

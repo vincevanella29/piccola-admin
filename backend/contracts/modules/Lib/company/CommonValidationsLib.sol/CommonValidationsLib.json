@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CommonValidationsLib",
+  "sourceName": "contracts/modules/Lib/company/CommonValidationsLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea264697066735822122003cbf4cf8049d70272e78959db82c6a40e9d9349bb6b7aecd095e795f04c619064736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea264697066735822122003cbf4cf8049d70272e78959db82c6a40e9d9349bb6b7aecd095e795f04c619064736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

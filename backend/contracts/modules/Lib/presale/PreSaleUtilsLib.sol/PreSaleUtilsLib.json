@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "PreSaleUtilsLib",
+  "sourceName": "contracts/modules/Lib/presale/PreSaleUtilsLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220e5086d4ef00c80f03590954a8a4b8958da445cdc0cca4b9e781b5a6bd1a2efa064736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220e5086d4ef00c80f03590954a8a4b8958da445cdc0cca4b9e781b5a6bd1a2efa064736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

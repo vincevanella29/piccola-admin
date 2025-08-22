@@ -1,0 +1,310 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "GlobalMeritocracyConstants",
+  "sourceName": "contracts/Globals/Meritocracy/GlobalMeritocracyConstants.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "BRAINSTORM_COST",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "BRAINSTORM_MERIT_REWARD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DEFAULT_BURN_AMOUNT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DEFAULT_SKILL_VALIDATION_PERCENTAGE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "GENERAL_TOKEN_ID",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "INITIAL_MERIT_AMOUNT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "JACKPOT_REWARD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MATIC_TOKEN",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_HOLDERS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_MINTS_PER_BATCH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_MINTS_PER_BLOCK",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_MINT_QUEUE_SIZE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_MINT_REQUESTS_PER_ADDRESS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_VOTES_PER_BATCH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_VOTES_PER_BLOCK",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MERIT_REWARD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MINIMUM_QUORUM_PERCENTAGE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MINIMUM_VOTING_PERIOD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "POL_TOKEN",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PROPOSAL_MERIT_REWARD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SUPPORT_BRAINSTORM_COST",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "USDC_TOKEN",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "WETH_TOKEN",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080806040523460195761038c908161001f823930815050f35b600080fdfe608080604052600436101561001357600080fd5b60003560e01c908162f2ed94146102d45750806322e12720146102bb57806328057bfb1461018357806337d277d4146102915780633912bc70146101ff5780634d16309b14610279578063569a040d1461025a5780635760bf041461023c5780636db56a6814610223578063873c4bb7146102045780639fc7fd0f1461017e578063a956cefc146101ff578063b1bf5fba146101e8578063bb25c3b7146101be578063d0f140761461019f578063d1209a5014610188578063d473baf514610183578063d71905be1461017e578063e2a08bf91461014a578063e2da2b4f14610167578063e57992971461014f578063f309e7491461014a5763fa5692741461011b57600080fd5b6000366003190112610145576020604051733c499c542cef5e3811e1192ce70d8cc03d5c33598152f35b600080fd5b610337565b60003660031901126101455760206040516110108152f35b600036600319011261014557602060405160fa8152f35b61031f565b6102e9565b600036600319011261014557602060405160008152f35b6000366003190112610145576020604051681b1ae4d6e2ef5000008152f35b600036600319011261014557602060405173455e53cbb86018ac2b8092fdcd39d8444affc3f68152f35b600036600319011261014557602060405160328152f35b610301565b600036600319011261014557602060405168056bc75e2d631000008152f35b600036600319011261014557602060405162093a808152f35b6000366003190112610145576020604051670de0b6b3a76400008152f35b6000366003190112610145576020604051680410d586a20a4c00008152f35b60003660031901126101455760206040516101f48152f35b6000366003190112610145576020604051737ceb23fd6bc0add59e62ac25578270cff1b9f6198152f35b6000366003190112610145576020604051629896808152f35b60003660031901126101455780600a60209252f35b60003660031901126101455760206040516161a88152f35b6000366003190112610145576020604051674563918244f400008152f35b60003660031901126101455760206040516127108152f35b60003660031901126101455760206040516802b5e3af16b18800008152f3fea26469706673582212206017e3960356f7b116e2eeed46b7c1f09ac860c4dc6f53f0c724e2df005aeb2a64736f6c634300081c0033",
+  "deployedBytecode": "0x608080604052600436101561001357600080fd5b60003560e01c908162f2ed94146102d45750806322e12720146102bb57806328057bfb1461018357806337d277d4146102915780633912bc70146101ff5780634d16309b14610279578063569a040d1461025a5780635760bf041461023c5780636db56a6814610223578063873c4bb7146102045780639fc7fd0f1461017e578063a956cefc146101ff578063b1bf5fba146101e8578063bb25c3b7146101be578063d0f140761461019f578063d1209a5014610188578063d473baf514610183578063d71905be1461017e578063e2a08bf91461014a578063e2da2b4f14610167578063e57992971461014f578063f309e7491461014a5763fa5692741461011b57600080fd5b6000366003190112610145576020604051733c499c542cef5e3811e1192ce70d8cc03d5c33598152f35b600080fd5b610337565b60003660031901126101455760206040516110108152f35b600036600319011261014557602060405160fa8152f35b61031f565b6102e9565b600036600319011261014557602060405160008152f35b6000366003190112610145576020604051681b1ae4d6e2ef5000008152f35b600036600319011261014557602060405173455e53cbb86018ac2b8092fdcd39d8444affc3f68152f35b600036600319011261014557602060405160328152f35b610301565b600036600319011261014557602060405168056bc75e2d631000008152f35b600036600319011261014557602060405162093a808152f35b6000366003190112610145576020604051670de0b6b3a76400008152f35b6000366003190112610145576020604051680410d586a20a4c00008152f35b60003660031901126101455760206040516101f48152f35b6000366003190112610145576020604051737ceb23fd6bc0add59e62ac25578270cff1b9f6198152f35b6000366003190112610145576020604051629896808152f35b60003660031901126101455780600a60209252f35b60003660031901126101455760206040516161a88152f35b6000366003190112610145576020604051674563918244f400008152f35b60003660031901126101455760206040516127108152f35b60003660031901126101455760206040516802b5e3af16b18800008152f3fea26469706673582212206017e3960356f7b116e2eeed46b7c1f09ac860c4dc6f53f0c724e2df005aeb2a64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

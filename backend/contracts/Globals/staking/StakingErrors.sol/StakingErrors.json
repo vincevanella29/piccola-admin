@@ -1,0 +1,191 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "StakingErrors",
+  "sourceName": "contracts/Globals/staking/StakingErrors.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "AlreadyConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "AuthorizedWalletNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CompanyNotActive",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ConfigurationFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ContractNoCode",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ImagePathRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAuthorizedWallet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidDataType",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidPool",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidPoolType",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidRewardAmount",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidTotalRewardPercentage",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "LaunchpadNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MintAmountZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MintFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MintToZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoRewardsConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NonConsecutiveYears",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorizedCompany",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotInitialized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotOwnerNorAdmin",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RewardAmountZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RewardForPastYear",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RewardYearTooLow",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RewardsTokenNotSet",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "StakeLocked",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenAlreadyFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TokenNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TotalSupplyMustBeGreaterThanZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UnauthorizedCaller",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UtilityTokenNotCreated",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "VanellixUtilityTokenNotFinalized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "YearInPast",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ZeroAddress",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220b88f50cd6824ef509881ad62a3b5b2258f4e25b4c36c347ee7ec7e8ce107e56564736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220b88f50cd6824ef509881ad62a3b5b2258f4e25b4c36c347ee7ec7e8ce107e56564736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

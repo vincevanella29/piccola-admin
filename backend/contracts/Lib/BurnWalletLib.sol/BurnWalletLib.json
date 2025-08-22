@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "BurnWalletLib",
+  "sourceName": "contracts/Lib/BurnWalletLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220bf0c4d5504dcca0114b5a8e1767bcee8f0999c303e4165ee0737d9a70097763564736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220bf0c4d5504dcca0114b5a8e1767bcee8f0999c303e4165ee0737d9a70097763564736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

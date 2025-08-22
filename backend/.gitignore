@@ -63,5 +63,9 @@ docs/_build/
 !.env.example
 !Dockerfile
 !contracts/
+!contracts/**/
+!contracts/**/*.json
+!contracts/**/*.dbg.json
+!contracts/**/*.sol
 
 # ¡Nunca borres este .gitignore! Protege tu código y credenciales.

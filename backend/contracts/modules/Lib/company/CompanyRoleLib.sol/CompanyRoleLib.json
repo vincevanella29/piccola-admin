@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CompanyRoleLib",
+  "sourceName": "contracts/modules/Lib/company/CompanyRoleLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220deefc210c8ab6e31cfd40db95ac5f0915f77e4ee5ff3bf856a928b67cc84322764736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220deefc210c8ab6e31cfd40db95ac5f0915f77e4ee5ff3bf856a928b67cc84322764736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

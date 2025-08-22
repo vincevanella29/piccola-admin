@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "DaoProposalLib",
+  "sourceName": "contracts/Lib/Dao/DaoProposalLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220600ff8397139d99cbd0b9034e202c6c633fcba2d608c07c720b02bb4dd39d3da64736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220600ff8397139d99cbd0b9034e202c6c633fcba2d608c07c720b02bb4dd39d3da64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

@@ -1,0 +1,1065 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IVanellixCompanyMultiToken",
+  "sourceName": "contracts/Interface/IVanellixCompanyMultiToken.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalSupply",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "imagePath",
+          "type": "string"
+        }
+      ],
+      "name": "configureCompanyToken",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "immediateWallet",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "lockedWallet",
+          "type": "address"
+        },
+        {
+          "internalType": "uint8",
+          "name": "vestingType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bool",
+          "name": "autoMode",
+          "type": "bool"
+        },
+        {
+          "internalType": "uint8",
+          "name": "immediateUnlockPercentage",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint8",
+          "name": "progressiveYears",
+          "type": "uint8"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "releaseBlock",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "percentage",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.VestingSchedule[]",
+          "name": "vestingSchedule",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "configureVesting",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "finalizeCompanyToken",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getCompanyAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getCompanyDao",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getCompanyDaoTransitionTimestamp",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getCompanyData",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "din",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "companyAddress",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "country",
+              "type": "string"
+            },
+            {
+              "internalType": "bool",
+              "name": "isActive",
+              "type": "bool"
+            },
+            {
+              "internalType": "address",
+              "name": "daoAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "companyDaoTransitionTimestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "governanceTokenProxy",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "utilityTokenProxy",
+              "type": "address"
+            }
+          ],
+          "internalType": "struct CompanyStruct.CompanyData",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getCompanyFullData",
+      "outputs": [
+        {
+          "components": [
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "id",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "address",
+                  "name": "owner",
+                  "type": "address"
+                },
+                {
+                  "internalType": "string",
+                  "name": "name",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "din",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "companyAddress",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "country",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isActive",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "address",
+                  "name": "daoAddress",
+                  "type": "address"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "companyDaoTransitionTimestamp",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "address",
+                  "name": "governanceTokenProxy",
+                  "type": "address"
+                },
+                {
+                  "internalType": "address",
+                  "name": "utilityTokenProxy",
+                  "type": "address"
+                }
+              ],
+              "internalType": "struct CompanyStruct.CompanyData",
+              "name": "companyData",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "tokenId",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "companyId",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "string",
+                  "name": "name",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "symbol",
+                  "type": "string"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "totalSupply",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "string",
+                  "name": "description",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "imagePath",
+                  "type": "string"
+                },
+                {
+                  "internalType": "address",
+                  "name": "proxy",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isCreated",
+                  "type": "bool"
+                }
+              ],
+              "internalType": "struct CompanyTokenStructs.MultiPlatformTokenData",
+              "name": "platformData",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "immediateWallet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "address",
+                  "name": "lockedWallet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "enum CompanyTokenStructs.VestingType",
+                  "name": "vestingType",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "startBlock",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "startTimestamp",
+                  "type": "uint256"
+                },
+                {
+                  "components": [
+                    {
+                      "internalType": "uint256",
+                      "name": "releaseBlock",
+                      "type": "uint256"
+                    },
+                    {
+                      "internalType": "uint256",
+                      "name": "percentage",
+                      "type": "uint256"
+                    }
+                  ],
+                  "internalType": "struct CompanyTokenStructs.VestingSchedule[]",
+                  "name": "vestingSchedule",
+                  "type": "tuple[]"
+                },
+                {
+                  "internalType": "uint8",
+                  "name": "vestingScheduleCount",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "autoMode",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "uint8",
+                  "name": "immediateUnlockPercentage",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "uint8",
+                  "name": "progressiveYears",
+                  "type": "uint8"
+                }
+              ],
+              "internalType": "struct CompanyTokenStructs.MultiVestingConfig",
+              "name": "vestingConfig",
+              "type": "tuple"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.CompanyFinalTokenData",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getCompanyLiquidity",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "company",
+          "type": "address"
+        }
+      ],
+      "name": "getCompanyTokenId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getDominionAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getFullTokenData",
+      "outputs": [
+        {
+          "components": [
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "id",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "address",
+                  "name": "owner",
+                  "type": "address"
+                },
+                {
+                  "internalType": "string",
+                  "name": "name",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "din",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "companyAddress",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "country",
+                  "type": "string"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isActive",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "address",
+                  "name": "daoAddress",
+                  "type": "address"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "companyDaoTransitionTimestamp",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "address",
+                  "name": "governanceTokenProxy",
+                  "type": "address"
+                },
+                {
+                  "internalType": "address",
+                  "name": "utilityTokenProxy",
+                  "type": "address"
+                }
+              ],
+              "internalType": "struct CompanyStruct.CompanyData",
+              "name": "companyData",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "tokenId",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "companyId",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "string",
+                  "name": "name",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "symbol",
+                  "type": "string"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "totalSupply",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "string",
+                  "name": "description",
+                  "type": "string"
+                },
+                {
+                  "internalType": "string",
+                  "name": "imagePath",
+                  "type": "string"
+                },
+                {
+                  "internalType": "address",
+                  "name": "proxy",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isCreated",
+                  "type": "bool"
+                }
+              ],
+              "internalType": "struct CompanyTokenStructs.MultiPlatformTokenData",
+              "name": "platformData",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "immediateWallet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "address",
+                  "name": "lockedWallet",
+                  "type": "address"
+                },
+                {
+                  "internalType": "enum CompanyTokenStructs.VestingType",
+                  "name": "vestingType",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "startBlock",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "startTimestamp",
+                  "type": "uint256"
+                },
+                {
+                  "components": [
+                    {
+                      "internalType": "uint256",
+                      "name": "releaseBlock",
+                      "type": "uint256"
+                    },
+                    {
+                      "internalType": "uint256",
+                      "name": "percentage",
+                      "type": "uint256"
+                    }
+                  ],
+                  "internalType": "struct CompanyTokenStructs.VestingSchedule[]",
+                  "name": "vestingSchedule",
+                  "type": "tuple[]"
+                },
+                {
+                  "internalType": "uint8",
+                  "name": "vestingScheduleCount",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "autoMode",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "uint8",
+                  "name": "immediateUnlockPercentage",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "uint8",
+                  "name": "progressiveYears",
+                  "type": "uint8"
+                }
+              ],
+              "internalType": "struct CompanyTokenStructs.MultiVestingConfig",
+              "name": "vestingConfig",
+              "type": "tuple"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.CompanyFinalTokenData",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getLaunchpadDomAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getMyAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getNextCompanyId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getOwner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTokenBasicData",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "tokenId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "companyId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "symbol",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalSupply",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "description",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "imagePath",
+              "type": "string"
+            },
+            {
+              "internalType": "address",
+              "name": "proxy",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "isCreated",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.MultiPlatformTokenData",
+          "name": "platformData",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "immediateWallet",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "lockedWallet",
+              "type": "address"
+            },
+            {
+              "internalType": "enum CompanyTokenStructs.VestingType",
+              "name": "vestingType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "startBlock",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "startTimestamp",
+              "type": "uint256"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "releaseBlock",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "percentage",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct CompanyTokenStructs.VestingSchedule[]",
+              "name": "vestingSchedule",
+              "type": "tuple[]"
+            },
+            {
+              "internalType": "uint8",
+              "name": "vestingScheduleCount",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bool",
+              "name": "autoMode",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint8",
+              "name": "immediateUnlockPercentage",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "progressiveYears",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct CompanyTokenStructs.MultiVestingConfig",
+          "name": "vestingConfig",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getWrappedTokenImplementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getWrappedTokenProxy",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        }
+      ],
+      "name": "isCompanyActive",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "caller",
+          "type": "address"
+        }
+      ],
+      "name": "isCompanyAuthorized",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "isTokenFinalized",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "daoAddress",
+          "type": "address"
+        }
+      ],
+      "name": "setDaoAddress",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "utilityTokenProxy",
+          "type": "address"
+        }
+      ],
+      "name": "setUtilityTokenProxy",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "proxy",
+          "type": "address"
+        }
+      ],
+      "name": "setWrappedToken",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

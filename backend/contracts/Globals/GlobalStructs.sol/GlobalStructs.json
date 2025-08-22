@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "GlobalStructs",
+  "sourceName": "contracts/Globals/GlobalStructs.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea264697066735822122032389df8e670041f193d2dd673d499f693903ddad00ee3b7bfe47703bd85d89d64736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea264697066735822122032389df8e670041f193d2dd673d499f693903ddad00ee3b7bfe47703bd85d89d64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
