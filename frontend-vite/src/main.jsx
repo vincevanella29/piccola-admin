@@ -22,7 +22,7 @@ import useConversionTracker from './hooks/useConversionTracker.jsx'; // Importam
 // Configuración global 
 const rpcUrl = window.env?.VITE_RPC_URL || import.meta.env.VITE_RPC_URL;
 const blockExplorer = window.env?.VITE_BLOCK_EXPLORER || import.meta.env.VITE_BLOCK_EXPLORER;
-const privyAppId = window.env?.VITE_PRIVY_APP_ID || import.meta.env.VITE_PRIVY_APP_ID;
+// Note: privyAppId is now resolved inside Main() so window.env is guaranteed to be loaded.
 const appMode = window.env?.VITE_MODE || import.meta.env.MODE;
 const chainId = Number(window.env?.VITE_CHAIN_ID || import.meta.env.VITE_CHAIN_ID);
 const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
@@ -306,6 +306,10 @@ const router = createBrowserRouter([
 
 const Main = ({ locale, theme, firebase }) => {
   console.log(locale);
+  const privyAppId = (window.env?.VITE_PRIVY_APP_ID || import.meta.env.VITE_PRIVY_APP_ID);
+  if (!privyAppId || typeof privyAppId !== 'string' || privyAppId.trim() === '') {
+    console.error('[Privy] Missing or invalid VITE_PRIVY_APP_ID', { privyAppId, env: window.env });
+  }
   const privyConfigWithTheme = {
     ...privyConfig(chainId, rpcUrl, privyAppId),
     appearance: { ...privyConfig.appearance, theme },
@@ -314,6 +318,14 @@ const Main = ({ locale, theme, firebase }) => {
     },
   };
   console.log(privyConfigWithTheme);
+
+  if (!privyAppId) {
+    return (
+      <div className="p-4 text-dark-error dark:text-light-error bg-red-dark/50">
+        Configuration error: missing Privy App ID.
+      </div>
+    );
+  }
 
   return (
     <PrivyProvider appId={privyConfigWithTheme.appId} config={privyConfigWithTheme}>

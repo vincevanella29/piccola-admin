@@ -4,8 +4,6 @@ import { useBalance } from 'wagmi';
 import { fetchPlatformTokensFromApi } from './useCompanyTokenData';
 
 const dripAccountId = import.meta.env.VITE_DRIP_ACCOUNT_ID;
-const dripApiKey = import.meta.env.VITE_DRIP_API_KEY;
-const dripUserAgent = import.meta.env.VITE_DRIP_USER_AGENT;
 
 const useConversionTracker = ({ profile, accessToken, account, isAuthenticated, provider, companyId }) => {
   const [dripEnabled, setDripEnabled] = useState(false);
