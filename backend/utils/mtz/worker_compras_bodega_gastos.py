@@ -227,8 +227,8 @@ def to_gasto_doc(periodo: str, fecha: datetime, suc: dict, local_code: str, mont
 
 def main():
     OVPN_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "mtz.ovpn"))
-    VPN_USER = os.environ.get("VPN_USER") or "lucciano"
-    VPN_PASS = os.environ.get("VPN_PASS") or "Vanellix24"
+    VPN_USER = os.environ.get("VPN_USER")
+    VPN_PASS = os.environ.get("VPN_PASS")
 
     periodos = get_periodos_from_input()
 

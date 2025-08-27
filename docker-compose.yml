@@ -100,10 +100,18 @@ services:
       - REDIS_PORT=6379
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_QUEUE=${REDIS_QUEUE:-blockchain_events}
+      # VPN credentials for MTZ workers
+      - VPN_USER=${VPN_USER}
+      - VPN_PASS=${VPN_PASS}
     restart: unless-stopped
     depends_on:
       - mongo
       - redis
+    # Allow OpenVPN to create TUN interface
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
 
   frontend:
     build:

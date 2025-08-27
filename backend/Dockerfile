@@ -10,8 +10,11 @@ WORKDIR /backend
 # Copia solo los archivos necesarios primero para aprovechar el cache de Docker
 COPY requirements.txt ./
 
-# Instala las dependencias
-RUN pip install --no-cache-dir -r requirements.txt
+# Instala OpenVPN (para workers MTZ) y dependencias de Python
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openvpn \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Copia el resto del código fuente del backend
 COPY . .

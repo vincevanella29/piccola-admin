@@ -32,8 +32,8 @@ def wait_for_vpn(proc, timeout=30):
 
 def main():
     OVPN_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "mtz.ovpn"))
-    VPN_USER = os.environ.get("VPN_USER") or "lucciano"
-    VPN_PASS = os.environ.get("VPN_PASS") or "Vanellix24"
+    VPN_USER = os.environ.get("VPN_USER")
+    VPN_PASS = os.environ.get("VPN_PASS")
     mesano = input("MesAño (YYYYMM): ").strip()
 
     auth_path = create_auth_file(VPN_USER, VPN_PASS)
