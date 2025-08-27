@@ -18,6 +18,7 @@ import getWagmiConfig from './wagmiConfig.js';
 import useNotifications from './hooks/useNotifications.jsx';
 import { Helmet } from 'react-helmet-async';
 import useConversionTracker from './hooks/useConversionTracker.jsx'; // Importamos el nuevo hook
+import useTelegramLinkAuth from './hooks/useTelegramLinkAuth.jsx';
 
 // Configuración global 
 const rpcUrl = window.env?.VITE_RPC_URL || import.meta.env.VITE_RPC_URL;
@@ -229,6 +230,16 @@ const MainContent = () => {
   };
 
 
+
+  // Telegram link auth: procesa tg_id/state desde URL cuando la wallet está lista
+  const telegramAuthStatus = useTelegramLinkAuth({
+    isWalletDataReady,
+    account,
+    accessToken,
+    roleLevel,
+    setSuccess: globalStatus.setSuccess,
+    setError: globalStatus.setError,
+  });
 
   const handleLogout = async () => {
     await disconnectWallet();

@@ -67,6 +67,11 @@ services:
       - URL_PICCOLA=${URL_PICCOLA}
       - DMENU5_API_TOKEN=${DMENU5_API_TOKEN}
       - URL_DMENU5=${URL_DMENU5}
+      # Telegram Bot / xAI (Grok)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - XAI_API_URL=${XAI_API_URL}
+      - XAI_MODEL=${XAI_MODEL}
     ports:
       - "${BACKEND_HOST_PORT:-8081}:8081"
     restart: unless-stopped
@@ -86,6 +91,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/backend
+      - RUN_GROUPS_ON_START=1
       - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
       - WEB3_PROVIDER_URL=${WEB3_PROVIDER_URL}
       - WEB3_PROVIDER_URL2=${WEB3_PROVIDER_URL2}

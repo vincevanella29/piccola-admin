@@ -25,6 +25,9 @@ REDIS_DB = int(os.getenv("REDIS_DB", 0))
 REDIS_QUEUE = os.getenv("REDIS_QUEUE", "blockchain_events")
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 
+# Ejecutar grupos 4AM en el arranque del contenedor si está activado
+RUN_GROUPS_ON_START = os.getenv("RUN_GROUPS_ON_START", "0") == "1"
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -142,6 +145,7 @@ async def periodic_intranet_group_worker():
         'utils.intranet.archivos.worker_gastos_intranet',
     ]
 
+    started_once = False
     while True:
         try:
             # Hora de Chile
@@ -151,6 +155,34 @@ async def periodic_intranet_group_worker():
                 import pytz
                 chile_tz = pytz.timezone('America/Santiago')
             now_chile = datetime.now(tz=chile_tz)
+
+            # Ejecutar una vez al inicio si así se configuró
+            if RUN_GROUPS_ON_START and not started_once:
+                logger.info('[INTRANET GROUP] Ejecutando en arranque (RUN_GROUPS_ON_START=1)')
+                mesano = now_chile.strftime('%Y%m')
+                for mod_path in intranet_worker_modules:
+                    try:
+                        logger.info(f"[INTRANET GROUP] Ejecutando {mod_path}.main() ...")
+                        mod = importlib.import_module(mod_path)
+                        if hasattr(mod, 'process_period'):
+                            mod.process_period(mesano)
+                            logger.info(f"[INTRANET GROUP] Finalizado OK (process_period): {mod_path}")
+                        elif hasattr(mod, 'main'):
+                            import builtins as _builtins
+                            _orig_input = _builtins.input
+                            try:
+                                _builtins.input = lambda prompt='': mesano
+                                mod.main()
+                                logger.info(f"[INTRANET GROUP] Finalizado OK (main con input mesano): {mod_path}")
+                            finally:
+                                _builtins.input = _orig_input
+                        else:
+                            logger.warning(f"[INTRANET GROUP] Saltado (sin main ni process_period): {mod_path}")
+                    except Exception as e:
+                        logger.error(f"[INTRANET GROUP] Error en {mod_path}: {e}\n{traceback.format_exc()}")
+                started_once = True
+                await asyncio.sleep(61)
+                continue
 
             if now_chile.hour == 4 and now_chile.minute == 0:
                 logger.info('[INTRANET GROUP] Ejecutando workers de intranet (4:00 AM Chile)')
@@ -199,6 +231,23 @@ async def periodic_tiempo_group_worker():
                 chile_tz = pytz.timezone('America/Santiago')
             now_chile = datetime.now(tz=chile_tz)
 
+            # Ejecutar una vez al inicio si así se configuró
+            if RUN_GROUPS_ON_START and not started_once:
+                mesano = now_chile.strftime('%Y%m')
+                try:
+                    logger.info('[TIEMPO GROUP] Ejecutando en arranque (RUN_GROUPS_ON_START=1)')
+                    clima = importlib.import_module('utils.tiempo.worker_clima')
+                    if hasattr(clima, 'run_worker'):
+                        clima.run_worker(mesano)
+                        logger.info('[TIEMPO GROUP] Finalizado OK: worker_clima')
+                    else:
+                        logger.warning('[TIEMPO GROUP] Saltado (sin run_worker): utils.tiempo.worker_clima')
+                except Exception as e:
+                    logger.error(f"[TIEMPO GROUP] Error en worker_clima: {e}\n{traceback.format_exc()}")
+                started_once = True
+                await asyncio.sleep(61)
+                continue
+
             if now_chile.hour == 4 and now_chile.minute == 0:
                 mesano = now_chile.strftime('%Y%m')
                 try:
@@ -237,6 +286,7 @@ async def periodic_mtz_group_worker():
         'utils.mtz.worker_cargos',
     ]
 
+    started_once = False
     while True:
         try:
             try:
@@ -245,6 +295,37 @@ async def periodic_mtz_group_worker():
                 import pytz
                 chile_tz = pytz.timezone('America/Santiago')
             now_chile = datetime.now(tz=chile_tz)
+
+            # Ejecutar una vez al inicio si así se configuró
+            if RUN_GROUPS_ON_START and not started_once:
+                mesano = now_chile.strftime('%Y%m')
+                logger.info('[MTZ GROUP] Ejecutando en arranque (RUN_GROUPS_ON_START=1)')
+                for mod_path in mtz_worker_modules:
+                    try:
+                        logger.info(f"[MTZ GROUP] Ejecutando {mod_path} ...")
+                        mod = importlib.import_module(mod_path)
+                        if hasattr(mod, 'process_period'):
+                            mod.process_period(mesano)
+                            logger.info(f"[MTZ GROUP] OK (process_period): {mod_path}")
+                        elif hasattr(mod, 'run_worker'):
+                            mod.run_worker(mesano)
+                            logger.info(f"[MTZ GROUP] OK (run_worker): {mod_path}")
+                        elif hasattr(mod, 'main'):
+                            import builtins as _builtins
+                            _orig_input = _builtins.input
+                            try:
+                                _builtins.input = lambda prompt='': mesano
+                                mod.main()
+                                logger.info(f"[MTZ GROUP] OK (main con input mesano): {mod_path}")
+                            finally:
+                                _builtins.input = _orig_input
+                        else:
+                            logger.warning(f"[MTZ GROUP] Saltado (sin main/process_period/run_worker): {mod_path}")
+                    except Exception as e:
+                        logger.error(f"[MTZ GROUP] Error en {mod_path}: {e}\n{traceback.format_exc()}")
+                started_once = True
+                await asyncio.sleep(61)
+                continue
 
             if now_chile.hour == 4 and now_chile.minute == 0:
                 mesano = now_chile.strftime('%Y%m')
@@ -297,6 +378,7 @@ if __name__ == "__main__":
             t.join()
 
     worker_map = {
+        'event_listener': event_listener_worker,
         'sync_companies': periodic_sync_companies,
         'update_pair_reserves': periodic_update_pair_reserves,
         'sync_payment_tokens': periodic_sync_payment_tokens,

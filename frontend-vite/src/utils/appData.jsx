@@ -238,6 +238,29 @@ const appData = {
       throw new Error(err.message || 'Error fetching users with tokens');
     }
   },
+
+  // Confirm Telegram link with Privy session
+  telegramLinkConfirm: async ({ accessToken, wallet, tg_id, state }) => {
+    try {
+      return await api({
+        method: 'post',
+        endpoint: '/telegram/link/confirm',
+        data: {
+          token: accessToken,
+          wallet,
+          tg_id,
+          state,
+        },
+        headers: {
+          'X-Wallet-Address': wallet,
+        },
+        withCredentials: true,
+      });
+    } catch (err) {
+      console.error('appData.jsx - Error confirming Telegram link:', err);
+      throw new Error(err.message || 'Error confirming Telegram link');
+    }
+  }
 };
 
 export default appData;

@@ -92,3 +92,4 @@ websockets==15.0.1
 yarl==1.20.1
 python-multipart==0.0.20
 deepdiff>=6,<7
+python-telegram-bot==21.10
