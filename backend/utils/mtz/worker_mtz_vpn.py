@@ -1,6 +1,7 @@
 import subprocess
 import tempfile
 import os
+import shutil
 import requests
 import time
 
@@ -11,9 +12,8 @@ def create_auth_file(username, password):
     return tf.name
 
 def connect_vpn(ovpn_path, auth_path):
-    cmd = [
-        "sudo", "openvpn", "--config", ovpn_path, "--auth-user-pass", auth_path
-    ]
+    base_cmd = ["openvpn", "--config", ovpn_path, "--auth-user-pass", auth_path]
+    cmd = (["sudo"] + base_cmd) if shutil.which("sudo") else base_cmd
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     return proc
 

@@ -8,6 +8,7 @@ import tempfile
 import logging
 import requests
 import subprocess
+import shutil
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from dotenv import load_dotenv
@@ -26,9 +27,8 @@ def create_auth_file(username: str, password: str) -> str:
 
 
 def connect_vpn(ovpn_path: str, auth_path: str):
-    cmd = [
-        "sudo", "openvpn", "--config", ovpn_path, "--auth-user-pass", auth_path
-    ]
+    base_cmd = ["openvpn", "--config", ovpn_path, "--auth-user-pass", auth_path]
+    cmd = (["sudo"] + base_cmd) if shutil.which("sudo") else base_cmd
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     return proc
 
