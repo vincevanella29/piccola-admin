@@ -160,6 +160,8 @@ async def periodic_intranet_group_worker():
             if RUN_GROUPS_ON_START and not started_once:
                 logger.info('[INTRANET GROUP] Ejecutando en arranque (RUN_GROUPS_ON_START=1)')
                 mesano = now_chile.strftime('%Y%m')
+                ok_modules = []
+                err_modules = []
                 for mod_path in intranet_worker_modules:
                     try:
                         logger.info(f"[INTRANET GROUP] Ejecutando {mod_path}.main() ...")
@@ -167,6 +169,7 @@ async def periodic_intranet_group_worker():
                         if hasattr(mod, 'process_period'):
                             mod.process_period(mesano)
                             logger.info(f"[INTRANET GROUP] Finalizado OK (process_period): {mod_path}")
+                            ok_modules.append(mod_path)
                         elif hasattr(mod, 'main'):
                             import builtins as _builtins
                             _orig_input = _builtins.input
@@ -176,10 +179,13 @@ async def periodic_intranet_group_worker():
                                 logger.info(f"[INTRANET GROUP] Finalizado OK (main con input mesano): {mod_path}")
                             finally:
                                 _builtins.input = _orig_input
+                            ok_modules.append(mod_path)
                         else:
                             logger.warning(f"[INTRANET GROUP] Saltado (sin main ni process_period): {mod_path}")
                     except Exception as e:
                         logger.error(f"[INTRANET GROUP] Error en {mod_path}: {e}\n{traceback.format_exc()}")
+                        err_modules.append(mod_path)
+                logger.info(f"[INTRANET GROUP] Resumen arranque: OK={len(ok_modules)} ERR={len(err_modules)} | OK: {ok_modules} | ERR: {err_modules}")
                 started_once = True
                 await asyncio.sleep(61)
                 continue
@@ -187,6 +193,8 @@ async def periodic_intranet_group_worker():
             if now_chile.hour == 4 and now_chile.minute == 0:
                 logger.info('[INTRANET GROUP] Ejecutando workers de intranet (4:00 AM Chile)')
                 mesano = now_chile.strftime('%Y%m')
+                ok_modules = []
+                err_modules = []
                 for mod_path in intranet_worker_modules:
                     try:
                         logger.info(f"[INTRANET GROUP] Ejecutando {mod_path}.main() ...")
@@ -195,6 +203,7 @@ async def periodic_intranet_group_worker():
                         if hasattr(mod, 'process_period'):
                             mod.process_period(mesano)
                             logger.info(f"[INTRANET GROUP] Finalizado OK (process_period): {mod_path}")
+                            ok_modules.append(mod_path)
                         elif hasattr(mod, 'main'):
                             # Monkeypatch input() para entregar mesano cuando el worker lo pida
                             import builtins as _builtins
@@ -205,12 +214,15 @@ async def periodic_intranet_group_worker():
                                 logger.info(f"[INTRANET GROUP] Finalizado OK (main con input mesano): {mod_path}")
                             finally:
                                 _builtins.input = _orig_input
+                            ok_modules.append(mod_path)
                         else:
                             logger.warning(f"[INTRANET GROUP] Saltado (sin main ni process_period): {mod_path}")
                     except Exception as e:
                         logger.error(f"[INTRANET GROUP] Error en {mod_path}: {e}\n{traceback.format_exc()}")
+                        err_modules.append(mod_path)
 
                 logger.info('[INTRANET GROUP] Todos los workers de intranet ejecutados.')
+                logger.info(f"[INTRANET GROUP] Resumen 4AM: OK={len(ok_modules)} ERR={len(err_modules)} | OK: {ok_modules} | ERR: {err_modules}")
                 # Evitar doble ejecución en el mismo minuto
                 await asyncio.sleep(61)
             else:
@@ -222,6 +234,7 @@ async def periodic_intranet_group_worker():
 
 async def periodic_tiempo_group_worker():
     """Run weather worker at 4:00 AM Chile passing current mesano (YYYYMM)."""
+    started_once = False
     while True:
         try:
             try:
@@ -244,6 +257,7 @@ async def periodic_tiempo_group_worker():
                         logger.warning('[TIEMPO GROUP] Saltado (sin run_worker): utils.tiempo.worker_clima')
                 except Exception as e:
                     logger.error(f"[TIEMPO GROUP] Error en worker_clima: {e}\n{traceback.format_exc()}")
+                logger.info('[TIEMPO GROUP] Resumen arranque: intentado=1 (verificar logs OK/ERR arriba)')
                 started_once = True
                 await asyncio.sleep(61)
                 continue
@@ -260,6 +274,7 @@ async def periodic_tiempo_group_worker():
                         logger.warning('[TIEMPO GROUP] Saltado (sin run_worker): utils.tiempo.worker_clima')
                 except Exception as e:
                     logger.error(f"[TIEMPO GROUP] Error en worker_clima: {e}\n{traceback.format_exc()}")
+                logger.info('[TIEMPO GROUP] Resumen 4AM: intentado=1 (verificar logs OK/ERR arriba)')
                 await asyncio.sleep(61)
             else:
                 await asyncio.sleep(30)
@@ -300,6 +315,8 @@ async def periodic_mtz_group_worker():
             if RUN_GROUPS_ON_START and not started_once:
                 mesano = now_chile.strftime('%Y%m')
                 logger.info('[MTZ GROUP] Ejecutando en arranque (RUN_GROUPS_ON_START=1)')
+                ok_modules = []
+                err_modules = []
                 for mod_path in mtz_worker_modules:
                     try:
                         logger.info(f"[MTZ GROUP] Ejecutando {mod_path} ...")
@@ -307,9 +324,11 @@ async def periodic_mtz_group_worker():
                         if hasattr(mod, 'process_period'):
                             mod.process_period(mesano)
                             logger.info(f"[MTZ GROUP] OK (process_period): {mod_path}")
+                            ok_modules.append(mod_path)
                         elif hasattr(mod, 'run_worker'):
                             mod.run_worker(mesano)
                             logger.info(f"[MTZ GROUP] OK (run_worker): {mod_path}")
+                            ok_modules.append(mod_path)
                         elif hasattr(mod, 'main'):
                             import builtins as _builtins
                             _orig_input = _builtins.input
@@ -319,10 +338,13 @@ async def periodic_mtz_group_worker():
                                 logger.info(f"[MTZ GROUP] OK (main con input mesano): {mod_path}")
                             finally:
                                 _builtins.input = _orig_input
+                            ok_modules.append(mod_path)
                         else:
                             logger.warning(f"[MTZ GROUP] Saltado (sin main/process_period/run_worker): {mod_path}")
                     except Exception as e:
                         logger.error(f"[MTZ GROUP] Error en {mod_path}: {e}\n{traceback.format_exc()}")
+                        err_modules.append(mod_path)
+                logger.info(f"[MTZ GROUP] Resumen arranque: OK={len(ok_modules)} ERR={len(err_modules)} | OK: {ok_modules} | ERR: {err_modules}")
                 started_once = True
                 await asyncio.sleep(61)
                 continue
@@ -330,6 +352,8 @@ async def periodic_mtz_group_worker():
             if now_chile.hour == 4 and now_chile.minute == 0:
                 mesano = now_chile.strftime('%Y%m')
                 logger.info('[MTZ GROUP] Ejecutando workers de MTZ (4:00 AM Chile)')
+                ok_modules = []
+                err_modules = []
                 for mod_path in mtz_worker_modules:
                     try:
                         logger.info(f"[MTZ GROUP] Ejecutando {mod_path} ...")
@@ -337,9 +361,11 @@ async def periodic_mtz_group_worker():
                         if hasattr(mod, 'process_period'):
                             mod.process_period(mesano)
                             logger.info(f"[MTZ GROUP] OK (process_period): {mod_path}")
+                            ok_modules.append(mod_path)
                         elif hasattr(mod, 'run_worker'):
                             mod.run_worker(mesano)
                             logger.info(f"[MTZ GROUP] OK (run_worker): {mod_path}")
+                            ok_modules.append(mod_path)
                         elif hasattr(mod, 'main'):
                             import builtins as _builtins
                             _orig_input = _builtins.input
@@ -349,10 +375,13 @@ async def periodic_mtz_group_worker():
                                 logger.info(f"[MTZ GROUP] OK (main con input mesano): {mod_path}")
                             finally:
                                 _builtins.input = _orig_input
+                            ok_modules.append(mod_path)
                         else:
                             logger.warning(f"[MTZ GROUP] Saltado (sin main/process_period/run_worker): {mod_path}")
                     except Exception as e:
                         logger.error(f"[MTZ GROUP] Error en {mod_path}: {e}\n{traceback.format_exc()}")
+                        err_modules.append(mod_path)
+                logger.info(f"[MTZ GROUP] Resumen 4AM: OK={len(ok_modules)} ERR={len(err_modules)} | OK: {ok_modules} | ERR: {err_modules}")
                 await asyncio.sleep(61)
             else:
                 await asyncio.sleep(30)
@@ -378,14 +407,14 @@ if __name__ == "__main__":
             t.join()
 
     worker_map = {
+        'intranet_group_4am': periodic_intranet_group_worker,
+        'mtz_group_4am': periodic_mtz_group_worker,
+        'tiempo_group_4am': periodic_tiempo_group_worker,
         'event_listener': event_listener_worker,
         'sync_companies': periodic_sync_companies,
         'update_pair_reserves': periodic_update_pair_reserves,
         'sync_payment_tokens': periodic_sync_payment_tokens,
         'menu_data_worker': periodic_menu_data_worker,
-        'intranet_group_4am': periodic_intranet_group_worker,
-        'mtz_group_4am': periodic_mtz_group_worker,
-        'tiempo_group_4am': periodic_tiempo_group_worker,
     }
 
     if args.list:
