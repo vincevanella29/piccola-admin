@@ -54,5 +54,7 @@
     "saving": "Guardando...",
     "per_page": "Por pág.",
     "configure": "Configurar",
-    "save_changes": "Guardar cambios"
+    "refresh": "Actualizar",
+    "save_changes": "Guardar cambios",
+    "copy": "Copiar"
   }

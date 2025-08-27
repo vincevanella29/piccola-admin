@@ -54,5 +54,7 @@
     "saving": "Saving...",
     "per_page": "Per page",
     "configure": "Configure",
-    "save_changes": "Save changes"
+    "refresh": "Refresh",
+    "save_changes": "Save changes",
+    "copy": "Copy"
 }
