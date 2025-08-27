@@ -410,11 +410,6 @@ if __name__ == "__main__":
         'intranet_group_4am': periodic_intranet_group_worker,
         'mtz_group_4am': periodic_mtz_group_worker,
         'tiempo_group_4am': periodic_tiempo_group_worker,
-        'event_listener': event_listener_worker,
-        'sync_companies': periodic_sync_companies,
-        'update_pair_reserves': periodic_update_pair_reserves,
-        'sync_payment_tokens': periodic_sync_payment_tokens,
-        'menu_data_worker': periodic_menu_data_worker,
     }
 
     if args.list:
