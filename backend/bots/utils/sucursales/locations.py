@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from utils.web3mongo import db
-from .common import grok_route_intent
+from ..common.common import grok_route_intent
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ async def handle_locations(update, context):
         matched = rows
         # If still empty, report no data
         if not matched:
-            await update.message.reply_text("No encontré locales con ese filtro.")
-            return
+            # Return early with a simple line response
+            return update, ["No encontré locales con ese filtro."]
 
     MAX_ITEMS = 30
     lines = []
@@ -72,4 +72,5 @@ async def handle_locations(update, context):
     if len(matched) > MAX_ITEMS:
         lines.append(f"… y {len(matched) - MAX_ITEMS} más")
 
-    await update.message.reply_text("\n".join(lines))
+    # Return the prepared lines to be sent/logged by telegram_bot
+    return update, lines

@@ -1,10 +1,8 @@
 import io
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 from utils.web3mongo import db
-from telegram import InputFile
 
 try:
     import matplotlib
@@ -27,13 +25,6 @@ AMOUNT_FIELDS = [
     "total", "monto_total", "remuneracion_total",
 ]
 RUT_FIELDS_PAY = ["rut", "rut_del_trabajador", "rut_trabajador"]
-
-
-def yyyymm_last_month(now: Optional[datetime] = None) -> str:
-    now = now or datetime.now()
-    first = now.replace(day=1)
-    last_month = first - timedelta(days=1)
-    return last_month.strftime("%Y%m")
 
 
 def match_period_any(periodo: str) -> Dict:
@@ -472,63 +463,3 @@ def make_detail_text(detail: Dict) -> str:
             cc = it.get("centro_costo") or "(sin centro)"
             lines.append(f"  • {full or '(sin nombre)'} — {cc}: ${float(it.get('amount',0)):,.0f}")
     return "\n".join(lines)
-
-
-
-async def handle_sueldos(update, context):
-    """Simple handler: devuelve resumen del mes pasado y gráfico de donut.
-
-    Se puede extender luego para parsear rangos y mantener estado de conversación.
-    """
-    try:
-        text = (update.message.text or "").lower()
-        # Preferir periodo/mode decidido por Grok y pasado por telegram_bot via context.user_data
-        mode = (context.user_data.pop("sueldos_mode", "") or "").lower()
-        p = (context.user_data.pop("sueldos_period", "") or "").strip()
-        if not p:
-            p = yyyymm_last_month()
-
-        # Debug explícito por modo o texto
-        if mode == "debug" or "debug" in text:
-            # Sample a few docs and log computed amount + key fields
-            sample_pipe = [
-                {"$match": match_period_any(p)},
-                {"$project": {
-                    "_id": 0,
-                    "periodo": 1,
-                    "centro_costo": 1,
-                    "rut": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]},
-                    "liq": {"$ifNull": ["$sueldo_liquido_a_pago", None]},
-                    "liq_ant": {"$ifNull": ["$sueldo_liquido_mas_anticipo", None]},
-                    "rem_total": {"$ifNull": ["$remuneracion_total", None]},
-                    "amount": amount_expr(),
-                }},
-                {"$limit": 5},
-            ]
-            docs = list(db.pago_sueldos_intranet.aggregate(sample_pipe))
-            for d in docs:
-                log.info(f"[sueldos.debug] p={d.get('periodo')} cc={d.get('centro_costo')} rut={d.get('rut')} liq={d.get('liq')} liq_ant={d.get('liq_ant')} rem_total={d.get('rem_total')} amount={d.get('amount')}")
-            await update.message.reply_text(f"Debug enviado a logs. Muestras: {len(docs)} de {p}.")
-            return
-
-        # Summary vs detail controlled by Grok mode; keep text trigger as fallback.
-        if mode == "resumen" or "resumen" in text:
-            count, total = fetch_sueldos_period(p)
-            gender = fetch_gender_counts(p)
-            reply = make_reply_text(p, count, total, gender)
-            await update.message.reply_text(reply)
-            buf = render_summary_chart(p, count, total, gender)
-            if buf is not None:
-                try:
-                    await update.message.reply_photo(photo=InputFile(buf, filename="sueldos_resumen.png"), caption="Resumen de sueldos y género")
-                except Exception as ex:
-                    log.warning(f"[handle_sueldos] Failed to send chart: {ex}")
-            return
-
-        # Detailed as default (mode "detalle" or unspecified)
-        detail = fetch_sueldos_detail(p)
-        await update.message.reply_text(make_detail_text(detail))
-        return
-    except Exception as e:
-        log.warning(f"[handle_sueldos] Error: {e}")
-        await update.message.reply_text("No pude obtener el resumen de sueldos ahora. Intenta de nuevo más tarde.")

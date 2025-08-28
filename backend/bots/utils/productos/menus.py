@@ -9,7 +9,7 @@ from PIL import Image
 import requests
 
 from utils.web3mongo import db
-from .filters import grok_filters
+from ..common.filters import grok_filters
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +41,6 @@ def _index_by_id(rows: List[dict]) -> Dict[str, dict]:
         if _id:
             out[_id] = r
     return out
-
-def _fetch_and_convert_to_jpeg(url: str) -> BytesIO:
-    """Download image at url and convert to high-quality JPEG in-memory.
-    Returns a BytesIO ready to send to Telegram, or raises on failure."""
-    resp = requests.get(url, timeout=15)
-    resp.raise_for_status()
-    img = Image.open(BytesIO(resp.content)).convert("RGB")
-    bio = BytesIO()
-    img.save(bio, format="JPEG", quality=90)
-    bio.seek(0)
-    return bio
 
 
 def _wants_detail_menus(text: str) -> bool:
@@ -212,45 +201,16 @@ async def handle_menus(update, context):
         return names
 
     if not matched:
-        await update.message.reply_text("No encontré productos que coincidan con tu búsqueda.")
-        return
+        return update, ["No encontré productos que coincidan con tu búsqueda."]
 
     # Si hay 1 solo resultado o piden detalle -> tarjeta con foto/descr.
     if len(matched) == 1 or detail or _wants_detail_menus(text):
         m = matched[0]
         img = _resolve_menu_image_url(m)
         if img:
-            # Send real image nicely
             caption = _menu_detail_caption(m, cat_by_id)
-            ext = _img_ext(img)
-            if ext in {"jpg", "jpeg", "png"}:
-                try:
-                    logger.info(f"[handle_menus] Sending photo for menu '{_norm_str(m.get('nombre'))}' -> {img}")
-                    await update.message.reply_photo(photo=img, caption=caption, parse_mode=ParseMode.MARKDOWN)
-                except Exception as e1:
-                    logger.exception(f"[handle_menus] reply_photo failed with Markdown for url={img}: {e1}")
-                    try:
-                        await update.message.reply_photo(photo=img, caption=caption)
-                    except Exception as e2:
-                        logger.exception(f"[handle_menus] reply_photo failed without parse_mode for url={img}: {e2}")
-                        await update.message.reply_text(_menu_detail_block(m, cat_by_id))
-            else:
-                # Likely webp or other; convert to JPEG and send as real photo
-                try:
-                    logger.info(f"[handle_menus] Converting to JPEG for menu '{_norm_str(m.get('nombre'))}' from {img}")
-                    jpeg_bytes = _fetch_and_convert_to_jpeg(img)
-                    await update.message.reply_photo(photo=jpeg_bytes, caption=caption, parse_mode=ParseMode.MARKDOWN)
-                except Exception as e1:
-                    logger.exception(f"[handle_menus] JPEG conversion or send failed for url={img}: {e1}")
-                    try:
-                        # As last resort, send original as document so user gets the image anyway
-                        await update.message.reply_document(document=img, caption=caption)
-                    except Exception as e2:
-                        logger.exception(f"[handle_menus] reply_document fallback failed for url={img}: {e2}")
-                        await update.message.reply_text(_menu_detail_block(m, cat_by_id))
-        else:
-            await update.message.reply_text(_menu_detail_block(m, cat_by_id))
-        return
+            return update, [{"type": "photo", "url": img, "caption": caption}]
+        return update, [_menu_detail_block(m, cat_by_id)]
 
     # Listado corto (máx 20)
     MAX_ITEMS = 20
@@ -281,4 +241,4 @@ async def handle_menus(update, context):
     if len(matched) > MAX_ITEMS:
         lines.append(f"… y {len(matched) - MAX_ITEMS} más")
 
-    await update.message.reply_text("\n".join(lines))
+    return update, lines

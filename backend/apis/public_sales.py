@@ -1,9 +1,13 @@
 from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi.responses import StreamingResponse
 from typing import Optional, Any, Dict
 from utils.web3mongo import db
 from datetime import datetime
 from bson import ObjectId
 from apis.apikeys import validate_api_key
+import io
+import zipfile
+import json
 
 router = APIRouter()
 
@@ -39,6 +43,7 @@ async def get_sales_by_waiter_hour(
     mesano: int = Query(..., description='Periodo en formato yyyymm, ej 202508'),
     rut: Optional[int] = Query(None, description='RUT del trabajador (opcional)'),
     local: Optional[str] = Query(None, description='Código del local, ej PRVLOC (opcional)'),
+    as_zip: bool = Query(False, description='Si True, devuelve un ZIP descargable con los datos en JSON'),
 ):
     # Auth by API key
     _ = await verify_api_key(request)
@@ -62,4 +67,19 @@ async def get_sales_by_waiter_hour(
         if '_id' in d2:
             d2['_id'] = _to_jsonable(d2['_id'])
         out.append(_to_jsonable(d2))
+
+    if as_zip:
+        # Build in-memory ZIP with a JSON file
+        buf = io.BytesIO()
+        filename_json = f"sales_by_waiter_hour_{mesano}.json"
+        with zipfile.ZipFile(buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+            payload = json.dumps({ 'items': out, 'count': len(out) }, ensure_ascii=False).encode('utf-8')
+            zf.writestr(filename_json, payload)
+        buf.seek(0)
+        zip_name = f"sales_by_waiter_hour_{mesano}.zip"
+        headers = {
+            'Content-Disposition': f'attachment; filename="{zip_name}"'
+        }
+        return StreamingResponse(buf, media_type='application/zip', headers=headers)
+
     return { 'items': out, 'count': len(out) }
