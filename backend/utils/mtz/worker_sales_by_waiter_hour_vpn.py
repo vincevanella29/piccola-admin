@@ -4,6 +4,7 @@ import os
 import shutil
 import requests
 import time
+from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -34,7 +35,20 @@ def main():
     OVPN_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "mtz.ovpn"))
     VPN_USER = os.environ.get("VPN_USER")
     VPN_PASS = os.environ.get("VPN_PASS")
-    mesano = input("MesAño (YYYYMM): ").strip()
+    mesano_input = input("Mes/Año (YYYYMM o YYYY, vacío = mes actual): ").strip()
+    if not mesano_input:
+        mesano_input = datetime.now().strftime("%Y%m")
+
+    # Construir lista de mesanos a procesar
+    mesanos = []
+    if len(mesano_input) == 6 and mesano_input.isdigit():
+        mesanos = [mesano_input]
+    elif len(mesano_input) == 4 and mesano_input.isdigit():
+        year = int(mesano_input)
+        mesanos = [f"{year}{m:02d}" for m in range(1, 13)]
+    else:
+        print("Formato inválido. Usa YYYYMM o YYYY.")
+        return
 
     auth_path = create_auth_file(VPN_USER, VPN_PASS)
     proc = None
@@ -45,7 +59,7 @@ def main():
             print("No se pudo levantar la VPN.")
             return
 
-        print(f"¡VPN arriba! Descargando sales-by-waiter-hour para todas las sucursales activas...")
+        print("¡VPN arriba! Descargando sales-by-waiter-hour para todas las sucursales activas...")
         import sys
         sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
         from utils.web3mongo import db
@@ -59,50 +73,52 @@ def main():
                 trabajadores_dict[int(rut)] = t if isinstance(rut, int) else None
         locations = list(db['locations'].find({"status": True}))
         print(f"Encontradas {len(locations)} sucursales activas.")
-        for loc in locations:
-            local_code = (loc.get("permalink_slug") or "")[:3].upper()
-            if not local_code:
-                continue
-            print(f"\nDescargando data para local: {local_code} ({loc.get('nombre')})")
-            target_url = f"http://192.168.4.117:8000/api/sales-by-waiter-hour?mesano={mesano}&local={local_code}"
-            try:
-                resp = requests.get(target_url, timeout=30)
-                print("Status:", resp.status_code)
-                if resp.status_code == 200:
-                    data = resp.json().get("data", [])
-                    print(f"Recibidos {len(data)} registros. Actualizando en MongoDB...")
-                    # Enriquecer cada registro con trabajador_resumen usando el dict en memoria
-                    for d in data:
-                        rut = d.get("RUT")
-                        trabajador = None
-                        if rut is not None:
-                            trabajador = trabajadores_dict.get(rut) or trabajadores_dict.get(str(rut))
-                        if trabajador:
-                            resumen = {
-                                "rut": trabajador.get("rut"),
-                                "nombres": trabajador.get("nombres"),
-                                "apellidopaterno": trabajador.get("apellidopaterno"),
-                                "apellidomaterno": trabajador.get("apellidomaterno"),
-                                "cargo": trabajador.get("cargo"),
-                                "profile_image_url": trabajador.get("profile_image_url")
-                            }
-                            d["trabajador_resumen"] = resumen
-                    # Guardar en MongoDB
-                    sales_col = db['sales_by_waiter_hour']
-                    delete_result = sales_col.delete_many({"MESANO": int(mesano), "LOCAL": local_code+"LOC"})
-                    print(f"Eliminados {delete_result.deleted_count} docs antiguos para {local_code+ 'LOC'}.")
-                    for d in data:
-                        d["MESANO"] = int(mesano)
-                        d["LOCAL"] = local_code+"LOC"
-                    if data:
-                        sales_col.insert_many(data)
-                        print(f"Guardados {len(data)} registros nuevos en MongoDB para {local_code+ 'LOC'}.")
+        sales_col = db['sales_by_waiter_hour']
+        for mesano in mesanos:
+            print(f"\n==== Procesando MESANO {mesano} ====")
+            for loc in locations:
+                local_code = (loc.get("permalink_slug") or "")[:3].upper()
+                if not local_code:
+                    continue
+                print(f"\nDescargando data para local: {local_code} ({loc.get('nombre')}) [MESANO {mesano}]")
+                target_url = f"http://192.168.4.117:8000/api/sales-by-waiter-hour?mesano={mesano}&local={local_code}"
+                try:
+                    resp = requests.get(target_url, timeout=30)
+                    print("Status:", resp.status_code)
+                    if resp.status_code == 200:
+                        data = resp.json().get("data", [])
+                        print(f"Recibidos {len(data)} registros. Actualizando en MongoDB...")
+                        # Enriquecer cada registro con trabajador_resumen usando el dict en memoria
+                        for d in data:
+                            rut = d.get("RUT")
+                            trabajador = None
+                            if rut is not None:
+                                trabajador = trabajadores_dict.get(rut) or trabajadores_dict.get(str(rut))
+                            if trabajador:
+                                resumen = {
+                                    "rut": trabajador.get("rut"),
+                                    "nombres": trabajador.get("nombres"),
+                                    "apellidopaterno": trabajador.get("apellidopaterno"),
+                                    "apellidomaterno": trabajador.get("apellidomaterno"),
+                                    "cargo": trabajador.get("cargo"),
+                                    "profile_image_url": trabajador.get("profile_image_url")
+                                }
+                                d["trabajador_resumen"] = resumen
+                        # Guardar en MongoDB
+                        delete_result = sales_col.delete_many({"MESANO": int(mesano), "LOCAL": local_code+"LOC"})
+                        print(f"Eliminados {delete_result.deleted_count} docs antiguos para {local_code+ 'LOC'} [MESANO {mesano}].")
+                        for d in data:
+                            d["MESANO"] = int(mesano)
+                            d["LOCAL"] = local_code+"LOC"
+                        if data:
+                            sales_col.insert_many(data)
+                            print(f"Guardados {len(data)} registros nuevos en MongoDB para {local_code+ 'LOC'} [MESANO {mesano}].")
+                        else:
+                            print("No hay datos para guardar para este local en este mes.")
                     else:
-                        print("No hay datos para guardar para este local.")
-                else:
-                    print("Error en request:", resp.status_code)
-            except Exception as e:
-                print("Error en request:", e)
+                        print("Error en request:", resp.status_code)
+                except Exception as e:
+                    print("Error en request:", e)
     finally:
         if proc:
             proc.terminate()

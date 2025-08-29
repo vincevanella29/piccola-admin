@@ -100,6 +100,7 @@ async def periodic_sync_payment_tokens():
         await asyncio.sleep(60)
 
 async def periodic_menu_data_worker():
+    last_run_date = None  # 'YYYY-MM-DD' en Chile
     while True:
         try:
             # Hora de Chile
@@ -109,13 +110,15 @@ async def periodic_menu_data_worker():
                 import pytz
                 chile_tz = pytz.timezone('America/Santiago')
             now_chile = datetime.now(tz=chile_tz)
-            # Ejecutar solo a las 4:00 AM
-            if now_chile.hour == 4 and now_chile.minute == 0:
-                logger.info('[MENU DATA WORKER] Ejecutando run_worker de menu_data_worker.py (4:00 AM Chile)')
+            today = now_chile.strftime('%Y-%m-%d')
+            # Ejecutar una vez después de las 04:00 AM cada día
+            if (now_chile.hour >= 4) and (last_run_date != today):
+                logger.info('[MENU DATA WORKER] Ejecutando run_worker de menu_data_worker.py (>= 4:00 AM Chile)')
                 menu_data_worker = importlib.import_module('utils.menu_data_worker')
                 menu_data_worker.run_worker()
-                # Dormir 61 segundos para evitar doble ejecución en el mismo minuto
-                await asyncio.sleep(61)
+                last_run_date = today
+                # Evitar re-ejecuciones inmediatas
+                await asyncio.sleep(90)
             else:
                 await asyncio.sleep(30)
         except Exception as e:
@@ -146,6 +149,7 @@ async def periodic_intranet_group_worker():
     ]
 
     started_once = False
+    last_run_date = None  # 'YYYY-MM-DD' en Chile
     while True:
         try:
             # Hora de Chile
@@ -190,8 +194,9 @@ async def periodic_intranet_group_worker():
                 await asyncio.sleep(61)
                 continue
 
-            if now_chile.hour == 4 and now_chile.minute == 0:
-                logger.info('[INTRANET GROUP] Ejecutando workers de intranet (4:00 AM Chile)')
+            today = now_chile.strftime('%Y-%m-%d')
+            if (now_chile.hour >= 4) and (last_run_date != today):
+                logger.info('[INTRANET GROUP] Ejecutando workers de intranet (>= 4:00 AM Chile)')
                 mesano = now_chile.strftime('%Y%m')
                 ok_modules = []
                 err_modules = []
@@ -222,9 +227,10 @@ async def periodic_intranet_group_worker():
                         err_modules.append(mod_path)
 
                 logger.info('[INTRANET GROUP] Todos los workers de intranet ejecutados.')
-                logger.info(f"[INTRANET GROUP] Resumen 4AM: OK={len(ok_modules)} ERR={len(err_modules)} | OK: {ok_modules} | ERR: {err_modules}")
-                # Evitar doble ejecución en el mismo minuto
-                await asyncio.sleep(61)
+                logger.info(f"[INTRANET GROUP] Resumen diario: OK={len(ok_modules)} ERR={len(err_modules)} | OK: {ok_modules} | ERR: {err_modules}")
+                last_run_date = today
+                # Evitar re-ejecución inmediata
+                await asyncio.sleep(90)
             else:
                 await asyncio.sleep(30)
         except Exception as e:
@@ -262,10 +268,11 @@ async def periodic_tiempo_group_worker():
                 await asyncio.sleep(61)
                 continue
 
-            if now_chile.hour == 4 and now_chile.minute == 0:
+            today = now_chile.strftime('%Y-%m-%d')
+            if (now_chile.hour >= 4) and (last_run_date != today):
                 mesano = now_chile.strftime('%Y%m')
                 try:
-                    logger.info('[TIEMPO GROUP] Ejecutando worker_clima.run_worker(...) (4:00 AM Chile)')
+                    logger.info('[TIEMPO GROUP] Ejecutando worker_clima.run_worker(...) (>= 4:00 AM Chile)')
                     clima = importlib.import_module('utils.tiempo.worker_clima')
                     if hasattr(clima, 'run_worker'):
                         clima.run_worker(mesano)
@@ -274,8 +281,9 @@ async def periodic_tiempo_group_worker():
                         logger.warning('[TIEMPO GROUP] Saltado (sin run_worker): utils.tiempo.worker_clima')
                 except Exception as e:
                     logger.error(f"[TIEMPO GROUP] Error en worker_clima: {e}\n{traceback.format_exc()}")
-                logger.info('[TIEMPO GROUP] Resumen 4AM: intentado=1 (verificar logs OK/ERR arriba)')
-                await asyncio.sleep(61)
+                logger.info('[TIEMPO GROUP] Resumen diario: intentado=1 (verificar logs OK/ERR arriba)')
+                last_run_date = today
+                await asyncio.sleep(90)
             else:
                 await asyncio.sleep(30)
         except Exception as e:
@@ -295,6 +303,7 @@ async def periodic_mtz_group_worker():
         'utils.mtz.worker_sucursales',
         'utils.mtz.worker_ventas_locales',
         'utils.mtz.worker_compras_bodega_gastos',
+        'utils.mtz.worker_recetas_productos',
         'utils.mtz.worker_rentabilidad_por_producto_mtz',
         'utils.mtz.worker_rentabilidad_por_producto_locales',
         'utils.mtz.worker_sales_by_waiter_hour_vpn',
@@ -349,9 +358,10 @@ async def periodic_mtz_group_worker():
                 await asyncio.sleep(61)
                 continue
 
-            if now_chile.hour == 4 and now_chile.minute == 0:
+            today = now_chile.strftime('%Y-%m-%d')
+            if (now_chile.hour >= 4) and (last_run_date != today):
                 mesano = now_chile.strftime('%Y%m')
-                logger.info('[MTZ GROUP] Ejecutando workers de MTZ (4:00 AM Chile)')
+                logger.info('[MTZ GROUP] Ejecutando workers de MTZ (>= 4:00 AM Chile)')
                 ok_modules = []
                 err_modules = []
                 for mod_path in mtz_worker_modules:
@@ -381,8 +391,9 @@ async def periodic_mtz_group_worker():
                     except Exception as e:
                         logger.error(f"[MTZ GROUP] Error en {mod_path}: {e}\n{traceback.format_exc()}")
                         err_modules.append(mod_path)
-                logger.info(f"[MTZ GROUP] Resumen 4AM: OK={len(ok_modules)} ERR={len(err_modules)} | OK: {ok_modules} | ERR: {err_modules}")
-                await asyncio.sleep(61)
+                logger.info(f"[MTZ GROUP] Resumen diario: OK={len(ok_modules)} ERR={len(err_modules)} | OK: {ok_modules} | ERR: {err_modules}")
+                last_run_date = today
+                await asyncio.sleep(90)
             else:
                 await asyncio.sleep(30)
         except Exception as e:

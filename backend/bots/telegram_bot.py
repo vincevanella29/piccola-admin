@@ -7,13 +7,16 @@ from zoneinfo import ZoneInfo
 import json
 
 import httpx
+import asyncio
 from pymongo.collection import Collection
 from dotenv import load_dotenv
 from utils.web3mongo import db
 
 # Telegram bot (async) - python-telegram-bot v21
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, Defaults
+from telegram.constants import ParseMode
+from telegram.error import RetryAfter, TimedOut, NetworkError
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,7 @@ try:
     from bots.utils.common.common import ask_grok, grok_route_intent, INTENT_PRIORITY, INTENTS
     from bots.utils.productos.menus import handle_menus
     from bots.utils.movimientos.ventas import handle_ventas
+    from bots.utils.movimientos.ventas_hora import handle_ventas_hora
     from bots.utils.movimientos.gastos import handle_gastos
     from bots.utils.sucursales.locations import handle_locations
     from bots.utils.movimientos.sueldos import handle_sueldos
@@ -41,6 +45,7 @@ try:
     # Register FilterSpecs for intents (side-effect imports)
     from bots.utils.movimientos import gastos_spec as _gastos_spec  # noqa: F401
     from bots.utils.movimientos import ventas_spec as _ventas_spec  # noqa: F401
+    from bots.utils.movimientos import ventas_hora_spec as _ventas_hora_spec  # noqa: F401
     from bots.utils.movimientos import sueldos_spec as _sueldos_spec  # noqa: F401
     from bots.utils.productos import menus_spec as _menus_spec  # noqa: F401
     from bots.utils.productos import productos_spec as _productos_spec  # noqa: F401
@@ -50,6 +55,7 @@ except Exception:
     from .utils.common.common import ask_grok, grok_route_intent, INTENT_PRIORITY, INTENTS
     from .utils.productos.menus import handle_menus
     from .utils.movimientos.ventas import handle_ventas
+    from .utils.movimientos.ventas_hora import handle_ventas_hora
     from .utils.movimientos.gastos import handle_gastos
     from .utils.sucursales.locations import handle_locations
     from .utils.movimientos.sueldos import handle_sueldos
@@ -57,11 +63,24 @@ except Exception:
     # Register FilterSpecs for intents (side-effect imports)
     from .utils.movimientos import gastos_spec as _gastos_spec  # noqa: F401
     from .utils.movimientos import ventas_spec as _ventas_spec  # noqa: F401
+    from .utils.movimientos import ventas_hora_spec as _ventas_hora_spec  # noqa: F401
     from .utils.movimientos import sueldos_spec as _sueldos_spec  # noqa: F401
     from .utils.productos import menus_spec as _menus_spec  # noqa: F401
     from .utils.productos import productos_spec as _productos_spec  # noqa: F401
     from .utils.sucursales import locations_spec as _locations_spec  # noqa: F401
 
+
+# Escape helper: keep below imports, before runtime logic
+def _escape_md(text: str) -> str:
+    """Escape Telegram Markdown special characters to avoid entity parse errors.
+    Applies to dynamically generated content. Keeps semantics simple by escaping broadly.
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    # Escape characters that frequently break Markdown parsing
+    for ch in ("_", "*", "[", "]", "(", ")", "~", "`", ">", "#", "+", "-", "=", "|", "{", "}", ".", "!"):
+        text = text.replace(ch, f"\\{ch}")
+    return text
 
 # Centralized accepted intents from common
 ACCEPTED_INTENTS = {i.get("key") for i in INTENTS}
@@ -166,6 +185,48 @@ async def _reply_and_log(update: Update, context: ContextTypes.DEFAULT_TYPE, con
         logged_texts: List[str] = []  # kept for backward compatibility (not used for logging per-message)
         sent_msgs: List[tuple] = []  # (telegram.Message, text_or_caption, type: 'text'|'photo')
 
+        async def _safe_send_text(text: str):
+            nonlocal last_sent
+            attempts = 0
+            while True:
+                try:
+                    # Send as plain text to avoid Markdown parse issues per message
+                    last_sent = await update.message.reply_text(text, parse_mode=None)
+                    return last_sent
+                except RetryAfter as e:
+                    await asyncio.sleep(getattr(e, "retry_after", 2) or 2)
+                except TimedOut:
+                    attempts += 1
+                    if attempts >= 3:
+                        raise
+                    await asyncio.sleep(1.5 * attempts)
+                except NetworkError:
+                    attempts += 1
+                    if attempts >= 3:
+                        raise
+                    await asyncio.sleep(1.5 * attempts)
+
+        async def _safe_send_photo(url: str, caption: str = ""):
+            nonlocal last_sent
+            attempts = 0
+            while True:
+                try:
+                    # Send caption as plain text (no Markdown)
+                    last_sent = await update.message.reply_photo(photo=url, caption=(caption or ""), parse_mode=None)
+                    return last_sent
+                except RetryAfter as e:
+                    await asyncio.sleep(getattr(e, "retry_after", 2) or 2)
+                except TimedOut:
+                    attempts += 1
+                    if attempts >= 3:
+                        raise
+                    await asyncio.sleep(1.5 * attempts)
+                except NetworkError:
+                    attempts += 1
+                    if attempts >= 3:
+                        raise
+                    await asyncio.sleep(1.5 * attempts)
+
         async def _send_text_chunks(lines: List[str], max_len: int = 3500):
             nonlocal last_sent
             chunk: List[str] = []
@@ -174,13 +235,13 @@ async def _reply_and_log(update: Update, context: ContextTypes.DEFAULT_TYPE, con
                 ln = ln if ln is not None else ""
                 add = len(ln) + 1
                 if acc + add > max_len and chunk:
-                    last_sent = await update.message.reply_text("\n".join(chunk))
+                    await _safe_send_text("\n".join(chunk))
                     chunk, acc = [], 0
                 chunk.append(ln)
                 acc += add
             if chunk:
                 text_out = "\n".join(chunk)
-                last_sent = await update.message.reply_text(text_out)
+                await _safe_send_text(text_out)
                 sent_msgs.append((last_sent, text_out, "text"))
 
         # Dispatch items
@@ -197,8 +258,7 @@ async def _reply_and_log(update: Update, context: ContextTypes.DEFAULT_TYPE, con
                 # Telegram caption max ~1024
                 if caption and len(caption) > 1024:
                     caption = caption[:1023] + "…"
-                last_sent = await update.message.reply_photo(photo=url, caption=caption)
-                logged_texts.append(caption or f"<photo:{url}>")
+                await _safe_send_photo(url, caption)
                 sent_msgs.append((last_sent, caption or f"<photo:{url}>", "photo"))
             else:
                 # treat as text line
@@ -244,19 +304,21 @@ async def _reply_and_log(update: Update, context: ContextTypes.DEFAULT_TYPE, con
         logger.warning(f"[_reply_and_log] Failed to send/log reply: {e}")
         try:
             if isinstance(content, str):
-                return await update.message.reply_text(content)
+                return await update.message.reply_text(content, parse_mode=None)
             elif isinstance(content, dict) and (content.get("type") == "photo" or content.get("url")):
-                return await update.message.reply_photo(photo=content.get("url"), caption=content.get("caption"))
+                cap = content.get("caption") or ""
+                return await update.message.reply_photo(photo=content.get("url"), caption=cap, parse_mode=None)
             else:
                 # assume list of strings
-                return await update.message.reply_text("\n".join([str(x) for x in content]))
+                joined = "\n".join([str(x) for x in content])
+                return await update.message.reply_text(joined, parse_mode=None)
         except Exception:
             return None
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Ciao! Soy La Nonna Bot. Pídeme: 'ventas de ayer', 'top productos este mes', 'menús lasagna', 'categoría pastas', 'ubicaciones'."
+        "**Ciao! Soy La Nonna Bot.**\nPídeme: `ventas de ayer`, `top productos este mes`, `menús lasagna`, `categoría pastas`, `ubicaciones`."
     )
 
 async def link_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -270,8 +332,8 @@ async def link_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     link_url = f"{TELEGRAM_LINK_URL_BASE.rstrip('/')}/?tg_id={tg_id}&state={state}"
     logger.info(f"[link_cmd] Generated link for tg_id={tg_id}: {link_url}")
     await update.message.reply_text(
-        "Para conectar tu cuenta, abre este enlace y autentícate con Privy:"
-        f"\n{link_url}\n\nLuego vuelve y pide 'ventas'."
+        "Para conectar tu cuenta, abre este enlace y autentícate con Privy:"\
+        f"\n{link_url}\n\nLuego vuelve y pide `ventas`."
     )
 
 async def unlink_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -301,9 +363,7 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text or ""
     text_l = text.lower()
 
-
     # Log incoming user message early
-    # generate correlation id for this interaction and keep in context
     chat_id = getattr(update.effective_chat, "id", None)
     msg_id = getattr(update.message, "message_id", None)
     corr_id = f"{chat_id}:{msg_id}"
@@ -315,6 +375,15 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         itype = intent.get("intent")
         if itype not in ACCEPTED_INTENTS:
             itype = "chat"
+
+        if itype == "ventas_hora":
+            # Igual que gastos: parséalo acá y pásalo al handler
+            vhf = await grok_filters("ventas_hora", text) or {}
+            await _reply_and_log(update, context, [f"[ventas_hora filters] {vhf}"], meta={"stage":"ventas_hora_filters"})
+            context.user_data["ventas_hora_filters"] = vhf
+            (u, lines) = await handle_ventas_hora(update, context)
+            await _reply_and_log(u, context, lines, meta={"stage": "ventas_hora_response", "intent": itype})
+            return
 
         if itype == "sueldos":
             sf = await grok_filters("sueldos", text) or {}
@@ -354,6 +423,9 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["menus_by"] = (f.get("by") or "").lower()
             context.user_data["menus_q"] = (f.get("q") or "").strip()
             context.user_data["menus_detail"] = bool(f.get("detail", False))
+            # pasar flags estructurados para recetas
+            context.user_data["menus_recipe"] = bool(f.get("recipe", False))
+            context.user_data["menus_mesanos"] = list(f.get("mesanos") or [])
             (u, lines) = await handle_menus(update, context)
             await _reply_and_log(u, context, lines, meta={"stage": "menus_response", "intent": itype})
             return
@@ -392,7 +464,13 @@ def run_bot():
     if not TELEGRAM_BOT_TOKEN:
         logger.warning("TELEGRAM_BOT_TOKEN no configurado. Bot no iniciado.")
         return
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    application = (
+        Application.builder()
+        .token(TELEGRAM_BOT_TOKEN)
+        # PRO UI: Markdown y sin previews en mensajes de texto
+        .defaults(Defaults(parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True))
+        .build()
+    )
     application.add_handler(CommandHandler("start", start_cmd))
     application.add_handler(CommandHandler("link", link_cmd))
     application.add_handler(CommandHandler("unlink", unlink_cmd))
