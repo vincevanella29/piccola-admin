@@ -81,6 +81,8 @@ services:
     # Allow OpenVPN to create TUN interface
     cap_add:
       - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
 
   vanellix-worker:
     build:
