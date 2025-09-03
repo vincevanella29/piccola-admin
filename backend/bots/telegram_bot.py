@@ -332,8 +332,9 @@ async def link_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     link_url = f"{TELEGRAM_LINK_URL_BASE.rstrip('/')}/?tg_id={tg_id}&state={state}"
     logger.info(f"[link_cmd] Generated link for tg_id={tg_id}: {link_url}")
     await update.message.reply_text(
-        "Para conectar tu cuenta, abre este enlace y autentícate con Privy:"\
-        f"\n{link_url}\n\nLuego vuelve y pide `ventas`."
+        "Para conectar tu cuenta, abre este enlace y autentícate con Privy:"
+        f"\n{link_url}\n\nLuego vuelve y pide `ventas`.",
+        parse_mode=None
     )
 
 async def unlink_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
