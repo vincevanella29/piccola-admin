@@ -78,6 +78,9 @@ services:
     depends_on:
       - mongo
       - redis
+    # Allow OpenVPN to create TUN interface
+    cap_add:
+      - NET_ADMIN
 
   vanellix-worker:
     build:
