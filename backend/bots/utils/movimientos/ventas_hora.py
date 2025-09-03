@@ -201,11 +201,36 @@ async def handle_ventas_hora(update, context):
                 }
             }
         }},
+        {"$addFields": {
+            "RUT_STR": {"$toString": {"$ifNull": ["$RUT", ""]}},
+            "_name_from_trab": {
+                "$trim": {"input": {"$concat": [
+                    {"$ifNull": ["$trabajador_resumen.nombres", ""]},
+                    " ",
+                    {"$ifNull": ["$trabajador_resumen.apellidopaterno", ""]},
+                    " ",
+                    {"$ifNull": ["$trabajador_resumen.apellidomaterno", ""]}
+                ]}}
+            },
+            "_name_from_empleado": {"$ifNull": ["$EMPLEADO", ""]}
+        }},
+        {"$addFields": {
+            "WAITER_NAME": {"$cond": [
+                {"$gt": [{"$strLenCP": {"$ifNull": ["$_name_from_trab", ""]}}, 0]},
+                "$_name_from_trab",
+                {"$cond": [
+                    {"$gt": [{"$strLenCP": {"$ifNull": ["$_name_from_empleado", ""]}}, 0]},
+                    "$_name_from_empleado",
+                    {"$ifNull": ["$EMPLEADO", "-"]}
+                ]}
+            ]}
+        }},
         {"$project": {
             "_id":0, "LOCAL":1, "RUT":1, "CODIGO_PRODUCTO":1, "FAMILIA":1, "SUBFAMILIA":1,
             "TOTAL": {"$ifNull":["$TOTAL",0]},
             "CANTIDAD": {"$ifNull":["$CANTIDAD",0]},
-            "H":1, "DOW":1, "DOW_NAME":1, "DATE_STR":1, "MONTH_STR":1, "SEMANA_MES2":1, "_SIGLA":1
+            "H":1, "DOW":1, "DOW_NAME":1, "DATE_STR":1, "MONTH_STR":1, "SEMANA_MES2":1, "_SIGLA":1,
+            "RUT_STR":1, "WAITER_NAME":1
         }},
     ]
 
@@ -269,7 +294,9 @@ async def handle_ventas_hora(update, context):
             "sample_date":{"$first":"$DATE_STR"},
             "sample_hour":{"$first":"$H"},
             "sample_dow":{"$first":"$DOW_NAME"},
-            "sample_weather":{"$first":{"$ifNull":["$WEATHER_TAG", None]}}
+            "sample_weather":{"$first":{"$ifNull":["$WEATHER_TAG", None]}},
+            "sample_rut":{"$first":"$RUT_STR"},
+            "sample_waiter_name":{"$first":"$WAITER_NAME"}
         }}
     ]
     # value segun medida
@@ -400,9 +427,20 @@ async def handle_ventas_hora(update, context):
     hdr = [f"Nonna Marriana dice: Ventas por hora {pretty_range} agrupado por {label_by}{cmp_tag}."]
     lines: List[str] = hdr
 
+    includes_rut = group_by in {"rut","rut_hora","rut_local"}
     for g in cur:
         key = g.get("_id")
         v = float(g.get("value",0))
+        if includes_rut:
+            nm = g.get("sample_waiter_name") or ""
+            # Limpia prefijos numéricos del campo EMPLEADO cuando viene como "12345 Nombre"
+            try:
+                nm = re.sub(r"^\d+\s*", "", nm)
+            except Exception:
+                pass
+            nm = nm.strip()
+            if nm:
+                key = f"{key} · {nm}"
         if compare in {"mom","yoy"} and key in prev_map:
             pv = float(prev_map.get(key,0))
             delta = "∞" if pv==0 and v>0 else (f"{(v/pv-1)*100:.1f}%" if pv else "0.0%")

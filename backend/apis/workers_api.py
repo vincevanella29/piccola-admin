@@ -16,6 +16,7 @@ WORKER_MODULES = {
     "worker_ventas_locales": "utils.mtz.worker_ventas_locales",
     "worker_cargos": "utils.mtz.worker_cargos",
     "worker_compras_bodega_gastos": "utils.mtz.worker_compras_bodega_gastos",
+    "worker_consumos": "utils.mtz.worker_consumo_locales",
     "worker_recetas_productos": "utils.mtz.worker_recetas_productos",
     "worker_rentabilidad_por_producto_locales": "utils.mtz.worker_rentabilidad_por_producto_locales",
     "worker_rentabilidad_por_producto_mtz": "utils.mtz.worker_rentabilidad_por_producto_mtz",
