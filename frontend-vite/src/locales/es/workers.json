@@ -1,0 +1,14 @@
+{
+  "label": "Workers",
+  "dashboard": "Panel de Workers",
+  "execute": "Ejecutar Workers",
+  "available": "Workers disponibles",
+  "run": "Ejecutar Workers",
+  "run_button": "Ejecutar",
+  "running": "Ejecutando...",
+  "mesano_placeholder": "MesAño (e.g. 202408)",
+  "select": "Selecciona los workers a ejecutar (opcional):",
+  "results": "Resultados de ejecución:",
+  "error": "Error al cargar los workers.",
+  "description": "Herramientas de ejecución de procesos automáticos."
+}

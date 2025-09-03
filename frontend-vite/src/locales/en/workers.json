@@ -1,0 +1,14 @@
+{
+  "label": "Workers",
+  "dashboard": "Workers Dashboard",
+  "execute": "Execute Workers",
+  "available": "Available Workers",
+  "run": "Run Workers",
+  "run_button": "Run",
+  "running": "Running...",
+  "mesano_placeholder": "MonthYear (e.g. 202408)",
+  "select": "Select workers to run (optional):",
+  "results": "Execution results:",
+  "error": "Error loading workers.",
+  "description": "Automated process execution tools."
+}
