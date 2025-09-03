@@ -51,9 +51,18 @@ async def handle_consumos(update, context):
     art_regex   = m.get("article_regex") or []
 
     group_by = plan.get("group_by") or "local"
+    # Permitir lista de agrupaciones (e.g., ["local","dia"]) o string
+    if isinstance(group_by, str):
+        group_by_list = [group_by]
+    else:
+        try:
+            group_by_list = [g for g in (group_by or []) if isinstance(g, str) and g]
+        except Exception:
+            group_by_list = ["local"]
     measure  = plan.get("measure") or "auto"
     unit     = plan.get("unit") or "auto"
     order    = plan.get("order") or "desc"
+    order_by = plan.get("order_by") or ""
     limit    = int(plan.get("limit") or 50)
     mode     = ((plan.get("output") or {}).get("mode")) or "table"
 
@@ -108,8 +117,16 @@ async def handle_consumos(update, context):
         "familia": {"$ifNull": ["$familia", "-"]},
         "subfamilia": {"$ifNull": ["$subfamilia", "-"]},
         "mes": {"$ifNull": ["$mesano", "-"]},
+        "dia": {"$ifNull": ["$_dia_str", "-"]},
     }
-    gid = gb_map.get(group_by, {"$ifNull": ["$local", "-"]})
+    # Construir _id: dict si hay múltiples claves, o escalar si solo 1
+    valid_gbs = [g for g in group_by_list if g in gb_map]
+    if not valid_gbs:
+        valid_gbs = ["local"]
+    if len(valid_gbs) == 1:
+        gid = gb_map[valid_gbs[0]]
+    else:
+        gid = {g: gb_map[g] for g in valid_gbs}
 
     # Sumas base
     stages += [{
@@ -166,7 +183,14 @@ async def handle_consumos(update, context):
         }
     }]
 
-    stages += [{"$sort": {"value": -1 if order == "desc" else 1}}, {"$limit": max(1, min(limit, 200))}]
+    # Ordenamiento
+    if (order_by == "dia") and ("dia" in valid_gbs):
+        # clave de orden: si solo 'dia', el _id es string; si multiclave, usar _id.dia
+        sort_key = "_id" if (len(valid_gbs) == 1 and valid_gbs[0] == "dia") else "_id.dia"
+        stages += [{"$sort": {sort_key: 1 if order == "asc" else -1}}]
+    else:
+        stages += [{"$sort": {"value": -1 if order == "desc" else 1}}]
+    stages += [{"$limit": max(1, min(limit, 200))}]
 
     logger.info(f"[consumos plan] {plan}")
     logger.info(f"[consumos stages] {stages}")
@@ -183,7 +207,7 @@ async def handle_consumos(update, context):
         head.append("Fechas: " + ", ".join(dates))
     if locals_:
         head.append("Locales: " + ", ".join(locals_))
-    head.append(f"Agrupación: {group_by}")
+    head.append(f"Agrupación: {', '.join(valid_gbs)}")
     head.append(f"Unidad pedida: {unit}")
     out = [" | ".join(head), ""]
 
@@ -191,6 +215,12 @@ async def handle_consumos(update, context):
     out.append("Grupo | Valor | Uds | Kg")
     for r in rows:
         gid_val = r.get("_id")
+        # Render label amigable si _id es dict
+        if isinstance(gid_val, dict):
+            parts = []
+            for g in valid_gbs:
+                parts.append(f"{g}={gid_val.get(g, '-')}")
+            gid_val = " · ".join(parts)
         val = float(r.get("value") or 0)
         lab = (r.get("value_label") or "").lower()
         uds = int(r.get("uds") or 0)
