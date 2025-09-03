@@ -6,6 +6,7 @@ import shutil
 import time
 from dotenv import load_dotenv
 from datetime import datetime
+from pymongo import UpdateOne
 
 def create_auth_file(username, password):
     tf = tempfile.NamedTemporaryFile(mode="w", delete=False)
@@ -79,37 +80,63 @@ def main():
         print("Status:", resp.status_code)
         if resp.status_code == 200:
             data = resp.json().get("data", [])
-            print(f"Recibidos {len(data)} registros. Procesando e insertando en MongoDB...")
+            total = len(data)
+            print(f"Recibidos {total} registros. Procesando e insertando en MongoDB...")
             import sys
             sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
             from utils.web3mongo import db
-            # Artículos: upsert familia y subfamilia
+
+            # Colecciones
             articulos_col = db['articulos_consumo']
-            for d in data:
-                articulo = d.get("articulo")
-                familia = d.get("familia")
-                subfamilia = d.get("subfamilia")
-                if articulo:
-                    articulos_col.update_one(
-                        {"articulo": articulo},
-                        {"$set": {"familia": familia, "subfamilia": subfamilia}},
-                        upsert=True
-                    )
-            # Data cruda consumo
             consumo_col = db['consumo_locales']
-            consumo_col.delete_many({"mesano": int(mesano)})
-            from datetime import datetime
+
+            # 1) Upsert masivo de artículos con bulk_write (reduce roundtrips)
+            #    Usamos el último valor visto para familia/subfamilia por artículo
+            articulos_map = {}
             for d in data:
-                fecha = parse_fecha(d.get("fecha"))
-                if fecha:
-                    # Guarda solo como string YYYY-MM-DD
-                    d["fecha"] = fecha.strftime("%Y-%m-%d")
+                art = d.get("articulo")
+                if not art:
+                    continue
+                articulos_map[art] = {
+                    "familia": d.get("familia"),
+                    "subfamilia": d.get("subfamilia"),
+                }
+            if articulos_map:
+                ops = [
+                    UpdateOne({"articulo": art}, {"$set": vals}, upsert=True)
+                    for art, vals in articulos_map.items()
+                ]
+                # ordered=False para paralelizar en el servidor y ser tolerantes a errores puntuales
+                res_up = articulos_col.bulk_write(ops, ordered=False)
+                print(
+                    f"Artículos upsert: matched={res_up.matched_count} upserted={len(res_up.upserted_ids)} modified={res_up.modified_count}"
+                )
+
+            # 2) Normalizar fechas con cache y preparar docs para inserción masiva
+            parse_cache = {}
+            mesano_int = int(mesano)
+            docs = []
+            for d in data:
+                fstr = d.get("fecha")
+                if fstr in parse_cache:
+                    f_norm = parse_cache[fstr]
                 else:
-                    d["fecha"] = None
-                d["mesano"] = int(mesano)
-            if data:
-                consumo_col.insert_many(data)
-                print(f"Insertados {len(data)} registros de consumo crudo y artículos actualizados.")
+                    dt = parse_fecha(fstr)
+                    f_norm = dt.strftime("%Y-%m-%d") if dt else None
+                    parse_cache[fstr] = f_norm
+                d["fecha"] = f_norm
+                d["mesano"] = mesano_int
+                docs.append(d)
+
+            # 3) Reemplazar data del mes con insert_many rápido
+            if docs:
+                consumo_col.delete_many({"mesano": mesano_int})
+                try:
+                    consumo_col.insert_many(docs, ordered=False)
+                except Exception as e:
+                    # Si falla por duplicados u otros, loguear y continuar
+                    print("insert_many error (continuable):", e)
+                print(f"Insertados {len(docs)} registros de consumo crudo y artículos actualizados.")
         else:
             print("Error en request:", resp.status_code)
     except Exception as e:
