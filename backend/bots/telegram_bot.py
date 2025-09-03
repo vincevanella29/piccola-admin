@@ -374,7 +374,6 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _log_user_message(update, text, corr_id=corr_id)
 
     intent = await grok_route_intent(text)
-    await _reply_and_log(update, context, [f"[sales intent] {intent}"], meta={"stage":"sales_intent"})
     if intent and isinstance(intent, dict):
         itype = intent.get("intent")
         if itype not in ACCEPTED_INTENTS:
@@ -383,7 +382,6 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if itype == "ventas_hora":
             # Igual que gastos: parséalo acá y pásalo al handler
             vhf = await grok_filters("ventas_hora", text) or {}
-            await _reply_and_log(update, context, [f"[ventas_hora filters] {vhf}"], meta={"stage":"ventas_hora_filters"})
             context.user_data["ventas_hora_filters"] = vhf
             (u, lines) = await handle_ventas_hora(update, context)
             await _reply_and_log(u, context, lines, meta={"stage": "ventas_hora_response", "intent": itype})
@@ -424,7 +422,6 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if itype == "consumos":
             f = await grok_filters("consumos", text) or {}
-            await _reply_and_log(update, context, [f"[consumos filters] {f}"], meta={"stage":"consumos_filters"})
             context.user_data["consumos_by"] = (f.get("by") or "").lower()
             context.user_data["consumos_q"] = (f.get("q") or "").strip()
             if f.get("period"):
