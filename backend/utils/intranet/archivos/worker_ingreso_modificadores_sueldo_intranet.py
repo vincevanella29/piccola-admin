@@ -26,7 +26,23 @@ def main():
                 print("Error parseando JSON:", je)
                 snippet = text[:500].replace("\n", " ")
                 print("Respuesta (primeros 500 chars):", snippet)
-                data = []
+                data = None
+            # Intentar parsear array estilo PHP si no es JSON, usando helper compartido
+            if data is None:
+                try:
+                    from utils.intranet.php_array_parser import php_array_to_list
+                except Exception:
+                    import sys
+                    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+                    from utils.intranet.php_array_parser import php_array_to_list
+                parsed = php_array_to_list(text)
+                if parsed:
+                    data = parsed
+                else:
+                    print("La respuesta no es JSON ni array PHP. Mostrando fragmento:")
+                    snippet = text[:500].replace("\n", " ")
+                    print(snippet)
+                    data = []
             print(f"Recibidos {len(data)} ingresos de modificadores de sueldo. Actualizando en MongoDB...")
             import sys
             sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))

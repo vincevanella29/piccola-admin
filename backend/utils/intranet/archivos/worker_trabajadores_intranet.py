@@ -28,29 +28,13 @@ def main():
                 print("Respuesta (primeros 500 chars):", snippet)
                 data = None
             if data is None:
-                import re
-                def _php_array_to_list(text):
-                    s = " ".join(line.strip() for line in text.strip().splitlines())
-                    s = re.sub(r"\s+", " ", s)
-                    entries = re.findall(r"\[(\d+)\]\s*=>\s*Array\s*\((.*?)\)\s*(?=\[\d+\]|\)\s*$)", s)
-                    result = []
-                    for idx, body in entries:
-                        item = {}
-                        for k, v in re.findall(r"\[(.*?)\]\s*=>\s*(.*?)(?=\s*\[.*?\]\s*=>|\)\s*$)", body):
-                            k = str(k).strip()
-                            v = v.strip()
-                            if (len(v) >= 2 and ((v[0] == '"' and v[-1] == '"') or (v[0] == "'" and v[-1] == "'"))):
-                                v = v[1:-1]
-                            if re.fullmatch(r"-?\d+", v):
-                                try:
-                                    v = int(v)
-                                except Exception:
-                                    pass
-                            item[k] = v
-                        if item:
-                            result.append(item)
-                    return result if result else []
-                parsed = _php_array_to_list(text)
+                try:
+                    from utils.intranet.php_array_parser import php_array_to_list
+                except Exception:
+                    import sys
+                    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+                    from utils.intranet.php_array_parser import php_array_to_list
+                parsed = php_array_to_list(text)
                 if parsed:
                     data = parsed
                 else:
