@@ -48,18 +48,52 @@ def main():
             from utils.web3mongo import db
             trabajadores_col = db['trabajadores_vpn']
             if data:
-                # Upsert uno a uno
+                # Upsert en batch usando bulk_write (mucho más rápido)
+                from pymongo import UpdateOne
+                ops = []
                 for trabajador in data:
                     rut = trabajador.get("rut")
                     if not rut:
                         continue
-                    trabajadores_col.update_one({"rut": rut}, {"$set": trabajador}, upsert=True)
-                print(f"Actualizados/insertados {len(data)} trabajadores en MongoDB.")
+                    ops.append(UpdateOne({"rut": rut}, {"$set": trabajador}, upsert=True))
+                total = len(ops)
+                if total:
+                    BATCH = 1000
+                    upserts = 0
+                    modified = 0
+                    for i in range(0, total, BATCH):
+                        chunk = ops[i:i+BATCH]
+                        res = trabajadores_col.bulk_write(chunk, ordered=False)
+                        upserts += getattr(res, 'upserted_count', 0)
+                        modified += getattr(res, 'modified_count', 0)
+                    print(f"Bulk upserts: {upserts}, modified: {modified}, total ops: {total}")
+                else:
+                    print("No hay trabajadores con rut válido para upsert.")
 
                 # Subir imágenes de perfil a R2 y actualizar URL en MongoDB
                 from utils.r2_upload import upload_profile_image_to_r2
                 import hashlib
                 from concurrent.futures import ThreadPoolExecutor, as_completed
+                from requests.adapters import HTTPAdapter
+                from urllib3.util.retry import Retry
+
+                # Pre-cargar hashes/URLs existentes para evitar find_one por cada trabajador
+                ruts = [t.get("rut") for t in data if t.get("rut")]
+                existing = {}
+                if ruts:
+                    for doc in trabajadores_col.find({"rut": {"$in": ruts}}, {"rut": 1, "profile_image_hash": 1, "profile_image_url": 1}):
+                        existing[doc.get("rut")] = {
+                            "hash": doc.get("profile_image_hash"),
+                            "url": doc.get("profile_image_url"),
+                        }
+
+                # Sesión compartida con retries para acelerar y ser robustos
+                session = requests.Session()
+                retries = Retry(total=3, backoff_factor=0.3, status_forcelist=[429, 500, 502, 503, 504])
+                adapter = HTTPAdapter(max_retries=retries, pool_connections=100, pool_maxsize=100)
+                session.mount('http://', adapter)
+                session.mount('https://', adapter)
+                session.headers.update({"User-Agent": "PiccolaWorker/1.0"})
 
                 def process_trabajador(trabajador):
                     rut = trabajador.get("rut")
@@ -67,13 +101,14 @@ def main():
                         return "[SKIP] Trabajador sin rut"
                     img_url = f"https://intranet.piccolaitalia.cl/images/uploaded/{rut}.jpg"
                     try:
-                        img_resp = requests.get(img_url, timeout=10)
+                        img_resp = session.get(img_url, timeout=10)
                         if img_resp.status_code == 200:
                             img_bytes = img_resp.content
                             img_hash = hashlib.sha256(img_bytes).hexdigest()
-                            doc = trabajadores_col.find_one({"rut": rut})
-                            prev_hash = doc.get("profile_image_hash") if doc else None
-                            if prev_hash == img_hash and doc.get("profile_image_url"):
+                            prev = existing.get(rut) or {}
+                            prev_hash = prev.get("hash")
+                            prev_url = prev.get("url")
+                            if prev_hash == img_hash and prev_url:
                                 return f"Imagen de rut {rut} sin cambios. No se sube."
                             file_obj = io.BytesIO(img_bytes)
                             filename = f"trabajadores/{rut}.jpg"
@@ -82,6 +117,7 @@ def main():
                                 {"rut": rut},
                                 {"$set": {"profile_image_url": r2_url, "profile_image_hash": img_hash}}
                             )
+                            existing[rut] = {"hash": img_hash, "url": r2_url}
                             return f"Imagen subida y URL guardada para rut {rut}"
                         else:
                             return f"[SKIP] Sin imagen para rut {rut} (status {img_resp.status_code})"
@@ -90,7 +126,7 @@ def main():
                     except Exception:
                         return f"[SKIP] Error inesperado para rut {rut}"
 
-                max_workers = 16  # Puedes ajustar este número según tu red/CPU
+                max_workers = 32  # Mayor concurrencia para acelerar descargas/subidas
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = [executor.submit(process_trabajador, t) for t in data]
                     for future in as_completed(futures):
