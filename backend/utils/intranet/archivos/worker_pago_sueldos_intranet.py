@@ -47,7 +47,50 @@ def main():
             if resp.status_code != 200:
                 print("Error en request:", resp.status_code)
                 return []
-            return parse_php_array(resp.text)
+            text = resp.text or ""
+            data = None
+            try:
+                if text.strip() == "":
+                    data = []
+                else:
+                    data = resp.json()
+            except Exception as je:
+                print("Error parseando JSON:", je)
+                snippet = text[:500].replace("\n", " ")
+                print("Respuesta (primeros 500 chars):", snippet)
+                data = None
+            if data is None:
+                import re
+                def _php_array_to_list(text):
+                    s = " ".join(line.strip() for line in text.strip().splitlines())
+                    s = re.sub(r"\s+", " ", s)
+                    entries = re.findall(r"\[(\d+)\]\s*=>\s*Array\s*\((.*?)\)\s*(?=\[\d+\]|\)\s*$)", s)
+                    result = []
+                    for idx, body in entries:
+                        item = {}
+                        for k, v in re.findall(r"\[(.*?)\]\s*=>\s*(.*?)(?=\s*\[.*?\]\s*=>|\)\s*$)", body):
+                            k = str(k).strip()
+                            v = v.strip()
+                            if (len(v) >= 2 and ((v[0] == '"' and v[-1] == '"') or (v[0] == "'" and v[-1] == "'"))):
+                                v = v[1:-1]
+                            if re.fullmatch(r"-?\d+", v):
+                                try:
+                                    v = int(v)
+                                except Exception:
+                                    pass
+                            item[k] = v
+                        if item:
+                            result.append(item)
+                    return result if result else []
+                parsed = _php_array_to_list(text)
+                if parsed:
+                    data = parsed
+                else:
+                    print("La respuesta no es JSON ni array PHP. Mostrando fragmento:")
+                    snippet = text[:500].replace("\n", " ")
+                    print(snippet)
+                    data = []
+            return data
         except Exception as e:
             print("Error en request:", e)
             return []

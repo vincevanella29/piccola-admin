@@ -15,7 +15,18 @@ def main():
         resp = requests.get(API_URL, timeout=20)
         print("Status:", resp.status_code)
         if resp.status_code == 200:
-            data = resp.json()
+            text = resp.text or ""
+            data = None
+            try:
+                if text.strip() == "":
+                    data = []
+                else:
+                    data = resp.json()
+            except Exception as je:
+                print("Error parseando JSON:", je)
+                snippet = text[:500].replace("\n", " ")
+                print("Respuesta (primeros 500 chars):", snippet)
+                data = []
             print(f"Recibidos {len(data)} ingresos de modificadores de sueldo. Actualizando en MongoDB...")
             import sys
             sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))

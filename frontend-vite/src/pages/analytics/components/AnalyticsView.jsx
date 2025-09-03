@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Box } from '@mui/material';
+import React, { useMemo, useState } from 'react';
+import { Box, Tabs, Tab } from '@mui/material';
 import ControlsBar from '../../../components/widgets/ControlsBar';
 import KPIStat from '../../../components/widgets/KPIStat';
 import VentasWidget from '../../../components/widgets/VentasWidget';
@@ -96,10 +96,18 @@ const AnalyticsView = ({
   const personasTotalNum = useMemo(() => sumPersonas(ventas), [ventas]);
   const promedioPorPersona = personasTotalNum > 0 ? (ventaTotalNum / personasTotalNum) : 0;
 
+  // Mesas y promedios (solo ventas)
+  const mesasTotalRaw = useMemo(() => ventas.reduce((acc, v) => acc + (Number(v?.details?.data?.mesas ?? v?.mesas ?? 0)), 0), [ventas]);
+  const promedioPorMesa = mesasTotalRaw > 0 ? (ventaTotalNum / mesasTotalRaw) : 0;
+
+  // Comparación para mesas
   const ventaPrevNum = useMemo(
     () => sumValues(ventaComparison?.previous || []),
     [ventaComparison?.previous]
   );
+  const mesasPrevRaw = useMemo(() => (ventaComparison?.previous || []).reduce((acc, v) => acc + (Number(v?.details?.data?.mesas ?? v?.mesas ?? 0)), 0), [ventaComparison?.previous]);
+  const promedioPrevMesa = mesasPrevRaw > 0 ? (ventaPrevNum / mesasPrevRaw) : 0;
+
   const gastoPrevNum = useMemo(
     () => sumValues(filtrarResumen2Gasto(filtrarCuentasGasto(gastoComparison?.previous || []))),
     [gastoComparison?.previous]
@@ -132,6 +140,14 @@ const AnalyticsView = ({
     ? ((promedioPorPersona - promedioPrev) / promedioPrev) * 100
     : null;
 
+  // Variaciones Mesas
+  const variationMesasPct = (appliedConfig.comparisonType !== 'none' && mesasPrevRaw > 0)
+    ? ((mesasTotalRaw - mesasPrevRaw) / mesasPrevRaw) * 100
+    : null;
+  const variationPromedioMesaPct = (appliedConfig.comparisonType !== 'none' && promedioPrevMesa > 0)
+    ? ((promedioPorMesa - promedioPrevMesa) / promedioPrevMesa) * 100
+    : null;
+
   // Formateados
   const ventaTotalFmt = ventaTotalNum.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
   const gastoTotalFmt = gastoTotalNum.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
@@ -139,6 +155,19 @@ const AnalyticsView = ({
   const gastoPrevFmt  = gastoPrevNum.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
   const personasTotalFmt = personasTotalNum.toLocaleString();
   const promedioFmt = promedioPorPersona.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
+  const mesasTotalFmt = mesasTotalRaw.toLocaleString();
+  const promedioMesaFmt = promedioPorMesa.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
+
+  // Descuentos
+  const descuentosTotal = useMemo(() => ventas.reduce((acc, v) => acc + (Number(v?.details?.data?.desctos ?? v?.desctos ?? 0)), 0), [ventas]);
+  const descuentosPrev = useMemo(() => (ventaComparison?.previous || []).reduce((acc, v) => acc + (Number(v?.details?.data?.desctos ?? v?.desctos ?? 0)), 0), [ventaComparison?.previous]);
+  const variationDescuentosPct = (appliedConfig.comparisonType !== 'none' && descuentosPrev > 0)
+    ? ((descuentosTotal - descuentosPrev) / descuentosPrev) * 100
+    : null;
+  const descuentosFmt = descuentosTotal.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
+
+  // Estado para tabs de KPIs
+  const [kpiTab, setKpiTab] = useState('personas');
 
   return (
     <div className="rounded-3xl p-4 shadow-modal">
@@ -165,12 +194,29 @@ const AnalyticsView = ({
       />
 
       {/* KPIs */}
-      <Box className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+      {/* Tabs para alternar entre Personas y Mesas */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 1 }}>
+        <Tabs value={kpiTab} onChange={(_, v) => setKpiTab(v)} aria-label="Personas vs Mesas KPIs">
+          <Tab label={t('analytics.Personas')} value="personas" />
+          <Tab label={t('analytics.Mesas')} value="mesas" />
+        </Tabs>
+      </Box>
+      <Box className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
         <KPIStat isLoading={isLoading} label={t('analytics.Ventas')} value={ventaTotalFmt} deltaPct={variationVentaPct} goodWhenUp />
         <KPIStat isLoading={isLoading} label={t('analytics.Gastos')} value={gastoTotalFmt} deltaPct={variationGastoPct} goodWhenUp={false} />
+        <KPIStat isLoading={isLoading} label={t('analytics.Descuentos') || 'Descuentos'} value={descuentosFmt} deltaPct={variationDescuentosPct} goodWhenUp={false} />
         <KPIStat isLoading={isLoading} label={`% ${t('analytics.Gastos')} / ${t('analytics.Ventas')}`} value={`${(ratio * 100).toFixed(1)}%`} />
-        <KPIStat isLoading={isLoading} label={t('analytics.Personas')} value={personasTotalFmt} deltaPct={variationPersonasPct} goodWhenUp />
-        <KPIStat isLoading={isLoading} label={t('analytics.Promedio por persona')} value={promedioFmt} deltaPct={variationPromedioPct} goodWhenUp />
+        {kpiTab === 'personas' ? (
+          <>
+            <KPIStat isLoading={isLoading} label={t('analytics.Personas')} value={personasTotalFmt} deltaPct={variationPersonasPct} goodWhenUp />
+            <KPIStat isLoading={isLoading} label={t('analytics.Promedio por persona')} value={promedioFmt} deltaPct={variationPromedioPct} goodWhenUp />
+          </>
+        ) : (
+          <>
+            <KPIStat isLoading={isLoading} label={t('analytics.Mesas')} value={mesasTotalFmt} deltaPct={variationMesasPct} goodWhenUp />
+            <KPIStat isLoading={isLoading} label={t('analytics.Promedio por mesa')} value={promedioMesaFmt} deltaPct={variationPromedioMesaPct} goodWhenUp />
+          </>
+        )}
       </Box>
 
       {/* 1 widget Ventas + 1 widget Gastos */}

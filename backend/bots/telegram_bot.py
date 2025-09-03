@@ -34,6 +34,8 @@ TELEGRAM_LINK_URL_BASE = os.getenv("TELEGRAM_LINK_URL_BASE", "http://localhost:5
 # Preferir import del paquete; fallback relativo si corre standalone
 try:
     from bots.utils.productos.productos import handle_productos
+    from bots.utils.consumos.consumos import handle_consumos
+    from bots.utils.consumos import consumos_spec as _consumos_spec  # noqa: F401
     from bots.utils.common.common import ask_grok, grok_route_intent, INTENT_PRIORITY, INTENTS
     from bots.utils.productos.menus import handle_menus
     from bots.utils.movimientos.ventas import handle_ventas
@@ -372,6 +374,7 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _log_user_message(update, text, corr_id=corr_id)
 
     intent = await grok_route_intent(text)
+    await _reply_and_log(update, context, [f"[sales intent] {intent}"], meta={"stage":"sales_intent"})
     if intent and isinstance(intent, dict):
         itype = intent.get("intent")
         if itype not in ACCEPTED_INTENTS:
@@ -417,6 +420,19 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["productos_hide_values"] = bool(f.get("hide_values", False))
             (u, lines) = await handle_productos(update, context)
             await _reply_and_log(u, context, lines, meta={"stage": "productos_response", "intent": itype})
+            return
+
+        if itype == "consumos":
+            f = await grok_filters("consumos", text) or {}
+            await _reply_and_log(update, context, [f"[consumos filters] {f}"], meta={"stage":"consumos_filters"})
+            context.user_data["consumos_by"] = (f.get("by") or "").lower()
+            context.user_data["consumos_q"] = (f.get("q") or "").strip()
+            if f.get("period"):
+                context.user_data["consumos_period"] = f["period"]
+            context.user_data["consumos_top"] = bool(f.get("top", False))
+            context.user_data["consumos_hide_values"] = bool(f.get("hide_values", False))
+            (u, lines) = await handle_consumos(update, context)
+            await _reply_and_log(u, context, lines, meta={"stage": "consumos_response", "intent": itype})
             return
 
         if itype == "menus":

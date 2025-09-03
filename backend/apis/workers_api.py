@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 WORKER_MODULES = {
     # MTZ
     "worker_sucursales": "utils.mtz.worker_sucursales",
-    "worker_gastos": "utils.mtz.worker_gastos",
+    "worker_ventas_locales": "utils.mtz.worker_ventas_locales",
     "worker_cargos": "utils.mtz.worker_cargos",
     "worker_compras_bodega_gastos": "utils.mtz.worker_compras_bodega_gastos",
     "worker_recetas_productos": "utils.mtz.worker_recetas_productos",

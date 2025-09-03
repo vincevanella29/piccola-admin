@@ -26,12 +26,13 @@ def get_env_xai():
 
 # Centralized intent spec for the chatbot
 INTENT_PRIORITY = [
-    "gastos", "menus", "productos", "ventas_hora", "ventas", "sueldos", "locations", "chat"
+    "gastos", "menus", "productos", "consumos", "ventas_hora", "ventas", "sueldos", "locations", "chat"
 ]
 INTENTS = [
     {"key": "gastos", "desc": "Consultas de egresos/costos/boletas/facturas, por cuenta/sucursal/mes/RUT."},
     {"key": "menus", "desc": "Información descriptiva de menús/platos/productos (nombre, ingredientes, foto)."},
     {"key": "productos", "desc": "Ventas por producto/menú (top/más vendidos, montos, cantidades, por período)."},
+    {"key": "consumos", "desc": "Consultas de consumo de artículos de productos, por producto/familia/subfamilia (top/más consumidos, cantidades, por período), consumo segun venta."},
     {"key": "ventas_hora", "desc": "Ventas por hora (por garzón/RUT, por producto, por local, por día de semana/semana del mes, con clima, anulaciones)."},
     {"key": "ventas", "desc": "Ventas generales por fecha/rango (totales, tendencias)."},
     {"key": "sueldos", "desc": "Remuneraciones/pagos de sueldos por período y opcionalmente por RUT."},
@@ -75,7 +76,7 @@ async def grok_route_intent(user_text: str) -> Optional[dict]:
 
     system = (
         "Estás dentro de un chatbot de negocio. Tu tarea es CLASIFICAR la intención del usuario.\n"
-        "Devuelve SOLO JSON exacto con este esquema: {\"intent\":\"sueldos|ventas_hora|ventas|menus|locations|productos|gastos|chat\"}.\n"
+        "Devuelve SOLO JSON exacto con este esquema: {\"intent\":\"sueldos|ventas_hora|ventas|menus|locations|productos|consumos|gastos|chat\"}.\n"
         "Ningún otro campo.\n\n"
         "Intenciones disponibles:\n" + intents_text + "\n\n"
         "Reglas:\n"
@@ -83,7 +84,8 @@ async def grok_route_intent(user_text: str) -> Optional[dict]:
         "- NO extraigas filtros ni parámetros (fechas, RUT, cuentas, etc.).\n"
         "- Si piden gastos por RUT/cuenta/sucursal/mes => 'gastos'.\n"
         "- Si piden sueldos/remuneraciones por período/RUT => 'sueldos'.\n"
-        "- Ventas por producto/top/más vendidos => 'productos'.\n"
+        "- Ventas por producto/top/más vendidos o similares, pero relacionado a la venta, no consumo => 'productos'.\n"
+        "- Si mencionan frases como 'consumo según venta', 'cuánto se consumió de X según ventas', 'consumo de X según ventas', o similares => 'consumos'.\n"
         "- Pedidos que mencionan horas específicas (ej. 'a las 4 pm'), día de semana ('lunes'), 'por garzón/RUT', 'por hora', 'semana del mes' => 'ventas_hora'.\n"
         "- Ventas generales por fecha/rango sin granularidad horaria => 'ventas'.\n"
         "- Descripciones/fotos/ingredientes de platos => 'menus'. Ubicación de tiendas => 'locations'.\n"
@@ -109,7 +111,7 @@ async def grok_route_intent(user_text: str) -> Optional[dict]:
             data = r.json()
             content = (data.get("choices", [{}])[0].get("message", {}) or {}).get("content") or ""
             obj = json.loads(content)
-            if not (isinstance(obj, dict) and obj.get("intent") in {"sueldos","ventas_hora","ventas","menus","locations","productos","gastos","chat"}):
+            if not (isinstance(obj, dict) and obj.get("intent") in {"sueldos","ventas_hora","ventas","menus","locations","productos","consumos","gastos","chat"}):
                 return None
             # Return ONLY the intent field
             return {"intent": obj.get("intent")}
