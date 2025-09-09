@@ -53,22 +53,25 @@ def process_period(periodo: str):
         print("Status:", resp.status_code)
         if resp.status_code == 200:
             text = resp.text or ""
-            # Intentar detectar JSON; algunos endpoints retornan texto plano aun con 200
+            # Intentar detectar JSON; evitar intentar json() si el cuerpo NO parece JSON
             data = None
+            s = text.lstrip()
             try:
-                # Preferir JSON si el content-type lo indica o si el cuerpo aparenta ser JSON
-                if "application/json" in (resp.headers.get("Content-Type", "").lower()):
+                looks_like_json = s.startswith("[") or s.startswith("{")
+                ct = (resp.headers.get("Content-Type", "").lower())
+                if looks_like_json:
+                    data = json.loads(s)
+                elif "application/json" in ct and looks_like_json:
+                    # Redundante por la condición anterior, pero deja clara la intención
                     data = resp.json()
-                else:
-                    # Heurística simple
-                    s = text.lstrip()
-                    if s.startswith("[") or s.startswith("{"):
-                        data = json.loads(s)
+                # Si el Content-Type dice application/json pero el cuerpo no luce JSON,
+                # no forzamos json() para evitar logs ruidosos; caeremos al parser PHP.
             except Exception as je:
-                print("Error parseando JSON:", je)
-                snippet = text[:500].replace("\n", " ")
-                print("Respuesta (primeros 500 chars):", snippet)
-                # No retornar aquí; intentaremos el parser de formato PHP Array más abajo
+                # Solo reportar error si parecía JSON realmente
+                if looks_like_json:
+                    print("Error parseando JSON:", je)
+                    snippet = text[:500].replace("\n", " ")
+                    print("Respuesta (primeros 500 chars):", snippet)
                 data = None
 
             if data is None:
@@ -139,3 +142,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

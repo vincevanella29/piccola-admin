@@ -17,15 +17,18 @@ def main():
         if resp.status_code == 200:
             text = resp.text or ""
             data = None
+            s = text.lstrip()
             try:
-                if text.strip() == "":
-                    data = []
-                else:
-                    data = resp.json()
+                looks_like_json = s.startswith("{") or s.startswith("[")
+                if looks_like_json:
+                    import json as _json
+                    data = _json.loads(s) if s else []
             except Exception as je:
-                print("Error parseando JSON:", je)
-                snippet = text[:500].replace("\n", " ")
-                print("Respuesta (primeros 500 chars):", snippet)
+                # Solo loguear si realmente parecía JSON
+                if looks_like_json:
+                    print("Error parseando JSON:", je)
+                    snippet = text[:500].replace("\n", " ")
+                    print("Respuesta (primeros 500 chars):", snippet)
                 data = None
             # Intentar parsear array estilo PHP si no es JSON, usando helper compartido
             if data is None:
@@ -64,3 +67,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

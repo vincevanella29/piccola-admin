@@ -12,7 +12,7 @@ def _dia_str_expr():
     return {
         "$cond": [
             {"$eq": [{"$type": "$fecha"}, "date"]},
-            {"$dateToString": {"format": "%Y-%m-%d", "date": "$fecha"}},
+            {"$dateToString": {"format": "%Y-%m-%d", "date": "$fecha", "timezone": "America/Santiago"}},
             "$fecha"
         ]
     }

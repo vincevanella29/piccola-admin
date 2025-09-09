@@ -15,7 +15,24 @@ def main():
         resp = requests.get(API_URL, timeout=20)
         print("Status:", resp.status_code)
         if resp.status_code == 200:
-            data = resp.json()
+            text = resp.text or ""
+            data = None
+            s = text.lstrip()
+            try:
+                if s.startswith("{") or s.startswith("["):
+                    import json as _json
+                    data = _json.loads(s)
+            except Exception:
+                data = None
+            if data is None:
+                # fallback a parser compartido estilo PHP Array
+                try:
+                    from utils.intranet.php_array_parser import php_array_to_list
+                except Exception:
+                    import sys
+                    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+                    from utils.intranet.php_array_parser import php_array_to_list
+                data = php_array_to_list(text)
             print(f"Recibidos {len(data)} registros de asistencia extra. Actualizando en MongoDB...")
             import sys
             sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -37,3 +54,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

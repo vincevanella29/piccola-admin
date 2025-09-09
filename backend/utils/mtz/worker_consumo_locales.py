@@ -61,10 +61,22 @@ def main():
     OVPN_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "mtz.ovpn"))
     VPN_USER = os.environ.get("VPN_USER")
     VPN_PASS = os.environ.get("VPN_PASS")
-    mesano = input("MesAño (YYYYMM): ").strip()
-    if not mesano:
+    mesano_in = input("MesAño (YYYYMM) o Año (YYYY): ").strip()
+    if not mesano_in:
         now = datetime.now()
-        mesano = now.strftime("%Y%m")
+        mesano_in = now.strftime("%Y%m")
+    # Construir lista de periodos a procesar
+    mesanos: list[str] = []
+    if mesano_in.isdigit() and len(mesano_in) == 4:
+        # Año completo: YYYY01..YYYY12
+        y = mesano_in
+        mesanos = [f"{y}{m:02d}" for m in range(1, 13)]
+        print(f"Procesando año completo {y}: {', '.join(mesanos)}")
+    elif mesano_in.isdigit() and len(mesano_in) == 6:
+        mesanos = [mesano_in]
+    else:
+        print("Entrada inválida. Use YYYYMM o YYYY.")
+        return
 
     auth_path = create_auth_file(VPN_USER, VPN_PASS)
     proc = None
@@ -74,24 +86,33 @@ def main():
         if not wait_for_vpn(proc):
             print("No se pudo levantar la VPN.")
             return
-        API_URL = f"http://192.168.4.117:8000/api/consumo-segun-venta-todos-local?mesano={mesano}"
-        print(f"Consultando API de consumo locales para {mesano}...")
-        resp = requests.get(API_URL, timeout=60)
-        print("Status:", resp.status_code)
-        if resp.status_code == 200:
+        # Preparar acceso a Mongo una sola vez
+        import sys
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+        from utils.web3mongo import db
+
+        articulos_col = db['articulos_consumo']
+        consumo_col = db['consumo_locales']
+
+        # Iterar todos los periodos solicitados
+        for mesano in mesanos:
+            API_URL = f"http://192.168.4.117:8000/api/consumo-segun-venta-todos-local?mesano={mesano}"
+            print(f"Consultando API de consumo locales para {mesano}...")
+            try:
+                resp = requests.get(API_URL, timeout=60)
+            except Exception as e:
+                print(f"Error consultando API para {mesano}:", e)
+                continue
+            print("Status:", resp.status_code)
+            if resp.status_code != 200:
+                print(f"Saltando {mesano}: HTTP {resp.status_code}")
+                continue
+
             data = resp.json().get("data", [])
             total = len(data)
-            print(f"Recibidos {total} registros. Procesando e insertando en MongoDB...")
-            import sys
-            sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-            from utils.web3mongo import db
-
-            # Colecciones
-            articulos_col = db['articulos_consumo']
-            consumo_col = db['consumo_locales']
+            print(f"Recibidos {total} registros para {mesano}. Procesando e insertando en MongoDB...")
 
             # 1) Upsert masivo de artículos con bulk_write (reduce roundtrips)
-            #    Usamos el último valor visto para familia/subfamilia por artículo
             articulos_map = {}
             for d in data:
                 art = d.get("articulo")
@@ -106,11 +127,13 @@ def main():
                     UpdateOne({"articulo": art}, {"$set": vals}, upsert=True)
                     for art, vals in articulos_map.items()
                 ]
-                # ordered=False para paralelizar en el servidor y ser tolerantes a errores puntuales
-                res_up = articulos_col.bulk_write(ops, ordered=False)
-                print(
-                    f"Artículos upsert: matched={res_up.matched_count} upserted={len(res_up.upserted_ids)} modified={res_up.modified_count}"
-                )
+                try:
+                    res_up = articulos_col.bulk_write(ops, ordered=False)
+                    print(
+                        f"Artículos upsert {mesano}: matched={res_up.matched_count} upserted={len(res_up.upserted_ids)} modified={res_up.modified_count}"
+                    )
+                except Exception as e:
+                    print(f"bulk_write artículos error en {mesano} (continuable):", e)
 
             # 2) Normalizar fechas con cache y preparar docs para inserción masiva
             parse_cache = {}
@@ -135,10 +158,8 @@ def main():
                     consumo_col.insert_many(docs, ordered=False)
                 except Exception as e:
                     # Si falla por duplicados u otros, loguear y continuar
-                    print("insert_many error (continuable):", e)
-                print(f"Insertados {len(docs)} registros de consumo crudo y artículos actualizados.")
-        else:
-            print("Error en request:", resp.status_code)
+                    print(f"insert_many error en {mesano} (continuable):", e)
+                print(f"Insertados {len(docs)} registros para {mesano}.")
     except Exception as e:
         print("Error en request:", e)
     finally:
