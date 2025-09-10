@@ -1,6 +1,6 @@
 import api from './api';
 
-// Helper to build base URLs
+// Helper to build WS base from same env logic as api.jsx
 function getApiBase() {
   let API_URL;
   if (import.meta.env.VITE_DEV === 'true' && !window.env?.VITE_API_URL) {
@@ -11,18 +11,10 @@ function getApiBase() {
   return API_URL || '';
 }
 
-function getWsBase() {
-  // Prefer explicit WS base if provided
-  const EXPLICIT = window.env?.VITE_WS_URL || import.meta.env.VITE_WS_URL;
-  if (EXPLICIT) return EXPLICIT;
-  return getApiBase();
-}
-
 function toWsUrl(path) {
-  const base = getWsBase();
-  // Support relative bases by resolving against current origin
-  const url = new URL(base, window.location.origin);
+  const base = getApiBase();
   // Convert http(s) -> ws(s)
+  const url = new URL(base);
   const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${wsProtocol}//${url.host}${url.pathname}${path}`;
 }
