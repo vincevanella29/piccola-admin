@@ -50,11 +50,32 @@ def _map_categories() -> Tuple[Dict[str,str], Dict[str,List[str]]]:
     return ids2name, name2ids
 
 def _menus_by_code() -> Dict[str,dict]:
+    """Mapa codigo -> documento de menú con campos útiles para UI."""
     out = {}
-    for m in db.menus.find({}, {"codigo":1,"nombre":1,"category_ids":1}):
+    for m in db.menus.find({}, {
+        "codigo": 1,
+        "nombre": 1,
+        "category_ids": 1,
+        "option_ids": 1,
+        "precio": 1,
+        "currency": 1,
+        "media_r2": 1,
+        "media_url": 1,
+        "media_local": 1,
+    }):
         code = str(m.get("codigo") or "").strip()
-        if code: out[code] = m
+        if code:
+            out[code] = m
     return out
+
+
+def _menu_image_url(m: dict) -> str:
+    """Elige una URL de imagen simple y segura si existe."""
+    for key in ("media_r2", "media_url"):
+        v = str(m.get(key) or "").strip()
+        if v and (v.startswith("https://") or v.startswith("http://")):
+            return v
+    return ""
 
 def _resolve_code_set(by: str, q: str, include_categories: List[str]) -> List[str]:
     """Delimita códigos por texto/categoría (opcional). Si no hay filtros, retorna []."""
@@ -214,6 +235,21 @@ async def handle_productos(update, context):
 
     # Códigos por búsqueda/categoría
     codes = _resolve_code_set(by, q, include_categories)
+    # Heurística: si solo obtuvimos 0/1 código con búsqueda por nombre/texto, intenta ampliar por término base (p.ej. 'lasagna')
+    if (by in {"", "nombre"}) and q and len(codes) <= 1:
+        menus_all = _menus_by_code()
+        ql = q.lower()
+        # toma la palabra más larga del query como núcleo de búsqueda
+        parts = [p for p in re.split(r"\W+", ql) if p]
+        if parts:
+            core = max(parts, key=len)
+            # ignore adjetivos comunes
+            stop = {"grande","bambino","clasica","clásica","familiar","personal","de","la","el"}
+            if core in stop and len(parts) > 1:
+                core = sorted([p for p in parts if p not in stop], key=len)[-1]
+            broaden = [code for code, m in menus_all.items() if core in str(m.get("nombre") or "").lower()]
+            if len(broaden) >= 2:
+                codes = sorted(set(broaden))
 
     # Heurísticas de lenguaje natural (sin romper SPEC)
     mention_renta  = bool(re.search(r"\brent(a|abilidad)\b", text, re.I))
@@ -407,82 +443,210 @@ async def handle_productos(update, context):
         comp_line = f" | {comp_tag}"
 
     # =========================
-    # Render
+    # Render estructurado para UI
     # =========================
-    # Encabezado
-    nice_measure = {"venta":"Ventas","cantidad":"Unidades","margen":"Margen","costo":"Costo","margen_pct":"Margen %"}[measure]
+    nice_measure = {"venta": "Ventas", "cantidad": "Unidades", "margen": "Margen", "costo": "Costo", "margen_pct": "Margen %"}[measure]
     title_q = f" — {q}" if q else ""
     clima_q = f" — clima:{','.join(weather_in)}" if weather_in else ""
-    head = [f"TOP {limit} — {nice_measure} — {period[:4]}-{period[4:]}{title_q}{clima_q}{comp_line}"]
+    title = f"TOP {limit} — {nice_measure} — {period[:4]}-{period[4:]}{title_q}{clima_q}{comp_line}"
 
-    # Filas
-    lines: List[str] = head
     menus = _menus_by_code()
-    for i, r in enumerate(cur, start=1):
+    # Role gating: only levels 3-4 are authorized to see sensitive metrics
+    role_level = None
+    try:
+        role_level = int(getattr(context, "user_data", {}).get("role_level"))
+    except Exception:
+        role_level = None
+    authorized = role_level in {3, 4}
+
+    # Si no autorizado: no exponer métricas. Entregar lista de productos o una card con receta si hay detalle o 1 match
+    if not authorized and group_by == "producto" and cur:
+        # Muchos resultados => lista
+        if len(cur) > 1 and not detail:
+            items = []
+            for r in cur[:50]:
+                code = str(r.get("_id") or "")
+                mdoc = menus.get(code) or {}
+                items.append({
+                    "id": str(mdoc.get("id") or mdoc.get("_id") or code),
+                    "name": str(mdoc.get("nombre") or code),
+                    "code": code,
+                    "price": mdoc.get("precio"),
+                    "currency": str(mdoc.get("currency") or "$"),
+                    "categories": list(mdoc.get("category_ids") or []),
+                    "options": list(mdoc.get("option_ids") or []),
+                    "image_url": _menu_image_url(mdoc),
+                })
+            return update, {
+                "type": "product_list",
+                "text": f"{len(items)}/{len(cur)} productos" + (f" para '{q}'" if q else ""),
+                "query": q,
+                "total": len(cur),
+                "shown": len(items),
+                "items": items,
+            }
+        # Un producto o piden detalle => card con receta básica
+        candidate_code = cur[0].get("_id")
+        mdoc = menus.get(candidate_code or "") or {}
+        prod = {
+            "id": str(mdoc.get("id") or mdoc.get("_id") or mdoc.get("codigo") or ""),
+            "name": str(mdoc.get("nombre") or ""),
+            "code": str(mdoc.get("codigo") or candidate_code or ""),
+            "price": mdoc.get("precio"),
+            "currency": str(mdoc.get("currency") or "$"),
+            "categories": list(mdoc.get("category_ids") or []),
+            "options": list(mdoc.get("option_ids") or []),
+            "description": str(mdoc.get("descripcion") or mdoc.get("description") or ""),
+            "image_url": _menu_image_url(mdoc),
+        }
+        # Adjuntar receta del periodo si existe
+        try:
+            codigo = prod.get("code") or ""
+            mesano = period
+            rec_rows = list(db.recetas_productos.find({"producto_codigo": codigo, "mesano": mesano}).sort("linea", 1))
+            rec_lines = []
+            for rr in rec_rows[:50]:
+                ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
+                qty = rr.get("cantidad_ingrediente")
+                unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
+                qty_s = (f"{qty:.3f}" if isinstance(qty, (int, float)) else str(qty))
+                rec_lines.append(f"- {ing} — {qty_s} {unit}".strip())
+        except Exception:
+            rec_lines = []
+        return update, {
+            "type": "product_card",
+            "text": prod["name"],
+            "product": prod,
+            "recipe": {"mesano": period, "lines": rec_lines} if rec_lines else None,
+        }
+
+    # Si autorizado y piden detalle de un único producto => product_card
+    if authorized and group_by == "producto" and cur:
+        candidate_code = cur[0].get("_id")
+        mdoc = menus.get(candidate_code or "")
+        if detail and mdoc:
+            prod = {
+                "id": str(mdoc.get("id") or mdoc.get("_id") or mdoc.get("codigo") or ""),
+                "name": str(mdoc.get("nombre") or ""),
+                "code": str(mdoc.get("codigo") or ""),
+                "price": mdoc.get("precio"),
+                "currency": str(mdoc.get("currency") or "$"),
+                "categories": list(mdoc.get("category_ids") or []),
+                "options": list(mdoc.get("option_ids") or []),
+                "description": str(mdoc.get("descripcion") or mdoc.get("description") or ""),
+                "image_url": _menu_image_url(mdoc),
+            }
+            # Adjuntar receta del periodo si existe (igual que en no autorizado)
+            try:
+                codigo = prod.get("code") or ""
+                mesano = period
+                rec_rows = list(db.recetas_productos.find({"producto_codigo": codigo, "mesano": mesano}).sort("linea", 1))
+                rec_lines = []
+                for rr in rec_rows[:50]:
+                    ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
+                    qty = rr.get("cantidad_ingrediente")
+                    unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
+                    qty_s = (f"{qty:.3f}" if isinstance(qty, (int, float)) else str(qty))
+                    rec_lines.append(f"- {ing} — {qty_s} {unit}".strip())
+            except Exception:
+                rec_lines = []
+            return update, {
+                "type": "product_card",
+                "text": f"{prod['name']} — {prod['price']}" if prod.get("price") is not None else prod['name'],
+                "product": prod,
+                "recipe": {"mesano": period, "lines": rec_lines} if rec_lines else None,
+            }
+
+    # Nota: preferimos data_table para incluir totales/KPIs; sólo usamos product_card cuando piden detail.
+
+    # Tabla de datos para cualquier agrupación (solo autorizados)
+    columns = [
+        {"key": "group", "label": group_by, "type": "text", "align": "left"},
+        {"key": "venta", "label": "Venta", "type": "number", "align": "right"},
+        {"key": "cantidad", "label": "Unidades", "type": "number", "align": "right"},
+        {"key": "margen", "label": "Margen", "type": "number", "align": "right"},
+        {"key": "costo", "label": "Costo", "type": "number", "align": "right"},
+        {"key": "margen_pct", "label": "Margen %", "type": "number", "align": "right"},
+    ]
+    rows = []
+    for r in cur:
         key = r.get("_id")
-        v   = r.get("value",0.0)
         name = str(key)
-        # nombre bonito si es producto
         if group_by == "producto":
-            mdoc = menus.get(key, {})
-            if mdoc:
-                nm = mdoc.get("nombre") or ""
+            mdoc = menus.get(str(key) or "") or {}
+            nm = mdoc.get("nombre") or ""
+            if nm:
                 name = f"{nm} ({key})"
-        if hide_vals:
-            main = f"{i}. {name}"
-        else:
-            prev_v = prev_map.get(key)
-            if prev_v is not None and measure!="margen_pct":
-                delta_pct = _pct(v, prev_v)
-                main = f"{i}. {name}\n   { _fmt_value(measure, v) } vs { _fmt_value(measure, prev_v) } (Δ {delta_pct})"
-            elif prev_v is not None and measure=="margen_pct":
-                delta = (v - prev_v) * 100.0
-                main = f"{i}. {name}\n   { _fmt_value(measure, v) } vs { _fmt_value(measure, prev_v) } (Δ {delta:+.1f} pp)"
-            else:
-                main = f"{i}. {name}\n   { _fmt_value(measure, v) }"
-        # Extras: margen, margen%, unidades, costo si lo piden
-        if not hide_vals and include_measures:
-            extras = []
-            if "venta" in include_measures:
-                extras.append(f"venta { _fmt_value('venta', r.get('venta',0)) }")
-            if "margen" in include_measures:
-                extras.append(f"margen { _fmt_value('margen', r.get('margen',0)) }")
-            if "margen_pct" in include_measures:
-                mp = (r.get("margen",0) / r.get("venta",1)) if r.get("venta",0) else 0
-                extras.append(f"{mp*100:.1f}%")
-            if "cantidad" in include_measures:
-                extras.append(f"{ int(r.get('cantidad',0)):,} uds")
-            if "costo" in include_measures:
-                extras.append(f"costo { _fmt_value('costo', r.get('costo',0)) }")
-            if extras:
-                main += "\n   " + " | ".join(extras)
-        lines.append(main)
+        venta = float(r.get("venta", 0) or 0)
+        cantidad = float(r.get("cantidad", 0) or 0)
+        margen = float(r.get("margen", 0) or 0)
+        costo = float(r.get("costo", 0) or 0)
+        mpct = (margen / venta) if venta else 0.0
+        row = {
+            "group": name,
+            "venta": venta,
+            "cantidad": int(cantidad),
+            "margen": margen,
+            "costo": costo,
+            "margen_pct": round(mpct * 100.0, 2),
+        }
+        # Adjunta metadata útil para modales/detalle
+        if group_by == "producto":
+            row["code"] = str(key)
+            mdoc = menus.get(str(key) or "") or {}
+            row["name"] = str(mdoc.get("nombre") or "")
+            row["image_url"] = _menu_image_url(mdoc)
+            row["price"] = mdoc.get("precio")
+            row["currency"] = str(mdoc.get("currency") or "$")
+        rows.append(row)
 
-    # Totales generales (solo si no hide_vals)
-    if not hide_vals and cur:
-        tot_v = sum(float(r.get("value",0)) for r in cur)
-        if compare in {"yoy","mom"} and prev_map:
-            prev_sum = sum(float(prev_map.get(r.get("_id"),0)) for r in cur)
-            dp = _pct(tot_v, prev_sum) if measure!="margen_pct" else f"{(tot_v-prev_sum)*100:.1f} pp"
-            lines += ["", "TOTAL:", f"   { _fmt_value(measure, tot_v) }" + (f" vs { _fmt_value(measure, prev_sum) } (Δ {dp})" if prev_map else "")]
-        else:
-            lines += ["", "TOTAL:", f"   { _fmt_value(measure, tot_v) }"]
-        # Totales de extras, si corresponde
-        if include_measures:
-            t_extras = []
-            if "venta" in include_measures:
-                t_extras.append(f"venta { _fmt_value('venta', sum(float(r.get('venta',0)) for r in cur)) }")
-            if "margen" in include_measures:
-                t_extras.append(f"margen { _fmt_value('margen', sum(float(r.get('margen',0)) for r in cur)) }")
-            if "margen_pct" in include_measures:
-                tv = sum(float(r.get('venta',0)) for r in cur) or 1
-                tm = sum(float(r.get('margen',0)) for r in cur)
-                t_extras.append(f"{(tm/tv)*100:.1f}%")
-            if "cantidad" in include_measures:
-                t_extras.append(f"{ int(sum(float(r.get('cantidad',0)) for r in cur)):,} uds")
-            if "costo" in include_measures:
-                t_extras.append(f"costo { _fmt_value('costo', sum(float(r.get('costo',0)) for r in cur)) }")
-            if t_extras:
-                lines.append("   " + " | ".join(t_extras))
+    totals = {
+        "venta": sum(float(r.get("venta", 0) or 0) for r in cur),
+        "cantidad": int(sum(float(r.get("cantidad", 0) or 0) for r in cur)),
+        "margen": sum(float(r.get("margen", 0) or 0) for r in cur),
+        "costo": sum(float(r.get("costo", 0) or 0) for r in cur),
+    }
+    tv = totals["venta"] or 1
+    totals["margen_pct"] = round((totals["margen"] / tv) * 100.0, 2)
 
-    return update, lines
+    if not authorized:
+        # fallback extremo: lista simple de productos si algo escapó
+        items = []
+        for r in cur[:50]:
+            code = str(r.get("_id") or "")
+            mdoc = menus.get(code) or {}
+            items.append({
+                "id": str(mdoc.get("id") or mdoc.get("_id") or code),
+                "name": str(mdoc.get("nombre") or code),
+                "code": code,
+                "price": mdoc.get("precio"),
+                "currency": str(mdoc.get("currency") or "$"),
+                "categories": list(mdoc.get("category_ids") or []),
+                "options": list(mdoc.get("option_ids") or []),
+                "image_url": _menu_image_url(mdoc),
+            })
+        return update, {
+            "type": "product_list",
+            "text": f"{len(items)}/{len(cur)} productos" + (f" para '{q}'" if q else ""),
+            "query": q,
+            "total": len(cur),
+            "shown": len(items),
+            "items": items,
+        }
+
+    payload = {
+        "type": "data_table",
+        "title": title,
+        "text": title,
+        "subtitle": None,
+        "kpis": [
+            {"label": "Total venta", "value": _fmt_value("venta", totals["venta"])},
+            {"label": "Total unidades", "value": _fmt_value("cantidad", totals["cantidad"])},
+            {"label": "Margen %", "value": f"{totals['margen_pct']:.1f}%"},
+        ],
+        "columns": columns,
+        "rows": rows,
+        "totals": totals,
+        "charts": None,
+    }
+    return update, payload

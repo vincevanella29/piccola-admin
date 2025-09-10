@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 from types import SimpleNamespace
 from dotenv import load_dotenv
 
@@ -16,8 +17,9 @@ XAI_API_KEY = os.getenv("XAI_API_KEY")
 
 # Use the site utils (NOT Telegram bot) so responses match the web UI formatting
 from utils.bot.common.common import ask_grok, grok_route_intent, INTENTS
+from apis.roles import get_company_role_level
 from utils.bot.common.filters import grok_filters
-from utils.bot.productos.menus import handle_menus
+from utils.bot.productos.menus import handle_menus, handle_productos_hora
 from utils.bot.productos.productos import handle_productos
 from utils.bot.consumos.consumos import handle_consumos
 from utils.bot.movimientos.ventas import handle_ventas
@@ -39,6 +41,7 @@ import utils.bot.movimientos.ventas_spec  # noqa: F401
 import utils.bot.movimientos.ventas_hora_spec  # noqa: F401
 import utils.bot.movimientos.sueldos_spec  # noqa: F401
 import utils.bot.consumos.consumos_spec  # noqa: F401
+import utils.bot.productos.productos_spec  # noqa: F401
 
 # Centralized accepted intents from common
 ACCEPTED_INTENTS = {i.get("key") for i in INTENTS}
@@ -62,19 +65,31 @@ async def chat_complete(messages: list[dict]) -> str:
     if itype not in ACCEPTED_INTENTS:
         itype = "chat"
 
-    # Minimal shim to reuse utils handlers
+    # Minimal shim to reuse utils handlers and pass identity/role
     update = SimpleNamespace(message=SimpleNamespace(text=text))
     context = SimpleNamespace(user_data={})
+    # Try to parse wallet from the first system message (User context JSON)
+    try:
+        sys0 = (messages or [{}])[0]
+        if (sys0 or {}).get("role") == "system":
+            content = (sys0 or {}).get("content") or ""
+            if "User context (JSON):" in content:
+                jtxt = content.split("User context (JSON):", 1)[-1].strip()
+                conv_ctx = json.loads(jtxt)
+                wallet = (conv_ctx or {}).get("wallet")
+                if isinstance(wallet, str) and wallet:
+                    context.user_data["wallet"] = wallet
+                    try:
+                        context.user_data["role_level"] = get_company_role_level(wallet)
+                    except Exception:
+                        context.user_data["role_level"] = None
+    except Exception:
+        pass
 
     if itype == "menus":
-        f = await grok_filters("menus", text) or {}
-        context.user_data["menus_by"] = (f.get("by") or "").lower()
-        context.user_data["menus_q"] = (f.get("q") or "").strip()
-        context.user_data["menus_detail"] = bool(f.get("detail", False))
-        context.user_data["menus_recipe"] = bool(f.get("recipe", False))
-        context.user_data["menus_mesanos"] = list(f.get("mesanos") or [])
-        _, payload = await handle_menus(update, context)
-        return payload
+        # Redirigir 'menus' a ventas por hora de productos (descontinuamos menú descriptivo)
+        _, payload = await handle_productos_hora(update, context)
+        return payload if isinstance(payload, (dict, list)) else {"type":"text_block_list","intent":itype,"lines":payload}
 
     if itype == "locations":
         lf = await grok_filters("locations", text) or {}
@@ -141,8 +156,11 @@ async def chat_complete(messages: list[dict]) -> str:
         if f.get("period"): context.user_data["productos_period"] = f["period"]
         context.user_data["productos_top"] = bool(f.get("top", False))
         context.user_data["productos_hide_values"] = bool(f.get("hide_values", False))
-        _, lines = await handle_productos(update, context)
-        return {"type": "text_block_list", "intent": itype, "lines": lines}
+        _, result = await handle_productos(update, context)
+        # If structured payload (dict, list), forward it; else wrap as text list
+        if isinstance(result, (dict, list)):
+            return result
+        return {"type": "text_block_list", "intent": itype, "lines": result}
 
     if itype == "consumos":
         f = await grok_filters("consumos", text) or {}
@@ -170,8 +188,17 @@ async def chat_complete(messages: list[dict]) -> str:
     if itype == "history":
         _ = await grok_filters("history", text)
         _, payload = await handle_history(update, section="timeline")
-        payload["text"] = await ask_grok(payload, messages=messages)
+        # Build a short summary prompt for the new ask_grok signature
+        try:
+            compact = json.dumps({k: payload.get(k) for k in ("title","subtitle","kpis","totals") if k in payload}, ensure_ascii=False)
+        except Exception:
+            compact = ""
+        prompt = (
+            "Resume en 2-3 líneas, en español chileno, este contexto para mostrarlo encima del timeline: "
+            f"{compact}"
+        )
+        payload["text"] = await ask_grok(prompt)
         return payload
 
-    # Fallback/general chat: use full messages with XAI for context
-    return await ask_grok(text, messages=messages)
+    # Fallback/general chat
+    return await ask_grok(text)

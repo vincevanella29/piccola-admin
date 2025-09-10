@@ -1,15 +1,15 @@
 import os
 import logging
-import difflib
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Tuple
 
 from utils.web3mongo import db
 from ..common.filters import grok_filters
+import unicodedata
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# 🧭 Importante para ver **negritas** y formato bonito en Telegram:
+# Importante para ver **negritas** y formato bonito en Telegram:
 # Configura el bot con parse_mode por defecto en Application:
 #
 # from telegram.ext import Application, Defaults
@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 # Allowed photo extensions for Telegram sendPhoto
 ALLOWED_PHOTO_EXTS = {"jpg", "jpeg", "png"}
+
+# Safe default in case any legacy path references this symbol at module scope
+authorized = False
 
 
 # ===============
@@ -85,6 +88,29 @@ def _cf_to_jpeg(u: str) -> str:
         return ""
 
 
+def _no_accents(txt: str) -> str:
+    try:
+        return "".join(
+            c for c in unicodedata.normalize("NFD", txt or "")
+            if unicodedata.category(c) != "Mn"
+        )
+    except Exception:
+        return (txt or "")
+
+
+def _singularize_tokens_es(text: str) -> list[str]:
+    t = _no_accents((text or "").lower())
+    parts = [p for p in __import__("re").split(r"\W+", t) if p]
+    out = set()
+    for w in parts:
+        out.add(w)
+        if w.endswith("es") and len(w) > 4:
+            out.add(w[:-2])
+        if w.endswith("s") and len(w) > 3:
+            out.add(w[:-1])
+    return list(out)
+
+
 def _wants_detail_menus(text: str) -> bool:
     t = (text or "").lower()
     return any(k in t for k in [
@@ -92,137 +118,15 @@ def _wants_detail_menus(text: str) -> bool:
     ])
 
 
-# =====================
-# Matching & scoring
-# =====================
-
-
-def _num(v: Any) -> Optional[float]:
-    try:
-        return float(v)
-    except Exception:
-        return None
-
-
-def _safe_price(m: dict) -> Optional[float]:
-    p = m.get("precio")
-    return _num(p)
-
-
-def _pref_canon_list(preferencias: List[str]) -> List[str]:
-    out: List[str] = []
-    for p in preferencias or []:
-        pl = (p or "").lower()
-        if not pl:
-            continue
-        out.append(pl)
-    return out
-
-
-def _collect_search_surface(m: dict, cat_by_id: Dict[str, dict], opt_by_id: Dict[str, dict]) -> str:
-    nombre = _norm_str(m.get("nombre"))
-    descr = _norm_str(m.get("descripcion") or m.get("description"))
-    # categories
-    cat_ids = [_norm_str(x) for x in (m.get("category_ids") or [])]
-    cat_names = [
-        _norm_str(cat_by_id[cid].get("nombre") or cat_by_id[cid].get("name"))
-        for cid in cat_ids if cid in cat_by_id
-    ]
-    # options
-    opt_ids = [_norm_str(x) for x in (m.get("option_ids") or [])]
-    opt_names = []
-    for oid in opt_ids:
-        opt = opt_by_id.get(oid)
-        if not opt:
-            continue
-        oname = _norm_str(opt.get("nombre") or opt.get("name") or opt.get("title"))
-        if oname:
-            opt_names.append(oname)
-    parts = [nombre, descr] + cat_names + opt_names
-    return " \n ".join([x for x in parts if x])
-
-
-def _pref_match_score(surface: str, preferencias: List[str]) -> int:
-    if not preferencias:
-        return 0
-    s = (surface or "").lower()
-    score = 0
-    for p in preferencias:
-        if not p:
-            continue
-        if p in s:
-            score += 1
-    return score
-
-
-def _text_match_score(m: dict, q: str) -> int:
-    if not q:
-        return 0
-    ql = q.lower()
-    nombre = _norm_str(m.get("nombre")).lower()
-    descr = _norm_str(m.get("descripcion") or m.get("description")).lower()
-    codigo = _norm_str(m.get("codigo")).lower()
-    if codigo == ql:
-        return 10
-    if nombre == ql:
-        return 6
-    if ql in nombre:
-        return 4
-    if ql in descr:
-        return 2
-    return 0
-
-
-def _similarity(a: str, b: str) -> float:
-    try:
-        return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
-    except Exception:
-        return 0.0
-
-
-def _text_similarity_score(q: str, m: dict, cat_by_id: Dict[str, dict], opt_by_id: Dict[str, dict]) -> float:
-    if not q:
-        return 0.0
-    ql = q.lower().strip()
-    nombre = _norm_str(m.get("nombre"))
-    descr = _norm_str(m.get("descripcion") or m.get("description"))
-    codigo = _norm_str(m.get("codigo"))
-    surface = _collect_search_surface(m, cat_by_id, opt_by_id)
-    score = 0.0
-    # exact boosts
-    if codigo and codigo.lower() == ql:
-        score += 10.0
-    if nombre and nombre.lower() == ql:
-        score += 6.0
-    # contains boosts
-    if _contains(nombre, ql):
-        score += 4.0
-    if _contains(descr, ql):
-        score += 2.0
-    # fuzzy similarity
-    score += 4.0 * _similarity(ql, nombre)
-    score += 2.0 * _similarity(ql, descr)
-    score += 1.0 * _similarity(ql, surface)
-    return score
-
-
-def _price_score(price: Optional[float], min_price: Optional[float], max_price: Optional[float], budget: Optional[float]) -> float:
-    if price is None:
-        return 0.0
-    # Hard filters are handled separately; here, score closeness to budget if provided
-    if budget is not None and budget > 0:
-        # higher score if price is close but not exceeding too much
-        diff = abs(price - budget)
-        return max(0.0, 5.0 - (diff / max(1.0, budget)) * 5.0)
-    # gentle preference: inside min/max gets small bonus
-    if (min_price is not None and price < min_price) or (max_price is not None and price > max_price):
-        return 0.0
-    return 1.0
-
-
 # ====================
 # UI builders (bonitos)
 # ====================
+
+def _badge_list(bits: List[str]) -> str:
+    """Convierte meta en línea con separadores bonitos."""
+    cleaned = [b for b in bits if b]
+    return "  ·  ".join(cleaned)
+
 
 def _fmt_money(v: Any, currency: str) -> str:
     try:
@@ -231,6 +135,97 @@ def _fmt_money(v: Any, currency: str) -> str:
         return f"{currency}{n:,.0f}".replace(",", ".")
     except Exception:
         return f"{currency}{v}"
+
+
+def _menu_detail_caption(m: dict, cat_by_id: Dict[str, dict]) -> str:
+    """Caption corto y elegante para la foto (<=1024 chars)."""
+    nombre = _norm_str(m.get("nombre"))
+    codigo = _norm_str(m.get("codigo"))
+    precio = m.get("precio")
+    currency = _norm_str(m.get("currency") or "$")
+    descr = _norm_str(m.get("descripcion") or m.get("description"))
+    cat_ids = [_norm_str(x) for x in (m.get("category_ids") or [])]
+    cat_names = [
+        _norm_str(cat_by_id[cid].get("nombre") or cat_by_id[cid].get("name"))
+        for cid in cat_ids if cid in cat_by_id
+    ]
+
+    meta_bits: List[str] = []
+    if codigo:
+        meta_bits.append(f"**Código:** {codigo}")
+    if precio is not None:
+        meta_bits.append(f"**Precio:** {_fmt_money(precio, currency)}")
+    if cat_names:
+        meta_bits.append(f"**Categorías:** {', '.join(cat_names)}")
+
+    # Descripción breve: primer enunciado o hasta 240 chars
+    short_descr = (descr.split(". ")[0] if descr else "").strip()[:240]
+
+    parts: List[str] = [f"**{nombre}**"]
+    meta_line = _badge_list(meta_bits)
+    if meta_line:
+        parts.append(meta_line)
+    if short_descr:
+        parts.append(short_descr)
+    caption = "\n".join(parts).strip()
+
+    # recorte duro a 1024 por si acaso
+    return caption[:1024]
+
+
+def _menu_detail_block(m: dict, cat_by_id: Dict[str, dict]) -> str:
+    """Bloque textual (fallback sin imagen) en estilo bonito."""
+    nombre = _norm_str(m.get("nombre"))
+    codigo = _norm_str(m.get("codigo"))
+    precio = m.get("precio")
+    currency = _norm_str(m.get("currency") or "$")
+    descr = _norm_str(m.get("descripcion") or m.get("description"))
+    cat_ids = [_norm_str(x) for x in (m.get("category_ids") or [])]
+    cat_names = [
+        _norm_str(cat_by_id[cid].get("nombre") or cat_by_id[cid].get("name"))
+        for cid in cat_ids if cid in cat_by_id
+    ]
+
+    bits: List[str] = []
+    if codigo:
+        bits.append(f"**Código:** {codigo}")
+    if precio is not None:
+        bits.append(f"**Precio:** {_fmt_money(precio, currency)}")
+    if cat_names:
+        bits.append(f"**Categorías:** {', '.join(cat_names)}")
+
+    lines = [f"**{nombre}**"]
+    if bits:
+        lines.append(_badge_list(bits))
+    if descr:
+        lines.append(descr)
+    return "\n".join(lines)
+
+
+def _build_ambiguous_list(matched: List[dict]) -> List[str]:
+    lines = ["**Encontré varios productos** — especifica por *nombre* o *código*: "]
+    for i, m in enumerate(matched[:10], start=1):
+        nombre = _norm_str(m.get("nombre"))
+        codigo = _norm_str(m.get("codigo"))
+        lines.append(f"{i}. **{nombre}** — `{codigo}`")
+    return lines
+
+
+def _build_recipe_block(nombre: str, codigo: str, mesano: str, rows: List[dict]) -> str:
+    if not rows:
+        return f"Receta de **{nombre}** (código `{codigo}`) — **{mesano}**: *sin datos*."
+
+    out: List[str] = [f"** {nombre}** — Receta `{codigo}` — **{mesano}**"]
+    for r in rows:
+        ing = _norm_str(r.get("ingrediente_nombre") or r.get("ingrediente_codigo"))
+        qty = r.get("cantidad_ingrediente")
+        unit = _norm_str(r.get("u_medida_compra") or r.get("u_medida_base"))
+        pct = r.get("porcentaje_linea")
+        qty_s = (f"{qty:.3f}" if isinstance(qty, (int, float)) else _norm_str(qty))
+        pct_s = (f" · {pct:.1f}%" if isinstance(pct, (int, float)) else "")
+        out.append(f"- **{ing}** — {qty_s} {unit}{pct_s}")
+    return "\n".join(out)
+
 
 # ==================
 # Imagen (Telegram)
@@ -285,35 +280,29 @@ async def handle_menus(update, context):
     """
     text = update.message.text or ""
 
-    # Pide TODO a Grok según SPEC('menus') y persiste en contexto
-    gf = await grok_filters("menus", text) or {}
-    logger.info(f"[menus] spec_raw => {gf}")
+    # Filtros desde contexto o por NLP
+    by_ctx = (context.user_data.get("menus_by") or "").lower()
+    q_ctx = _norm_str(context.user_data.get("menus_q") or "")
+    detail_ctx = bool(context.user_data.get("menus_detail", False))
 
-    by = _norm_str(gf.get("by") or "texto").lower()
-    q = _norm_str(gf.get("q") or "")
-    detail = bool(gf.get("detail", False))
-    ql = q.lower()
+    f: Dict[str, Any] = {}
+    if by_ctx or q_ctx or detail_ctx:
+        by = by_ctx or "texto"
+        q = q_ctx
+        detail = detail_ctx
+    else:
+        f = await grok_filters("menus", text) or {}
+        by = ((f.get("by") or "")).lower() or "texto"
+        q = _norm_str(f.get("q") or "")
+        detail = bool(f.get("detail", False))
 
-    preferencias = gf.get("preferencias") or []
-    if isinstance(preferencias, str):
-        preferencias = [preferencias]
-    preferencias = _pref_canon_list(preferencias)
-    min_price = _num(gf.get("min_price"))
-    max_price = _num(gf.get("max_price"))
-    budget = _num(gf.get("budget"))
-    sort_pref = _norm_str(gf.get("sort") or "best").lower()
-    if sort_pref not in {"best", "cheap", "expensive"}:
-        sort_pref = "best"
-
-    # Persistir en contexto para siguientes turnos o handlers
-    context.user_data["menus_by"] = by
-    context.user_data["menus_q"] = q
-    context.user_data["menus_detail"] = detail
-    context.user_data["menus_preferencias"] = preferencias
-    context.user_data["menus_min_price"] = min_price
-    context.user_data["menus_max_price"] = max_price
-    context.user_data["menus_budget"] = budget
-    context.user_data["menus_sort"] = sort_pref
+    # Extras estructurados
+    recipe = bool(context.user_data.get("menus_recipe", False)) if hasattr(context, "user_data") else False
+    if not recipe:
+        recipe = bool((f or {}).get("recipe", False))
+    mesanos = list(context.user_data.get("menus_mesanos") or []) if hasattr(context, "user_data") else []
+    if not mesanos:
+        mesanos = list((f or {}).get("mesanos") or [])  # normalizados por spec
 
     # Cargar colecciones
     menus = list(db.menus.find({}))
@@ -323,44 +312,38 @@ async def handle_menus(update, context):
     cat_by_id = _index_by_id(categories)
     opt_by_id = _index_by_id(menu_options)
 
-    # Filtrado basado SOLO en Grok + similitud del prompt con productos existentes
+    # Filtrado
     matched: List[dict] = []
-    # Obtener catálogos válidos de categorías y menús desde SPEC
-    valid_categories = set()
-    valid_menus = set()
-    for cat in categories:
-        n = _norm_str(cat.get("nombre") or cat.get("name"))
-        if n:
-            valid_categories.add(n.lower())
-    for menu in menus:
-        n = _norm_str(menu.get("nombre"))
-        if n:
-            valid_menus.add(n.lower())
-    # Usa q del spec; si viene vacío, usa el texto completo del usuario como query de similitud
-    query_text = q or text
-    query_text = _norm_str(query_text)
-    for m in menus:
-        # Solo considera productos cuyo nombre esté en el catálogo válido
-        nombre_menu = _norm_str(m.get("nombre")).lower()
-        if nombre_menu not in valid_menus:
-            continue
-        # aplica filtros de precio si Grok los entregó (>0)
-        p = _safe_price(m)
-        min_ok = (min_price is None or min_price <= 0) or (p is not None and p >= min_price)
-        max_ok = (max_price is None or max_price <= 0) or (p is not None and p <= max_price)
-        budget_ok = (budget is None or budget <= 0) or (p is not None and p <= budget * 1.25)
-        if not (min_ok and max_ok and budget_ok):
-            continue
-        # preferencias: si vienen, exigimos al menos 1 match en la superficie
-        if preferencias:
-            surface = _collect_search_surface(m, cat_by_id, opt_by_id)
-            if _pref_match_score(surface, preferencias) <= 0:
-                continue
-        # score de similitud textual (nombre/descr/categorías/opciones/código)
-        ts = _text_similarity_score(query_text, m, cat_by_id, opt_by_id)
-        if ts > 0:
-            m["__score_ts"] = ts
-            matched.append(m)
+    ql = (q or "").lower()
+
+    if by == "categoria":
+        cat_ids = []
+        for c in categories:
+            cid = _norm_str(c.get("id") or c.get("_id"))
+            nombre = _norm_str(c.get("nombre") or c.get("name"))
+            if not ql or _contains(nombre, ql) or (ql and cid == q):
+                cat_ids.append(cid)
+        cat_ids_set = set(cat_ids)
+        for m in menus:
+            mids = [_norm_str(x) for x in (m.get("category_ids") or [])]
+            if any(mid in cat_ids_set for mid in mids):
+                matched.append(m)
+
+    elif by == "producto":
+        for m in menus:
+            nombre = _norm_str(m.get("nombre"))
+            codigo = _norm_str(m.get("codigo"))
+            if not ql:
+                matched.append(m)
+            elif codigo == q or _contains(nombre, ql):
+                matched.append(m)
+
+    else:  # texto -> nombre o descripción
+        for m in menus:
+            nombre = _norm_str(m.get("nombre"))
+            descr = _norm_str(m.get("descripcion") or m.get("description"))
+            if not ql or _contains(nombre, ql) or _contains(descr, ql):
+                matched.append(m)
 
     # Join options (para listado)
     def join_options(m: dict) -> List[str]:
@@ -375,98 +358,60 @@ async def handle_menus(update, context):
                 names.append(oname)
         return names
 
-    # Post filters: price and preferencias
-    def passes_price(m: dict) -> bool:
-        p = _safe_price(m)
-        if p is None:
-            return True  # keep unknown priced items
-        if min_price is not None and p < min_price:
-            return False
-        if max_price is not None and p > max_price:
-            return False
-        if budget is not None and budget > 0 and p > budget * 1.25:  # allow slight tolerance
-            return False
-        return True
-
-    def matches_prefs(m: dict) -> bool:
-        if not preferencias:
-            return True
-        surface = _collect_search_surface(m, cat_by_id, opt_by_id)
-        return _pref_match_score(surface, preferencias) > 0
-
     if not matched:
-        return update, {
-            "type": "text",
-            "text": "No encontré productos que coincidan con tu búsqueda.",
-        }
+        return update, ["**No encontré productos** que coincidan con tu búsqueda."]
 
-    # Scoring and sorting
-    def total_score(m: dict) -> float:
-        ts = float(m.get("__score_ts", 0.0))
-        surface = _collect_search_surface(m, cat_by_id, opt_by_id)
-        ps = _pref_match_score(surface, preferencias)
-        pr = _price_score(_safe_price(m), min_price, max_price, budget)
-        return ts + ps + pr
+    # ---- Recetas ----
+    if recipe:
+        # Elegir menú
+        m_sel = None
+        if q and any(_norm_str(x.get("codigo")) == q for x in matched):
+            m_sel = next(x for x in matched if _norm_str(x.get("codigo")) == q)
+        elif len(matched) == 1:
+            m_sel = matched[0]
+        else:
+            return update, _build_ambiguous_list(matched)
 
-    if sort_pref == "cheap":
-        matched.sort(key=lambda m: (_safe_price(m) is None, _safe_price(m) or float('inf')))
-    elif sort_pref == "expensive":
-        matched.sort(key=lambda m: (_safe_price(m) is None, -(_safe_price(m) or 0)))
-    else:
-        matched.sort(key=lambda m: total_score(m), reverse=True)
+        nombre = _norm_str(m_sel.get("nombre"))
+        codigo = _norm_str(m_sel.get("codigo"))
+
+        # 1) Tarjeta (foto + caption) o fallback
+        out_items: List[Dict[str, Any] | str] = []
+        img = _resolve_menu_image_url(m_sel)
+        if img:
+            caption = _menu_detail_caption(m_sel, cat_by_id)
+            out_items.append({"type": "photo", "url": img, "caption": caption})
+        else:
+            out_items.append(_menu_detail_block(m_sel, cat_by_id))
+
+        # 2) Recetas por mes/año (máx 2 bloques)
+        for mesano in mesanos[:2]:
+            rows = list(
+                db.recetas_productos.find({
+                    "producto_codigo": codigo,
+                    "mesano": mesano,
+                }).sort("linea", 1)
+            )
+            out_items.append(_build_recipe_block(nombre, codigo, mesano, rows))
+
+        return update, out_items
 
     # ---- Detalle único ----
     if len(matched) == 1 or detail or _wants_detail_menus(text):
         m = matched[0]
-        # Base fields
-        pid = _norm_str(m.get("id") or m.get("_id") or m.get("codigo"))
-        nombre = _norm_str(m.get("nombre"))
-        codigo = _norm_str(m.get("codigo"))
-        precio = m.get("precio")
-        currency = _norm_str(m.get("currency") or "$")
-        descr = _norm_str(m.get("descripcion") or m.get("description"))
-        cat_ids = [_norm_str(x) for x in (m.get("category_ids") or [])]
-        cat_names = [
-            _norm_str(cat_by_id[cid].get("nombre") or cat_by_id[cid].get("name"))
-            for cid in cat_ids if cid in cat_by_id
-        ]
-        # options
-        opt_names = []
-        for oid in [_norm_str(x) for x in (m.get("option_ids") or [])]:
-            opt = opt_by_id.get(oid)
-            if not opt:
-                continue
-            oname = _norm_str(opt.get("nombre") or opt.get("name") or opt.get("title"))
-            if oname:
-                opt_names.append(oname)
-        # image
         img = _resolve_menu_image_url(m)
-        # Texto humano corto para la UI (ej. chat preview)
-        if precio is not None:
-            text_preview = f"{nombre} — {_fmt_money(precio, currency)}"
-        else:
-            text_preview = nombre
-        return update, {
-            "type": "product_card",
-            "text": text_preview,
-            "product": {
-                "id": pid,
-                "name": nombre,
-                "code": codigo,
-                "price": precio,
-                "currency": currency,
-                "categories": cat_names,
-                "options": opt_names,
-                "description": descr,
-                "image_url": img,
-            }
-        }
+        if img:
+            caption = _menu_detail_caption(m, cat_by_id)
+            return update, [{"type": "photo", "url": img, "caption": caption}]
+        return update, [_menu_detail_block(m, cat_by_id)]
 
     # ---- Listado corto (máx 20) con UI linda ----
     MAX_ITEMS = 20
-    items = []
-    for m in matched[:MAX_ITEMS]:
-        pid = _norm_str(m.get("id") or m.get("_id") or m.get("codigo"))
+    lines: List[str] = []
+    header = "**Menús encontrados**" if not q else f"**Menús encontrados** para `'{q}'`"
+    lines.append(header)
+
+    for i, m in enumerate(matched[:MAX_ITEMS], start=1):
         nombre = _norm_str(m.get("nombre"))
         codigo = _norm_str(m.get("codigo"))
         precio = m.get("precio")
@@ -477,32 +422,403 @@ async def handle_menus(update, context):
             _norm_str(cat_by_id[cid].get("nombre") or cat_by_id[cid].get("name"))
             for cid in cat_ids if cid in cat_by_id
         ]
-        # options (top 3 for preview)
+        # options
         opt_names = join_options(m)
-        # image (thumbnail)
-        img = _resolve_menu_image_url(m)
-        items.append({
-            "id": pid,
-            "name": nombre,
-            "code": codigo,
-            "price": precio,
-            "currency": currency,
-            "categories": cat_names,
-            "options": opt_names[:3],
-            "image_url": img,
-        })
 
-    total = len(matched)
-    # Texto humano corto para la UI del listado
-    if q:
-        list_text = f"{len(items)}/{total} productos para '{q}'"
+        meta_bits: List[str] = []
+        if codigo:
+            meta_bits.append(f"`{codigo}`")
+        if precio is not None:
+            meta_bits.append(_fmt_money(precio, currency))
+        meta = (" · ".join(meta_bits)) if meta_bits else ""
+
+        cat_str = f"  —  *{', '.join(cat_names)}*" if cat_names else ""
+        opt_str = (
+            f"  —  _opc: {', '.join(opt_names[:3])}{'…' if len(opt_names) > 3 else ''}_"
+            if opt_names else ""
+        )
+        lines.append(f"{i}. **{nombre}**{(' — ' + meta) if meta else ''}{cat_str}{opt_str}")
+
+    if len(matched) > MAX_ITEMS:
+        lines.append(f"… y **{len(matched) - MAX_ITEMS}** más")
+
+    return update, lines
+
+# ===============================
+# Ventas por hora de productos
+# ===============================
+
+from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta
+
+
+COLL_SALES_HOURLY = "sales_by_waiter_hour"
+
+
+def _vh_resolve_period(per: dict) -> tuple[datetime, datetime, str, str, ZoneInfo]:
+    tz = ZoneInfo((per.get("tz") or "America/Santiago"))
+    now = datetime.now(tz).date()
+    preset = (per.get("preset") or "").lower()
+    s = e = None
+    def _parse(d: str): return datetime.fromisoformat(d).date()
+    try:
+        if preset == "hoy": s=e=now
+        elif preset == "ayer": s=e=(now - timedelta(days=1))
+        elif preset == "este_mes":
+            s = now.replace(day=1)
+            n1 = s.replace(year=s.year+1,month=1,day=1) if s.month==12 else s.replace(month=s.month+1,day=1)
+            e = n1 - timedelta(days=1)
+        elif preset == "mes_pasado":
+            f = now.replace(day=1); lp = f - timedelta(days=1)
+            s = lp.replace(day=1); e = lp
+        elif preset == "este_ano":
+            s = now.replace(month=1, day=1); e = now
+        else:
+            st = (per.get("start") or "").strip(); en = (per.get("end") or "").strip()
+            if st and en: s = _parse(st); e = _parse(en)
+    except Exception:
+        s = e = None
+    if not s or not e:
+        s = now.replace(day=1)
+        n1 = s.replace(year=s.year+1,month=1,day=1) if s.month==12 else s.replace(month=s.month+1,day=1)
+        e = n1 - timedelta(days=1)
+    start_dt = datetime.combine(s, datetime.min.time()).replace(tzinfo=tz)
+    end_excl = datetime.combine(e, datetime.min.time()).replace(tzinfo=tz) + timedelta(days=1)
+    return start_dt, end_excl, s.strftime("%Y-%m-%d"), e.strftime("%Y-%m-%d"), tz
+
+
+def _vh_group_expr(gb: str):
+    if gb == "hora": return {"$toString":"$H"}
+    if gb == "dia":  return {"$ifNull":["$DATE_STR","-"]}
+    if gb == "mes":  return {"$ifNull":["$MONTH_STR","-"]}
+    if gb == "local": return {"$ifNull":["$LOCAL","-"]}
+    if gb == "local_mes": return {"$concat":[{"$ifNull":["$LOCAL","-"]}," | ",{"$ifNull":["$MONTH_STR","-"]}]}
+    if gb == "local_dia": return {"$concat":[{"$ifNull":["$LOCAL","-"]}," | ",{"$ifNull":["$DATE_STR","-"]}]}
+    if gb == "producto": return {"$ifNull":["$CODIGO_PRODUCTO","-"]}
+    return {"$literal":"-"}
+
+
+async def handle_productos_hora(update, context):
+    """Ventas por hora de productos, con grouping flexible y payload estructurado (data_table)."""
+    text = update.message.text or ""
+    vf = await grok_filters("menus", text) or {}
+    per = vf.get("period") or {}
+    start_dt, end_excl, s_str, e_str, tz = _vh_resolve_period(per)
+    # cap por carga (como ventas_hora)
+    now = datetime.now(tz)
+    loaded_until = now.date() - timedelta(days=(1 if now.hour>=4 else 2))
+    cap_end = datetime.combine(loaded_until, datetime.min.time()).replace(tzinfo=tz) + timedelta(days=1)
+    end_excl = min(end_excl, cap_end)
+    if end_excl <= start_dt: start_dt = end_excl - timedelta(days=1)
+
+    # Normaliza UTC naive para consultas
+    from zoneinfo import ZoneInfo as _ZI
+    _UTC = _ZI("UTC")
+    match_start = start_dt.astimezone(_UTC).replace(tzinfo=None)
+    match_end   = end_excl.astimezone(_UTC).replace(tzinfo=None)
+
+    group_by = (vf.get("group_by") or "producto").lower()
+    measure  = (vf.get("measure") or "total").lower()  # total|cantidad|avg_precio
+    order_by = (vf.get("order_by") or "value_desc").lower()
+    view     = vf.get("view") or {}
+    limit_groups = int(view.get("limit_groups", 200))
+
+    f = vf.get("filters") or {}
+    include_locals   = [str(x) for x in (f.get("include_locals") or [])]
+    include_siglas   = [str(x).upper() for x in (f.get("include_siglas") or [])]
+    include_codigos  = [str(x).upper() for x in (f.get("include_codigos") or [])]
+    hour_in          = f.get("hour_in") or []
+    dow_in           = f.get("dow_in") or []
+
+    # Si el query textual sugiere familia (p.ej., "lasagnas") y venimos con 0/1 código, amplía derivando desde menus/categories
+    q_text = (vf.get("q") or "").strip() or (text or "").strip()
+    by = (vf.get("by") or "texto").lower()
+    if q_text:
+        try:
+            needles = set(_singularize_tokens_es(q_text))
+            # nombres/descr
+            extra_codes = set()
+            for m in db.menus.find({}, {"codigo":1, "nombre":1, "descripcion":1, "category_ids":1}).limit(6000):
+                name = _no_accents(str(m.get("nombre") or "").lower())
+                descr = _no_accents(str(m.get("descripcion") or "").lower())
+                if any(n in name or n in descr for n in needles):
+                    c = str(m.get("codigo") or "").upper()
+                    if c:
+                        extra_codes.add(c)
+            # categorías por nombre también
+            cat_needles = set(list(needles))
+            cat_ids = set()
+            for cdoc in db.categories.find({}, {"id":1, "nombre":1, "name":1}).limit(4000):
+                nm = _no_accents(str(cdoc.get("nombre") or cdoc.get("name") or "").lower())
+                if any(n in nm for n in cat_needles):
+                    cid = str(cdoc.get("id") or cdoc.get("_id") or "").strip()
+                    if cid:
+                        cat_ids.add(cid)
+            if cat_ids:
+                for m in db.menus.find({"category_ids": {"$in": list(cat_ids)}}, {"codigo":1}).limit(10000):
+                    c = str(m.get("codigo") or "").upper()
+                    if c:
+                        extra_codes.add(c)
+            # Si ya hay include_codigos, únelo; si había 0 o 1, expándelo
+            if extra_codes:
+                merged = list({*include_codigos, *extra_codes})[:500]
+                include_codigos = merged
+        except Exception:
+            pass
+
+    tz_name = str(tz)
+    stages = [
+        {"$addFields": {"_ts": {"$cond": [{"$eq": [{"$type": "$FECHA"}, "date"]}, "$FECHA", {"$toDate": "$FECHA"}]}}},
+        {"$match": {"_ts": {"$gte": match_start, "$lt": match_end}}},
+        {"$addFields": {
+            "H": {"$ifNull": ["$HORA", {"$hour": {"date": "$_ts", "timezone": tz_name}}]},
+            "DATE_STR": {"$dateToString":{"format":"%Y-%m-%d","date":"$_ts","timezone":tz_name}},
+            "MONTH_STR": {"$dateToString":{"format":"%Y-%m","date":"$_ts","timezone":tz_name}},
+            "_SIGLA": {"$toUpper": {"$substrCP":[{"$ifNull":["$LOCAL",""]},0,3]}},
+        }},
+        {"$project": {
+            "_id":0, "LOCAL":1, "CODIGO_PRODUCTO":1,
+            "TOTAL": {"$ifNull":["$TOTAL",0]},
+            "CANTIDAD": {"$ifNull":["$CANTIDAD",0]},
+            "H":1, "DATE_STR":1, "MONTH_STR":1, "_SIGLA":1,
+        }}
+    ]
+    if include_locals:
+        real_loc_codes = [x for x in include_locals if isinstance(x, str) and x.upper().endswith("LOC")]
+        if real_loc_codes: stages += [{"$match":{"LOCAL":{"$in": real_loc_codes}}}]
+    if include_siglas: stages += [{"$match":{"_SIGLA":{"$in": include_siglas}}}]
+    if include_codigos: stages += [{"$match":{"CODIGO_PRODUCTO":{"$in": include_codigos}}}]
+    if hour_in: stages += [{"$match":{"H":{"$in": hour_in}}}]
+
+    gid = _vh_group_expr(group_by)
+    stages += [
+        {"$addFields":{"_g": gid}},
+        {"$group":{
+            "_id":"$_g",
+            "total":{"$sum":"$TOTAL"},
+            "cantidad":{"$sum":"$CANTIDAD"},
+        }}
+    ]
+    if measure == "total":
+        stages += [{"$addFields":{"value":"$total"}}]
+    elif measure == "cantidad":
+        stages += [{"$addFields":{"value":"$cantidad"}}]
     else:
-        list_text = f"{len(items)}/{total} productos"
-    return update, {
-        "type": "product_list",
-        "text": list_text,
-        "query": q,
-        "total": total,
-        "shown": len(items),
-        "items": items,
+        stages += [{"$addFields":{"value":{"$cond":[{"$gt":["$cantidad",0]}, {"$divide":["$total","$cantidad"]}, 0]}}}]
+
+    if order_by == "group_asc": stages += [{"$sort":{"_id":1}}]
+    elif order_by == "value_asc": stages += [{"$sort":{"value":1}}]
+    else: stages += [{"$sort":{"value":-1}}]
+    stages += [{"$limit": int(max(5, min(limit_groups, 500)))}]
+
+    rows = list(db[COLL_SALES_HOURLY].aggregate(stages))
+
+    # Enriquecer con metadata de producto y recetas (si corresponde)
+    role_level = None
+    try:
+        role_level = int(getattr(context, "user_data", {}).get("role_level"))
+    except Exception:
+        role_level = None
+    authorized = role_level in {3,4}
+    detail = bool((vf.get("view") or {}).get("detail", False))
+    menus_map = {}
+    if group_by == "producto":
+        # Minimapa de menus por código
+        menus_map = {str(m.get("codigo")): m for m in db.menus.find({}, {"codigo":1,"nombre":1,"precio":1,"currency":1,"media_r2":1,"media_url":1,"media_local":1})}
+
+    # Build data_table payload
+    nice_measure = {"total":"Venta","cantidad":"Unidades","avg_precio":"Precio prom."}[measure if measure in {"total","cantidad","avg_precio"} else "total"]
+    title = f"Ventas por hora — {nice_measure} — {s_str} a {e_str} — agrupado por {group_by}"
+    columns = [
+        {"key":"group","label":group_by,"type":"text","align":"left"},
+        {"key":"total","label":"Venta","type":"number","align":"right"},
+        {"key":"cantidad","label":"Unidades","type":"number","align":"right"},
+        {"key":"avg_precio","label":"Precio prom.","type":"number","align":"right"},
+    ]
+    out_rows = []
+    for r in rows:
+        t = float(r.get("total",0) or 0)
+        c = float(r.get("cantidad",0) or 0)
+        ap = (t/c) if c else 0.0
+        row = {
+            "group": str(r.get("_id")),
+            "total": round(t,2),
+            "cantidad": int(c),
+            "avg_precio": round(ap,2),
+        }
+        # Si agrupo por producto, adjunto nombre/imágen, y receta si autorizado+detail
+        if group_by == "producto":
+            code = str(r.get("_id") or "")
+            m = menus_map.get(code) or {}
+            name = (m.get("nombre") or code)
+            row["code"] = code
+            row["name"] = name
+            # simple image URL chooser
+            img = m.get("media_r2") or m.get("media_url")
+            row["image_url"] = img
+            if authorized and detail and s_str and e_str and s_str[:7] == e_str[:7]:
+                mesano = s_str.replace("-","")[:6]
+                try:
+                    recs = list(db.recetas_productos.find({"producto_codigo": code, "mesano": mesano}).sort("linea", 1))
+                    lines = []
+                    for rr in recs[:50]:
+                        ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
+                        qty = rr.get("cantidad_ingrediente")
+                        unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
+                        qty_s = (f"{qty:.3f}" if isinstance(qty,(int,float)) else str(qty))
+                        lines.append(f"- {ing} — {qty_s} {unit}".strip())
+                    if lines:
+                        row["recipe"] = {"mesano": mesano, "lines": lines}
+                except Exception:
+                    pass
+        out_rows.append(row)
+
+    totals = {
+        "total": sum(float(r.get("total",0) or 0) for r in rows),
+        "cantidad": int(sum(float(r.get("cantidad",0) or 0) for r in rows)),
     }
+    csum = totals["cantidad"] or 1
+    totals["avg_precio"] = round((totals["total"]/csum), 2)
+
+    payload = {
+        "type": "data_table",
+        "title": title,
+        "text": title,
+        "subtitle": None,
+        "kpis": [
+            {"label":"Venta", "value": _fmt_money(totals["total"], "$")},
+            {"label":"Unidades", "value": f"{totals['cantidad']:,} uds".replace(",",".")},
+            {"label":"Precio prom.", "value": _fmt_money(totals["avg_precio"], "$")},
+        ],
+        "columns": columns,
+        "rows": out_rows,
+        "totals": totals,
+        "charts": None,
+    }
+
+    # Tabla separada de recetas (una sola fuente para el front): por producto listado
+    if authorized and detail and group_by == "producto" and s_str and e_str and s_str[:7] == e_str[:7]:
+        mesano = s_str.replace("-", "")[:6]
+        codes = [r.get("code") or str(r.get("group")) for r in out_rows]
+        codes = [str(c) for c in codes if c]
+        recipes_rows = []
+        if codes:
+            try:
+                cur = db.recetas_productos.find({"producto_codigo": {"$in": codes}, "mesano": mesano}).sort([("producto_codigo",1),("linea",1)])
+                for rr in cur:
+                    code = str(rr.get("producto_codigo") or "")
+                    ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
+                    qty = rr.get("cantidad_ingrediente")
+                    unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
+                    recipes_rows.append({
+                        "code": code,
+                        "ingredient": ing,
+                        "qty": float(qty) if isinstance(qty,(int,float)) else None,
+                        "qty_text": (f"{qty:.3f}" if isinstance(qty,(int,float)) else (str(qty) if qty is not None else "")),
+                        "unit": unit,
+                        "mesano": mesano,
+                    })
+            except Exception:
+                recipes_rows = []
+        if recipes_rows:
+            payload["related_tables"] = payload.get("related_tables") or []
+            payload["related_tables"].append({
+                "type":"data_table",
+                "key":"recipes",
+                "title": f"Recetas — {mesano}",
+                "columns":[
+                    {"key":"code","label":"Código","type":"text","align":"left"},
+                    {"key":"ingredient","label":"Ingrediente","type":"text","align":"left"},
+                    {"key":"qty_text","label":"Cantidad","type":"text","align":"right"},
+                    {"key":"unit","label":"Unidad","type":"text","align":"left"},
+                ],
+                "rows": recipes_rows,
+            })
+
+    # Drilldown por día: lista de productos por fecha con cantidades/totales para abrir modal en el front
+    if group_by == "dia":
+        stages2 = [
+            {"$addFields": {"_ts": {"$cond": [{"$eq": [{"$type": "$FECHA"}, "date"]}, "$FECHA", {"$toDate": "$FECHA"}]}}},
+            {"$match": {"_ts": {"$gte": match_start, "$lt": match_end}}},
+            {"$addFields": {
+                "H": {"$ifNull": ["$HORA", {"$hour": {"date": "$_ts", "timezone": tz_name}}]},
+                "DATE_STR": {"$dateToString": {"format": "%Y-%m-%d", "date": "$_ts", "timezone": tz_name}},
+                "_SIGLA": {"$toUpper": {"$substrCP": [{"$ifNull": ["$LOCAL", ""]}, 0, 3]}}
+            }},
+            {"$project": {"_id":0, "DATE_STR":1, "CODIGO_PRODUCTO":1, "TOTAL": {"$ifNull":["$TOTAL",0]}, "CANTIDAD": {"$ifNull":["$CANTIDAD",0]}, "LOCAL":1, "_SIGLA":1}},
+        ]
+        if include_locals:
+            real_loc_codes = [x for x in include_locals if isinstance(x, str) and x.upper().endswith("LOC")]
+            if real_loc_codes: stages2 += [{"$match":{"LOCAL":{"$in": real_loc_codes}}}]
+        if include_siglas: stages2 += [{"$match":{"_SIGLA":{"$in": include_siglas}}}]
+        if include_codigos: stages2 += [{"$match":{"CODIGO_PRODUCTO":{"$in": include_codigos}}}]
+        if dow_in:
+            # Si envían dow_in, filtramos por el día de semana equivalente
+            stages2.insert(2, {"$addFields": {"_DOW": {"$isoDayOfWeek": {"date": "$_ts", "timezone": tz_name}}}})
+            stages2.append({"$match": {"_DOW": {"$in": [((d % 7) or 7) for d in dow_in]}}})
+        # Agrupar por día y producto
+        stages2 += [
+            {"$group": {"_id": {"day": "$DATE_STR", "code": "$CODIGO_PRODUCTO"}, "total": {"$sum": "$TOTAL"}, "cantidad": {"$sum": "$CANTIDAD"}}},
+            {"$sort": {"_id.day": 1, "cantidad": -1}},
+            {"$limit": 20000}
+        ]
+        rows2 = list(db[COLL_SALES_HOURLY].aggregate(stages2))
+        # join nombres
+        menus_map2 = {str(m.get("codigo")): m for m in db.menus.find({}, {"codigo":1,"nombre":1,"media_r2":1,"media_url":1})}
+        drill_rows = []
+        seen = set()
+        days_present = set()
+        for r in rows2:
+            code = str((r.get("_id") or {}).get("code") or "")
+            day = str((r.get("_id") or {}).get("day") or "")
+            days_present.add(day)
+            m = menus_map2.get(code) or {}
+            name = (m.get("nombre") or code)
+            t = float(r.get("total") or 0.0)
+            c = int(r.get("cantidad") or 0)
+            ap = (t/c) if c else 0.0
+            drill_rows.append({
+                "day": day,
+                "code": code,
+                "name": name,
+                "total": round(t,2),
+                "cantidad": c,
+                "avg_precio": round(ap,2),
+                "image_url": (m.get("media_r2") or m.get("media_url") or None),
+            })
+            seen.add((day, code))
+        # Completar con 0 para todos los códigos solicitados en cada día detectado
+        if include_codigos and days_present:
+            for day in sorted(days_present):
+                for code in include_codigos:
+                    key = (day, code)
+                    if key in seen:
+                        continue
+                    m = menus_map2.get(code) or {}
+                    name = (m.get("nombre") or code)
+                    drill_rows.append({
+                        "day": day,
+                        "code": code,
+                        "name": name,
+                        "total": 0,
+                        "cantidad": 0,
+                        "avg_precio": 0,
+                        "image_url": (m.get("media_r2") or m.get("media_url") or None),
+                    })
+        if drill_rows:
+            payload["related_tables"] = payload.get("related_tables") or []
+            payload["related_tables"].append({
+                "type": "data_table",
+                "key": "products_by_day",
+                "title": "Productos por día (detalle)",
+                "columns": [
+                    {"key":"day","label":"Día","type":"text","align":"left"},
+                    {"key":"code","label":"Código","type":"text","align":"left"},
+                    {"key":"name","label":"Producto","type":"text","align":"left"},
+                    {"key":"total","label":"Venta","type":"number","align":"right"},
+                    {"key":"cantidad","label":"Unidades","type":"number","align":"right"},
+                    {"key":"avg_precio","label":"Precio prom.","type":"number","align":"right"},
+                ],
+                "rows": drill_rows,
+            })
+    return update, payload

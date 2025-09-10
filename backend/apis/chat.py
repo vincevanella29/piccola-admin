@@ -24,11 +24,6 @@ from utils.chat.schemas import (
     AdminParticipantOut,
 )
 from utils.bot.engine import chat_complete
-from utils.bot.common.common import (
-    fetch_enriched_profile as _common_fetch_enriched_profile,
-    build_user_context as _common_build_user_context,
-    build_grok_user_context as _common_build_grok_user_context,
-)
 
 # Reuse role level logic
 from apis.roles import get_company_role_level
@@ -100,17 +95,6 @@ def _fetch_profile(wallet: Optional[str], privy_id: Optional[str]) -> Optional[d
     except Exception:
         return None
 
-
-def _fetch_enriched_profile(wallet: Optional[str], privy_id: Optional[str]) -> Optional[dict]:
-    return _common_fetch_enriched_profile(wallet, privy_id)
-    
-def _build_user_context(conv: dict) -> dict:
-    return _common_build_user_context(conv)
-
-
-def _build_grok_user_context(user_ctx: dict) -> dict:
-    return _common_build_grok_user_context(user_ctx)
-
 def _assert_owner(conv: dict, user: dict):
     ident = _identity_from_session(user)
     if conv.get("wallet"):
@@ -150,7 +134,6 @@ async def chat_conversations(user: dict = Depends(verify_session)):
     cur = db.chat_conversations.find(q).sort("updated_at", -1)
     out = []
     for c in cur:
-        ctx = _build_user_context(c)
         out.append({
             "conv_id": c["conv_id"],
             "status": c.get("status", "open"),
@@ -160,8 +143,6 @@ async def chat_conversations(user: dict = Depends(verify_session)):
             "privy_id": c.get("privy_id"),
             "updated_at": c.get("updated_at"),
             "created_at": c.get("created_at"),
-            "user_profile": ctx.get("profile"),
-            "user_promotions": ctx.get("promotions"),
         })
     return out
 
@@ -186,7 +167,6 @@ async def chat_last(user: dict = Depends(verify_session)):
         conv = db.chat_conversations.find_one({"$or": ors}, sort=[("updated_at", -1)])
     if not conv:
         return None
-    ctx = _build_user_context(conv)
     return {
         "conv_id": conv["conv_id"],
         "status": conv.get("status", "open"),
@@ -196,8 +176,6 @@ async def chat_last(user: dict = Depends(verify_session)):
         "privy_id": conv.get("privy_id"),
         "updated_at": conv.get("updated_at"),
         "created_at": conv.get("created_at"),
-        "user_profile": ctx.get("profile"),
-        "user_promotions": ctx.get("promotions"),
     }
 @router.post("/chat/session/start", response_model=ChatSessionStartResponse)
 async def chat_session_start(data: ChatSessionStartRequest, user: dict = Depends(verify_session)):
@@ -262,14 +240,8 @@ async def chat_message(data: ChatMessageRequest, user: dict = Depends(verify_ses
     db.chat_messages.insert_one(msg_doc)
     db.chat_conversations.update_one({"conv_id": data.conv_id}, {"$set": {"updated_at": now}})
 
-    sender_profile = _fetch_enriched_profile(conv.get("wallet"), conv.get("privy_id"))
-    sender_name = (sender_profile or {}).get("name") or (conv.get("wallet") or "User")
-    # If enriched, avatar is nested under profile
+    sender_name = (conv.get("wallet") or "User")
     sender_avatar_url = None
-    if sender_profile:
-        if isinstance(sender_profile.get("profile"), dict):
-            sender_avatar_url = sender_profile["profile"].get("profile_image_url")
-        sender_name = (sender_profile.get("profile") or {}).get("name") or sender_name
     await manager.broadcast(
         data.conv_id,
         {
@@ -279,7 +251,7 @@ async def chat_message(data: ChatMessageRequest, user: dict = Depends(verify_ses
             "at": now.isoformat(),
             "sender_wallet": conv.get("wallet"),
             "sender_privy_id": conv.get("privy_id"),
-            "sender_profile": sender_profile,
+            "sender_profile": None,
             "sender_name": sender_name,
             "sender_avatar_url": sender_avatar_url,
         },
@@ -303,12 +275,13 @@ async def _bot_reply(conv_id: int):
         ]
         # Add user context as system primer for the bot (Grok/LLM)
         conv = db.chat_conversations.find_one({"conv_id": conv_id}) or {}
-        user_ctx = _build_user_context(conv)
-        grok_ctx = _build_grok_user_context(user_ctx)
+        safe_ctx = {k: conv.get(k) for k in [
+            "conv_id","wallet","privy_id","status","mode","assigned_admin","updated_at","created_at"
+        ]}
         system_ctx = {
             "role": "system",
             "content": (
-                "User context (JSON): " + json.dumps(grok_ctx, ensure_ascii=False)
+                "User context (JSON): " + json.dumps(safe_ctx, ensure_ascii=False, default=str)
             ),
         }
         messages = [system_ctx] + messages
@@ -365,7 +338,6 @@ async def chat_history(conv_id: int, user: dict = Depends(verify_session)):
     # Get conversation for identity mapping
     wallet = conv.get("wallet")
     privy_id = conv.get("privy_id")
-    min_profile = _fetch_enriched_profile(wallet, privy_id)
     for m in msgs:
         sender_wallet = m.get("sender_wallet")
         sender_privy_id = m.get("sender_privy_id")
@@ -373,19 +345,15 @@ async def chat_history(conv_id: int, user: dict = Depends(verify_session)):
         if m.get("role") == "user" and (not sender_wallet and not sender_privy_id):
             sender_wallet = wallet
             sender_privy_id = privy_id
-        # Determine display fields
+        # Determine display fields without profiles
         if m.get("role") == "user":
-            # For enriched, display info comes from nested profile
-            prof = (min_profile or {}).get("profile") if isinstance(min_profile, dict) else None
-            sender_name = (prof or {}).get("name") or (sender_wallet or "User")
-            sender_avatar_url = (prof or {}).get("profile_image_url")
-            sender_prof = min_profile
+            sender_name = sender_wallet or "User"
+            sender_avatar_url = None
+            sender_prof = None
         elif m.get("role") == "admin":
-            admin_enriched = _fetch_enriched_profile(m.get("admin_wallet"), None)
-            admin_prof_node = (admin_enriched or {}).get("profile") if isinstance(admin_enriched, dict) else None
-            sender_name = (admin_prof_node or {}).get("name") or m.get("admin_wallet") or "Admin"
-            sender_avatar_url = (admin_prof_node or {}).get("profile_image_url")
-            sender_prof = admin_enriched
+            sender_name = m.get("admin_wallet") or "Admin"
+            sender_avatar_url = None
+            sender_prof = None
         else:
             sender_name = "Bot"
             sender_avatar_url = None
@@ -429,8 +397,6 @@ async def admin_list_chats(request: Request, status: Optional[str] = None, limit
         "wallet": c.get("wallet"),
         "privy_id": c.get("privy_id"),
         "updated_at": c.get("updated_at", get_chile_time()),
-        "user_profile": _build_user_context(c).get("profile"),
-        "user_promotions": _build_user_context(c).get("promotions"),
     } for c in cur]
 
 
@@ -495,11 +461,9 @@ async def admin_reply(conv_id: int, data: AdminReplyRequest, user: dict = Depend
         "admin_wallet": admin_wallet,
     })
     db.chat_conversations.update_one({"conv_id": conv_id}, {"$set": {"updated_at": now, "assigned_admin": admin_wallet, "mode": "human"}})
-    # Admin display fields and profile (enriched)
-    admin_enriched = _fetch_enriched_profile(admin_wallet, None)
-    admin_prof_node = (admin_enriched or {}).get("profile") if isinstance(admin_enriched, dict) else None
-    admin_name = (admin_prof_node or {}).get("name") or admin_wallet or "Admin"
-    admin_avatar_url = (admin_prof_node or {}).get("profile_image_url")
+    # Admin display fields without profiles
+    admin_name = admin_wallet or "Admin"
+    admin_avatar_url = None
     await manager.broadcast(
         conv_id,
         {
@@ -509,7 +473,7 @@ async def admin_reply(conv_id: int, data: AdminReplyRequest, user: dict = Depend
             "at": now.isoformat(),
             "sender_wallet": None,
             "sender_privy_id": None,
-            "sender_profile": admin_enriched,
+            "sender_profile": None,
             "sender_name": admin_name,
             "sender_avatar_url": admin_avatar_url,
         },
@@ -529,10 +493,9 @@ async def admin_chat_history(conv_id: int, user: dict = Depends(verify_session))
         raise HTTPException(status_code=404, detail="Conversation not found")
     msgs = list(db.chat_messages.find({"conv_id": conv_id}).sort("created_at", 1))
     out = []
-    # Pull user profile for display fields (enriched)
+    # Minimal identity only
     wallet = conv.get("wallet")
     privy_id = conv.get("privy_id")
-    min_profile = _fetch_enriched_profile(wallet, privy_id)
     for m in msgs:
         sender_wallet = m.get("sender_wallet")
         sender_privy_id = m.get("sender_privy_id")
@@ -540,14 +503,12 @@ async def admin_chat_history(conv_id: int, user: dict = Depends(verify_session))
             sender_wallet = wallet
             sender_privy_id = privy_id
         if m.get("role") == "user":
-            prof = (min_profile or {}).get("profile") if isinstance(min_profile, dict) else None
-            sender_name = (prof or {}).get("name") or (sender_wallet or "User")
-            sender_avatar_url = (prof or {}).get("profile_image_url")
-            sender_prof = min_profile
+            sender_name = sender_wallet or "User"
+            sender_avatar_url = None
+            sender_prof = None
         elif m.get("role") == "admin":
-            admin_min = _fetch_profile(m.get("admin_wallet"), None)
-            sender_name = (admin_min or {}).get("name") or m.get("admin_wallet") or "Admin"
-            sender_avatar_url = (admin_min or {}).get("profile_image_url")
+            sender_name = m.get("admin_wallet") or "Admin"
+            sender_avatar_url = None
             sender_prof = None
         else:
             sender_name = "Bot"
@@ -580,30 +541,25 @@ async def admin_chat_participants(conv_id: int, user: dict = Depends(verify_sess
         raise HTTPException(status_code=404, detail="Conversation not found")
     wallet = conv.get("wallet")
     privy_id = conv.get("privy_id")
-    # Use enriched profile for the end user to match CommunityRankingResponse
-    user_profile = _fetch_enriched_profile(wallet, privy_id) or {}
     participants: List[AdminParticipantOut] = []
-    # End user
-    prof = (user_profile or {}).get("profile") if isinstance(user_profile, dict) else None
+    # End user without profile
     participants.append(AdminParticipantOut(
         role="user",
         wallet=wallet,
         privy_id=privy_id,
-        profile=user_profile,
-        display_name=(prof or {}).get("name") or wallet or "User",
-        avatar_url=(prof or {}).get("profile_image_url"),
+        profile=None,
+        display_name=wallet or "User",
+        avatar_url=None,
     ))
     # Admins who wrote
     admin_wallets = db.chat_messages.distinct("admin_wallet", {"conv_id": conv_id, "role": "admin"})
     for aw in [w for w in admin_wallets if w]:
-        admin_enriched = _fetch_enriched_profile(aw, None) or {}
-        admin_prof_node = (admin_enriched or {}).get("profile") if isinstance(admin_enriched, dict) else None
         participants.append(AdminParticipantOut(
             role="admin",
             wallet=aw,
-            profile=admin_enriched,
-            display_name=(admin_prof_node or {}).get("name") or aw,
-            avatar_url=(admin_prof_node or {}).get("profile_image_url"),
+            profile=None,
+            display_name=aw,
+            avatar_url=None,
         ))
     # Assistant
     participants.append(AdminParticipantOut(
