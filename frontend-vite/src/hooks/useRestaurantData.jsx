@@ -12,7 +12,6 @@ const SELECTED_CATEGORY_KEY = 'selected_category';
 const getCachedData = () => {
   try {
     const cached = localStorage.getItem(CACHE_KEY);
-    console.log('cached', cached);
     if (!cached) return null;
 
     const { timestamp, data } = JSON.parse(cached);
@@ -150,8 +149,6 @@ const useRestaurantData = (appState = {}) => {
         fetchLocations(),
         menusPromise,
       ]);
-      console.log('menusRes', menusRes);
-      console.log('locationsRes', locationsRes);
 
       if (locationsRes.error) throw new Error(`Error en locales: ${locationsRes.error}`);
       if (menusRes.error) throw new Error(`Error en menús: ${menusRes.error}`);
@@ -162,7 +159,6 @@ const useRestaurantData = (appState = {}) => {
         _id: String(menu._id || menu.id),
       })) || [];
       
-      console.log('menusdatalist', menusdatalist);
       const categories = menusRes.categories || [];
       const menuOptions = menusRes.menu_options || [];
 

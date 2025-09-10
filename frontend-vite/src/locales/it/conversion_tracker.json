@@ -1,0 +1,61 @@
+{
+  "label": "Conversion Tracker",
+  "title": "Amministratore Conversioni",
+  "description": "Configura i provider di tracciamento delle conversioni e l'instradamento degli eventi",
+  "tabs": {
+    "providers": "Provider",
+    "config": "Config"
+  },
+  "form": {
+    "service": {
+      "label": "Servizio",
+      "placeholder": "Seleziona un servizio…"
+    },
+    "name": {
+      "label": "Nome",
+      "placeholder": "Nome descrittivo"
+    },
+    "active": {
+      "label": "Attivo"
+    },
+    "required_placeholder": "Inserisci {{field}}",
+    "file": {
+      "service_account": {
+        "label": "Service Account JSON",
+        "help": "Verrà salvato in credentials.service_account"
+      }
+    }
+  },
+  "actions": {
+    "create": "Crea Provider",
+    "update": "Aggiorna Provider",
+    "cancel": "Annulla"
+  },
+  "list": {
+    "title": "Provider"
+  },
+  "table": {
+    "id": "ID",
+    "service": "Servizio",
+    "name": "Nome",
+    "active": "Attivo",
+    "created": "Creato",
+    "updated": "Aggiornato",
+    "actions": "Azioni",
+    "edit": "Modifica"
+  },
+  "status": {
+    "yes": "Sì",
+    "no": "No"
+  },
+  "config": {
+    "refresh": "Aggiorna",
+    "refreshing": "Aggiornamento…",
+    "public_config": "Config Pubblica",
+    "providers_by_id": "Provider per ID (pubblico)"
+  },
+  "errors": {
+    "provider_id_missing": "Impossibile determinare il providerId per caricare il JSON",
+    "credentials_invalid": "Controlla il JSON delle credenziali o i permessi."
+  }
+}

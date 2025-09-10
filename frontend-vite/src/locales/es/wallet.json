@@ -65,5 +65,6 @@
   "amount": "Monto",
   "send": "Enviar",
   "embedded_wallet_info": "Estos son tokens de fidelización totalmente descentralizados y no custodiados. Tu wallet es embebida y solo tú tienes acceso a tus claves privadas. Piccola Italia no tiene acceso ni control sobre tus tokens o wallet. Eres el único responsable de proteger tus claves. Piccola Italia no asume ninguna responsabilidad ni se hace cargo por pérdidas, robos o compromisos de tu wallet o tokens.",
-  "liquidity_info_description": "Todos los tokens son 100% descentralizados y no custodiados. Piccola Italia no puede acceder, recuperar ni controlar tus tokens bajo ninguna circunstancia. Por favor, asegúrate de respaldar y proteger tus credenciales y claves privadas." 
+  "liquidity_info_description": "Todos los tokens son 100% descentralizados y no custodiados. Piccola Italia no puede acceder, recuperar ni controlar tus tokens bajo ninguna circunstancia. Por favor, asegúrate de respaldar y proteger tus credenciales y claves privadas." ,
+  "connect_wallet": "Conectar Wallet"
 }

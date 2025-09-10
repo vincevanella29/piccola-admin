@@ -126,8 +126,7 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
                 "created_at": profile["created_at"].isoformat() if "created_at" in profile else None,
                 "updated_at": profile["updated_at"].isoformat() if "updated_at" in profile else None,
             }
-        
-        logger.info(f"Fetched role for wallet_address: {target_address}, company_id: {COMPANY_ID}, role_level: {role_level}, role_name: {role_name}, profile: {profile_data}")
+
         return {
             "company_id": COMPANY_ID,
             "role_level": role_level,
@@ -215,7 +214,6 @@ async def assign_company_role(request: Request, data: AssignRoleRequest, user: d
             "chainId": int(os.getenv("CHAIN_ID"))
         })
         
-        logger.info(f"Role assignment transaction built for {target_address} in company {COMPANY_ID}, role: {data.role_name}")
         return {
             "success": True,
             "msg": "Transaction built. Sign and send from your wallet.",
@@ -301,8 +299,6 @@ async def revoke_company_role(request: Request, data: RevokeRoleRequest, user: d
             "chainId": int(os.getenv("CHAIN_ID"))
         })
         
-        # Actualizar en MongoDB
-        logger.info(f"Role revocation transaction built for {target_address} in company {COMPANY_ID}")
         return {
             "success": True,
             "msg": "Transaction built. Sign and send from your wallet.",

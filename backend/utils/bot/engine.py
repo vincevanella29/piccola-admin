@@ -1,0 +1,177 @@
+import os
+import logging
+from types import SimpleNamespace
+from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
+
+try:
+    load_dotenv()
+except Exception:
+    pass
+
+XAI_API_URL = os.getenv("XAI_API_URL", "https://api.x.ai/v1/chat/completions")
+XAI_MODEL = os.getenv("XAI_MODEL", "grok-2-latest")
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+
+# Use the site utils (NOT Telegram bot) so responses match the web UI formatting
+from utils.bot.common.common import ask_grok, grok_route_intent, INTENTS
+from utils.bot.common.filters import grok_filters
+from utils.bot.productos.menus import handle_menus
+from utils.bot.productos.productos import handle_productos
+from utils.bot.consumos.consumos import handle_consumos
+from utils.bot.movimientos.ventas import handle_ventas
+from utils.bot.movimientos.ventas_hora import handle_ventas_hora
+from utils.bot.movimientos.gastos import handle_gastos
+from utils.bot.movimientos.sueldos import handle_sueldos
+from utils.bot.sucursales.locations import handle_locations, find_location_by_query
+from utils.bot.clubnonna.club import handle_club
+from utils.bot.historynonna.history import handle_history
+
+# Register FilterSpecs used by utils (side-effect imports)
+import utils.bot.productos.menus_spec  # noqa: F401
+import utils.bot.sucursales.locations_spec  # noqa: F401
+import utils.bot.clubnonna.spec  # noqa: F401
+import utils.bot.historynonna.spec  # noqa: F401
+# Movimientos specs (copiados desde bots/utils a utils/bot/movimientos)
+import utils.bot.movimientos.gastos_spec  # noqa: F401
+import utils.bot.movimientos.ventas_spec  # noqa: F401
+import utils.bot.movimientos.ventas_hora_spec  # noqa: F401
+import utils.bot.movimientos.sueldos_spec  # noqa: F401
+import utils.bot.consumos.consumos_spec  # noqa: F401
+
+# Centralized accepted intents from common
+ACCEPTED_INTENTS = {i.get("key") for i in INTENTS}
+
+async def chat_complete(messages: list[dict]) -> str:
+    """Web chat router using utils.bot handlers with UI-friendly payloads.
+    Supports: menus, locations, club, history. Fallback to Grok for general chat.
+    """
+    # Extract last user message text
+    last_user_text = ""
+    for m in reversed(messages or []):
+        if (m or {}).get("role") == "user":
+            last_user_text = ((m or {}).get("content") or "")
+            break
+    text = last_user_text or ((messages or [{}])[-1].get("content") if messages else "") or ""
+
+    # Route intent
+    intent = await grok_route_intent(text)
+    logger.info(f"Intent detected: {intent}")
+    itype = (intent or {}).get("intent") if isinstance(intent, dict) else None
+    if itype not in ACCEPTED_INTENTS:
+        itype = "chat"
+
+    # Minimal shim to reuse utils handlers
+    update = SimpleNamespace(message=SimpleNamespace(text=text))
+    context = SimpleNamespace(user_data={})
+
+    if itype == "menus":
+        f = await grok_filters("menus", text) or {}
+        context.user_data["menus_by"] = (f.get("by") or "").lower()
+        context.user_data["menus_q"] = (f.get("q") or "").strip()
+        context.user_data["menus_detail"] = bool(f.get("detail", False))
+        context.user_data["menus_recipe"] = bool(f.get("recipe", False))
+        context.user_data["menus_mesanos"] = list(f.get("mesanos") or [])
+        _, payload = await handle_menus(update, context)
+        return payload
+
+    if itype == "locations":
+        lf = await grok_filters("locations", text) or {}
+        q = (lf.get("q") or "").strip()
+        if q:
+            context.user_data["locations_q"] = q
+        _, payload = await handle_locations(update, context)
+        return payload
+
+    if itype == "club":
+        section = "help"
+        spec = await grok_filters("club", text)
+        if isinstance(spec, dict) and spec.get("section"):
+            section = spec.get("section")
+            logger.info(f"Club section: {section}")
+        _, payload = await handle_club(update, section)
+        # If complaints funnel, enrich with location quick action
+        if section == "polls":
+            try:
+                lf = await grok_filters("locations", text) or {}
+                q = (lf.get("q") or "").strip()
+                loc = find_location_by_query(q) if q else None
+                if loc:
+                    payload["related_location"] = loc
+                    phone = (loc.get("phone") or "").strip()
+                    if phone:
+                        actions = payload.get("actions") or []
+                        actions.append({"label": "Llamar sucursal", "url": f"tel:{phone}", "variant": "secondary"})
+                        payload["actions"] = actions
+            except Exception:
+                pass
+        return payload
+
+    # === Movimientos/empresa intents: misma orquestación que el bot de Telegram ===
+    if itype == "ventas_hora":
+        vhf = await grok_filters("ventas_hora", text) or {}
+        context.user_data["ventas_hora_filters"] = vhf
+        _, lines = await handle_ventas_hora(update, context)
+        return {"type": "text_block_list", "intent": itype, "lines": lines}
+
+    if itype == "sueldos":
+        sf = await grok_filters("sueldos", text) or {}
+        if sf.get("period"): context.user_data["sueldos_period"] = sf["period"]
+        if sf.get("mode"):   context.user_data["sueldos_mode"] = sf["mode"]
+        if sf.get("rut") is not None: context.user_data["sueldos_rut"] = sf["rut"]
+        _, result = await handle_sueldos(update, context)
+        # If the handler returns a structured payload (dict or list), forward it as-is.
+        # Otherwise, assume it's a list of strings and wrap in a text_block_list.
+        if isinstance(result, (dict, list)):
+            return result
+        return {"type": "text_block_list", "intent": itype, "lines": result}
+
+    if itype == "ventas":
+        vf = await grok_filters("ventas", text) or {}
+        _vp = vf.get("period")
+        context.user_data["ventas_period"] = (_vp.lower() if isinstance(_vp, str) else _vp) or ""
+        _, lines = await handle_ventas(update, context)
+        return {"type": "text_block_list", "intent": itype, "lines": lines}
+
+    if itype == "productos":
+        f = await grok_filters("productos", text) or {}
+        context.user_data["productos_by"] = (f.get("by") or "").lower()
+        context.user_data["productos_q"] = (f.get("q") or "").strip()
+        if f.get("period"): context.user_data["productos_period"] = f["period"]
+        context.user_data["productos_top"] = bool(f.get("top", False))
+        context.user_data["productos_hide_values"] = bool(f.get("hide_values", False))
+        _, lines = await handle_productos(update, context)
+        return {"type": "text_block_list", "intent": itype, "lines": lines}
+
+    if itype == "consumos":
+        f = await grok_filters("consumos", text) or {}
+        context.user_data["consumos_by"] = (f.get("by") or "").lower()
+        context.user_data["consumos_q"] = (f.get("q") or "").strip()
+        if f.get("period"): context.user_data["consumos_period"] = f["period"]
+        context.user_data["consumos_top"] = bool(f.get("top", False))
+        context.user_data["consumos_hide_values"] = bool(f.get("hide_values", False))
+        _, result = await handle_consumos(update, context)
+        if isinstance(result, (dict, list)):
+            return result
+        return {"type": "text_block_list", "intent": itype, "lines": result}
+
+    if itype == "gastos":
+        gf = await grok_filters("gastos", text) or {}
+        context.user_data["gastos_by"] = gf.get("by") or ""
+        context.user_data["gastos_q"] = gf.get("q") or ""
+        context.user_data["gastos_siglas"] = gf.get("include_siglas") or []
+        context.user_data["gastos_siglas_excl"] = gf.get("exclude_siglas") or []
+        context.user_data["gastos_cuentas"] = gf.get("include_cuentas") or []
+        context.user_data["gastos_rut"] = gf.get("rut")
+        _, lines = await handle_gastos(update, context)
+        return {"type": "text_block_list", "intent": itype, "lines": lines}
+
+    if itype == "history":
+        _ = await grok_filters("history", text)
+        _, payload = await handle_history(update, section="timeline")
+        payload["text"] = await ask_grok(payload, messages=messages)
+        return payload
+
+    # Fallback/general chat: use full messages with XAI for context
+    return await ask_grok(text, messages=messages)

@@ -198,48 +198,82 @@ async def handle_consumos(update, context):
     if not rows:
         return update, ["Sin resultados para ese pedido."]
 
-    # 3) Render claro: producto, fechas, unit, agrupación
-    # Encabezado informativo
-    head = []
-    if articles:
-        head.append("Producto(s): " + " · ".join(articles))
-    if dates:
-        head.append("Fechas: " + ", ".join(dates))
-    if locals_:
-        head.append("Locales: " + ", ".join(locals_))
-    head.append(f"Agrupación: {', '.join(valid_gbs)}")
-    head.append(f"Unidad pedida: {unit}")
-    out = [" | ".join(head), ""]
+    # 3) Render bonito en Markdown: encabezado compacto + una sola métrica según unidad
+    # Unidad efectiva de salida
+    value_label = (rows[0].get("value_label") or unit or "").lower()
+    if value_label not in ("kg", "uds"):
+        # Elegir automáticamente según datos
+        any_kg = any((r.get("kg_eff") if r.get("kg_eff") is not None else r.get("kg_raw") or 0) > 0 for r in rows)
+        value_label = "kg" if any_kg else "uds"
 
-    # Tabla
-    out.append("Grupo | Valor | Uds | Kg")
+    # Modo 'single': respuesta resumida y elegante
+    if (mode or "table") == "single":
+        total_val = sum(float(r.get("value") or 0) for r in rows)
+        if value_label == "kg":
+            val_text = f"{total_val:.2f} kg"
+        else:
+            val_text = f"{int(round(total_val))} uds"
+        title = "📊 Consumos"
+        if articles:
+            title += f" · {' · '.join(articles)}"
+        ctx = []
+        if dates:
+            ctx.append(", ".join(dates))
+        if locals_:
+            ctx.append("Locales: " + ", ".join(locals_))
+        ctx_str = (" · ".join(ctx)) if ctx else ""
+        summary = f"{title}\nResultado: {val_text}"
+        if ctx_str:
+            summary += f"\n{ctx_str}"
+        return update, [summary]
+
+    # Encabezado con contexto
+    head_lines = []
+    title = "📊 Consumos"
+    if articles:
+        title += f" · {' · '.join(articles)}"
+    head_lines.append(title)
+    meta = []
+    if dates:
+        meta.append("Fechas: " + ", ".join(dates))
+    if locals_:
+        meta.append("Locales: " + ", ".join(locals_))
+    if valid_gbs:
+        meta.append("Agrupación: " + ", ".join(valid_gbs))
+    meta.append("Unidad: " + ("kg" if value_label == "kg" else "unidades"))
+    if meta:
+        head_lines.append(" · ".join(meta))
+
+    out = ["\n".join(head_lines), ""]
+
+    # Encabezado de tabla
+    metric_header = "Consumo (kg)" if value_label == "kg" else "Cantidad (uds)"
+    out.append(f"Grupo | {metric_header}")
+    out.append("--- | ---")
+
+    # Filas de tabla
     for r in rows:
         gid_val = r.get("_id")
-        # Render label amigable si _id es dict
         if isinstance(gid_val, dict):
             parts = []
             for g in valid_gbs:
                 parts.append(f"{g}={gid_val.get(g, '-')}")
             gid_val = " · ".join(parts)
         val = float(r.get("value") or 0)
-        lab = (r.get("value_label") or "").lower()
-        uds = int(r.get("uds") or 0)
-        kg  = float(r.get("kg_eff") if r.get("kg_eff") is not None else r.get("kg_raw") or 0)
-        # Valor con etiqueta
-        if lab == "kg":
-            val_str = f"{val:.2f} kg"
+        if value_label == "kg":
+            cell = f"{val:.2f} kg"
         else:
-            val_str = f"{uds} uds" if lab == "uds" else f"{val:.2f}"
-        out.append(f"{gid_val} | {val_str} | {uds} | {kg:.2f}")
+            cell = f"{int(round(val))} uds"
+        out.append(f"{gid_val} | {cell}")
 
-    # Totales (del set devuelto)
+    # Totales
     try:
         sum_val = sum(float(r.get("value") or 0) for r in rows)
-        sum_uds = sum(int(r.get("uds") or 0) for r in rows)
-        sum_kg  = sum(float((r.get("kg_eff") if r.get("kg_eff") is not None else r.get("kg_raw") or 0)) for r in rows)
-        tot_label = rows[0].get("value_label") or unit or "auto"
-        tot_val_text = f"{sum_val:.2f} kg" if (tot_label == "kg") else (f"{sum_uds} uds" if tot_label == "uds" else f"{sum_val:.2f}")
-        out += ["", f"TOTAL | {tot_val_text} | {sum_uds} | {sum_kg:.2f}"]
+        if value_label == "kg":
+            tot_text = f"{sum_val:.2f} kg"
+        else:
+            tot_text = f"{int(round(sum_val))} uds"
+        out += ["", f"TOTAL | {tot_text}"]
     except Exception:
         pass
 

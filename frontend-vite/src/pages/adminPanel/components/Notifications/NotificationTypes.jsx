@@ -33,7 +33,12 @@ const NotificationTypes = ({ appState, fetchNotificationTypes, notificationTypes
       return;
     }
     try {
-      await createNotificationType(formData);
+      const notificationData = {
+        ...formData,
+        // Include the full Firebase config from apiConfigs
+        firebase_config: apiConfigs
+      };
+      await createNotificationType(notificationData);
       setFormData({
         event_name: '',
         title_template: '',
@@ -155,11 +160,13 @@ const NotificationTypes = ({ appState, fetchNotificationTypes, notificationTypes
                 className="w-full p-3 bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 border border-light-border/40 dark:border-dark-border/40 rounded-xl text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:border-light-accent dark:focus:border-dark-accent text-sm"
               >
                 <option value="">{t('notifications.select_api_config')}</option>
-                {apiConfigs.map((config) => (
-                  <option key={config.id} value={config.id}>
-                    {config.project_id} ({config.service})
+                {apiConfigs && Object.keys(apiConfigs).length > 0 ? (
+                  <option key="firebase-config" value="firebase">
+                    {apiConfigs.projectId || 'Firebase Config'} (Firebase)
                   </option>
-                ))}
+                ) : (
+                  <option value="" disabled>{t('notifications.no_api_configs')}</option>
+                )}
               </select>
             </div>
             <div className="flex items-end">

@@ -14,7 +14,7 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
   const footerConfig = getFooterConfig(roleLevel, t);
 
   // Límites de botones visibles
-  const MOBILE_BUTTON_LIMIT = 2;
+  const MOBILE_BUTTON_LIMIT = 4;
   const DESKTOP_BUTTON_LIMIT = 4;
 
   // Obtener todos los ítems de botones
@@ -22,9 +22,22 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
     .flatMap((category) => category.items)
     .sort((a, b) => (a.order || Infinity) - (b.order || Infinity));
 
+  // Identify Chat item decisively
+  const chatItem = buttonItems.find(
+    (it) => it?.fullPath === '/app/chat' || it?.icon === 'FaComments' || /chat/i.test(it?.label || '')
+  );
+  const otherItems = chatItem ? buttonItems.filter((it) => it !== chatItem) : buttonItems;
+
   // Botones visibles en móvil y desktop
-  const mobileVisibleButtons = buttonItems.slice(0, MOBILE_BUTTON_LIMIT);
-  const desktopVisibleButtons = buttonItems.slice(0, DESKTOP_BUTTON_LIMIT);
+  // Ensure Chat is always visible when present
+  const desktopVisibleButtons =
+    otherItems.length + (chatItem ? 1 : 0) <= DESKTOP_BUTTON_LIMIT
+      ? buttonItems.slice(0, DESKTOP_BUTTON_LIMIT)
+      : [chatItem].filter(Boolean); // when overflow, show Chat explicitly + Explore
+  const mobileVisibleButtons =
+    otherItems.length + (chatItem ? 1 : 0) <= MOBILE_BUTTON_LIMIT
+      ? buttonItems.slice(0, MOBILE_BUTTON_LIMIT)
+      : [chatItem].filter(Boolean); // on overflow, show Chat explicitly + Explore
 
   const handleLanguageChange = (lang) => {
     changeLanguage(lang);
@@ -54,10 +67,10 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
 
         {/* Centro: Botones y Selector */}
         <div className="flex items-center gap-2 flex-1 justify-center">
-          {/* Desktop: Hasta 4 botones */}
+          {/* Desktop: Hasta 4 botones (Chat siempre visible si existe) */}
           <div className="hidden sm:flex items-center gap-2">
-            {buttonItems.length <= DESKTOP_BUTTON_LIMIT ? (
-              buttonItems.map((item) => {
+            {otherItems.length + (chatItem ? 1 : 0) <= DESKTOP_BUTTON_LIMIT ? (
+              desktopVisibleButtons.map((item) => {
                 const IconComponent = Icons[item.icon] || Icons.FaFileAlt;
                 return item.isExternal ? (
                   <a
@@ -85,6 +98,35 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
               })
             ) : (
               <div className="relative shrink-0">
+                {/* Chat visible button */}
+                {chatItem && (
+                  (() => {
+                    const ChatIcon = Icons[chatItem.icon] || Icons.FaComments;
+                    return chatItem.isExternal ? (
+                      <a
+                        key={chatItem.fullPath}
+                        href={chatItem.fullPath}
+                        target={chatItem.newTab ? '_blank' : '_self'}
+                        rel={chatItem.newTab ? 'noopener noreferrer' : undefined}
+                        className="px-3 py-1.5 bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary text-sm rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 shrink-0 mr-2"
+                        title={chatItem.description}
+                      >
+                        <ChatIcon className={`text-${theme === 'dark' ? 'light-accent' : 'dark-accent'}`} size={12} />
+                        <span className="truncate">{chatItem.label}</span>
+                      </a>
+                    ) : (
+                      <Link
+                        key={chatItem.fullPath}
+                        to={chatItem.fullPath}
+                        className="px-3 py-1.5 bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary text-sm rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition-all duration-200 flex items-center gap-1.5 transform hover:scale-105 shrink-0 mr-2"
+                        title={chatItem.description}
+                      >
+                        <ChatIcon className={`text-${theme === 'dark' ? 'light-accent' : 'dark-accent'}`} size={12} />
+                        <span className="truncate">{chatItem.label}</span>
+                      </Link>
+                    );
+                  })()
+                )}
                 <button
                   onClick={() => {
                     setIsMenuSelectorOpen((prev) => !prev);
@@ -135,8 +177,37 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
             )}
           </div>
 
-          {/* Móvil: Hasta 2 botones */}
+          {/* Móvil: Hasta 2 botones (Chat siempre visible si existe) */}
           <div className="flex sm:hidden items-center gap-1">
+            {/* Chat visible button on mobile when overflow or within limit */}
+            {chatItem && (
+              (() => {
+                const ChatIcon = Icons[chatItem.icon] || Icons.FaComments;
+                return chatItem.isExternal ? (
+                  <a
+                    key={chatItem.fullPath}
+                    href={chatItem.fullPath}
+                    target={chatItem.newTab ? '_blank' : '_self'}
+                    rel={chatItem.newTab ? 'noopener noreferrer' : undefined}
+                    className="px-2 py-1 bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary text-xs rounded-md hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition-all duration-200 flex items-center gap-1 transform hover:scale-105"
+                    title={chatItem.description}
+                  >
+                    <ChatIcon className={`text-${theme === 'dark' ? 'light-accent' : 'dark-accent'}`} size={12} />
+                    <span className="truncate">{chatItem.label}</span>
+                  </a>
+                ) : (
+                  <Link
+                    key={chatItem.fullPath}
+                    to={chatItem.fullPath}
+                    className="px-2 py-1 bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary text-xs rounded-md hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition-all duration-200 flex items-center gap-1 transform hover:scale-105"
+                    title={chatItem.description}
+                  >
+                    <ChatIcon className={`text-${theme === 'dark' ? 'light-accent' : 'dark-accent'}`} size={12} />
+                    <span className="truncate">{chatItem.label}</span>
+                  </Link>
+                );
+              })()
+            )}
             <div className="relative shrink-0">
               <button
                 onClick={() => {

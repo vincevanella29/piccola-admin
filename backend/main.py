@@ -11,16 +11,33 @@ import importlib
 import jwt as pyjwt
 import glob
 from utils.web3mongo import db
+from utils.time_utils import get_chile_time, format_chile_time, CHILE_TZ
 from datetime import datetime
+
+# Set timezone to Chile
+os.environ['TZ'] = 'America/Santiago'
+time.tzset()
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 load_dotenv()
 
-# Logging setup
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+# Logging setup with Chile timezone
+class ChileTimeFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created).astimezone(CHILE_TZ)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return format_chile_time(dt, '%Y-%m-%d %H:%M:%S %Z')
+
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+formatter = ChileTimeFormatter('%(asctime)s (Chile) %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S %Z')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 # FastAPI app
-app = FastAPI(title="Piccola Italia Admin API")
+app = FastAPI(title="Api Club Della Nonna")
 
 from fastapi.exception_handlers import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -54,7 +71,10 @@ if allowed_origins_env:
     allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 else:
     allowed_origins = [
-        "https://test.lapiccolaitalia.cl",
+        "https://test.vanellix.com",
+        "https://dmenu5.vanellixprueba.com",
+        "https://wallet.vanellix.com",
+        "https://dex2.vanellix.com:5173",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://103.199.187.37:5173",
@@ -84,12 +104,9 @@ PRIVY_JWT_COOKIE = "privy-token"
 @app.post("/api/login")
 async def login_with_privy(request: Request):
     data = await request.json()
-    logger.info(f"[login_with_privy] Received data: {data}")
     token = data.get("token")  # Privy JWT
     wallet = data.get("wallet")  # Wallet address
-    notification_token = data.get("notification_token")  # Token FCM
-    device_type = data.get("device_type", "web")  # Tipo de dispositivo
-    permissions_granted = data.get("permissions_granted", False)  # Permisos
+    # Notification token handling removed: tokens are saved via /api/notifications/tokens
 
     if not token or not wallet:
         raise HTTPException(status_code=400, detail="Missing token or wallet")
@@ -100,7 +117,6 @@ async def login_with_privy(request: Request):
             token, PRIVY_JWT_PUBLIC_KEY, algorithms=["ES256"],
             issuer="privy.io", audience=PRIVY_APP_ID,
         )
-        logger.info(f"Privy JWT payload (login): {payload}")
         
         # Validar wallet
         checksum_wallet = w3.to_checksum_address(wallet)
@@ -118,29 +134,9 @@ async def login_with_privy(request: Request):
             {"wallet": wallet.lower(), "sid": payload.get("sid")},
             {"$set": session_data}, upsert=True
         )
-        
-        # Guardar token de notificación si se envía
-        if notification_token and permissions_granted:
-            db.user_notification_tokens.update_one(
-                {"wallet": wallet.lower(), "token": notification_token},
-                {
-                    "$set": {
-                        "wallet": wallet.lower(),
-                        "token": notification_token,
-                        "device_type": device_type,
-                        "permissions_granted": permissions_granted,
-                        "created_at": datetime.utcnow(),
-                        "updated_at": datetime.utcnow()
-                    }
-                },
-                upsert=True
-            )
-            logger.info(f"Notification token saved for wallet: {wallet.lower()}")
-
-        logger.info(f"Session created/updated for wallet: {wallet.lower()}")
         return {"success": True, "sub": payload.get("sub"), "wallet": wallet.lower()}
     except pyjwt.InvalidTokenError as e:
-        logger.error(f"Invalid Privy JWT: {str(e)}")
+        logger.warning(f"Invalid Privy JWT: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid Privy JWT")
     except Exception as e:
         logger.error(f"Error during login: {str(e)}")
@@ -148,45 +144,23 @@ async def login_with_privy(request: Request):
 
 # Verify session with Privy
 async def verify_session(request: Request) -> dict:
-    # Accept Origin if present; otherwise, derive origin from Referer
-    origin_header = request.headers.get('origin')
-    referer_header = request.headers.get('referer', '')
-    host_header = request.headers.get('host', '')
-    request_origin = origin_header
-    if not request_origin and referer_header:
-        try:
-            from urllib.parse import urlsplit
-            parts = urlsplit(referer_header)
-            if parts.scheme and parts.netloc:
-                request_origin = f"{parts.scheme}://{parts.netloc}"
-        except Exception:
-            request_origin = referer_header
-
-    # If still missing, try X-Forwarded-Proto/Forwarded headers or request.url scheme + Host
-    if not request_origin and host_header:
-        xf_proto = request.headers.get('x-forwarded-proto')
-        if not xf_proto:
-            fwd = request.headers.get('forwarded', '')
-            # e.g., Forwarded: proto=https;host=example.com
-            if 'proto=' in fwd:
-                try:
-                    xf_proto = next(p.split('=')[1] for p in fwd.split(';') if p.strip().startswith('proto='))
-                except Exception:
-                    xf_proto = None
-        scheme = xf_proto or request.url.scheme or 'https'
-        request_origin = f"{scheme}://{host_header}"
-
-    # Build allowed list: prefer explicit env, else reuse CORS allowed_origins
+    referer = request.headers.get('referer', '')
     allowed_referers_env = os.getenv("ALLOWED_REFERERS")
     if allowed_referers_env:
-        allowed_list = [r.strip() for r in allowed_referers_env.split(',') if r.strip()]
+        allowed_referers = [r.strip() for r in allowed_referers_env.split(",") if r.strip()]
     else:
-        # Use the CORS allowed_origins defined above
-        allowed_list = allowed_origins
-
-    if not request_origin or not any(request_origin.startswith(origin) for origin in allowed_list):
-        logger.error(f"Forbidden origin/referer: origin={origin_header}, referer={referer_header}")
-        raise HTTPException(status_code=403, detail="Forbidden: invalid origin")
+        allowed_referers = [
+            "https://test.vanellix.com",
+            "https://testing.lapiccolaitalia.cl",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://103.199.187.37:5173",
+            "https://103.199.187.37:5173",
+            "https://dex2.vanellix.com:5173"
+        ]
+    if not any(referer.startswith(origin) for origin in allowed_referers):
+        logger.error(f"Forbidden referer: {referer}")
+        raise HTTPException(status_code=403, detail="Forbidden: invalid referer")
 
     # Get Privy token
     auth_header = request.headers.get("Authorization")
@@ -198,13 +172,14 @@ async def verify_session(request: Request) -> dict:
     else:
         token = auth_header.split(" ", 1)[1]
 
-    # Get wallet address
+    # Get wallet address (optional to allow token-only sessions)
     wallet = request.headers.get("X-Wallet-Address")
-    if not wallet:
-        logger.error("Missing X-Wallet-Address header")
-        raise HTTPException(status_code=400, detail="Missing wallet address")
 
     try:
+        # Basic JWT format guard: must have 3 segments (header.payload.signature)
+        if token.count('.') != 2:
+            logger.warning("Invalid Privy JWT format: not enough segments")
+            raise HTTPException(status_code=401, detail="Invalid Privy JWT")
         # Verify Privy JWT
         payload = pyjwt.decode(
             token,
@@ -213,24 +188,25 @@ async def verify_session(request: Request) -> dict:
             issuer="privy.io",
             audience=PRIVY_APP_ID,
         )
-        logger.info(f"Privy JWT payload: {payload}")
-        # Validate wallet address format
-        try:
-            checksum_wallet = w3.to_checksum_address(wallet)
-        except ValueError as e:
-            logger.error(f"Invalid wallet address format: {wallet}")
-            raise HTTPException(status_code=400, detail=f"Invalid wallet address format: {str(e)}")
-        # Check session
-        session = sessions_collection.find_one({"token": token, "wallet": wallet.lower()})
-        if not session:
-            logger.error(f"No session found for wallet: {wallet.lower()}")
-            raise HTTPException(status_code=401, detail="No valid session")
-        if session["exp"] < int(time.time()):
-            logger.error(f"Session expired for wallet: {wallet.lower()}")
-            sessions_collection.delete_one({"token": token})
-            raise HTTPException(status_code=401, detail="Session expired")
-        logger.info(f"Session verified for wallet: {wallet.lower()}")
-        return {"id": wallet.lower(), "wallet": wallet.lower(), "sub": payload.get("sub")}
+        # If wallet provided, validate and check session. Otherwise, allow token-only session.
+        if wallet:
+            try:
+                checksum_wallet = w3.to_checksum_address(wallet)
+            except ValueError as e:
+                logger.error(f"Invalid wallet address format: {wallet}")
+                raise HTTPException(status_code=400, detail=f"Invalid wallet address format: {str(e)}")
+            session = sessions_collection.find_one({"token": token, "wallet": wallet.lower()})
+            if not session:
+                logger.error(f"No session found for wallet: {wallet.lower()}")
+                raise HTTPException(status_code=401, detail="No valid session")
+            if session["exp"] < int(time.time()):
+                logger.error(f"Session expired for wallet: {wallet.lower()}")
+                sessions_collection.delete_one({"token": token})
+                raise HTTPException(status_code=401, detail="Session expired")
+            return {"id": wallet.lower(), "wallet": wallet.lower(), "sub": payload.get("sub")}
+        else:
+            # Token-only session (no wallet yet)
+            return {"id": payload.get("sub"), "wallet": None, "sub": payload.get("sub")}
     except pyjwt.InvalidTokenError as e:
         logger.error(f"Invalid Privy JWT: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid Privy JWT")
@@ -242,7 +218,6 @@ async def verify_session(request: Request) -> dict:
 @app.get("/debug/cookies")
 async def debug_cookies(request: Request):
     cookies = request.cookies
-    logger.info(f"Received cookies: {cookies}")
     return {"cookies": cookies}
 
 # Load API routers
@@ -255,12 +230,10 @@ for file_path in api_files:
     module_name = os.path.splitext(module_path)[0]
     if module_name.endswith("__init__"):
         continue
-    logger.info(f"Loading API module: apis.{module_name}")
     try:
         module = importlib.import_module(f"apis.{module_name}")
         if hasattr(module, "router"):
             app.include_router(module.router, prefix="/api")
-            logger.info(f"Loaded router for apis.{module_name}")
         else:
             logger.warning(f"apis.{module_name} has no router defined")
     except Exception as e:

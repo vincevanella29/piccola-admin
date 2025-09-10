@@ -18,18 +18,17 @@ import getWagmiConfig from './wagmiConfig.js';
 import useNotifications from './hooks/useNotifications.jsx';
 import { Helmet } from 'react-helmet-async';
 import useConversionTracker from './hooks/useConversionTracker.jsx'; // Importamos el nuevo hook
-import useTelegramLinkAuth from './hooks/useTelegramLinkAuth.jsx';
 
 // Configuración global 
 const rpcUrl = window.env?.VITE_RPC_URL || import.meta.env.VITE_RPC_URL;
 const blockExplorer = window.env?.VITE_BLOCK_EXPLORER || import.meta.env.VITE_BLOCK_EXPLORER;
-// Note: privyAppId is now resolved inside Main() so window.env is guaranteed to be loaded.
+const privyAppId = window.env?.VITE_PRIVY_APP_ID || import.meta.env.VITE_PRIVY_APP_ID;
 const appMode = window.env?.VITE_MODE || import.meta.env.MODE;
 const chainId = Number(window.env?.VITE_CHAIN_ID || import.meta.env.VITE_CHAIN_ID);
 const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
 const googleMapsApiKey = window.env?.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-const vapidKey = window.env?.VITE_VAPID_KEY || import.meta.env.VITE_VAPID_KEY;
 const companyId = window.env?.VITE_COMPANY_ID || import.meta.env.VITE_COMPANY_ID;
+const dripAccountId = window.env?.VITE_DRIP_ACCOUNT_ID || import.meta.env.VITE_DRIP_ACCOUNT_ID;
 
 // Address de WMATIC (o WETH en mainnet)
 const WMATIC_ADDRESS = "0x4bcd5FB3F9b6F73084C9B7A19Acbf0C1D2631fF8";
@@ -40,7 +39,7 @@ const queryClient = new QueryClient();
 
 // Chile time state hook (para pasar a appState)
 import { createContext } from 'react';
-export const ChileTimeContext = createContext({ chileTime: new Date(), firebase: null });
+export const ChileTimeContext = createContext({ chileTime: new Date(), firebase: null, providers: null });
 
 // Simple Error Boundary
 class ErrorBoundary extends React.Component {
@@ -69,7 +68,9 @@ class ErrorBoundary extends React.Component {
 }
 
 const MainContent = () => {
-  const { chileTime: chileTimeFromContext, firebase } = useContext(ChileTimeContext); // Obtener chileTime y firebase del contexto
+  const { chileTime: chileTimeFromContext, firebase, providers } = useContext(ChileTimeContext); // Obtener chileTime, firebase y providers del contexto
+  // vapidKey ahora viene del backend (Conversion Tracker -> provider firebase.public_config.vapidKey)
+  const vapidKey = providers?.firebase?.vapidKey || null;
   const globalStatus = useGlobalStatusMessage();
   const { t, i18n } = useTranslation();
   const [language, setLanguage] = useState(i18n.language);
@@ -97,7 +98,8 @@ const MainContent = () => {
     sendTransaction,
     privyWallet,
     ensureCorrectNetwork,
-    getSigner
+    getSigner,
+    createWalletOnDemand
   } = useWallet({ provider, chainId, rpcUrl, blockExplorer, setError: globalStatus.setError, setSuccess: globalStatus.setSuccess, setPageLoading, firebase, vapidKey });
 
   // NUEVO: Declarar useAppData para obtener colors y userLevel
@@ -113,6 +115,7 @@ const MainContent = () => {
     dripEnabled,
     setDripEnabled,
     trackDripEvent,
+    trackPageView,
     trackViewItem,
     trackClaimPromotion,
     trackBurnTokens,
@@ -122,6 +125,12 @@ const MainContent = () => {
     trackStake,
     trackUnstake,
     trackClaimStake,
+    trackWalletCreated,
+    trackTransfer,
+    trackFundingStart,
+    trackFundingCompleted,
+    trackFundingFailed,
+    trackSwap,
   } = useConversionTracker({
     profile,
     accessToken,
@@ -187,6 +196,8 @@ const MainContent = () => {
     disconnectWallet,
     isConnecting,
     isWalletDataReady,
+    isAuthenticated,
+    createWalletOnDemand,
     changeLanguage,
     accessToken,
     theme,
@@ -212,8 +223,9 @@ const MainContent = () => {
     NATIVE_TOKEN_ADDRESS,
     WMATIC_ADDRESS,
     firebase,
+    providers,
     vapidKey,
-    useNotifications: useNotifications({ accessToken, account, setError: globalStatus.setError, setSuccess: globalStatus.setSuccess, appState: { firebase } }),
+    useNotifications: useNotifications({ accessToken, account, setError: globalStatus.setError, setSuccess: globalStatus.setSuccess, appState: { firebase, providers, vapidKey } }),
     // Agregamos las funciones de tracking al appState
     dripEnabled,
     trackClaimPromotion,
@@ -227,19 +239,15 @@ const MainContent = () => {
     trackStake,
     trackUnstake,
     trackClaimStake,
+    trackWalletCreated,
+    trackTransfer,
+    trackFundingStart,
+    trackFundingCompleted,
+    trackFundingFailed,
+    trackSwap,
   };
 
 
-
-  // Telegram link auth: procesa tg_id/state desde URL cuando la wallet está lista
-  const telegramAuthStatus = useTelegramLinkAuth({
-    isWalletDataReady,
-    account,
-    accessToken,
-    roleLevel,
-    setSuccess: globalStatus.setSuccess,
-    setError: globalStatus.setError,
-  });
 
   const handleLogout = async () => {
     await disconnectWallet();
@@ -250,24 +258,28 @@ const MainContent = () => {
     setIsSidebarOpen((prev) => !prev);
   }, []);
 
+  // Page view tracking via unified tracker (GA/Firebase) on route change
   useEffect(() => {
-    if (window.gtag) {
-      window.gtag('config', 'G-4XEV11DD1K', { page_path: location.pathname });
+    if (typeof trackPageView === 'function') {
+      trackPageView(location.pathname);
     }
-  }, [location.pathname]);
+  }, [location.pathname, trackPageView]);
 
   return (
     <ThemeProvider colors={colors} userLevel={userLevel}>
       <ErrorBoundary t={t}>
         <div className="min-h-screen flex flex-col bg-dark-bg dark:bg-dark-dark">
           <Helmet>
-            <script async src="https://www.googletagmanager.com/gtag/js?id=G-4XEV11DD1K"></script>
-            <script>{`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', 'G-4XEV11DD1K');
-            `}</script>
+            {dripAccountId && (
+              <>
+                <script>{`
+                  window._dcq = window._dcq || [];
+                  window._dcs = window._dcs || {};
+                  window._dcs.account = '${dripAccountId}';
+                `}</script>
+                <script async src={`//tag.getdrip.com/${dripAccountId}.js`}></script>
+              </>
+            )}
           </Helmet>
           {pageLoadingError && (
             <div className="p-4 text-dark-error dark:text-light-error bg-red-dark/50">
@@ -315,35 +327,20 @@ const router = createBrowserRouter([
   },
 });
 
-const Main = ({ locale, theme, firebase }) => {
-  console.log(locale);
-  const privyAppId = (window.env?.VITE_PRIVY_APP_ID || import.meta.env.VITE_PRIVY_APP_ID);
-  if (!privyAppId || typeof privyAppId !== 'string' || privyAppId.trim() === '') {
-    console.error('[Privy] Missing or invalid VITE_PRIVY_APP_ID', { privyAppId, env: window.env });
-  }
+const Main = ({ locale, theme, firebase, providers }) => {
+  const basePrivy = privyConfig(chainId, rpcUrl, privyAppId);
   const privyConfigWithTheme = {
-    ...privyConfig(chainId, rpcUrl, privyAppId),
-    appearance: { ...privyConfig.appearance, theme },
-    i18n: {
-      locale: 'es', // Usa el idioma dinámico de la app
-    },
+    ...basePrivy,
+    appearance: { ...(basePrivy.appearance || {}), theme },
+    i18n: { locale: 'es' },
   };
-  console.log(privyConfigWithTheme);
-
-  if (!privyAppId) {
-    return (
-      <div className="p-4 text-dark-error dark:text-light-error bg-red-dark/50">
-        Configuration error: missing Privy App ID.
-      </div>
-    );
-  }
 
   return (
-    <PrivyProvider appId={privyConfigWithTheme.appId} config={privyConfigWithTheme}>
+    <PrivyProvider appId={basePrivy.appId} config={privyConfigWithTheme}>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={getWagmiConfig(chainId, rpcUrl, blockExplorer)}>
           <AppCacheProvider>
-            <ChileTimeContext.Provider value={{ chileTime: new Date(), firebase }}>
+            <ChileTimeContext.Provider value={{ chileTime: new Date(), firebase, providers }}>
               <RouterProvider router={router} />
             </ChileTimeContext.Provider>
           </AppCacheProvider>

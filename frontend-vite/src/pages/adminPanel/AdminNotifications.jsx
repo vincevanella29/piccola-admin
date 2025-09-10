@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Lock, List, Settings, Send } from 'lucide-react';
@@ -12,6 +12,17 @@ import 'react-toastify/dist/ReactToastify.css';
 const AdminNotifications = ({ appState }) => {
   const { t } = useTranslation();
   const [activeSubTab, setActiveSubTab] = useState('permissions');
+  const didFetch = useRef(false);
+  // Use apiConfigs directly from useNotifications
+  const { apiConfigs, fetchApiConfigs } = appState.useNotifications;
+
+  useEffect(() => {
+    if (didFetch.current || appState.roleLevel > 4) return;
+    if (appState.accessToken && appState.account) {
+      fetchApiConfigs();
+      didFetch.current = true;
+    }
+  }, [appState.accessToken, appState.account, fetchApiConfigs]);
 
   const subTabs = [
     { key: 'permissions', label: t('notifications.permissions'), icon: Lock },
@@ -84,7 +95,7 @@ const AdminNotifications = ({ appState }) => {
             notificationTypes={appState.useNotifications.notificationTypes}
             createNotificationType={appState.useNotifications.createNotificationType}
             isLoading={appState.useNotifications.isLoading}
-            apiConfigs={appState.useNotifications.apiConfigs}
+            apiConfigs={apiConfigs}
             setError={appState.setError}
             setSuccess={appState.setSuccess}
           />
@@ -92,9 +103,8 @@ const AdminNotifications = ({ appState }) => {
         {activeSubTab === 'api_configs' && (
           <NotificationApiConfigs
             appState={appState}
-            fetchApiConfigs={appState.useNotifications.fetchApiConfigs}
-            apiConfigs={appState.useNotifications.apiConfigs}
-            createApiConfig={appState.useNotifications.createApiConfig}
+            fetchApiConfigs={fetchApiConfigs}
+            apiConfigs={apiConfigs}
             isLoading={appState.useNotifications.isLoading}
             setError={appState.setError}
             setSuccess={appState.setSuccess}
@@ -131,7 +141,7 @@ export const pageMetadata = {
   category: 'admin.category',
   minRoleLevel: 3,
   maxRoleLevel: 5,
-  order: 3,
+  order: 1,
   locations: ['sidebar'],
   description: 'admin.notifications.description',
   icon: 'FaBell',

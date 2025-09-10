@@ -374,6 +374,7 @@ async def sales_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _log_user_message(update, text, corr_id=corr_id)
 
     intent = await grok_route_intent(text)
+    await _reply_and_log(update, context, [f"Intent: {intent}"], meta={"stage": "intent_detected", "intent": intent.get("intent")})
     if intent and isinstance(intent, dict):
         itype = intent.get("intent")
         if itype not in ACCEPTED_INTENTS:

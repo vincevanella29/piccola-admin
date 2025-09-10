@@ -66,6 +66,14 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
   };
 
   const handleViewWallet = () => {
+    if (!appState?.account) {
+      // Usuario autenticado PERO sin wallet: crear on-demand y luego abrir modal
+      appState?.createWalletOnDemand?.().then(() => {
+        if (appState?.account) openWalletModal();
+      });
+      setIsWalletMenuOpen(false);
+      return;
+    }
     openWalletModal();
     setIsWalletMenuOpen(false);
   };
@@ -190,6 +198,81 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
               </button>
               {isWalletMenuOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-lg shadow-lg py-2 z-50">
+                  {/* View Wallet */}
+                  <button
+                    onClick={handleViewWallet}
+                    className="w-full text-left px-4 py-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover hover:text-light-text-primary dark:hover:text-dark-text-primary text-sm transition-colors duration-200 flex items-center gap-2"
+                  >
+                    <Eye className="text-light-accent dark:text-dark-accent" size={14} />
+                    {t('header.view_wallet')}
+                  </button>
+                  {walletMenuConfig.map((item) => {
+                    const IconComponent = Icons[item.icon] || Icons.FaFileAlt;
+                    return item.isExternal ? (
+                      <a
+                        key={item.fullPath}
+                        href={item.fullPath}
+                        target={item.newTab ? '_blank' : '_self'}
+                        rel={item.newTab ? 'noopener noreferrer' : undefined}
+                        className="block px-4 py-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover hover:text-light-text-primary dark:hover:text-dark-text-primary text-sm transition-colors duration-200 flex items-center gap-2"
+                        onClick={() => setIsWalletMenuOpen(false)}
+                      >
+                        <IconComponent className="text-light-accent dark:text-dark-accent" size={14} />
+                        {item.label}
+                      </a>
+                    ) : (
+                      <NavLink
+                        key={item.fullPath}
+                        to={item.fullPath}
+                        className="block px-4 py-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover hover:text-light-text-primary dark:hover:text-dark-text-primary text-sm transition-colors duration-200 flex items-center gap-2"
+                        onClick={() => setIsWalletMenuOpen(false)}
+                      >
+                        <IconComponent className="text-light-accent dark:text-dark-accent" size={14} />
+                        {item.label}
+                      </NavLink>
+                    );
+                  })}
+                  {/* Ocultamos 'View Wallet' según solicitud; mantenemos items de pagesConfig y 'Disconnect' */}
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-light-error dark:text-dark-error hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover text-sm transition-colors duration-200"
+                  >
+                    {t('header.disconnect')}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : appState?.isAuthenticated ? (
+            // Autenticado sin wallet → mostrar menú con "Create wallet" verde y Logout
+            <div className="relative">
+              <button
+                onClick={() => setIsWalletMenuOpen((prev) => !prev)}
+                className="flex items-center gap-2 px-4 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary text-sm font-medium rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition-colors duration-200 transform hover:scale-105"
+              >
+                {profile?.profile_image_url ? (
+                  <img
+                    src={profile.profile_image_url}
+                    alt="Profile"
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <Wallet size={18} />
+                )}
+                <span>
+                  {profile?.name || t('header.no_wallet')}
+                </span>
+                <ChevronDown size={18} />
+              </button>
+              {isWalletMenuOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-lg shadow-lg py-2 z-50">
+                  {/* Create Wallet */}
+                  <button
+                    onClick={handleViewWallet}
+                    className="w-full text-left px-4 py-2 text-green-600 dark:text-green-400 hover:bg-green-600/10 dark:hover:bg-green-400/10 text-sm transition-colors duration-200 flex items-center gap-2"
+                  >
+                    <Eye className="text-green-600 dark:text-green-400" size={14} />
+                    {t('header.create_wallet')}
+                  </button>
                   {walletMenuConfig.map((item) => {
                     const IconComponent = Icons[item.icon] || Icons.FaFileAlt;
                     return item.isExternal ? (
@@ -217,13 +300,6 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
                     );
                   })}
                   <button
-                    onClick={handleViewWallet}
-                    className="w-full text-left px-4 py-2 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover hover:text-light-text-primary dark:hover:text-dark-text-primary text-sm transition-colors duration-200 flex items-center gap-2"
-                  >
-                    <Eye className="text-light-accent dark:text-dark-accent" size={14} />
-                    {t('header.view_wallet')}
-                  </button>
-                  <button
                     onClick={handleLogout}
                     className="w-full text-left px-4 py-2 text-light-error dark:text-dark-error hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover text-sm transition-colors duration-200"
                   >
@@ -233,14 +309,17 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
               )}
             </div>
           ) : (
-            <button
-              onClick={handleLogin}
-              className="flex items-center gap-2 px-4 py-2 bg-light-accent dark:bg-dark-accent text-light-text-primary dark:text-dark-text-primary text-sm font-medium rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition-colors duration-200 disabled:opacity-50 transform hover:scale-105"
-              disabled={isConnecting}
-            >
-              <Wallet size={18} />
-              {isConnecting ? t('header.connecting') : t('header.connect_wallet')}
-            </button>
+            // No autenticado → botón de conectar
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleLogin}
+                className="flex items-center gap-2 px-4 py-2 bg-light-accent dark:bg-dark-accent text-light-text-primary dark:text-dark-text-primary text-sm font-medium rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition-colors duration-200 disabled:opacity-50 transform hover:scale-105"
+                disabled={isConnecting}
+              >
+                <Wallet size={18} />
+                {isConnecting ? t('header.connecting') : t('header.connect_wallet')}
+              </button>
+            </div>
           )}
         </div>
       </motion.div>

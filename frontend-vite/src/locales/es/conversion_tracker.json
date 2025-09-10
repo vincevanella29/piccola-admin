@@ -1,0 +1,61 @@
+{
+  "label": "Conversion Tracker",
+  "title": "Administrador de Conversiones",
+  "description": "Configura proveedores de tracking de conversiones y ruteo de eventos",
+  "tabs": {
+    "providers": "Proveedores",
+    "config": "Config"
+  },
+  "form": {
+    "service": {
+      "label": "Servicio",
+      "placeholder": "Selecciona un servicio…"
+    },
+    "name": {
+      "label": "Nombre",
+      "placeholder": "Nombre amigable"
+    },
+    "active": {
+      "label": "Activo"
+    },
+    "required_placeholder": "Ingresa {{field}}",
+    "file": {
+      "service_account": {
+        "label": "Service Account JSON",
+        "help": "Se guardará en credentials.service_account"
+      }
+    }
+  },
+  "actions": {
+    "create": "Crear Proveedor",
+    "update": "Actualizar Proveedor",
+    "cancel": "Cancelar"
+  },
+  "list": {
+    "title": "Proveedores"
+  },
+  "table": {
+    "id": "ID",
+    "service": "Servicio",
+    "name": "Nombre",
+    "active": "Activo",
+    "created": "Creado",
+    "updated": "Actualizado",
+    "actions": "Acciones",
+    "edit": "Editar"
+  },
+  "status": {
+    "yes": "Sí",
+    "no": "No"
+  },
+  "config": {
+    "refresh": "Refrescar",
+    "refreshing": "Actualizando…",
+    "public_config": "Config Pública",
+    "providers_by_id": "Proveedores por ID (público)"
+  },
+  "errors": {
+    "provider_id_missing": "No se pudo determinar el providerId para subir el JSON",
+    "credentials_invalid": "Revisa el JSON de credenciales o permisos."
+  }
+}

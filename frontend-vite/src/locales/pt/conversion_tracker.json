@@ -1,0 +1,61 @@
+{
+  "label": "Conversion Tracker",
+  "title": "Administrador de Conversões",
+  "description": "Configure provedores de rastreamento de conversões e roteamento de eventos",
+  "tabs": {
+    "providers": "Provedores",
+    "config": "Config"
+  },
+  "form": {
+    "service": {
+      "label": "Serviço",
+      "placeholder": "Selecione um serviço…"
+    },
+    "name": {
+      "label": "Nome",
+      "placeholder": "Nome amigável"
+    },
+    "active": {
+      "label": "Ativo"
+    },
+    "required_placeholder": "Insira {{field}}",
+    "file": {
+      "service_account": {
+        "label": "Service Account JSON",
+        "help": "Será salvo em credentials.service_account"
+      }
+    }
+  },
+  "actions": {
+    "create": "Criar Provedor",
+    "update": "Atualizar Provedor",
+    "cancel": "Cancelar"
+  },
+  "list": {
+    "title": "Provedores"
+  },
+  "table": {
+    "id": "ID",
+    "service": "Serviço",
+    "name": "Nome",
+    "active": "Ativo",
+    "created": "Criado",
+    "updated": "Atualizado",
+    "actions": "Ações",
+    "edit": "Editar"
+  },
+  "status": {
+    "yes": "Sim",
+    "no": "Não"
+  },
+  "config": {
+    "refresh": "Atualizar",
+    "refreshing": "Atualizando…",
+    "public_config": "Config Pública",
+    "providers_by_id": "Provedores por ID (público)"
+  },
+  "errors": {
+    "provider_id_missing": "Não foi possível determinar o providerId para enviar o JSON",
+    "credentials_invalid": "Verifique o JSON de credenciais ou permissões."
+  }
+}

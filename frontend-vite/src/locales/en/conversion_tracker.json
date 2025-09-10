@@ -1,0 +1,61 @@
+{
+  "label": "Conversion Tracker",
+  "title": "Conversion Tracker Admin",
+  "description": "Configure conversion tracking providers and event routing",
+  "tabs": {
+    "providers": "Providers",
+    "config": "Config"
+  },
+  "form": {
+    "service": {
+      "label": "Service",
+      "placeholder": "Select a service…"
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "Friendly name"
+    },
+    "active": {
+      "label": "Active"
+    },
+    "required_placeholder": "Enter {{field}}",
+    "file": {
+      "service_account": {
+        "label": "Service Account JSON",
+        "help": "It will be stored in credentials.service_account"
+      }
+    }
+  },
+  "actions": {
+    "create": "Create Provider",
+    "update": "Update Provider",
+    "cancel": "Cancel"
+  },
+  "list": {
+    "title": "Providers"
+  },
+  "table": {
+    "id": "ID",
+    "service": "Service",
+    "name": "Name",
+    "active": "Active",
+    "created": "Created",
+    "updated": "Updated",
+    "actions": "Actions",
+    "edit": "Edit"
+  },
+  "status": {
+    "yes": "Yes",
+    "no": "No"
+  },
+  "config": {
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "public_config": "Public Config",
+    "providers_by_id": "Providers By ID (public)"
+  },
+  "errors": {
+    "provider_id_missing": "Could not determine providerId to upload the JSON",
+    "credentials_invalid": "Check the credentials JSON or permissions."
+  }
+}

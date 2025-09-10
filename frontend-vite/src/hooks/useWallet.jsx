@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
-import { usePrivy, useLogin, useWallets, useSendTransaction } from '@privy-io/react-auth';
+import { usePrivy, useLogin, useWallets, useSendTransaction, useCreateWallet } from '@privy-io/react-auth';
 import { useSetActiveWallet } from '@privy-io/wagmi';
 import { BrowserProvider, ethers } from 'ethers';
 import appData from '../utils/appData.jsx';
 import { getContractInstance } from '../context/contracts.js';
-import { getToken } from 'firebase/messaging';
+ 
 
 export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, setPageLoading, firebase, vapidKey }) => {
   const { t } = useTranslation();
@@ -41,6 +41,15 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
   const hasAuthenticatedRef = useRef(false);
   const isPrivyWalletActive = user?.wallet?.walletClientType === 'privy';
   const pendingWalletRef = useRef(null);
+  // Cache a single BrowserProvider instance to avoid stacking listeners on window.ethereum
+  const ethersProviderRef = useRef(null);
+  const getEthersProvider = useCallback(() => {
+    if (typeof window === 'undefined' || !window.ethereum) return null;
+    if (!ethersProviderRef.current) {
+      ethersProviderRef.current = new BrowserProvider(window.ethereum);
+    }
+    return ethersProviderRef.current;
+  }, []);
 
   const ensureCorrectNetwork = useCallback(
     async (walletAddress) => {
@@ -48,7 +57,7 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
         return true;
       }
       try {
-        const browserProvider = new BrowserProvider(window.ethereum);
+        const browserProvider = getEthersProvider();
         const network = await browserProvider.getNetwork();
         const currentChainId = Number(network.chainId);
         if (currentChainId === chainId) {
@@ -59,7 +68,9 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: `0x${chainId.toString(16)}` }],
           });
-          const newProvider = new BrowserProvider(window.ethereum);
+          // Recreate provider after chain switch so network reflects new chain
+          ethersProviderRef.current = new BrowserProvider(window.ethereum);
+          const newProvider = getEthersProvider();
           const newNetwork = await newProvider.getNetwork();
           if (Number(newNetwork.chainId) !== chainId) {
             setError(`Failed to switch to chainId ${chainId}`);
@@ -93,6 +104,59 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
     [isPrivyWalletActive, chainId, rpcUrl, blockExplorer]
   );
 
+  // === Crear wallet on-demand con los modales de Privy ===
+  const { createWallet } = useCreateWallet();
+  const createWalletOnDemand = useCallback(async () => {
+    try {
+      // Si no está autenticado aún, lanzamos el login de Privy
+      if (!authenticated) {
+        await connectWalletPrivy();
+      }
+
+      // Crear la primera wallet
+      const newWallet = await createWallet();
+      const newAddress = newWallet?.address;
+      if (!newAddress) {
+        setError(t('wallet.error_wallet_not_created'));
+        return;
+      }
+
+      // Activar y asegurar red
+      const maybeWallet = wallets.find((w) => w.address?.toLowerCase() === newAddress.toLowerCase());
+      if (maybeWallet) {
+        try { await setActiveWallet(maybeWallet); } catch {}
+      }
+      await ensureCorrectNetwork(newAddress);
+
+      // Loguear backend ahora que sí tenemos wallet
+      const accessToken = await getAccessToken();
+      if (accessToken) {
+        let notificationToken = null;
+        let permissionsGranted = false;
+
+        await appData.loginWithPrivy({
+          accessToken,
+          wallet: newAddress.toLowerCase(),
+          notification_token: notificationToken,
+          device_type: 'web',
+          permissions_granted: permissionsGranted,
+        });
+        const res = await appData.fetchUserRole({ accessToken, walletAddress: newAddress.toLowerCase() });
+        setProfile(res.profile);
+        setRoleLevel(res.role_level ?? -1);
+      }
+
+      setAccount(newAddress.toLowerCase());
+      setIsAuthenticated(true);
+      hasAuthenticatedRef.current = true;
+      setIsWalletDataReady(true);
+      return newAddress;
+    } catch (e) {
+      setError(t('wallet.error_creating_wallet', { error: e?.message || e?.toString?.() || 'unknown' }));
+      return;
+    }
+  }, [authenticated, wallets, setActiveWallet, ensureCorrectNetwork, getAccessToken, firebase, vapidKey]);
+
   // Nueva función: getSigner
   const getSigner = useCallback(
     async () => {
@@ -105,19 +169,27 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
       await ensureCorrectNetwork(account);
 
       let ethersProvider;
-      if (isPrivyWalletActive && privyWallet && typeof privyWallet.getEthereumProvider === 'function') {
-        const privyProvider = await privyWallet.getEthereumProvider();
-        ethersProvider = new BrowserProvider(privyProvider);
-      } else if (window.ethereum) {
-        ethersProvider = new BrowserProvider(window.ethereum);
-        const network = await ethersProvider.getNetwork();
-        if (Number(network.chainId) !== chainId) {
-          setError(t('wallet.wallet_on_wrong_network', { current: network.chainId, expected: chainId }));
+      if (isPrivyWalletActive) {
+        const activePrivy = wallets.find(
+          (w) => w.address?.toLowerCase() === account.toLowerCase()
+        );
+        if (activePrivy && typeof activePrivy.getEthereumProvider === 'function') {
+          const privyProvider = await activePrivy.getEthereumProvider();
+          ethersProvider = new BrowserProvider(privyProvider);
+        }
+      }
+      if (!ethersProvider) {
+        if (window.ethereum) {
+          ethersProvider = getEthersProvider();
+          const network = await ethersProvider.getNetwork();
+          if (Number(network.chainId) !== chainId) {
+            setError(t('wallet.wallet_on_wrong_network', { current: network.chainId, expected: chainId }));
+            return false;
+          }
+        } else {
+          setError(t('wallet.no_compatible_wallet_provider_detected'));
           return false;
         }
-      } else {
-        setError(t('wallet.no_compatible_wallet_provider_detected'));
-        return false;
       }
 
       const signer = await ethersProvider.getSigner();
@@ -129,7 +201,7 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
 
       return signer;
     },
-    [address, user, isPrivyWalletActive, privyWallet, ensureCorrectNetwork, chainId]
+    [address, user, isPrivyWalletActive, wallets, ensureCorrectNetwork, chainId]
   );
 
   useEffect(() => {
@@ -142,30 +214,32 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
 
     const checkSession = async () => {
       try {
-        const walletAddress = address || user?.wallet?.address;
+        const walletAddress = address || user?.wallet?.address || null;
         const accessToken = await getAccessToken();
 
-        if (!walletAddress || !accessToken) {
+        // Sin access token → no autenticado
+        if (!accessToken) {
           setIsAuthenticated(false);
           setRoleLevel(-1);
           setIsWalletDataReady(true);
           return;
         }
+        // Autenticado pero sin wallet
+        if (!walletAddress) {
+          setIsAuthenticated(true);
+          setAccount(null);
+          setProfile(null);
+          setRoleLevel(-1);
+          setIsWalletDataReady(true);
+          hasAuthenticatedRef.current = true;
+          return;
+        }
 
         await ensureCorrectNetwork(walletAddress);
 
-        // Obtener token de notificación
+        // No gestionar permisos/token FCM aquí
         let notificationToken = null;
         let permissionsGranted = false;
-        try {
-          const permission = await Notification.requestPermission();
-          if (permission === 'granted') {
-            notificationToken = await getToken(firebase.messaging, { vapidKey });
-            permissionsGranted = true;
-          }
-        } catch (err) {
-          console.error('Error obteniendo token de notificación:', err);
-        }
 
         await appData.loginWithPrivy({ 
           accessToken, 
@@ -209,37 +283,11 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
         return;
       }
 
-      // Si el usuario está autenticado pero NO tiene wallet: intentar linkear, si falla desloguear
+      // Autenticado pero SIN wallet → no forzar link; permitir crear luego on-demand
       if (authenticated && user && !user.wallet) {
-        setError(t('wallet.authenticated_no_wallet_linking'));
-        try {
-          await link();
-          // Esperamos a que user.wallet aparezca (puede requerir refrescar el estado externo)
-          // Si después de link sigue sin wallet, deslogueamos
-          if (!user.wallet) {
-            setError(t('wallet.link_wallet_failed_logout'));
-            await logout();
-            disconnect();
-            setAccount(null);
-            setProfile(null);
-            setRoleLevel(-1);
-            setIsAuthenticated(false);
-            setIsWalletDataReady(false);
-            hasAuthenticatedRef.current = false;
-            pendingWalletRef.current = null;
-          }
-        } catch (linkErr) {
-          setError(t('wallet.link_account_failed_with_error', { error: linkErr?.message || linkErr?.toString() }));
-          await logout();
-          disconnect();
-          setAccount(null);
-          setProfile(null);
-          setRoleLevel(-1);
-          setIsAuthenticated(false);
-          setIsWalletDataReady(false);
-          hasAuthenticatedRef.current = false;
-          pendingWalletRef.current = null;
-        }
+        setIsWalletDataReady(true);
+        setIsAuthenticated(true);
+        setAccount(null);
         return;
       }
 
@@ -280,18 +328,9 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           return;
         }
 
-        // Obtener token de notificación
+        // No gestionar permisos/token FCM aquí
         let notificationToken = null;
         let permissionsGranted = false;
-        try {
-          const permission = await Notification.requestPermission();
-          if (permission === 'granted') {
-            notificationToken = await getToken(firebase.messaging, { vapidKey });
-            permissionsGranted = true;
-          }
-        } catch (err) {
-          console.error('Error obteniendo token de notificación:', err);
-        }
 
         await appData.loginWithPrivy({ 
           accessToken, 
@@ -521,6 +560,7 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
     privyWallet,
     ensureCorrectNetwork,
     getSigner, // Nueva función exportada
+    createWalletOnDemand,
   };
 };
 
