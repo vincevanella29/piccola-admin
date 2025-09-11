@@ -122,24 +122,41 @@ def _postprocess_menus(obj: dict) -> dict:
         else:
             # buscar por nombre/descripcion contiene q
             try:
-                # case-insensitive, sin acentos, y con singularización básica; limitar a 200 códigos
+                # case-insensitive, sin acentos, y con singularización básica; limitar a 300 códigos
                 q_norm = _no_accents(q).lower()
                 needles = set(_singularize_es(q_norm))
                 codes: list[str] = []
-                for m in db.menus.find({}, {"codigo":1, "nombre":1, "descripcion":1}).limit(5000):
+                # 1) Match por nombre/descripcion
+                for m in db.menus.find({}, {"codigo":1, "nombre":1, "descripcion":1}).limit(10000):
                     name = _no_accents(_norm(m.get("nombre")) or "").lower()
                     descr = _no_accents(_norm(m.get("descripcion")) or "").lower()
                     if any(n in name or n in descr for n in needles):
                         c = _norm(m.get("codigo"))
                         if c and c.upper() not in codes:
                             codes.append(c.upper())
-                    if len(codes) >= 200:
+                    if len(codes) >= 300:
                         break
+                # 2) Match por categorías
+                if len(codes) <= 1:
+                    cat_ids = []
+                    for cdoc in db.categories.find({}, {"id":1, "nombre":1, "name":1}).limit(4000):
+                        nm = _no_accents(_norm(cdoc.get("nombre") or cdoc.get("name") or "")).lower()
+                        if any(n in nm for n in needles):
+                            cid = _norm(cdoc.get("id") or cdoc.get("_id"))
+                            if cid:
+                                cat_ids.append(cid)
+                    if cat_ids:
+                        for m in db.menus.find({"category_ids": {"$in": cat_ids}}, {"codigo":1}).limit(10000):
+                            c = _norm(m.get("codigo"))
+                            if c and c.upper() not in codes:
+                                codes.append(c.upper())
+                            if len(codes) >= 300:
+                                break
                 # unir con existente
                 for c in codes:
                     if c not in f["include_codigos"]:
                         f["include_codigos"].append(c)
-                f["include_codigos"] = f["include_codigos"][:200]
+                f["include_codigos"] = f["include_codigos"][:300]
             except Exception:
                 pass
     obj["filters"] = f

@@ -316,6 +316,29 @@ async def handle_menus(update, context):
     matched: List[dict] = []
     ql = (q or "").lower()
 
+    # Respetar filtros.include_codigos si vienen del SPEC/NLP
+    mf_all = {}
+    try:
+        mf_all = (context.user_data.get("menus_filters") or {}) if hasattr(context, "user_data") else {}
+    except Exception:
+        mf_all = {}
+    ff_filters = (f or {}).get("filters") or mf_all.get("filters") or {}
+    include_codigos_filter = [str(x).upper() for x in (ff_filters.get("include_codigos") or [])]
+    if include_codigos_filter:
+        set_codes = set(include_codigos_filter)
+        for m in menus:
+            code = _norm_str(m.get("codigo")).upper()
+            if code and code in set_codes:
+                matched.append(m)
+        # Si ya logramos matches por include_codigos, continuamos al render/receta
+        # (dejamos by/q como señal secundaria)
+        if matched:
+            # fall through to next phases (recipe/detail/listado) sin volver a filtrar
+            pass
+        else:
+            # si no coincidió nada por include_codigos, seguimos con matching normal
+            include_codigos_filter = []
+
     if by == "categoria":
         cat_ids = []
         for c in categories:
@@ -330,19 +353,33 @@ async def handle_menus(update, context):
                 matched.append(m)
 
     elif by == "producto":
+        # Matching por código exacto o por tokens (sin acentos, singularizado)
+        needles = set(_singularize_tokens_es(q)) if q else set()
         for m in menus:
             nombre = _norm_str(m.get("nombre"))
             codigo = _norm_str(m.get("codigo"))
             if not ql:
                 matched.append(m)
-            elif codigo == q or _contains(nombre, ql):
+                continue
+            if codigo == q:
+                matched.append(m)
+                continue
+            # nombre sin acentos/lower
+            name_na = _no_accents(nombre).lower()
+            if any(n in name_na for n in needles):
                 matched.append(m)
 
-    else:  # texto -> nombre o descripción
+    else:  # texto -> nombre o descripción con tokens (sin acentos)
+        needles = set(_singularize_tokens_es(q)) if q else set()
         for m in menus:
             nombre = _norm_str(m.get("nombre"))
             descr = _norm_str(m.get("descripcion") or m.get("description"))
-            if not ql or _contains(nombre, ql) or _contains(descr, ql):
+            if not ql:
+                matched.append(m)
+                continue
+            name_na = _no_accents(nombre).lower()
+            descr_na = _no_accents(descr).lower()
+            if any(n in name_na or n in descr_na for n in needles):
                 matched.append(m)
 
     # Join options (para listado)
@@ -363,28 +400,122 @@ async def handle_menus(update, context):
 
     # ---- Recetas ----
     if recipe:
-        # Elegir menú
-        m_sel = None
-        if q and any(_norm_str(x.get("codigo")) == q for x in matched):
-            m_sel = next(x for x in matched if _norm_str(x.get("codigo")) == q)
-        elif len(matched) == 1:
+        # Si hay más de un match y piden receta, devolvemos una tabla de productos con recipes adjuntas
+        if not (q and any(_norm_str(x.get("codigo")) == q for x in matched)) and len(matched) > 1:
+            # Tabla de productos (máx 20) con imagen + nombre + código + precio
+            MAX_ITEMS = 20
+            rows = []
+            codes: list[str] = []
+            for m in matched[:MAX_ITEMS]:
+                nombre_i = _norm_str(m.get("nombre"))
+                codigo_i = _norm_str(m.get("codigo"))
+                precio_i = m.get("precio")
+                currency_i = _norm_str(m.get("currency") or "$")
+                img_i = _resolve_menu_image_url(m)
+                rows.append({
+                    "group": f"{nombre_i} ({codigo_i})" if (nombre_i and codigo_i) else (nombre_i or codigo_i),
+                    "code": codigo_i,
+                    "name": nombre_i,
+                    "price": precio_i,
+                    "currency": currency_i,
+                    "image_url": img_i,
+                })
+                if codigo_i:
+                    codes.append(codigo_i)
+
+            columns = [
+                {"key":"image_url","label":"","type":"text","align":"left","format":"image"},
+                {"key":"group","label":"producto","type":"text","align":"left"},
+                {"key":"price","label":"Precio","type":"number","align":"right","format":"money"},
+            ]
+            payload = {
+                "type": "data_table",
+                "title": f"Productos con receta — {len(rows)}",
+                "text": f"Productos con receta — {len(rows)}",
+                "subtitle": None,
+                "kpis": [],
+                "columns": columns,
+                "rows": rows,
+                "totals": None,
+                "charts": None,
+            }
+            # Adjuntar tabla de recetas (último mesano disponible por código)
+            recipes_rows = []
+            try:
+                for code in codes:
+                    _latest = db.recetas_productos.find({"producto_codigo": code}, {"mesano":1}).sort("mesano", -1).limit(1)
+                    latest_doc = next(iter(_latest), None)
+                    use_mesano = str(latest_doc.get("mesano")) if latest_doc and latest_doc.get("mesano") else None
+                    if not use_mesano:
+                        continue
+                    cur = db.recetas_productos.find({"producto_codigo": code, "mesano": use_mesano}).sort([("producto_codigo",1),("linea",1)])
+                    for rr in cur:
+                        ing = _norm_str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo"))
+                        qty = rr.get("cantidad_ingrediente")
+                        unit = _norm_str(rr.get("u_medida_compra") or rr.get("u_medida_base"))
+                        pct = rr.get("porcentaje_linea")
+                        recipes_rows.append({
+                            "code": code,
+                            "ingredient": ing,
+                            "qty": float(qty) if isinstance(qty,(int,float)) else None,
+                            "qty_text": (f"{qty:.3f}" if isinstance(qty,(int,float)) else (_norm_str(qty) if qty is not None else "")),
+                            "unit": unit,
+                            "mesano": use_mesano,
+                            **({"pct": float(pct)} if isinstance(pct,(int,float)) else {}),
+                        })
+            except Exception:
+                recipes_rows = []
+            if recipes_rows:
+                payload["related_tables"] = payload.get("related_tables") or []
+                payload["related_tables"].append({
+                    "type":"data_table",
+                    "key":"recipes",
+                    "title":"Recetas",
+                    "columns":[
+                        {"key":"code","label":"Código","type":"text","align":"left"},
+                        {"key":"ingredient","label":"Ingrediente","type":"text","align":"left"},
+                        {"key":"qty_text","label":"Cantidad","type":"text","align":"right"},
+                        {"key":"unit","label":"Unidad","type":"text","align":"left"},
+                        {"key":"pct","label":"%","type":"number","align":"right"},
+                    ],
+                    "rows": recipes_rows,
+                })
+            return update, payload
+
+        # Elegir menú único (match exacto por código o solo 1 resultado)
+        m_sel = next((x for x in matched if _norm_str(x.get("codigo")) == q), None) if q else None
+        if not m_sel:
             m_sel = matched[0]
-        else:
-            return update, _build_ambiguous_list(matched)
 
         nombre = _norm_str(m_sel.get("nombre"))
         codigo = _norm_str(m_sel.get("codigo"))
 
-        # 1) Tarjeta (foto + caption) o fallback
-        out_items: List[Dict[str, Any] | str] = []
-        img = _resolve_menu_image_url(m_sel)
-        if img:
-            caption = _menu_detail_caption(m_sel, cat_by_id)
-            out_items.append({"type": "photo", "url": img, "caption": caption})
-        else:
-            out_items.append(_menu_detail_block(m_sel, cat_by_id))
+        # 1) Card de producto (estilo web) — usamos product_card para que el front lo pinte bonito
+        prod = {
+            "id": str(m_sel.get("id") or m_sel.get("_id") or m_sel.get("codigo") or ""),
+            "name": nombre,
+            "code": codigo,
+            "price": m_sel.get("precio"),
+            "currency": _norm_str(m_sel.get("currency") or "$"),
+            "categories": list(m_sel.get("category_ids") or []),
+            "options": list(m_sel.get("option_ids") or []),
+            "description": _norm_str(m_sel.get("descripcion") or m_sel.get("description") or ""),
+            "image_url": _resolve_menu_image_url(m_sel),
+        }
+        out_items: List[Dict[str, Any] | str] = [
+            {"type": "product_card", "text": nombre, "product": prod}
+        ]
 
         # 2) Recetas por mes/año (máx 2 bloques)
+        # Si no viene 'mesanos', usar el último mes disponible para ese producto
+        if not mesanos:
+            try:
+                _latest = db.recetas_productos.find({"producto_codigo": codigo}, {"mesano":1}).sort("mesano", -1).limit(1)
+                latest_doc = next(iter(_latest), None)
+                if latest_doc and latest_doc.get("mesano"):
+                    mesanos = [str(latest_doc.get("mesano"))]
+            except Exception:
+                mesanos = []
         for mesano in mesanos[:2]:
             rows = list(
                 db.recetas_productos.find({
@@ -392,7 +523,35 @@ async def handle_menus(update, context):
                     "mesano": mesano,
                 }).sort("linea", 1)
             )
-            out_items.append(_build_recipe_block(nombre, codigo, mesano, rows))
+            # Tabla estructurada de receta
+            recipe_rows = []
+            for rr in rows:
+                ing = _norm_str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo"))
+                qty = rr.get("cantidad_ingrediente")
+                unit = _norm_str(rr.get("u_medida_compra") or rr.get("u_medida_base"))
+                pct = rr.get("porcentaje_linea")
+                qty_text = (f"{qty:.3f}" if isinstance(qty, (int, float)) else _norm_str(qty))
+                rec = {"ingredient": ing, "qty_text": qty_text, "unit": unit}
+                if isinstance(pct, (int, float)):
+                    rec["pct"] = round(float(pct), 1)
+                recipe_rows.append(rec)
+
+            cols = [
+                {"key":"ingredient","label":"Ingrediente","type":"text","align":"left"},
+                {"key":"qty_text","label":"Cantidad","type":"text","align":"right"},
+                {"key":"unit","label":"Unidad","type":"text","align":"left"},
+            ]
+            # Agregar columna de porcentaje si existe al menos uno
+            if any("pct" in r for r in recipe_rows):
+                cols.append({"key":"pct","label":"%","type":"number","align":"right"})
+
+            out_items.append({
+                "type": "data_table",
+                "key": "recipe",
+                "title": f"Receta — {mesano}",
+                "columns": cols,
+                "rows": recipe_rows,
+            })
 
         return update, out_items
 
@@ -426,8 +585,7 @@ async def handle_menus(update, context):
         opt_names = join_options(m)
 
         meta_bits: List[str] = []
-        if codigo:
-            meta_bits.append(f"`{codigo}`")
+        # el código va en el título, mantenemos precio en meta
         if precio is not None:
             meta_bits.append(_fmt_money(precio, currency))
         meta = (" · ".join(meta_bits)) if meta_bits else ""
@@ -437,7 +595,8 @@ async def handle_menus(update, context):
             f"  —  _opc: {', '.join(opt_names[:3])}{'…' if len(opt_names) > 3 else ''}_"
             if opt_names else ""
         )
-        lines.append(f"{i}. **{nombre}**{(' — ' + meta) if meta else ''}{cat_str}{opt_str}")
+        title = f"**{nombre}**" if not codigo else f"**{nombre}** (\`{codigo}\`)"
+        lines.append(f"{i}. {title}{(' — ' + meta) if meta else ''}{cat_str}{opt_str}")
 
     if len(matched) > MAX_ITEMS:
         lines.append(f"… y **{len(matched) - MAX_ITEMS}** más")
@@ -653,6 +812,8 @@ async def handle_productos_hora(update, context):
             name = (m.get("nombre") or code)
             row["code"] = code
             row["name"] = name
+            # Mostrar nombre + código en la columna principal también (como en 'productos')
+            row["group"] = f"{name} ({code})" if name and code else (name or code)
             # simple image URL chooser
             img = m.get("media_r2") or m.get("media_url")
             row["image_url"] = img
@@ -696,28 +857,45 @@ async def handle_productos_hora(update, context):
         "charts": None,
     }
 
-    # Tabla separada de recetas (una sola fuente para el front): por producto listado
-    if authorized and detail and group_by == "producto" and s_str and e_str and s_str[:7] == e_str[:7]:
-        mesano = s_str.replace("-", "")[:6]
+    # Tabla separada de recetas (fuente para el front): por producto listado
+    if group_by == "producto":
         codes = [r.get("code") or str(r.get("group")) for r in out_rows]
         codes = [str(c) for c in codes if c]
+        # Si viene un filtro include_codigos desde el SPEC/NLP, intersectamos para enviar SOLO los activos
+        try:
+            filt_codes = [str(x).upper() for x in (f.get("include_codigos") or [])]
+        except Exception:
+            filt_codes = []
+        if filt_codes:
+            s = set(codes)
+            codes = [c for c in codes if c in s and c in filt_codes]
         recipes_rows = []
         if codes:
             try:
-                cur = db.recetas_productos.find({"producto_codigo": {"$in": codes}, "mesano": mesano}).sort([("producto_codigo",1),("linea",1)])
-                for rr in cur:
-                    code = str(rr.get("producto_codigo") or "")
-                    ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
-                    qty = rr.get("cantidad_ingrediente")
-                    unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
-                    recipes_rows.append({
-                        "code": code,
-                        "ingredient": ing,
-                        "qty": float(qty) if isinstance(qty,(int,float)) else None,
-                        "qty_text": (f"{qty:.3f}" if isinstance(qty,(int,float)) else (str(qty) if qty is not None else "")),
-                        "unit": unit,
-                        "mesano": mesano,
-                    })
+                same_month = bool(s_str and e_str and s_str[:7] == e_str[:7])
+                mesano_fixed = s_str.replace("-", "")[:6] if same_month else None
+                for code in codes:
+                    # Determinar mesano a usar: el del período si es único, si no, el último disponible por código
+                    use_mesano = mesano_fixed
+                    if not use_mesano:
+                        _latest = db.recetas_productos.find({"producto_codigo": code}, {"mesano":1}).sort("mesano", -1).limit(1)
+                        latest_doc = next(iter(_latest), None)
+                        use_mesano = str(latest_doc.get("mesano")) if latest_doc and latest_doc.get("mesano") else None
+                    if not use_mesano:
+                        continue
+                    cur = db.recetas_productos.find({"producto_codigo": code, "mesano": use_mesano}).sort([("producto_codigo",1),("linea",1)])
+                    for rr in cur:
+                        ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
+                        qty = rr.get("cantidad_ingrediente")
+                        unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
+                        recipes_rows.append({
+                            "code": code,
+                            "ingredient": ing,
+                            "qty": float(qty) if isinstance(qty,(int,float)) else None,
+                            "qty_text": (f"{qty:.3f}" if isinstance(qty,(int,float)) else (str(qty) if qty is not None else "")),
+                            "unit": unit,
+                            "mesano": use_mesano,
+                        })
             except Exception:
                 recipes_rows = []
         if recipes_rows:
@@ -725,7 +903,7 @@ async def handle_productos_hora(update, context):
             payload["related_tables"].append({
                 "type":"data_table",
                 "key":"recipes",
-                "title": f"Recetas — {mesano}",
+                "title": "Recetas",
                 "columns":[
                     {"key":"code","label":"Código","type":"text","align":"left"},
                     {"key":"ingredient","label":"Ingrediente","type":"text","align":"left"},

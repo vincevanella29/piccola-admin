@@ -493,4 +493,64 @@ async def handle_productos(update, context):
             if t_extras:
                 lines.append("   " + " | ".join(t_extras))
 
+    # =========================
+    # Related recipes table (una por producto listado)
+    # =========================
+    related_tables = []
+    try:
+        if group_by == "producto" and cur:
+            codes = []
+            for r in cur:
+                code = str(r.get("_id") or "")
+                if code and code not in codes:
+                    codes.append(code)
+            recipes_rows = []
+            if codes:
+                # mesano preferido: periodo actual; si no hay receta en ese mes, usar último disponible por código
+                for code in codes:
+                    use_mesano = str(period) if period else None
+                    if use_mesano:
+                        any_in_period = db.recetas_productos.count_documents({"producto_codigo": code, "mesano": use_mesano})
+                        if not any_in_period:
+                            use_mesano = None
+                    if not use_mesano:
+                        latest = db.recetas_productos.find({"producto_codigo": code}, {"mesano":1}).sort("mesano", -1).limit(1)
+                        latest_doc = next(iter(latest), None)
+                        use_mesano = str(latest_doc.get("mesano")) if latest_doc and latest_doc.get("mesano") else None
+                    if not use_mesano:
+                        continue
+                    cur_rec = db.recetas_productos.find({"producto_codigo": code, "mesano": use_mesano}).sort([("producto_codigo",1),("linea",1)])
+                    for rr in cur_rec:
+                        ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
+                        qty = rr.get("cantidad_ingrediente")
+                        unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
+                        recipes_rows.append({
+                            "code": code,
+                            "ingredient": ing,
+                            "qty": float(qty) if isinstance(qty,(int,float)) else None,
+                            "qty_text": (f"{qty:.3f}" if isinstance(qty,(int,float)) else (str(qty) if qty is not None else "")),
+                            "unit": unit,
+                            "mesano": use_mesano,
+                        })
+            if recipes_rows:
+                related_tables.append({
+                    "type":"data_table",
+                    "key":"recipes",
+                    "title":"Recetas",
+                    "columns":[
+                        {"key":"code","label":"Código","type":"text","align":"left"},
+                        {"key":"ingredient","label":"Ingrediente","type":"text","align":"left"},
+                        {"key":"qty_text","label":"Cantidad","type":"text","align":"right"},
+                        {"key":"unit","label":"Unidad","type":"text","align":"left"},
+                    ],
+                    "rows": recipes_rows,
+                })
+    except Exception:
+        related_tables = []
+
+    # Si hay tablas relacionadas, devolver payload estructurado junto al texto
+    if related_tables:
+        payload = {"type":"text_block_list","intent":"productos","lines": lines, "related_tables": related_tables}
+        return update, payload
+
     return update, lines

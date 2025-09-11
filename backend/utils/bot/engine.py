@@ -87,9 +87,53 @@ async def chat_complete(messages: list[dict]) -> str:
         pass
 
     if itype == "menus":
-        # Redirigir 'menus' a ventas por hora de productos (descontinuamos menú descriptivo)
+        # 1) Parsear con el SPEC de 'menus' para periodo, filtros, etc.
+        mf = await grok_filters("menus", text) or {}
+
+        # 2) Si piden 'detalle' o 'receta', usamos el flujo legacy de menús descriptivos (foto/opciones/recetas)
+        #    Además, detectamos 'receta' en lenguaje natural
+        _tlow = (text or "").lower()
+        nl_wants_recipe = ("receta" in _tlow)
+        wants_detail_or_recipe = bool(mf.get("detail")) or bool(mf.get("recipe")) or nl_wants_recipe
+        if wants_detail_or_recipe:
+            context.user_data["menus_by"] = (mf.get("by") or "").lower()
+            context.user_data["menus_q"] = (mf.get("q") or "")
+            context.user_data["menus_detail"] = bool(mf.get("detail", False))
+            context.user_data["menus_mesanos"] = mf.get("mesanos") or []
+            if nl_wants_recipe:
+                context.user_data["menus_recipe"] = True
+            _, payload = await handle_menus(update, context)
+            return payload if isinstance(payload, (dict, list)) else {
+                "type": "text_block_list",
+                "intent": "menus",
+                "lines": payload
+            }
+
+        # 3) Si NO piden detalle/receta -> redirigimos a ventas por hora de productos,
+        #    mapeando TODO lo filtrado por 'menus' a 'ventas_hora_filters'
+        vhf = {
+            "period":  mf.get("period") or {},            # {preset|start|end|tz}
+            "group_by": mf.get("group_by") or "producto",
+            "measure":  mf.get("measure") or "total",   # total|cantidad|avg_precio
+            "order_by": mf.get("order_by") or "value_desc",
+            "filters":  (mf.get("filters") or {}),        # include_codigos/include_locals/include_siglas/hour_in/dow_in
+            "view":     mf.get("view") or {},             # {limit_groups, detail}
+        }
+        # Heurística: si preguntan "¿cuántas ...?" y sigue en 'total', forzar 'cantidad'
+        _t = (text or "").lower()
+        if ("cuanta" in _t or "cuánt" in _t) and (vhf.get("measure") == "total"):
+            vhf["measure"] = "cantidad"
+
+        # Pasar filtros al contexto (consistencia con otros handlers horarios)
+        context.user_data["ventas_hora_filters"] = vhf
+
+        # 4) Disparar el handler horario de productos (emite data_table con code+name)
         _, payload = await handle_productos_hora(update, context)
-        return payload if isinstance(payload, (dict, list)) else {"type":"text_block_list","intent":itype,"lines":payload}
+        return payload if isinstance(payload, (dict, list)) else {
+            "type": "text_block_list",
+            "intent": "ventas_hora",
+            "lines": payload
+        }
 
     if itype == "locations":
         lf = await grok_filters("locations", text) or {}

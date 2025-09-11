@@ -10,6 +10,7 @@ import ClubSectionCard from '../common/ClubSectionCard';
 import HistoryTimeline from '../common/HistoryTimeline';
 import UserModal from '../common/UserModal';
 import DataTable from '../common/DataTable';
+import ProductDetailModal from '../modals/ProductDetailModal';
 import SalaryDetailModal from '../modals/SalaryDetailModal';
 import ConsumoDetailModal from '../modals/ConsumoDetailModal';
 
@@ -36,6 +37,9 @@ const ChatMessage = ({
   const [salaryRow, setSalaryRow] = useState(null);
   const [consumoOpen, setConsumoOpen] = useState(false);
   const [consumoRow, setConsumoRow] = useState(null);
+  const [productOpen, setProductOpen] = useState(false);
+  const [productRow, setProductRow] = useState(null);
+  const [productPayload, setProductPayload] = useState(null);
   const prevLenRef = useRef(0);
 
   const client = !isAdmin ? (clientProps || {}) : {};
@@ -194,30 +198,51 @@ const ChatMessage = ({
                     : type === 'location_list' && Array.isArray(m?.payload?.items) ? (<LocationList query={m?.payload?.query} total={m?.payload?.total} shown={m?.payload?.shown} items={m?.payload?.items} />)
                     : type === 'club_section' && m?.payload ? (<ClubSectionCard payload={m.payload} />)
                     : type === 'history_timeline' && m?.payload ? (<HistoryTimeline payload={m.payload} />)
-                    : type === 'data_table' && m?.payload ? (
-                      <DataTable
-                        title={m.payload.title}
-                        subtitle={m.payload.subtitle}
-                        kpis={m.payload.kpis}
-                        columns={m.payload.columns}
-                        rows={m.payload.rows}
-                        totals={m.payload.totals}
-                        charts={m.payload.charts}
-                        compact={true}
-                        onRowClick={(row) => {
-                          // Heurísticas por tipo
-                          if ((m.payload.title || '').toLowerCase().includes('consumo')) {
-                            setConsumoRow({ row, columns: m.payload.columns, kpis: m.payload.kpis });
-                            setConsumoOpen(true);
-                            return;
-                          }
-                          if (row && (row.worker || row.profile_image_url)) {
-                            setSalaryRow(row);
-                            setSalaryOpen(true);
-                          }
-                        }}
-                      />
-                    )
+                    : type === 'data_table' && m?.payload ? (() => {
+                      const payload = m.payload || {};
+                      const rows = payload.rows || [];
+                      // Auto-insert image thumbnail column if rows have image_url and no image column is defined
+                      const hasImageInRows = Array.isArray(rows) && rows.some(r => typeof r?.image_url === 'string' && r.image_url);
+                      const hasImageColumn = (payload.columns || []).some(c => c.key === 'image_url' || c.format === 'image');
+                      const columns = hasImageInRows && !hasImageColumn
+                        ? ([{ key: 'image_url', label: '', type: 'text', align: 'left', format: 'image', round: true }, ...(payload.columns || [])])
+                        : (payload.columns || []);
+
+                      return (
+                        <DataTable
+                          title={payload.title}
+                          subtitle={payload.subtitle}
+                          kpis={payload.kpis}
+                          columns={columns}
+                          rows={rows}
+                          totals={payload.totals}
+                          charts={payload.charts}
+                          compact={true}
+                          onRowClick={(row) => {
+                            // Heurísticas por tipo
+                            const title = (payload.title || '').toLowerCase();
+                            if (title.includes('consumo')) {
+                              setConsumoRow({ row, columns, kpis: payload.kpis });
+                              setConsumoOpen(true);
+                              return;
+                            }
+                            // Abrir modal de producto si la fila aparenta ser de producto
+                            if (row && (row.code || row.image_url || row.name || title.includes('producto'))) {
+                              setProductRow(row);
+                              setProductPayload(payload);
+                              setProductOpen(true);
+                              return;
+                            }
+                            // Salaries: mantiene comportamiento previo
+                            if (row && (row.worker || row.profile_image_url)) {
+                              setSalaryRow(row);
+                              setSalaryOpen(true);
+                            }
+                          }}
+                        />
+                      );
+                    })()
+                    
                     : (<MessageText role={m.role || 'bot'} text={m.text || m.message || ''} optimistic={m.optimistic} />)}
                 </div>
               </div>
@@ -238,6 +263,9 @@ const ChatMessage = ({
       )}
       {consumoOpen && (
         <ConsumoDetailModal open={consumoOpen} payloadRow={consumoRow} onClose={() => { setConsumoOpen(false); setConsumoRow(null); }} />
+      )}
+      {productOpen && (
+        <ProductDetailModal open={productOpen} row={productRow} payload={productPayload} onClose={() => { setProductOpen(false); setProductRow(null); setProductPayload(null); }} />
       )}
     </div>
   );
