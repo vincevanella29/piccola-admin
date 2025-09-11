@@ -1,7 +1,7 @@
-// src/pages/chat/components/client/ProductCard.jsx
+// src/pages/chat/components/common/ProductCard.jsx
 import React from 'react';
 
-const ProductCard = ({ product }) => {
+const ProductCard = ({ product, recipe = null }) => {
   if (!product) return null;
   const {
     id,
@@ -32,14 +32,38 @@ const ProductCard = ({ product }) => {
         <div className="flex flex-wrap gap-2 text-xs text-light-text/80">
           {code && <span className="px-2 py-1 rounded bg-white/10">Código: {code}</span>}
           {categories?.length > 0 && (
-            <span className="px-2 py-1 rounded bg-white/10">{categories.join(' · ')}</span>
-          )}
-          {options?.length > 0 && (
-            <span className="px-2 py-1 rounded bg-white/10">{options.join(' · ')}</span>
+            <span className="px-2 py-1 rounded bg-white/10">Categorías: {categories.join(', ')}</span>
           )}
         </div>
         {description && (
-          <p className="text-sm leading-relaxed text-light-text/90">{description}</p>
+          <p className="text-sm text-light-text/90 leading-relaxed">{description}</p>
+        )}
+        {recipe && Array.isArray(recipe.rows) && recipe.rows.length > 0 && (
+          <div className="mt-2">
+            <div className="text-xs font-semibold opacity-80 mb-1">Receta {recipe.mesano ? `— ${recipe.mesano}` : ''}</div>
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="bg-white/10">
+                    <th className="px-2 py-1 text-left font-semibold">Ingrediente</th>
+                    <th className="px-2 py-1 text-right font-semibold">Cantidad</th>
+                    <th className="px-2 py-1 text-left font-semibold">Unidad</th>
+                    <th className="px-2 py-1 text-right font-semibold">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recipe.rows.map((r, idx) => (
+                    <tr key={idx} className={`${idx % 2 === 0 ? 'bg-transparent' : 'bg-white/5'}`}>
+                      <td className="px-2 py-1 whitespace-nowrap">{r.ingredient}</td>
+                      <td className="px-2 py-1 whitespace-nowrap text-right">{r.qty_text ?? r.qty}</td>
+                      <td className="px-2 py-1 whitespace-nowrap">{r.unit}</td>
+                      <td className="px-2 py-1 whitespace-nowrap text-right">{typeof r.pct !== 'undefined' ? r.pct : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
     </div>

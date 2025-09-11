@@ -192,7 +192,7 @@ const ChatMessage = ({
                     <button className="truncate font-medium hover:underline text-left" onClick={() => participant && handleShowProfile(participant)} title={displayName}>{displayName}</button>
                     <span className="shrink-0">{ts}</span>
                   </div>
-                  {type === 'product_card' && m?.payload?.product ? (<ProductCard product={m.payload.product} />)
+                  {type === 'product_card' && m?.payload?.product ? (<ProductCard product={m.payload.product} recipe={m?.payload?.recipe} />)
                     : type === 'product_list' && Array.isArray(m?.payload?.items) ? (<ProductList query={m?.payload?.query} total={m?.payload?.total} shown={m?.payload?.shown} items={m?.payload?.items} />)
                     : type === 'location_card' && m?.payload?.location ? (<LocationCard location={m.payload.location} />)
                     : type === 'location_list' && Array.isArray(m?.payload?.items) ? (<LocationList query={m?.payload?.query} total={m?.payload?.total} shown={m?.payload?.shown} items={m?.payload?.items} />)

@@ -324,20 +324,13 @@ async def handle_menus(update, context):
         mf_all = {}
     ff_filters = (f or {}).get("filters") or mf_all.get("filters") or {}
     include_codigos_filter = [str(x).upper() for x in (ff_filters.get("include_codigos") or [])]
-    if include_codigos_filter:
-        set_codes = set(include_codigos_filter)
+    seed_codes = set(include_codigos_filter)
+    if seed_codes:
+        set_codes = seed_codes
         for m in menus:
             code = _norm_str(m.get("codigo")).upper()
             if code and code in set_codes:
                 matched.append(m)
-        # Si ya logramos matches por include_codigos, continuamos al render/receta
-        # (dejamos by/q como señal secundaria)
-        if matched:
-            # fall through to next phases (recipe/detail/listado) sin volver a filtrar
-            pass
-        else:
-            # si no coincidió nada por include_codigos, seguimos con matching normal
-            include_codigos_filter = []
 
     if by == "categoria":
         cat_ids = []
@@ -381,6 +374,17 @@ async def handle_menus(update, context):
             descr_na = _no_accents(descr).lower()
             if any(n in name_na or n in descr_na for n in needles):
                 matched.append(m)
+
+    # Deduplicar por código, por si hubo seed + matching adicional
+    if matched:
+        seen_codes = set()
+        uniq = []
+        for m in matched:
+            c = _norm_str(m.get("codigo"))
+            if c and c not in seen_codes:
+                seen_codes.add(c)
+                uniq.append(m)
+        matched = uniq
 
     # Join options (para listado)
     def join_options(m: dict) -> List[str]:
@@ -490,7 +494,7 @@ async def handle_menus(update, context):
         nombre = _norm_str(m_sel.get("nombre"))
         codigo = _norm_str(m_sel.get("codigo"))
 
-        # 1) Card de producto (estilo web) — usamos product_card para que el front lo pinte bonito
+        # 1) Card de producto (estilo web)
         prod = {
             "id": str(m_sel.get("id") or m_sel.get("_id") or m_sel.get("codigo") or ""),
             "name": nombre,
@@ -502,9 +506,8 @@ async def handle_menus(update, context):
             "description": _norm_str(m_sel.get("descripcion") or m_sel.get("description") or ""),
             "image_url": _resolve_menu_image_url(m_sel),
         }
-        out_items: List[Dict[str, Any] | str] = [
-            {"type": "product_card", "text": nombre, "product": prod}
-        ]
+        # Preparar payload final tipo product_card (agregaremos receta inline)
+        payload_pc = {"type": "product_card", "text": nombre, "product": prod}
 
         # 2) Recetas por mes/año (máx 2 bloques)
         # Si no viene 'mesanos', usar el último mes disponible para ese producto
@@ -516,14 +519,15 @@ async def handle_menus(update, context):
                     mesanos = [str(latest_doc.get("mesano"))]
             except Exception:
                 mesanos = []
-        for mesano in mesanos[:2]:
+        # Para compatibilidad, incluimos sólo el primer mesano (último disponible)
+        recipe_block = None
+        for mesano in mesanos[:1]:
             rows = list(
                 db.recetas_productos.find({
                     "producto_codigo": codigo,
                     "mesano": mesano,
                 }).sort("linea", 1)
             )
-            # Tabla estructurada de receta
             recipe_rows = []
             for rr in rows:
                 ing = _norm_str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo"))
@@ -535,25 +539,12 @@ async def handle_menus(update, context):
                 if isinstance(pct, (int, float)):
                     rec["pct"] = round(float(pct), 1)
                 recipe_rows.append(rec)
+            recipe_block = {"mesano": mesano, "rows": recipe_rows}
+            break
+        if recipe_block:
+            payload_pc["recipe"] = recipe_block
 
-            cols = [
-                {"key":"ingredient","label":"Ingrediente","type":"text","align":"left"},
-                {"key":"qty_text","label":"Cantidad","type":"text","align":"right"},
-                {"key":"unit","label":"Unidad","type":"text","align":"left"},
-            ]
-            # Agregar columna de porcentaje si existe al menos uno
-            if any("pct" in r for r in recipe_rows):
-                cols.append({"key":"pct","label":"%","type":"number","align":"right"})
-
-            out_items.append({
-                "type": "data_table",
-                "key": "recipe",
-                "title": f"Receta — {mesano}",
-                "columns": cols,
-                "rows": recipe_rows,
-            })
-
-        return update, out_items
+        return update, payload_pc
 
     # ---- Detalle único ----
     if len(matched) == 1 or detail or _wants_detail_menus(text):

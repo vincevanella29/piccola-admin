@@ -89,6 +89,7 @@ async def chat_complete(messages: list[dict]) -> str:
     if itype == "menus":
         # 1) Parsear con el SPEC de 'menus' para periodo, filtros, etc.
         mf = await grok_filters("menus", text) or {}
+        logger.info(f"Parsed filters: {mf}")
 
         # 2) Si piden 'detalle' o 'receta', usamos el flujo legacy de menús descriptivos (foto/opciones/recetas)
         #    Además, detectamos 'receta' en lenguaje natural
@@ -100,6 +101,8 @@ async def chat_complete(messages: list[dict]) -> str:
             context.user_data["menus_q"] = (mf.get("q") or "")
             context.user_data["menus_detail"] = bool(mf.get("detail", False))
             context.user_data["menus_mesanos"] = mf.get("mesanos") or []
+            # Muy importante: pasar filtros completos para que handle_menus pueda usar include_codigos
+            context.user_data["menus_filters"] = mf
             if nl_wants_recipe:
                 context.user_data["menus_recipe"] = True
             _, payload = await handle_menus(update, context)
