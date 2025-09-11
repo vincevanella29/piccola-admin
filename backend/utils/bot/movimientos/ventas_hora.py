@@ -221,12 +221,15 @@ async def handle_ventas_hora(update, context):
                 ]}
             ]}
         }},
+        {"$addFields": {
+            "WAITER_PHOTO": {"$ifNull": ["$trabajador_resumen.profile_image_url", None]}
+        }},
         {"$project": {
             "_id":0, "LOCAL":1, "RUT":1, "CODIGO_PRODUCTO":1, "FAMILIA":1, "SUBFAMILIA":1,
             "TOTAL": {"$ifNull":["$TOTAL",0]},
             "CANTIDAD": {"$ifNull":["$CANTIDAD",0]},
             "H":1, "DOW":1, "DOW_NAME":1, "DATE_STR":1, "MONTH_STR":1, "SEMANA_MES2":1, "_SIGLA":1,
-            "RUT_STR":1, "WAITER_NAME":1
+            "RUT_STR":1, "WAITER_NAME":1, "WAITER_PHOTO":1
         }},
     ]
 
@@ -293,6 +296,7 @@ async def handle_ventas_hora(update, context):
             "sample_weather":{"$first":{"$ifNull":["$WEATHER_TAG", None]}},
             "sample_rut":{"$first":"$RUT_STR"},
             "sample_waiter_name":{"$first":"$WAITER_NAME"}
+            ,"sample_waiter_photo":{"$first":"$WAITER_PHOTO"}
         }}
     ]
     # value segun medida
@@ -411,50 +415,79 @@ async def handle_ventas_hora(update, context):
         prev_rows = list(db[COLL].aggregate(prev_st))
         for r in prev_rows:
             if measure == "total": prev_map[r["_id"]] = r.get("total",0) or 0
-            elif measure == "cantidad": prev_map[r["_id"]] = r.get("cantidad",0) or 0
-            else:
-                t = r.get("total",0) or 0; c = r.get("cantidad",0) or 0
-                prev_map[r["_id"]] = (t / c) if c else 0.0
-
-    # Render
     pretty_range = f"{s_str} a {e_str}"
     label_by = "hora" if group_by == "hora" else group_by.replace("_"," y ")
-    cmp_tag = "" if compare=="none" else (" | YoY" if compare=="yoy" else " | MoM")
-    hdr = [f"Nonna Marriana dice: Ventas por hora {pretty_range} agrupado por {label_by}{cmp_tag}."]
-    lines: List[str] = hdr
-
+    cmp_tag = "" if compare=="none" else (" · YoY" if compare=="yoy" else " · MoM")
     includes_rut = group_by in {"rut","rut_hora","rut_local"}
+
+    columns = []
+    if includes_rut:
+        columns.append({"key":"image_url","label":"","type":"text","align":"left","format":"image","round":True})
+        columns.append({"key":"waiter","label":"Garzón","type":"text","align":"left"})
+    columns.append({"key":"group","label":label_by.title(),"type":"text","align":"left"})
+    # Value column
+    if measure == "cantidad":
+        columns.append({"key":"value","label":"Unidades","type":"number","align":"right","format":"number"})
+    elif measure == "avg_precio":
+        columns.append({"key":"value","label":"Precio prom.","type":"number","align":"right","format":"money"})
+    else:
+        columns.append({"key":"value","label":"Total","type":"number","align":"right","format":"money"})
+    columns.append({"key":"count","label":"Ítems","type":"number","align":"right","format":"number"})
+    # Optional extras
+    if "cantidad" in include_fields and measure != "cantidad":
+        columns.append({"key":"cantidad","label":"Unidades","type":"number","align":"right","format":"number"})
+    if "avg_precio" in include_fields and measure != "avg_precio":
+        columns.append({"key":"avg_precio","label":"Precio prom.","type":"number","align":"right","format":"money"})
+    if "weather" in include_fields:
+        columns.append({"key":"weather","label":"Clima","type":"text","align":"left"})
+
+    rows_out: List[Dict] = []
+    total_value = 0.0
+    total_count = 0
     for g in cur:
         key = g.get("_id")
-        v = float(g.get("value",0))
+        v = float(g.get("value", 0))
+        row = {
+            "group": key,
+            "value": v,
+            "count": int(g.get("count", 0) or 0),
+        }
         if includes_rut:
             nm = g.get("sample_waiter_name") or ""
-            # Limpia prefijos numéricos del campo EMPLEADO cuando viene como "12345 Nombre"
             try:
                 nm = re.sub(r"^\d+\s*", "", nm)
             except Exception:
                 pass
             nm = nm.strip()
-            if nm:
-                key = f"{key} · {nm}"
-        if compare in {"mom","yoy"} and key in prev_map:
-            pv = float(prev_map.get(key,0))
-            delta = "∞" if pv==0 and v>0 else (f"{(v/pv-1)*100:.1f}%" if pv else "0.0%")
-            line = f"- {key}: { _fmt(measure, v) } vs { _fmt(measure, pv) } (Δ {delta})"
-        else:
-            line = f"- {key}: { _fmt(measure, v) }"
-        # extras
-        extras = []
-        if "cantidad" in include_fields:
-            extras.append(f"{int(g.get('cantidad',0)):,} uds".replace(",", "."))
+            rut = g.get("sample_rut") or ""
+            row["waiter"] = f"{nm} ({rut})" if nm or rut else (nm or rut or "-")
+            photo = g.get("sample_waiter_photo") or None
+            if photo:
+                row["image_url"] = photo
+        if "cantidad" in include_fields and measure != "cantidad":
+            row["cantidad"] = int(g.get("cantidad", 0) or 0)
         if "avg_precio" in include_fields and measure != "avg_precio":
-            c = float(g.get("cantidad",0)) or 0
-            ap = (float(g.get("total",0))/c) if c else 0
-            extras.append(f"avg $ {ap:,.0f}".replace(",", "."))
-        if "weather" in include_fields and g.get("sample_weather"):
-            extras.append(f"clima {g.get('sample_weather')}")
-        if extras:
-            line += " | " + " · ".join(extras)
-        lines.append(line)
+            c = float(g.get("cantidad", 0) or 0)
+            ap = (float(g.get("total", 0)) / c) if c else 0.0
+            row["avg_precio"] = ap
+        if "weather" in include_fields:
+            row["weather"] = g.get("sample_weather") or ""
+        rows_out.append(row)
+        total_value += v
+        total_count += int(g.get("count", 0) or 0)
 
-    return update, lines
+    payload = {
+        "type": "data_table",
+        "intent": "ventas_hora",
+        "title": f"Ventas por hora — {pretty_range}",
+        "subtitle": f"Agrupado por {label_by}{cmp_tag}",
+        "columns": columns,
+        "rows": rows_out,
+        "kpis": [
+            {"label": "Total", "value": int(total_value), "isMoney": measure in {"total", "avg_precio"}},
+            {"label": "Grupos", "value": len(rows_out)},
+            {"label": "Ítems", "value": int(total_count)},
+        ],
+        "totals": {"value": int(total_value), "count": int(total_count)}
+    }
+    return update, payload

@@ -39,7 +39,7 @@ const EmployeeDetailHeader = ({ emp, t, onClose }) => {
             {name}
           </Typography>
           <Typography variant="body2" className="text-light-text-secondary dark:text-dark-text-secondary" noWrap>
-            {t('employees.table.rut')}: {emp?.rut ?? '-'} · {t('employees.table.cargo')}: {emp?.cargo ?? '-'} · {t('employees.table.sucursal')}: {emp?.sucursal ?? '-'}
+            {t('employees.table.rut')}: {emp?.rut ?? '-'} · {t('employees.table.cargo')}: {emp?.cargo ?? '-'} · {t('employees.filters.seccion') || 'Sección'}: {emp?.seccion ?? '-'} · {t('employees.table.sucursal')}: {emp?.sucursal ?? '-'}
           </Typography>
         </Box>
       </Stack>

@@ -89,7 +89,20 @@ const DesktopEmployeesTable = ({ items, loading, t, page, setPage, pageSize, set
       const prev = Number(p?.previous?.net || 0);       // último período disponible
       const ante = Number(p?.anteprevious?.net || 0);   // período ante-anterior (para delta)
       const delta = ante > 0 ? ((prev - ante) / ante) * 100 : (prev > 0 ? 100 : null);
-      return { ...emp, __total: total, __prev: prev, __ante: ante, __delta: isFinite(delta) ? delta : null };
+      const name = [emp?.nombres, emp?.apellidopaterno, emp?.apellidomaterno].filter(Boolean).map(s => String(s).trim()).join(' ');
+      return {
+        ...emp,
+        __total: total,
+        __prev: prev,
+        __ante: ante,
+        __delta: isFinite(delta) ? delta : null,
+        __name: (name || '').toLowerCase(),
+        __rut_s: String(emp?.rut ?? ''),
+        __seccion_s: String(emp?.seccion ?? '').toLowerCase(),
+        __cargo_s: String(emp?.cargo ?? '').toLowerCase(),
+        __sucursal_s: String(emp?.sucursal ?? '').toLowerCase(),
+        __ingreso_s: String(emp?.fechaingreso ?? ''),
+      };
     });
   }, [items]);
 
@@ -97,19 +110,41 @@ const DesktopEmployeesTable = ({ items, loading, t, page, setPage, pageSize, set
     const arr = [...withComputed];
     const factor = sortDir === 'asc' ? 1 : -1;
     arr.sort((a, b) => {
-      const av = a[`__${sortBy}`];
-      const bv = b[`__${sortBy}`];
-      // nulls al final
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      if (av === bv) {
-        // tie-breaker por monto más alto (prev) y luego por nombre
-        const pComp = (b.__prev || 0) - (a.__prev || 0);
-        if (pComp !== 0) return pComp * (sortBy === 'delta' ? 1 : factor);
-        return String(a?.nombres || '').localeCompare(String(b?.nombres || ''));
+      const isTextKey = (k) => ['name','rut','seccion','cargo','sucursal','ingreso'].includes(k);
+      if (isTextKey(sortBy)) {
+        const map = {
+          name: '__name',
+          rut: '__rut_s',
+          seccion: '__seccion_s',
+          cargo: '__cargo_s',
+          sucursal: '__sucursal_s',
+          ingreso: '__ingreso_s',
+        };
+        const ka = map[sortBy];
+        const avs = String(a[ka] ?? '');
+        const bvs = String(b[ka] ?? '');
+        const cmp = avs.localeCompare(bvs, undefined, { sensitivity: 'base' });
+        if (cmp === 0) {
+          // tie-breaker por nombre
+          const t = String(a.__name || '').localeCompare(String(b.__name || ''), undefined, { sensitivity: 'base' });
+          return t;
+        }
+        return cmp * factor;
+      } else {
+        const av = a[`__${sortBy}`];
+        const bv = b[`__${sortBy}`];
+        // nulls al final
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (av === bv) {
+          // tie-breaker por monto más alto (prev) y luego por nombre
+          const pComp = (b.__prev || 0) - (a.__prev || 0);
+          if (pComp !== 0) return pComp * (sortBy === 'delta' ? 1 : factor);
+          return String(a.__name || '').localeCompare(String(b.__name || ''));
+        }
+        return av > bv ? factor : -factor;
       }
-      return av > bv ? factor : -factor;
     });
     return arr;
   }, [withComputed, sortBy, sortDir]);
@@ -148,19 +183,57 @@ const DesktopEmployeesTable = ({ items, loading, t, page, setPage, pageSize, set
             <HeaderCell className="text-xs font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30" sx={{ width: 64 }}>
               {t('employees.table.photo')}
             </HeaderCell>
-            <HeaderCell className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30">
+            <HeaderCell
+              active={sortBy === 'name'}
+              dir={sortDir}
+              onClick={() => toggleSort('name')}
+              className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30"
+            >
               {t('employees.table.name')}
             </HeaderCell>
-            <HeaderCell className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30" sx={{ width: 120 }}>
+            <HeaderCell
+              active={sortBy === 'rut'}
+              dir={sortDir}
+              onClick={() => toggleSort('rut')}
+              className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30"
+              sx={{ width: 120 }}
+            >
               {t('employees.table.rut')}
             </HeaderCell>
-            <HeaderCell className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30" sx={{ width: 160 }}>
+            <HeaderCell
+              active={sortBy === 'seccion'}
+              dir={sortDir}
+              onClick={() => toggleSort('seccion')}
+              className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30"
+              sx={{ width: 160 }}
+            >
+              {t('employees.filters.seccion')}
+            </HeaderCell>
+            <HeaderCell
+              active={sortBy === 'cargo'}
+              dir={sortDir}
+              onClick={() => toggleSort('cargo')}
+              className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30"
+              sx={{ width: 160 }}
+            >
               {t('employees.table.cargo')}
             </HeaderCell>
-            <HeaderCell className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30" sx={{ width: 160 }}>
+            <HeaderCell
+              active={sortBy === 'sucursal'}
+              dir={sortDir}
+              onClick={() => toggleSort('sucursal')}
+              className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30"
+              sx={{ width: 160 }}
+            >
               {t('employees.table.sucursal')}
             </HeaderCell>
-            <HeaderCell className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30" sx={{ width: 140 }}>
+            <HeaderCell
+              active={sortBy === 'ingreso'}
+              dir={sortDir}
+              onClick={() => toggleSort('ingreso')}
+              className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-semibold font-futurist tracking-wide border-b border-light-accent/30 dark:border-dark-accent/30"
+              sx={{ width: 140 }}
+            >
               {t('employees.table.ingreso')}
             </HeaderCell>
 
@@ -169,7 +242,7 @@ const DesktopEmployeesTable = ({ items, loading, t, page, setPage, pageSize, set
               dir={sortDir}
               onClick={() => toggleSort('total')}
             >
-              {t('employees.payroll.columns.total_paid') || 'Total sueldo'}
+              {t('employees.payroll.columns.total_paid')}
             </HeaderCell>
 
             <HeaderCell
@@ -177,7 +250,7 @@ const DesktopEmployeesTable = ({ items, loading, t, page, setPage, pageSize, set
               dir={sortDir}
               onClick={() => toggleSort('prev')}
             >
-              {t('employees.payroll.columns.net_previous') || 'Líquido (anterior)'}
+              {t('employees.payroll.columns.net_previous')}
             </HeaderCell>
 
             <HeaderCell
@@ -185,7 +258,7 @@ const DesktopEmployeesTable = ({ items, loading, t, page, setPage, pageSize, set
               dir={sortDir}
               onClick={() => toggleSort('delta')}
             >
-              {t('employees.common.change_pct') || '% cambio'}
+              {t('employees.common.change_pct')}
             </HeaderCell>
           </TableRow>
         </TableHead>
@@ -237,6 +310,12 @@ const DesktopEmployeesTable = ({ items, loading, t, page, setPage, pageSize, set
                 </TableCell>
 
                 <TableCell className="text-light-text-secondary dark:text-dark-text-secondary align-middle">
+                  {emp?.seccion ? (
+                    <Chip size="small" label={emp.seccion} className="text-light-text-secondary dark:text-dark-text-secondary" variant="outlined" />
+                  ) : t('employees.table.unknown')}
+                </TableCell>
+
+                <TableCell className="text-light-text-secondary dark:text-dark-text-secondary align-middle">
                   {emp?.sucursal ? <Chip className="text-light-text-secondary dark:text-dark-text-secondary" size="small" label={emp.sucursal} variant="outlined" /> : t('employees.table.unknown')}
                 </TableCell>
 
@@ -251,7 +330,7 @@ const DesktopEmployeesTable = ({ items, loading, t, page, setPage, pageSize, set
 
           {!loading && !items.length && (
             <TableRow className="border-b border-light-accent/15 dark:border-dark-accent/15">
-              <TableCell colSpan={9}>
+              <TableCell colSpan={10}>
                 <Box sx={{ py: 4, textAlign: 'center' }}>
                   <Typography variant="body2" className="text-light-text-secondary dark:text-dark-text-secondary">
                     {t('employees.attendance.no_data')}

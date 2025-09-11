@@ -267,14 +267,16 @@ async def chat_message(data: ChatMessageRequest, user: dict = Depends(verify_ses
 
 async def _bot_reply(conv_id: int):
     try:
-        # Build last N messages context
-        last_msgs = list(db.chat_messages.find({"conv_id": conv_id}).sort("created_at", 1))[-12:]
+        # Build last N messages context (DB calls in thread to avoid blocking loop)
+        last_msgs = await asyncio.to_thread(
+            lambda: list(db.chat_messages.find({"conv_id": conv_id}).sort("created_at", 1))[-12:]
+        )
         messages = [
             {"role": "user" if m["role"] == "user" else "assistant", "content": m["text"]}
             for m in last_msgs
         ]
         # Add user context as system primer for the bot (Grok/LLM)
-        conv = db.chat_conversations.find_one({"conv_id": conv_id}) or {}
+        conv = await asyncio.to_thread(lambda: db.chat_conversations.find_one({"conv_id": conv_id}) or {})
         safe_ctx = {k: conv.get(k) for k in [
             "conv_id","wallet","privy_id","status","mode","assigned_admin","updated_at","created_at"
         ]}
@@ -286,7 +288,13 @@ async def _bot_reply(conv_id: int):
         }
         messages = [system_ctx] + messages
         # Single entry point: engine.chat_complete decides DB vs LLM
-        reply = await chat_complete(messages)
+        # Protect the chat completion with a timeout so it never blocks indefinitely
+        try:
+            reply = await asyncio.wait_for(chat_complete(messages), timeout=45)
+        except asyncio.TimeoutError:
+            reply = {"type": "text_block_list", "intent": "chat", "lines": [
+                "Estoy tardando más de lo normal en responder. Intentemos de nuevo en un momento."
+            ]}
         payload = None
         summary_text = None
         if isinstance(reply, dict):
@@ -299,14 +307,14 @@ async def _bot_reply(conv_id: int):
         else:
             summary_text = str(reply)
         now = get_chile_time()
-        db.chat_messages.insert_one({
+        await asyncio.to_thread(lambda: db.chat_messages.insert_one({
             "conv_id": conv_id,
             "role": "assistant",
             "text": summary_text,
             "payload": payload,
             "created_at": now,
-        })
-        db.chat_conversations.update_one({"conv_id": conv_id}, {"$set": {"updated_at": now}})
+        }))
+        await asyncio.to_thread(lambda: db.chat_conversations.update_one({"conv_id": conv_id}, {"$set": {"updated_at": now}}))
         out_evt = {
             "type": "message",
             "role": "assistant",

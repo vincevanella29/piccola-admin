@@ -22,6 +22,7 @@ const EmployeesTable = ({ appState }) => {
   const [q, setQ] = useState('');
   const [sucursal, setSucursal] = useState('');
   const [cargo, setCargo] = useState('');
+  const [seccion, setSeccion] = useState('');
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(0); // 0-based
   const [pageSize, setPageSize] = useState(10); // 10 | 50 | 100
@@ -38,12 +39,14 @@ const EmployeesTable = ({ appState }) => {
     const { items } = await loadTrabajadoresActivos({
       sucursal: sucursal || null,
       cargo: cargo || null,
+      seccion: seccion || null,
       // fetch all to paginate client-side
       skip: 0,
       limit: 10000,
     });
+    console.log("items", items);
     setRows(Array.isArray(items) ? items : []);
-  }, [sucursal, cargo, loadTrabajadoresActivos]);
+  }, [sucursal, cargo, seccion, loadTrabajadoresActivos]);
 
   useEffect(() => {
     fetchData().catch(() => {});
@@ -52,7 +55,7 @@ const EmployeesTable = ({ appState }) => {
   // Resetear a primera página cuando cambian filtros o query
   useEffect(() => {
     setPage(0);
-  }, [debouncedQ, sucursal, cargo]);
+  }, [debouncedQ, sucursal, cargo, seccion]);
 
   const sucursalOptions = useMemo(() => {
     const set = new Set();
@@ -62,6 +65,11 @@ const EmployeesTable = ({ appState }) => {
   const cargoOptions = useMemo(() => {
     const set = new Set();
     for (const r of rows) if (r?.cargo) set.add(String(r.cargo));
+    return Array.from(set).sort();
+  }, [rows]);
+  const seccionOptions = useMemo(() => {
+    const set = new Set();
+    for (const r of rows) if (r?.seccion) set.add(String(r.seccion));
     return Array.from(set).sort();
   }, [rows]);
 
@@ -83,14 +91,16 @@ const EmployeesTable = ({ appState }) => {
     const termRaw = (debouncedQ || '').toString();
     const term = norm(termRaw);
     const termRut = normRut(termRaw);
+    // server already filters sucursal/cargo/seccion if provided; keep local text/rut/email
     if (!term) return rows;
     return rows.filter((r) => {
       const name = norm([r?.nombres, r?.apellidopaterno, r?.apellidomaterno].filter(Boolean).join(' '));
       const rut = normRut(r?.rut);
       const suc = norm(r?.sucursal);
       const crg = norm(r?.cargo);
+      const sec = norm(r?.seccion);
       const eml = norm(r?.email || r?.correo);
-      return name.includes(term) || suc.includes(term) || crg.includes(term) || eml.includes(term) || (termRut && rut.includes(termRut));
+      return name.includes(term) || suc.includes(term) || crg.includes(term) || sec.includes(term) || eml.includes(term) || (termRut && rut.includes(termRut));
     });
   }, [rows, debouncedQ, norm, normRut]);
 
@@ -256,6 +266,9 @@ const EmployeesTable = ({ appState }) => {
         cargo={cargo}
         setCargo={setCargo}
         cargoOptions={cargoOptions}
+        seccion={seccion}
+        setSeccion={setSeccion}
+        seccionOptions={seccionOptions}
         loading={loading}
         error={error}
         onRefresh={fetchData}

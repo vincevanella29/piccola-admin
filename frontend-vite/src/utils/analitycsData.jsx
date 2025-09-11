@@ -120,6 +120,7 @@ export async function getAvailableVentasDates() {
 export async function getTrabajadoresActivos({
   sucursal = null,
   cargo = null,
+  seccion = null,
   q = null,
   skip = 0,
   limit = 100,
@@ -129,6 +130,7 @@ export async function getTrabajadoresActivos({
   const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
   if (sucursal) params.append('sucursal', sucursal);
   if (cargo) params.append('cargo', cargo);
+  if (seccion) params.append('seccion', seccion);
   if (q) params.append('q', q);
   return api({
     method: 'GET',

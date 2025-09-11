@@ -22,7 +22,7 @@ export const pageMetadata = {
   orderFooter: 1,
   locations: ['sidebar', 'header', 'footer', 'walletMenu'],
   description: 'employees.description',
-  icon: 'FaUtensils',
+  icon: 'FaUsers',
   isMainPage: false,
   isSearchable: true,
 };

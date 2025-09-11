@@ -61,6 +61,7 @@ def serialize_worker(doc: dict) -> dict:
 async def get_trabajadores_activos(
     sucursal: Optional[str] = Query(None, description="Filtrar por sucursal exacta"),
     cargo: Optional[str] = Query(None, description="Filtrar por cargo exacto"),
+    seccion: Optional[str] = Query(None, description="Filtrar por sección (derivada desde cargos_intranet)"),
     q: Optional[str] = Query(None, description="Buscar por nombre/apellidos"),
     skip: int = Query(0, ge=0),
     limit: Optional[int] = Query(100, ge=1, le=10000),
@@ -121,6 +122,20 @@ async def get_trabajadores_activos(
             "rut_str": {"$toString": "$rut"},
             "rut_num": {"$convert": {"input": "$rut", "to": "int", "onError": None, "onNull": None}}
         }},
+        # Enrich seccion via cargos_intranet by cargo
+        {"$lookup": {
+            "from": "cargos_intranet",
+            "let": {"carg": {"$ifNull": ["$cargo", None]}},
+            "pipeline": [
+                {"$match": {"$expr": {"$eq": ["$cargo", "$$carg"]}}},
+                {"$project": {"_id": 0, "seccion": 1}}
+            ],
+            "as": "_ci"
+        }},
+        {"$addFields": {"seccion": {"$ifNull": [{"$arrayElemAt": ["$_ci.seccion", 0]}, None]}}},
+        {"$project": {"_ci": 0}},
+        # Optional filter by seccion after enrichment
+        *(([{"$match": {"seccion": seccion}}] ) if seccion else []),
         {
             "$lookup": {
                 "from": "pago_sueldos_intranet",
@@ -223,7 +238,15 @@ async def get_trabajador_por_rut(
     doc = db.trabajadores_vpn.find_one({"$or": or_terms})
     if not doc:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado")
-
+    # Enrich seccion by cargo
+    try:
+        carg = (doc.get("cargo") or "").strip()
+        if carg:
+            ci = db.cargos_intranet.find_one({"cargo": carg}, {"_id": 0, "seccion": 1})
+            if ci and ci.get("seccion"):
+                doc["seccion"] = ci.get("seccion")
+    except Exception:
+        pass
     return serialize_worker(doc)
 
 
@@ -306,6 +329,42 @@ async def get_asistencia_diaria(
 
     if match:
         pipeline.append({"$match": match})
+
+    # Enriquecer con trabajador (para obtener cargo) y mapear seccion via cargos_intranet
+    pipeline += [
+        {"$addFields": {
+            "_rut_any": {"$ifNull": ["$rut", None]},
+            "_rut_num": {"$convert": {"input": {"$ifNull": ["$rut", None]}, "to": "int", "onError": None, "onNull": None}},
+        }},
+        {"$lookup": {
+            "from": "trabajadores_vpn",
+            "let": {"rut_str": {"$toString": "$_rut_any"}, "rut_num": "$_rut_num"},
+            "pipeline": [
+                {"$addFields": {"_rut_str": {"$toString": "$rut"}, "_rut_num": {"$convert": {"input": "$rut", "to": "int", "onError": None, "onNull": None}}}},
+                {"$match": {"$expr": {"$or": [
+                    {"$eq": ["$_rut_str", "$$rut_str"]},
+                    {"$and": [
+                        {"$ne": ["$$rut_num", None]},
+                        {"$eq": ["$_rut_num", "$$rut_num"]}
+                    ]}
+                ]}}},
+                {"$project": {"_id": 0, "cargo": 1}}
+            ],
+            "as": "_w"
+        }},
+        {"$addFields": {"cargo": {"$ifNull": [{"$arrayElemAt": ["$_w.cargo", 0]}, None]}}},
+        {"$lookup": {
+            "from": "cargos_intranet",
+            "let": {"carg": {"$ifNull": ["$cargo", None]}},
+            "pipeline": [
+                {"$match": {"$expr": {"$eq": ["$cargo", "$$carg"]}}},
+                {"$project": {"_id": 0, "seccion": 1}}
+            ],
+            "as": "_ci"
+        }},
+        {"$addFields": {"seccion": {"$ifNull": [{"$arrayElemAt": ["$_ci.seccion", 0]}, None]}}},
+        {"$project": {"_w": 0, "_ci": 0}},
+    ]
 
     # Join con sucursales_mtz para poder filtrar por sucursal y devolver detalles
     pipeline += [

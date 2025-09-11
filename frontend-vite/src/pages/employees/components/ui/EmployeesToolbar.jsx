@@ -14,6 +14,9 @@ const EmployeesToolbar = ({
   cargo,
   setCargo,
   cargoOptions,
+  seccion,
+  setSeccion,
+  seccionOptions,
   loading,
   error,
   onRefresh,
@@ -100,9 +103,32 @@ const EmployeesToolbar = ({
         </Select>
       </FormControl>
 
+      <FormControl size="small" sx={{
+        minWidth: { xs: 140, sm: 180 },
+        flex: '1 1 160px',
+        '& .MuiInputLabel-root': { color: 'inherit' },
+        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
+        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.35)' },
+        '& .MuiSvgIcon-root': { color: 'inherit' },
+      }}>
+        <InputLabel className="text-light-text-primary dark:text-dark-text-primary">{t('employees.filters.seccion') || 'Sección'}</InputLabel>
+        <Select
+          value={seccion}
+          label={t('employees.filters.seccion') || 'Sección'}
+          onChange={(e) => setSeccion(e.target.value)}
+          className="text-light-text-primary dark:text-dark-text-primary"
+          MenuProps={{ PaperProps: { className: 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary' } }}
+          sx={{ color: 'inherit' }}
+        >
+          <MenuItem value=""><em>{t('employees.filters.all') || 'Todos'}</em></MenuItem>
+          {seccionOptions.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+        </Select>
+      </FormControl>
+
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
         {sucursal && <Chip size="small" onDelete={() => setSucursal('')} label={`${t('employees.filters.sucursal')}: ${sucursal}`} />}
         {cargo && <Chip size="small" onDelete={() => setCargo('')} label={`${t('employees.filters.cargo')}: ${cargo}`} />}
+        {seccion && <Chip size="small" onDelete={() => setSeccion('')} label={`${t('employees.filters.seccion') || 'Sección'}: ${seccion}`} />}
         <Tooltip title={t('employees.actions.refresh')}>
           <span>
             <IconButton onClick={onRefresh} disabled={loading}><RefreshIcon /></IconButton>

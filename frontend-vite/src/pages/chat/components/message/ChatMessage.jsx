@@ -13,6 +13,7 @@ import DataTable from '../common/DataTable';
 import ProductDetailModal from '../modals/ProductDetailModal';
 import SalaryDetailModal from '../modals/SalaryDetailModal';
 import ConsumoDetailModal from '../modals/ConsumoDetailModal';
+import SueldosDetailModal from '../modals/SueldosDetailModal';
 
 const ChatMessage = ({
   variant = 'client',
@@ -40,6 +41,8 @@ const ChatMessage = ({
   const [productOpen, setProductOpen] = useState(false);
   const [productRow, setProductRow] = useState(null);
   const [productPayload, setProductPayload] = useState(null);
+  const [sueldosOpen, setSueldosOpen] = useState(false);
+  const [sueldosPayload, setSueldosPayload] = useState(null);
   const prevLenRef = useRef(0);
 
   const client = !isAdmin ? (clientProps || {}) : {};
@@ -201,6 +204,8 @@ const ChatMessage = ({
                     : type === 'data_table' && m?.payload ? (() => {
                       const payload = m.payload || {};
                       const rows = payload.rows || [];
+                      const intent = (payload.intent || '').toLowerCase();
+                      const meta = payload.meta || {};
                       // Auto-insert image thumbnail column if rows have image_url and no image column is defined
                       const hasImageInRows = Array.isArray(rows) && rows.some(r => typeof r?.image_url === 'string' && r.image_url);
                       const hasImageColumn = (payload.columns || []).some(c => c.key === 'image_url' || c.format === 'image');
@@ -219,6 +224,35 @@ const ChatMessage = ({
                           charts={payload.charts}
                           compact={true}
                           onRowClick={(row) => {
+                            // Ventas por hora: abrir modal de salario (waiter focus)
+                            if (intent === 'ventas_hora') {
+                              setSalaryRow({ row, columns, kpis: payload.kpis, intent });
+                              setSalaryOpen(true);
+                              return;
+                            }
+                            // Sueldos: decidir modal segun agrupación
+                            if (intent === 'sueldos') {
+                              const groupBy = String(meta.group_by || '').toLowerCase();
+                              // Si es por local/sigla y tenemos detalle embebido en la fila, abrir modal de detalle tipo tabla
+                              if (groupBy === 'sigla' && row && Array.isArray(row.detail_rows) && Array.isArray(row.detail_columns)) {
+                                setSueldosPayload({
+                                  title: row.detail_title || `Detalle sueldos · ${row.group}`,
+                                  columns: row.detail_columns,
+                                  rows: row.detail_rows,
+                                  kpis: payload.kpis,
+                                  totals: null,
+                                });
+                                setSueldosOpen(true);
+                                return;
+                              }
+                              // Si incluye rut en la agrupación o es detalle, abrir modal de salario (trabajador)
+                              if (groupBy.includes('rut') || row?.rut || row?.worker || row?.profile_image_url) {
+                                setSalaryRow({ row, columns, kpis: payload.kpis, intent, meta });
+                                setSalaryOpen(true);
+                                return;
+                              }
+                              // Fallback: si no hay detalle embebido ni rut, no abrir modal especial
+                            }
                             // Heurísticas por tipo
                             const title = (payload.title || '').toLowerCase();
                             if (title.includes('consumo')) {
@@ -263,6 +297,9 @@ const ChatMessage = ({
       )}
       {consumoOpen && (
         <ConsumoDetailModal open={consumoOpen} payloadRow={consumoRow} onClose={() => { setConsumoOpen(false); setConsumoRow(null); }} />
+      )}
+      {sueldosOpen && (
+        <SueldosDetailModal open={sueldosOpen} payload={sueldosPayload} onClose={() => { setSueldosOpen(false); setSueldosPayload(null); }} />
       )}
       {productOpen && (
         <ProductDetailModal open={productOpen} row={productRow} payload={productPayload} onClose={() => { setProductOpen(false); setProductRow(null); setProductPayload(null); }} />

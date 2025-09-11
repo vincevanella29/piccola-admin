@@ -311,7 +311,12 @@ async def handle_sueldos(update, context):
     text = (update.message.text or "").lower()
 
     # 1) SPEC (todo dinámico)
-    spec = await grok_filters("sueldos", text) or {}
+    try:
+        spec = (getattr(context, 'user_data', {}) or {}).get('sueldos_spec')
+    except Exception:
+        spec = None
+    if not isinstance(spec, dict) or not spec:
+        spec = await grok_filters("sueldos", text) or {}
     logger.info(f"[sueldos] spec_raw => {spec}")
 
     period  = spec.get("period") or {}
@@ -417,7 +422,7 @@ async def handle_sueldos(update, context):
 
     # Enriquecimiento si se requieren campos derivados
     need_enrich = (
-        group_by in {"seccion","cargo","sexo","afp","isapre","rut","sigla_seccion","sigla_afp","sigla_cargo"}
+        group_by in {"seccion","cargo","sexo","afp","isapre","rut","rut_sigla","sigla_seccion","sigla_afp","sigla_cargo"}
         or any([include_secciones, include_cargos, sexo_in, afp_in, isapre_in, include_ruts, name_text])
     )
     if need_enrich:
@@ -502,6 +507,7 @@ async def handle_sueldos(update, context):
             total_items += cnt
         payload = {
             "type": "data_table",
+            "intent": "sueldos",
             "title": f"Sueldos {pretty_period}",
             "subtitle": "Duplicados por RUT en el mismo período",
             "kpis": [
@@ -635,6 +641,7 @@ async def handle_sueldos(update, context):
         # Compose payload
         payload = {
             "type": "data_table",
+            "intent": "sueldos",
             "title": f"Sueldos {pretty_period}",
             "subtitle": f"Detalle (máx {limit_rows})",
             "kpis": kpis,
@@ -648,8 +655,22 @@ async def handle_sueldos(update, context):
     group_expr = _build_group_expr(group_by)
     acc = {"$sum": 1} if metric == "count" else ({"$avg": "$amount"} if metric == "avg" else {"$sum": "$amount"})
     stages_group = stages + [
-        {"$addFields": {"group": group_expr}},
-        {"$group": {"_id": "$group", "value": acc, "count": {"$sum": 1}}},
+        {"$addFields": {"group": group_expr, "_sigla": _derive_sigla_expr()}},
+        {"$group": {
+            "_id": "$group",
+            "value": acc,
+            "count": {"$sum": 1},
+            # sample fields to enrich rows for UI drilldowns
+            "sample_rut": {"$first": {"$ifNull": ["$rut_norm", None]}},
+            "sample_sigla": {"$first": "$_sigla"},
+            "sample_name": {"$first": {"$ifNull": ["$nombre_completo", None]}},
+            "sample_photo": {"$first": {"$ifNull": ["$profile_image_url", None]}},
+            "sample_cargo": {"$first": {"$ifNull": ["$cargo", None]}},
+            "sample_seccion": {"$first": {"$ifNull": ["$seccion", None]}},
+            "sample_afp": {"$first": {"$ifNull": ["$afp", None]}},
+            "sample_isapre": {"$first": {"$ifNull": ["$isapre", None]}},
+            "sample_sexo": {"$first": {"$ifNull": ["$sexo", None]}},
+        }},
     ]
     if (order_by or "").lower() == "group_asc":
         stages_group += [{"$sort": {"_id": 1}}]
@@ -693,19 +714,118 @@ async def handle_sueldos(update, context):
         {"key": "value", "label": label.title(), "align": "right", "format": "money" if metric in {"sum", "avg"} else "number"},
         {"key": "count", "label": "Ítems", "align": "right", "format": "number"},
     ]
+    # If grouping contains RUT, add helpful columns for UI
+    include_worker_cols = ("rut" in group_by)
+    if include_worker_cols:
+        columns = (
+            [{"key": "profile_image_url", "label": "Foto", "align": "center", "format": "image", "round": True},
+             {"key": "rut", "label": "RUT", "align": "left"},
+             {"key": "worker", "label": "Trabajador", "align": "left"},
+             {"key": "sigla", "label": "Sigla", "align": "left"}] + columns
+        )
     rows_out = []
     total_value = 0
     total_count = 0
     for g in grouped:
         v = g.get("value", 0) or 0
         c = g.get("count", 0) or 0
-        rows_out.append({
+        row = {
             "group": g.get("_id") if g.get("_id") not in (None, "") else "-",
             "value": v if metric != "count" else c,
             "count": c,
-        })
+        }
+        if include_worker_cols:
+            # add worker-centric fields to empower drilldown modal
+            rutv = g.get("sample_rut")
+            row["rut"] = rutv
+            row["sigla"] = g.get("sample_sigla")
+            row["worker"] = g.get("sample_name") or ""
+            photo = g.get("sample_photo")
+            if photo:
+                row["profile_image_url"] = photo
+            # attach some extra enrich fields for modal context
+            row["cargo"] = g.get("sample_cargo") or ""
+            row["seccion"] = g.get("sample_seccion") or ""
+            row["afp"] = g.get("sample_afp") or ""
+            row["isapre"] = g.get("sample_isapre") or ""
+            sx = g.get("sample_sexo")
+            row["sexo"] = (str(sx).upper() if sx else "")
+            # nested compact worker object for UI drilldown
+            row["worker_obj"] = {
+                "rut": rutv,
+                "name": row["worker"],
+                "cargo": row["cargo"],
+                "seccion": row["seccion"],
+                "afp": row["afp"],
+                "isapre": row["isapre"],
+                "profile_image_url": row.get("profile_image_url") or None,
+            }
+        rows_out.append(row)
         total_value += (c if metric == "count" else v)
         total_count += c
+
+    # If grouping is by local (sigla), attach a detail preview per row for drilldown modal
+    if group_by == "sigla" and rows_out:
+        # columns to reuse in detail modal
+        detail_columns = [
+            {"key": "profile_image_url", "label": "Foto", "align": "center", "format": "image", "round": True},
+            {"key": "periodo", "label": "Periodo", "align": "left"},
+            {"key": "sigla", "label": "Sigla", "align": "left"},
+            {"key": "rut", "label": "RUT", "align": "left"},
+            {"key": "seccion", "label": "Sección", "align": "left"},
+            {"key": "cargo", "label": "Cargo", "align": "left"},
+            {"key": "sexo", "label": "Sexo", "align": "center"},
+            {"key": "afp", "label": "AFP", "align": "left"},
+            {"key": "isapre", "label": "Isapre", "align": "left"},
+            {"key": "remuneracion_imponible", "label": "Imponible", "align": "right", "format": "money"},
+            {"key": "remuneracion_no_imponible", "label": "No imponible", "align": "right", "format": "money"},
+            {"key": "remuneracion_total", "label": "Total Rem.", "align": "right", "format": "money"},
+            {"key": "sueldo_liquido_a_pago", "label": "Líquido", "align": "right", "format": "money"},
+            {"key": "amount", "label": "Monto", "align": "right", "format": "money"},
+        ]
+        # Precompute a base pipeline for detail that includes enrichment and period filter
+        base_detail = [
+            {"$match": _match_periods(months)},
+            {"$addFields": {"amount": _amount_expr()}},
+        ]
+        base_detail += _maybe_enrich_stages(["sexo","afp","isapre","cargo","seccion","nombre"])  # ensures rut_norm + worker/photo
+        for i, r in enumerate(rows_out):
+            try:
+                sig = str(r.get("group") or "").strip()
+                if not sig:
+                    continue
+                # Match documents whose derived sigla equals this group
+                detail_stages = base_detail + [
+                    {"$addFields": {"sigla": _derive_sigla_expr()}},
+                    {"$match": {"sigla": sig}},
+                    {"$project": {
+                        "_id": {"$toString": "$_id"},
+                        "periodo": 1, "sigla": 1, "centro_costo": 1,
+                        "rut": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]},
+                        "cargo": 1, "seccion": 1, "sexo": 1, "afp": 1, "isapre": 1,
+                        "amount": 1,
+                        "remuneracion_imponible": {"$ifNull": ["$remuneracion_imponible", None]},
+                        "remuneracion_no_imponible": {"$ifNull": ["$remuneracion_no_imponible", None]},
+                        "remuneracion_total": {"$ifNull": ["$remuneracion_total", None]},
+                        "sueldo_liquido_a_pago": {"$ifNull": ["$sueldo_liquido_a_pago", None]},
+                        "profile_image_url": 1,
+                        "worker": 1,
+                    }},
+                    {"$sort": {"amount": -1}},
+                    {"$limit": int(max(10, min(limit_rows, 200)))},
+                ]
+                det_rows = list(db.pago_sueldos_intranet.aggregate(detail_stages))
+                # normalize some fields
+                for dr in det_rows:
+                    dr["sexo"] = (str(dr.get("sexo") or "").upper() or "")
+                    if not dr.get("profile_image_url") and isinstance(dr.get("worker"), dict):
+                        dr["profile_image_url"] = dr["worker"].get("profile_image_url") or ""
+                r["detail_columns"] = detail_columns
+                r["detail_rows"] = det_rows
+                r["detail_title"] = f"Detalle sueldos · {sig} · {pretty_period}"
+            except Exception:
+                # don’t break the whole payload on a single group failure
+                continue
 
     kpis = [
         {"label": "Total", "value": int(total_value), "isMoney": metric in {"sum", "avg"}},
@@ -728,11 +848,18 @@ async def handle_sueldos(update, context):
 
     payload = {
         "type": "data_table",
+        "intent": "sueldos",
         "title": f"Sueldos {pretty_period}",
         "subtitle": f"Agrupado por {label_by} ({label})",
         "kpis": kpis,
         "columns": columns,
         "rows": rows_out,
         "totals": {"value": int(total_value), "count": int(total_count)},
+        "meta": {
+            "group_by": group_by,
+            "metric": metric,
+            "order_by": order_by,
+            "period_months": months,
+        }
     }
     return update, payload
