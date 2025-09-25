@@ -15,6 +15,17 @@
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "AtLeastOneSocialRequired",
+      "type": "error"
+    },
+    {
       "inputs": [],
       "name": "CallerNotLaunchpadOwner",
       "type": "error"
@@ -176,6 +187,17 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        }
+      ],
+      "name": "InvalidTokenData",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint256",
           "name": "tokenId",
           "type": "uint256"
@@ -198,6 +220,11 @@
         }
       ],
       "name": "LaunchpadNotConfigured",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MaxCompaniesReached",
       "type": "error"
     },
     {
@@ -419,6 +446,28 @@
           "type": "uint256"
         }
       ],
+      "name": "SocialNameRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "SocialUrlRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
       "name": "TokenAlreadyFinalized",
       "type": "error"
     },
@@ -484,6 +533,17 @@
         }
       ],
       "name": "WalletAlreadyAssociated",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "WebpageRequired",
       "type": "error"
     },
     {
@@ -1160,6 +1220,11 @@
               "internalType": "address",
               "name": "utilityTokenProxy",
               "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "webpage",
+              "type": "string"
             }
           ],
           "internalType": "struct CompanyStruct.CompanyData",
@@ -1184,6 +1249,37 @@
           "internalType": "uint256",
           "name": "",
           "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getCompanySocials",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "url",
+              "type": "string"
+            }
+          ],
+          "internalType": "struct CompanyStruct.Social[]",
+          "name": "",
+          "type": "tuple[]"
         }
       ],
       "stateMutability": "view",
@@ -1402,6 +1498,21 @@
           "internalType": "string",
           "name": "companyCountry",
           "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "webpage",
+          "type": "string"
+        },
+        {
+          "internalType": "string[]",
+          "name": "socialNames",
+          "type": "string[]"
+        },
+        {
+          "internalType": "string[]",
+          "name": "socialUrls",
+          "type": "string[]"
         }
       ],
       "name": "registerCompany",

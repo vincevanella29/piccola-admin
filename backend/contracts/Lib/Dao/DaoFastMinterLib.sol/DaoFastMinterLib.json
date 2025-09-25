@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "DaoFastMinterLib",
+  "sourceName": "contracts/Lib/Dao/DaoFastMinterLib.sol",
+  "abi": [],
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220fc99e556bc51eae430f42c4bcf9a2953190afef77604ce16311ad8a4fd8fbd0264736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220fc99e556bc51eae430f42c4bcf9a2953190afef77604ce16311ad8a4fd8fbd0264736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

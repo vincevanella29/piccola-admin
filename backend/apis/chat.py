@@ -10,7 +10,7 @@ from utils.time_utils import get_chile_time
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request
 from pydantic import BaseModel
 
-from main import verify_session
+from utils.auth.session import verify_session
 from utils.web3mongo import db
 from utils.chat.realtime import manager
 from utils.chat.schemas import (
@@ -26,7 +26,7 @@ from utils.chat.schemas import (
 from utils.bot.engine import chat_complete
 
 # Reuse role level logic
-from apis.roles import get_company_role_level
+from config.roles.service import verify_admin
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -109,8 +109,7 @@ def _admin_guard(user: dict):
     wallet = user.get("wallet")
     if not wallet:
         raise HTTPException(status_code=403, detail="Admin endpoints require wallet session")
-    level = get_company_role_level(wallet)
-    if level not in (3, 4):
+    if not verify_admin(user):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     return wallet.lower(), level
 

@@ -256,7 +256,7 @@ export const pageMetadata = {
   label: 'empresa.label',
   category: 'admin.category',
   minRoleLevel: 3,
-  maxRoleLevel: 5,
+  maxRoleLevel: 4,
   order: 3,
   locations: ['sidebar'],
   description: 'empresa.description',

@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 import os
 import logging
 
-from main import verify_session
+from utils.auth.session import verify_session
 from utils.web3mongo import db, w3
-from apis.roles import get_company_role_level
+from config.roles.service import verify_admin
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -39,13 +39,6 @@ class CreateApiKeyResponse(BaseModel):
 
 # ---------- Helpers ----------
 COLL = db.api_keys
-
-ROLE_ALLOWED = {3, 4}  # DOMINUS_SAPORIS, CENTURIO_MENSARUM
-
-def ensure_level_3_or_4(wallet: str):
-    lvl = get_company_role_level(wallet)
-    if lvl not in ROLE_ALLOWED:
-        raise HTTPException(status_code=403, detail="Insufficient role level: only level 3 or 4 can manage API keys")
 
 
 def generate_key_pair() -> (str, str):
@@ -142,8 +135,7 @@ async def revoke_api_key(key_id: str = Path(...), user: dict = Depends(verify_se
     # Solo el dueño o roles 3/4 (del dueño) pueden revocar. Como owner es el propio usuario, basta validar ownership
     if doc["owner"] != wallet.lower():
         # permitir si el caller es 3/4 (admin de la compañía)
-        lvl = get_company_role_level(wallet)
-        if lvl not in ROLE_ALLOWED:
+        if not verify_admin(user):
             raise HTTPException(status_code=403, detail="Not allowed to revoke this API key")
 
     COLL.update_one({"_id": key_id}, {"$set": {"active": False}})

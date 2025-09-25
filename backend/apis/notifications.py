@@ -4,13 +4,12 @@ from typing import Optional, List, Dict
 import logging
 import uuid
 from datetime import datetime
-from main import verify_session
-from apis.roles import get_company_role_level
-from utils.web3mongo import db, w3
-from firebase_admin import credentials, initialize_app, messaging, storage
+from utils.auth.session import verify_session
+from config.roles.service import verify_admin
+from utils.web3mongo import db
+from firebase_admin import credentials, initialize_app, messaging
 import firebase_admin
 import os
-from eth_account.messages import encode_defunct
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -69,12 +68,6 @@ class SendNotificationRequest(BaseModel):
     data: Dict  # Datos para reemplazar en plantillas
     schedule_time: Optional[str] = None  # ISODate para programar
 
-# Validar rol
-def check_role(wallet: str, required_levels: List[int]):
-    role_level = get_company_role_level(wallet)
-    if role_level not in required_levels:
-        raise HTTPException(status_code=403, detail="Insufficient role level")
-
 # Reemplazar variables en plantillas
 def render_template(template: str, data: Dict) -> str:
     result = template
@@ -103,7 +96,8 @@ async def send_fcm_notification(api_config: Dict, title: str, body: str, image_u
 # CRUD Tipos de Notificaciones
 @router.post("/notifications/types", response_model=NotificationTypeResponse)
 async def create_notification_type(data: NotificationTypeCreate, user: dict = Depends(verify_session)):
-    check_role(user["wallet"], [3, 4])
+    if not verify_admin(user["wallet"]):
+        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden crear tipos de notificaciones")
     api_config = db.notification_api_configs.find_one({"id": data.api_config_id})
     if not api_config:
         raise HTTPException(status_code=400, detail="Invalid api_config_id")
@@ -128,7 +122,8 @@ async def create_notification_type(data: NotificationTypeCreate, user: dict = De
 
 @router.get("/notifications/types", response_model=List[NotificationTypeResponse])
 async def get_notification_types(user: dict = Depends(verify_session)):
-    check_role(user["wallet"], [3, 4])
+    if not verify_admin(user["wallet"]):
+        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver tipos de notificaciones")
     types = list(db.notification_types.find({}))
     for t in types:
         t["id"] = t["id"]
@@ -140,7 +135,8 @@ async def get_notification_types(user: dict = Depends(verify_session)):
 # CRUD Configuraciones de API
 @router.post("/notifications/api-configs", response_model=NotificationApiConfigResponse)
 async def create_api_config(data: NotificationApiConfigCreate, user: dict = Depends(verify_session)):
-    check_role(user["wallet"], [3, 4])
+    if not verify_admin(user["wallet"]):
+        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden crear configuraciones de API")
     api_config = {
         "id": str(uuid.uuid4()),
         "service": data.service,
@@ -158,7 +154,8 @@ async def create_api_config(data: NotificationApiConfigCreate, user: dict = Depe
 
 @router.get("/notifications/api-configs", response_model=List[NotificationApiConfigResponse])
 async def get_api_configs(user: dict = Depends(verify_session)):
-    check_role(user["wallet"], [3, 4])
+    if not verify_admin(user["wallet"]):
+        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver configuraciones de API")
     configs = list(db.notification_api_configs.find({}))
     for c in configs:
         c["id"] = c["id"]
@@ -189,7 +186,8 @@ async def save_notification_token(data: NotificationTokenCreate, user: dict = De
 # Enviar Notificación
 @router.post("/notifications/send")
 async def send_notification(data: SendNotificationRequest, user: dict = Depends(verify_session)):
-    check_role(user["wallet"], [3, 4])
+    if not verify_admin(user["wallet"]):
+        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden enviar notificaciones")
     notification_type = db.notification_types.find_one({"id": data.notification_type_id})
     if not notification_type:
         raise HTTPException(status_code=400, detail="Invalid notification_type_id")
@@ -231,6 +229,7 @@ async def send_notification(data: SendNotificationRequest, user: dict = Depends(
 # Listar usuarios con tokens de notificación
 @router.get("/notifications/users-with-tokens", response_model=List[Dict])
 async def get_users_with_tokens(user: dict = Depends(verify_session)):
-    check_role(user["wallet"], [3, 4])
+    if not verify_admin(user["wallet"]):
+        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver usuarios con tokens")
     users = list(db.user_notification_tokens.find({"permissions_granted": True}, {"_id": 0, "wallet": 1, "device_type": 1}))
     return users

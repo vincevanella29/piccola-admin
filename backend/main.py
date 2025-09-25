@@ -5,13 +5,17 @@ import time
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.backends.inmemory import InMemoryBackend
+from fastapi.exceptions import RequestValidationError  # en vez de fastapi.exception_handler
+from redis import asyncio as aioredis
 from fastapi.middleware.cors import CORSMiddleware
 from utils.web3mongo import w3, sessions_collection
 import importlib
 import jwt as pyjwt
 import glob
-from utils.web3mongo import db
-from utils.time_utils import get_chile_time, format_chile_time, CHILE_TZ
+from utils.time_utils import format_chile_time, CHILE_TZ
 from datetime import datetime
 
 # Set timezone to Chile
@@ -38,6 +42,19 @@ logger.setLevel(logging.INFO)
 
 # FastAPI app
 app = FastAPI(title="Api Club Della Nonna")
+
+@app.on_event("startup")
+async def startup():
+    redis_url = os.getenv("REDIS_URL", "redis://localhost")
+    try:
+        redis = aioredis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        await redis.ping()
+        FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+        logger.info(f"Redis cache connected successfully at {redis_url}")
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis at {redis_url}: {e}")
+        logger.warning("Falling back to in-memory cache. API performance will be degraded.")
+        FastAPICache.init(InMemoryBackend(), prefix="fastapi-cache")
 
 from fastapi.exception_handlers import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -141,78 +158,6 @@ async def login_with_privy(request: Request):
     except Exception as e:
         logger.error(f"Error during login: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Login failed, wn: {str(e)}")
-
-# Verify session with Privy
-async def verify_session(request: Request) -> dict:
-    referer = request.headers.get('referer', '')
-    allowed_referers_env = os.getenv("ALLOWED_REFERERS")
-    if allowed_referers_env:
-        allowed_referers = [r.strip() for r in allowed_referers_env.split(",") if r.strip()]
-    else:
-        allowed_referers = [
-            "https://test.vanellix.com",
-            "https://testing.lapiccolaitalia.cl",
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://103.199.187.37:5173",
-            "https://103.199.187.37:5173",
-            "https://dex2.vanellix.com:5173"
-        ]
-    if not any(referer.startswith(origin) for origin in allowed_referers):
-        logger.error(f"Forbidden referer: {referer}")
-        raise HTTPException(status_code=403, detail="Forbidden: invalid referer")
-
-    # Get Privy token
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        token = request.cookies.get(PRIVY_JWT_COOKIE)
-        if not token:
-            logger.error("No Privy token in Authorization header or cookies")
-            raise HTTPException(status_code=401, detail="Not authenticated")
-    else:
-        token = auth_header.split(" ", 1)[1]
-
-    # Get wallet address (optional to allow token-only sessions)
-    wallet = request.headers.get("X-Wallet-Address")
-
-    try:
-        # Basic JWT format guard: must have 3 segments (header.payload.signature)
-        if token.count('.') != 2:
-            logger.warning("Invalid Privy JWT format: not enough segments")
-            raise HTTPException(status_code=401, detail="Invalid Privy JWT")
-        # Verify Privy JWT
-        payload = pyjwt.decode(
-            token,
-            PRIVY_JWT_PUBLIC_KEY,
-            algorithms=["ES256"],
-            issuer="privy.io",
-            audience=PRIVY_APP_ID,
-        )
-        # If wallet provided, validate and check session. Otherwise, allow token-only session.
-        if wallet:
-            try:
-                checksum_wallet = w3.to_checksum_address(wallet)
-            except ValueError as e:
-                logger.error(f"Invalid wallet address format: {wallet}")
-                raise HTTPException(status_code=400, detail=f"Invalid wallet address format: {str(e)}")
-            session = sessions_collection.find_one({"token": token, "wallet": wallet.lower()})
-            if not session:
-                logger.error(f"No session found for wallet: {wallet.lower()}")
-                raise HTTPException(status_code=401, detail="No valid session")
-            if session["exp"] < int(time.time()):
-                logger.error(f"Session expired for wallet: {wallet.lower()}")
-                sessions_collection.delete_one({"token": token})
-                raise HTTPException(status_code=401, detail="Session expired")
-            return {"id": wallet.lower(), "wallet": wallet.lower(), "sub": payload.get("sub")}
-        else:
-            # Token-only session (no wallet yet)
-            return {"id": payload.get("sub"), "wallet": None, "sub": payload.get("sub")}
-    except pyjwt.InvalidTokenError as e:
-        logger.error(f"Invalid Privy JWT: {str(e)}")
-        raise HTTPException(status_code=401, detail="Invalid Privy JWT")
-    except Exception as e:
-        logger.error(f"Error verifying session: {str(e)}")
-        raise HTTPException(status_code=401, detail=f"Session verification failed, wn: {str(e)}")
 
 # Debug cookies
 @app.get("/debug/cookies")

@@ -3,6 +3,7 @@
     "close": "Cerrar",
     "Cerrar": "Cerrar",
     "price": "Precio",
+    "next": "Siguiente",
     "back": "Atrás",
     "day_1": "Lunes",
     "day_2": "Martes",
@@ -56,5 +57,13 @@
     "configure": "Configurar",
     "refresh": "Actualizar",
     "save_changes": "Guardar cambios",
-    "copy": "Copiar"
+    "copy": "Copiar",
+    "add": "Agregar",
+    "type": "Tipo",
+    "metric": "Métrica",
+    "operator": "Operador",
+    "threshold": "Umbral",
+    "delete": "Eliminar",
+    "esc": "Esc",
+    "enter": "Enter"
   }

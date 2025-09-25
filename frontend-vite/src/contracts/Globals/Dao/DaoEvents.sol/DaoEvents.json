@@ -251,6 +251,25 @@
       "anonymous": false,
       "inputs": [
         {
+          "indexed": true,
+          "internalType": "address",
+          "name": "minter",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "enabled",
+          "type": "bool"
+        }
+      ],
+      "name": "FastMinterSet",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "indexed": false,
           "internalType": "address",
           "name": "globalMeritocracy",
@@ -562,8 +581,8 @@
       "type": "event"
     }
   ],
-  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220d31e2835c13b9521bfa752f9f5c4bd183515aea782fd9c893112b25062a3099864736f6c634300081c0033",
-  "deployedBytecode": "0x600080fdfea2646970667358221220d31e2835c13b9521bfa752f9f5c4bd183515aea782fd9c893112b25062a3099864736f6c634300081c0033",
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220ebd2f69b00ad6d395386fded417844456757538922fe97ea0cb7c255195bcd9e64736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea2646970667358221220ebd2f69b00ad6d395386fded417844456757538922fe97ea0cb7c255195bcd9e64736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

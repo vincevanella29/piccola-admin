@@ -75,4 +75,24 @@ export const apiform = async ({ method, endpoint, data, params, headers = {}, wi
   }
 };
 
+// Fetch binary (Blob) responses against the same API base URL, with headers/credentials
+export const apiFetchBinary = async ({ method = 'GET', endpoint, headers = {}, withCredentials = false }) => {
+  try {
+    const url = `${API_URL}${endpoint}`;
+    const res = await fetch(url, {
+      method,
+      headers,
+      credentials: withCredentials ? 'include' : 'same-origin',
+    });
+    if (!res.ok) {
+      let errMsg = await res.text();
+      try { errMsg = (await res.json()).detail || errMsg; } catch {}
+      throw new Error(errMsg || `HTTP ${res.status}`);
+    }
+    return await res.blob();
+  } catch (err) {
+    throw new Error(err.message || 'apiFetchBinary failed');
+  }
+};
+
 export default api;

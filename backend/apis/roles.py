@@ -1,21 +1,14 @@
+# roles.py
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, Query
-import os
+import os, logging
 from pydantic import BaseModel
-import logging
-import time
-from eth_account.messages import encode_defunct
-from main import verify_session
+from utils.auth.session import verify_session
 from utils.web3mongo import w3, launchpad_contract, company_contract, db
 from web3.exceptions import ContractLogicError
-import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-logger.info("Initializing roles.py")
-
-# Fijar company_id a 1
-COMPANY_ID = int(os.getenv("COMPANY_ID"))
+COMPANY_ID = int(os.getenv("COMPANY_ID", "1"))
 
 # Modelos Pydantic para las solicitudes
 class AssignRoleRequest(BaseModel):
@@ -87,53 +80,105 @@ async def options_user_role():
 def get_user_role(account: str = Query(None), user: dict = Depends(verify_session)):
     wallet_address = user.get("wallet")
     if not wallet_address:
-        logger.error("No wallet address in session")
         raise HTTPException(status_code=400, detail="No wallet address in session")
-    
-    # Usar el account proporcionado o el wallet de la sesión
-    target_address = account if account else wallet_address
+
+    # target = el account pedido o, por defecto, el de la sesión
+    target_address = account or wallet_address
     if not w3.is_address(target_address):
-        logger.error(f"Invalid target address: {target_address}")
         raise HTTPException(status_code=400, detail="Invalid target address")
-    
+    target_address = w3.to_checksum_address(target_address)
+
     try:
-        role_level = get_company_role_level(target_address)
-        # Consultar en MongoDB para obtener más datos del usuario
-        user_data = db.users.find_one({"wallet": target_address.lower(), "company_id": COMPANY_ID})
-        role_name = user_data.get("role_name", "") if user_data else ""
-        
-        # Fetch profile from user_profiles
-        profile = db.user_profiles.find_one({"wallet": target_address.lower()})
-        profile_data = None
-        if profile:
-            profile_data = {
-                "wallet": profile["wallet"],
-                "name": profile.get("name"),
-                "email": profile.get("email"),
-                "profile_image_url": profile.get("profile_image_url"),
-                "birthdate": profile.get("birthdate"),
-                "subscribe_news": profile.get("subscribe_news"),
-                "public_profile": profile.get("public_profile"),
-                "public_name": profile.get("public_name"),
-                "public_birthdate": profile.get("public_birthdate"),
-                "twitter": profile.get("twitter"),
-                "discord": profile.get("discord"),
-                "instagram": profile.get("instagram"),
-                "bio": profile.get("bio"),
-                "additional_socials": profile.get("additional_socials"),
-                "favorite_location": profile.get("favorite_location"),
-                "liked_products": profile.get("liked_products"),
-                "created_at": profile["created_at"].isoformat() if "created_at" in profile else None,
-                "updated_at": profile["updated_at"].isoformat() if "updated_at" in profile else None,
+        # Permisos solo si se consulta el mismo usuario de la sesión
+        perms = user.get("permissions") if target_address.lower() == wallet_address.lower() else None
+
+        # role_level: preferir el de permisos; si no, consultar on-chain desde el service puro
+        role_level = (perms or {}).get("role_level")
+        if role_level is None:
+            from config.roles.service import get_company_role_level  # servicio puro (sin apis.*)
+            role_level = get_company_role_level(target_address)
+
+        # Datos auxiliares (nombre/correo/foto desde Mongo)
+        user_data = db.users.find_one({"wallet": target_address.lower(), "company_id": COMPANY_ID}) or {}
+        role_name = user_data.get("role_name", "")
+
+        empleado = db.empleados_usuarios.find_one({"wallet": target_address.lower()})
+        rut_value = empleado.get("rut") if empleado else None
+
+        vpn_doc = None
+        if rut_value is not None:
+            # tratar int/str
+            try:
+                rut_int = int(rut_value)
+            except Exception:
+                rut_int = None
+            if isinstance(rut_value, int):
+                vpn_doc = db.trabajadores_vpn.find_one({"rut": rut_value})
+            if not vpn_doc and rut_int is not None:
+                vpn_doc = db.trabajadores_vpn.find_one({"rut": rut_int})
+            if not vpn_doc and isinstance(rut_value, str):
+                vpn_doc = db.trabajadores_vpn.find_one({"rut": rut_value})
+
+        # Armar perfil
+        name = profile_image_url = birthdate = email = cargo = favorite_location = None
+        if vpn_doc:
+            nombres = (vpn_doc.get("nombres") or "").strip()
+            ap_pat = (vpn_doc.get("apellidopaterno") or "").strip()
+            ap_mat = (vpn_doc.get("apellidomaterno") or "").strip()
+            name = " ".join([p for p in [nombres, ap_pat, ap_mat] if p]) or None
+            profile_image_url = vpn_doc.get("profile_image_url") or None
+            birthdate = vpn_doc.get("fechanacimiento") or None
+            cargo = vpn_doc.get("cargo") or None
+            favorite_location = vpn_doc.get("sucursal") or None
+        if empleado:
+            email = empleado.get("email") or email
+
+        profile_data = {
+            "wallet": target_address,
+            "name": name,
+            "email": email,
+            "profile_image_url": profile_image_url,
+            "birthdate": birthdate,
+            "favorite_location": favorite_location,
+            "cargo": cargo,
+            # legacy/compat:
+            "subscribe_news": None, "public_profile": None, "public_name": None,
+            "public_birthdate": None, "twitter": None, "discord": None, "instagram": None,
+            "bio": None, "additional_socials": None, "liked_products": None,
+            "created_at": None, "updated_at": None,
+        }
+
+        # Allowed locales/empresas enriquecidos cuando hay permisos
+        allowed = None
+        if perms:
+            suc_ids = perms.get("sucursal_ids") or []
+            emp_ids = perms.get("empresa_ids") or []
+            # mapear sucursales (id -> sigla/nombre si existen)
+            ref_cursor = db.gastos_refs_sucursales.find(
+                {"id_sucursal": {"$in": suc_ids}},
+                {"_id": 0, "id_sucursal": 1, "sigla": 1, "nombre": 1}
+            )
+            allowed = {
+                "sucursales_ids": suc_ids,
+                "sucursales": list(ref_cursor),
+                "empresa_ids": emp_ids,
+                # flags útiles del permiso
+                "can_view_all_companies": bool(perms.get("can_view_all_companies")),
+                "can_view_all_sucursales": bool(perms.get("can_view_all_sucursales")),
             }
 
         return {
             "company_id": COMPANY_ID,
             "role_level": role_level,
             "role_name": role_name,
-            "address": w3.to_checksum_address(target_address),
-            "profile": profile_data
+            "address": target_address,
+            "profile": profile_data,
+            "permissions": perms,   # ← todo el objeto que trae verify_session
+            "allowed": allowed,     # ← locales/empresas resolvidos
         }
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching user role: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching user role: {str(e)}")

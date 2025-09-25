@@ -3,6 +3,7 @@
     "close": "Fechar",
     "Cerrar": "Fechar",
     "price": "Preço",
+    "next": "Próximo",
     "back": "Voltar",
     "day_1": "Segunda-feira",
     "day_2": "Terça-feira",
@@ -57,5 +58,8 @@
     "configure": "Configurar",
     "refresh": "Atualizar",
     "save_changes": "Salvar alterações",
-    "copy": "Copiar"
+    "copy": "Copiar",
+    "delete": "Deletar",
+    "esc": "Esc",
+    "enter": "Enter"
 }

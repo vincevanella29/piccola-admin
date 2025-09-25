@@ -169,5 +169,51 @@
     "current": "Actual",
     "previous": "Anterior",
     "change_pct": "Variación %"
+  },
+
+  "register": {
+    "label": "Registro de empleados",
+    "category": "Registro",
+    "description": "Activa tu cuenta verificando tu identidad con la cámara (parpadeo y giros).",
+    "toolbar": {
+      "rut_label": "RUT del empleado",
+      "rut_placeholder": "Ingresa RUT (solo números)",
+      "request": "Solicitar Registro",
+      "verify_rut": "Verificar RUT",
+      "start_verification": "Iniciar verificación",
+      "validate": "Validar",
+      "models": "Modelos",
+      "session": "Sesión",
+      "camera": "Cámara",
+      "restart": "Reiniciar cámara",
+      "profile_needed": "Falta actualizar la ficha del empleado (sin foto de referencia).",
+      "face_ok": "Rostro detectado",
+      "face_place": "Alinea tu rostro dentro del marco",
+      "next_blink": "Parpadea",
+      "next_turn_left": "Mira a la izquierda",
+      "next_turn_right": "Mira a la derecha",
+      "welcome": "Bienvenido(a) {{name}}",
+      "steps_title": "Pasos",
+      "step1": "Ingresa tu RUT y presiona «Solicitar Registro».",
+      "step2": "Permite el acceso a la cámara y selecciona el dispositivo correcto.",
+      "step3": "Realiza las pruebas: parpadea, gira a la izquierda y derecha.",
+      "step4": "Presiona «Validar» para activar tu cuenta."
+    },
+    "panel": {
+      "blink": "Parpadeo",
+      "left": "Izquierda",
+      "right": "Derecha",
+      "tips_title": "Consejos",
+      "tips": [
+        "Buena iluminación frontal, evita contraluces.",
+        "Acerca tu rostro a la cámara hasta verlo bien enmarcado.",
+        "Parpadea y gira la cabeza a izquierda y derecha."
+      ]
+    }
+  },
+  "profiles": {
+    "label": "Perfil Empleado",
+    "category": "Empleados",
+    "description": "Ver y gestionar los perfiles de los empleados."
   }
 }

@@ -48,10 +48,43 @@ def main():
 
         print("¡VPN arriba! Consultando API de trabajadores...")
         try:
-            resp = requests.get(API_URL, timeout=20)
+            resp = requests.get(
+                API_URL,
+                timeout=20,
+                headers={
+                    "Accept": "application/json, text/plain;q=0.9, */*;q=0.8",
+                    "User-Agent": "PiccolaWorker/1.0",
+                },
+            )
             print("Status:", resp.status_code)
             if resp.status_code == 200:
-                data = resp.json()
+                text = resp.text or ""
+                data = None
+                try:
+                    if text.strip() == "":
+                        data = []
+                    else:
+                        data = resp.json()
+                except Exception as je:
+                    print("Error parseando JSON:", je)
+                    snippet = text[:500].replace("\n", " ")
+                    print("Respuesta (primeros 500 chars):", snippet)
+                    data = None
+                if data is None:
+                    try:
+                        from utils.intranet.php_array_parser import php_array_to_list
+                    except Exception:
+                        import sys
+                        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+                        from utils.intranet.php_array_parser import php_array_to_list
+                    parsed = php_array_to_list(text)
+                    if parsed:
+                        data = parsed
+                    else:
+                        print("La respuesta no es JSON ni array PHP. Mostrando fragmento:")
+                        snippet = text[:500].replace("\n", " ")
+                        print(snippet)
+                        data = []
                 print(f"Recibidos {len(data)} trabajadores. Actualizando en MongoDB...")
                 import sys
                 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))

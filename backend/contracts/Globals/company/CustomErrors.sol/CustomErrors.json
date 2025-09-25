@@ -28,6 +28,17 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "AtLeastOneSocialRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "sender",
           "type": "address"
@@ -499,6 +510,11 @@
       "type": "error"
     },
     {
+      "inputs": [],
+      "name": "MaxCompaniesReached",
+      "type": "error"
+    },
+    {
       "inputs": [
         {
           "internalType": "uint256",
@@ -789,6 +805,28 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "SocialNameRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "SocialUrlRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "sender",
           "type": "address"
@@ -1019,6 +1057,17 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "companyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "WebpageRequired",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "sender",
           "type": "address"
@@ -1028,8 +1077,8 @@
       "type": "error"
     }
   ],
-  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea2646970667358221220f86613f9f1e182c8a92c03d56cc3c0fb0fe46004cd2c83b77d4da30fef966adc64736f6c634300081c0033",
-  "deployedBytecode": "0x600080fdfea2646970667358221220f86613f9f1e182c8a92c03d56cc3c0fb0fe46004cd2c83b77d4da30fef966adc64736f6c634300081c0033",
+  "bytecode": "0x60808060405234601757603a9081601d823930815050f35b600080fdfe600080fdfea26469706673582212203d2c0caeb1948362398ae6440f6b55c709696abf4935027326c4c0206ea2152c64736f6c634300081c0033",
+  "deployedBytecode": "0x600080fdfea26469706673582212203d2c0caeb1948362398ae6440f6b55c709696abf4935027326c4c0206ea2152c64736f6c634300081c0033",
   "linkReferences": {},
   "deployedLinkReferences": {}
 }

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from main import verify_session
+from utils.auth.session import verify_session
 import importlib
 import logging
 import traceback
@@ -21,6 +21,8 @@ WORKER_MODULES = {
     "worker_rentabilidad_por_producto_locales": "utils.mtz.worker_rentabilidad_por_producto_locales",
     "worker_rentabilidad_por_producto_mtz": "utils.mtz.worker_rentabilidad_por_producto_mtz",
     "worker_sales_by_waiter_hour_vpn": "utils.mtz.worker_sales_by_waiter_hour_vpn",
+    "worker_restaurant_data": "utils.mtz.worker_restaurant_data",
+
     # Intranet
     "worker_asistencia_diaria_intranet": "utils.intranet.archivos.worker_asistencia_diaria_intranet",
     "worker_asistencia_extra_intranet": "utils.intranet.archivos.worker_asistencia_extra_intranet",
@@ -30,7 +32,9 @@ WORKER_MODULES = {
     "worker_modificadores_sueldo_intranet": "utils.intranet.archivos.worker_modificadores_sueldo_intranet",
     "worker_pago_sueldos_intranet": "utils.intranet.archivos.worker_pago_sueldos_intranet",
     "worker_trabajadores_intranet": "utils.intranet.archivos.worker_trabajadores_intranet",
-    # Agrega aquí más workers si es necesario
+    # KPIs
+    "worker_meritocracy": "utils.kpis.worker_meritocracy",
+    "worker_sales_kpis_cache": "utils.kpis.worker_sales_kpis_cache",
 }
 
 class ListWorkersResponse(BaseModel):
@@ -49,19 +53,15 @@ class ExecuteWorkersResult(BaseModel):
 @router.get("/workers/list", response_model=ListWorkersResponse)
 def list_workers(user: dict = Depends(verify_session)):
     # Nivel 3 o 4 requerido
-    from apis.roles import get_company_role_level
-    from utils.web3mongo import db
-    role_level = get_company_role_level(user["wallet"])
-    if role_level not in [3, 4]:
+    from config.roles.service import verify_admin
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Insufficient role level")
     return {"workers": list(WORKER_MODULES.keys())}
 
 @router.post("/workers/execute", response_model=List[ExecuteWorkersResult])
 def execute_workers(data: ExecuteWorkersRequest, user: dict = Depends(verify_session)):
-    from apis.roles import get_company_role_level
-    from utils.web3mongo import db
-    role_level = get_company_role_level(user["wallet"])
-    if role_level not in [3, 4]:
+    from config.roles.service import verify_admin
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Insufficient role level")
     mesano = data.mesano
     include = set(data.include) if data.include else set(WORKER_MODULES.keys())

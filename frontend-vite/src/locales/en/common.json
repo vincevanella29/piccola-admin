@@ -3,6 +3,7 @@
     "close": "Close",
     "Cerrar": "Close",
     "price": "Price",
+    "next": "Next",
     "back": "Back",
     "day_1": "Monday",
     "day_2": "Tuesday",
@@ -56,5 +57,13 @@
     "configure": "Configure",
     "refresh": "Refresh",
     "save_changes": "Save changes",
-    "copy": "Copy"
+    "copy": "Copy",
+    "add": "Add",
+    "type": "Type",
+    "metric": "Metric",
+    "operator": "Operator",
+    "threshold": "Threshold",
+    "delete": "Delete",
+    "esc": "Esc",
+    "enter": "Enter"
 }

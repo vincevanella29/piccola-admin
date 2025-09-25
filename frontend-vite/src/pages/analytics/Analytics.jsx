@@ -389,6 +389,7 @@ export const pageMetadata = {
   label: 'analytics.label',
   category: 'analytics.Análisis',
   minRoleLevel: 3,
+  maxRoleLevel: 5,
   order: 1,
   locations: ['sidebar'],
   description: 'analytics.description',

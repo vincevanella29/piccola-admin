@@ -2,7 +2,7 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from main import verify_session
+from utils.auth.session import verify_session
 from utils.companies_tokens import get_all_companies_tokens
 from utils.web3mongo import db, load_contract_abi, w3, launchpad_contract, uniswap_factory_contract
 import logging

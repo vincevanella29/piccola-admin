@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from main import verify_session
+from utils.auth.session import verify_session
 from utils.web3mongo import db
-from apis.roles import get_company_role_level
+from config.roles.service import verify_subadmin, verify_admin
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -58,8 +58,7 @@ async def get_ventas(
     Devuelve ventas crudas dentro del rango [start_date, end_date] (por día, inclusivo).
     Sin lógica adicional. Fechas normalizadas a 'YYYY-MM-DD'. _id como string.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user.get("wallet")):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver ventas")
 
     try:
@@ -124,8 +123,7 @@ async def get_ventas_summary(
     Resume por 'local' dentro del rango dado. Incluye 'details' normalizados
     (fecha como 'YYYY-MM-DD', _id string). Nada de alinear días de semana ni nada.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver ventas")
 
     try:
@@ -272,8 +270,7 @@ async def get_clima(
     """
     Devuelve clima diario por rango de fechas (y local opcional).
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver clima")
 
     try:

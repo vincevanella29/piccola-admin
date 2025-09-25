@@ -3,8 +3,8 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from main import verify_session
-from apis.roles import get_company_role_level
+from utils.auth.session import verify_session
+from config.roles.service import verify_subadmin
 from utils.web3mongo import db
 from utils.r2_upload import upload_to_r2
 
@@ -63,9 +63,8 @@ async def get_menus(user: dict = Depends(verify_session)):
     Además, agrega la data de rentabilidad de productos (cupro, total_costo, total_margen, total_venta, margen, cantidad) de la colección rentabilidad_producto_locales para el periodo actual, anterior y el mismo periodo del año anterior.
     Solo usuarios con nivel 3, 4 o 5 pueden acceder.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4, 5]:
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3, 4 o 5 pueden ver menús")
+    if not verify_subadmin(user.get("wallet")):
+        raise HTTPException(status_code=401, detail="No autorizado")
     try:
         menus = list(db.menus.find({}))
         categories = list(db.categories.find({}))
@@ -205,9 +204,8 @@ async def update_location(location_id: str, payload: UpdateLocationRequest, user
     Actualiza campos de una location. Requiere nivel de rol 3, 4 o 5.
     Campos admitidos: capacidad_personas, cantidad_mesas, cantidad_sillas, descripcion, media_urls.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4, 5]:
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3, 4 o 5 pueden actualizar locales")
+    if not verify_subadmin(user["wallet"]):
+        raise HTTPException(status_code=401, detail="No autorizado")
     try:
         update_doc = {k: v for k, v in payload.dict().items() if v is not None}
         update_doc["updated_at"] = datetime.utcnow().isoformat()
@@ -232,9 +230,8 @@ async def upload_location_photos(location_id: str, files: List[UploadFile] = Fil
     Sube una o varias fotos de un local a R2 y agrega sus URLs al array media_urls del local.
     Requiere nivel de rol 3, 4 o 5.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4, 5]:
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3, 4 o 5 pueden subir fotos")
+    if not verify_subadmin(user["wallet"]):
+        raise HTTPException(status_code=401, detail="No autorizado")
     try:
         uploaded_urls: List[str] = []
         for f in files:

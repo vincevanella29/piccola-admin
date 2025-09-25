@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 import logging
 import time
 from utils.web3mongo import db, w3, staking_contract
-from main import verify_session
+from utils.auth.session import verify_session
 from eth_account.messages import encode_defunct
 import os
 from bson import ObjectId

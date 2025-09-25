@@ -167,5 +167,51 @@
     "previous": "Anterior",
     "change_pct": "% variação",
     "no": "Não"
+  },
+
+  "register": {
+    "label": "Registro de funcionários",
+    "category": "Registro",
+    "description": "Ative sua conta verificando sua identidade com a câmera (piscar e giros).",
+    "toolbar": {
+      "rut_label": "RUT do funcionário",
+      "rut_placeholder": "Informe o RUT (somente números)",
+      "request": "Solicitar registro",
+      "verify_rut": "Verificar RUT",
+      "start_verification": "Iniciar verificação",
+      "validate": "Validar",
+      "models": "Modelos",
+      "session": "Sessão",
+      "camera": "Câmera",
+      "restart": "Reiniciar câmera",
+      "profile_needed": "Falta foto de referência na ficha do funcionário.",
+      "face_ok": "Rosto detectado",
+      "face_place": "Alinhe o rosto dentro da moldura",
+      "next_blink": "Piscar",
+      "next_turn_left": "Olhe para a esquerda",
+      "next_turn_right": "Olhe para a direita",
+      "welcome": "Bem-vindo(a) {{name}}",
+      "steps_title": "Passos",
+      "step1": "Informe seu RUT e pressione ‘Solicitar registro’.",
+      "step2": "Permita acesso à câmera e selecione o dispositivo correto.",
+      "step3": "Realize os testes: pisque, gire à esquerda e à direita.",
+      "step4": "Pressione ‘Validar’ para ativar sua conta."
+    },
+    "panel": {
+      "blink": "Pisco",
+      "left": "Esquerda",
+      "right": "Direita",
+      "tips_title": "Dicas",
+      "tips": [
+        "Boa iluminação frontal, evite contraluz.",
+        "Aproxime o rosto da câmera até ficar bem enquadrado.",
+        "Piscar e girar a cabeça para a esquerda e direita."
+      ]
+    }
+  },
+  "profiles": {
+    "label": "Perfil de Funcionário",
+    "category": "Funcionários",
+    "description": "Ver e gerenciar os perfis de funcionários."
   }
 }

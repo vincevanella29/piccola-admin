@@ -169,5 +169,51 @@
     "current": "Attuale",
     "previous": "Precedente",
     "change_pct": "Variazione %"
+  },
+
+  "register": {
+    "label": "Registrazione dipendenti",
+    "category": "Registrazione",
+    "description": "Attiva il tuo account verificando la tua identità con la fotocamera (blink e rotazioni).",
+    "toolbar": {
+      "rut_label": "RUT del dipendente",
+      "rut_placeholder": "Inserisci RUT (solo numeri)",
+      "request": "Richiedi registrazione",
+      "verify_rut": "Verifica RUT",
+      "start_verification": "Avvia verifica",
+      "validate": "Conferma",
+      "models": "Modelli",
+      "session": "Sessione",
+      "camera": "Fotocamera",
+      "restart": "Riavvia fotocamera",
+      "profile_needed": "Manca una foto di riferimento nella scheda del dipendente.",
+      "face_ok": "Volto rilevato",
+      "face_place": "Allinea il volto all'interno della cornice",
+      "next_blink": "Fai un blink",
+      "next_turn_left": "Guarda a sinistra",
+      "next_turn_right": "Guarda a destra",
+      "welcome": "Benvenuto(a) {{name}}",
+      "steps_title": "Passi",
+      "step1": "Inserisci il tuo RUT e premi ‘Richiedi registrazione’.",
+      "step2": "Consenti l'accesso alla fotocamera e seleziona il dispositivo corretto.",
+      "step3": "Esegui i controlli: fai un blink, ruota a sinistra e a destra.",
+      "step4": "Premi ‘Conferma’ per attivare il tuo account."
+    },
+    "panel": {
+      "blink": "Blink",
+      "left": "Sinistra",
+      "right": "Destra",
+      "tips_title": "Consigli",
+      "tips": [
+        "Buona illuminazione frontale, evita controluce.",
+        "Avvicina il viso alla fotocamera finché non è ben inquadrato.",
+        "Fai un blink e gira la testa a sinistra e a destra."
+      ]
+    }
+  },
+  "profiles": {
+    "label": "Profilo dipendente",
+    "category": "Dipendenti",
+    "description": "Ver e gestisci i profili dei dipendenti."
   }
 }

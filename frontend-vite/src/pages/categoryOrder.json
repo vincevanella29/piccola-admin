@@ -1,4 +1,6 @@
 {
   "analytics.Análisis": {"order": 1, "icon": "FaChartBar"},
-  "admin.category": {"order": 2, "icon": "FaCogs"}
+  "employees.profiles.category": {"order": 2, "icon": "FaUsers"},
+  "admin.category": {"order": 3, "icon": "FaCogs"},
+  "admin.tools.category": {"order": 4, "icon": "FaTools"}
 }

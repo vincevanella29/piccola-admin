@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 import logging
 from utils.web3mongo import w3, token_sale_contract
-from main import verify_session
+from utils.auth.session import verify_session
 from eth_account.messages import encode_defunct
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 import os

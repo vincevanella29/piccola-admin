@@ -407,7 +407,8 @@ async def handle_menus(update, context):
         opt_names = join_options(m)
 
         meta_bits: List[str] = []
-        # el código va en el título, mantenemos precio en meta
+        if codigo:
+            meta_bits.append(f"`{codigo}`")
         if precio is not None:
             meta_bits.append(_fmt_money(precio, currency))
         meta = (" · ".join(meta_bits)) if meta_bits else ""
@@ -417,8 +418,7 @@ async def handle_menus(update, context):
             f"  —  _opc: {', '.join(opt_names[:3])}{'…' if len(opt_names) > 3 else ''}_"
             if opt_names else ""
         )
-        title = f"**{nombre}**" if not codigo else f"**{nombre}** (`{codigo}`)"
-        lines.append(f"{i}. {title}{(' — ' + meta) if meta else ''}{cat_str}{opt_str}")
+        lines.append(f"{i}. **{nombre}**{(' — ' + meta) if meta else ''}{cat_str}{opt_str}")
 
     if len(matched) > MAX_ITEMS:
         lines.append(f"… y **{len(matched) - MAX_ITEMS}** más")

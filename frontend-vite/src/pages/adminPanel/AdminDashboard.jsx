@@ -147,7 +147,7 @@ export const pageMetadata = {
   label: 'admin.label',
   category: 'admin.category',
   minRoleLevel: 3,
-  maxRoleLevel: 5,
+  maxRoleLevel: 4,
   order: 2,
   orderWalletMenu: 0,
   locations: ['sidebar', 'walletMenu'],

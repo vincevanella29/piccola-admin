@@ -253,6 +253,11 @@
               "internalType": "address",
               "name": "utilityTokenProxy",
               "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "webpage",
+              "type": "string"
             }
           ],
           "internalType": "struct CompanyStruct.CompanyData",
@@ -331,6 +336,11 @@
                   "internalType": "address",
                   "name": "utilityTokenProxy",
                   "type": "address"
+                },
+                {
+                  "internalType": "string",
+                  "name": "webpage",
+                  "type": "string"
                 }
               ],
               "internalType": "struct CompanyStruct.CompanyData",
@@ -586,6 +596,11 @@
                   "internalType": "address",
                   "name": "utilityTokenProxy",
                   "type": "address"
+                },
+                {
+                  "internalType": "string",
+                  "name": "webpage",
+                  "type": "string"
                 }
               ],
               "internalType": "struct CompanyStruct.CompanyData",

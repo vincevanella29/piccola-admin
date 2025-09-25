@@ -78,7 +78,7 @@ async def chat_complete(messages: list[dict]) -> str:
     text = last_user_text or ((messages or [{}])[-1].get("content") if messages else "") or ""
 
     # Route intent
-    intent = await _with_timeout(grok_route_intent(text), timeout=1.0, default={"intent": "chat"})
+    intent = await _with_timeout(grok_route_intent(text), timeout=1.5, default={"intent": "chat"})
     logger.info(f"Intent detected: {intent}")
     itype = (intent or {}).get("intent") if isinstance(intent, dict) else None
     if itype not in ACCEPTED_INTENTS:
@@ -102,7 +102,7 @@ async def chat_complete(messages: list[dict]) -> str:
                         # Offload potential blocking call to a thread with tight timeout
                         context.user_data["role_level"] = await _with_timeout(
                             asyncio.to_thread(get_company_role_level, wallet),
-                            timeout=1.0,
+                            timeout=2.5,
                             default=None,
                         )
                     except Exception:
@@ -112,7 +112,7 @@ async def chat_complete(messages: list[dict]) -> str:
 
     if itype == "menus":
         # 1) Parsear con el SPEC de 'menus' para periodo, filtros, etc.
-        mf = await _with_timeout(grok_filters("menus", text), timeout=1.5, default={}) or {}
+        mf = await _with_timeout(grok_filters("menus", text), timeout=2.5, default={}) or {}
         logger.info(f"Parsed filters: {mf}")
 
         # 2) Si piden 'detalle' o 'receta', usamos el flujo legacy de menús descriptivos (foto/opciones/recetas)
@@ -129,7 +129,7 @@ async def chat_complete(messages: list[dict]) -> str:
             context.user_data["menus_filters"] = mf
             if nl_wants_recipe:
                 context.user_data["menus_recipe"] = True
-            _, payload = await _with_timeout(handle_menus(update, context), timeout=4.0, default=(None, []))
+            _, payload = await _with_timeout(handle_menus(update, context), timeout=5.0, default=(None, []))
             return payload if isinstance(payload, (dict, list)) else {
                 "type": "text_block_list",
                 "intent": "menus",
@@ -155,7 +155,7 @@ async def chat_complete(messages: list[dict]) -> str:
         context.user_data["ventas_hora_filters"] = vhf
 
         # 4) Disparar el handler horario de productos (emite data_table con code+name)
-        _, payload = await _with_timeout(handle_productos_hora(update, context), timeout=4.0, default=(None, []))
+        _, payload = await _with_timeout(handle_productos_hora(update, context), timeout=5.0, default=(None, []))
         return payload if isinstance(payload, (dict, list)) else {
             "type": "text_block_list",
             "intent": "ventas_hora",
@@ -163,24 +163,24 @@ async def chat_complete(messages: list[dict]) -> str:
         }
 
     if itype == "locations":
-        lf = await _with_timeout(grok_filters("locations", text), timeout=1.5, default={}) or {}
+        lf = await _with_timeout(grok_filters("locations", text), timeout=2.0, default={}) or {}
         q = (lf.get("q") or "").strip()
         if q:
             context.user_data["locations_q"] = q
-        _, payload = await _with_timeout(handle_locations(update, context), timeout=3.0, default=(None, {"type": "text", "text": "No hay datos de sucursales ahora."}))
+        _, payload = await _with_timeout(handle_locations(update, context), timeout=4.0, default=(None, {"type": "text", "text": "No hay datos de sucursales ahora."}))
         return payload
 
     if itype == "club":
         section = "help"
-        spec = await _with_timeout(grok_filters("club", text), timeout=1.5, default={})
+        spec = await _with_timeout(grok_filters("club", text), timeout=2.0, default={})
         if isinstance(spec, dict) and spec.get("section"):
             section = spec.get("section")
             logger.info(f"Club section: {section}")
-        _, payload = await _with_timeout(handle_club(update, section), timeout=3.0, default=(None, {"type": "text", "text": "No disponible por ahora."}))
+        _, payload = await _with_timeout(handle_club(update, section), timeout=4.0, default=(None, {"type": "text", "text": "No disponible por ahora."}))
         # If complaints funnel, enrich with location quick action
         if section == "polls":
             try:
-                lf = await _with_timeout(grok_filters("locations", text), timeout=1.0, default={}) or {}
+                lf = await _with_timeout(grok_filters("locations", text), timeout=1.5, default={}) or {}
                 q = (lf.get("q") or "").strip()
                 loc = find_location_by_query(q) if q else None
                 if loc:
@@ -196,9 +196,9 @@ async def chat_complete(messages: list[dict]) -> str:
 
     # === Movimientos/empresa intents: misma orquestación que el bot de Telegram ===
     if itype == "ventas_hora":
-        vhf = await _with_timeout(grok_filters("ventas_hora", text), timeout=1.5, default={}) or {}
+        vhf = await _with_timeout(grok_filters("ventas_hora", text), timeout=2.5, default={}) or {}
         context.user_data["ventas_hora_filters"] = vhf
-        _, result = await _with_timeout(handle_ventas_hora(update, context), timeout=4.0, default=(None, ["Sin datos por ahora"]))
+        _, result = await _with_timeout(handle_ventas_hora(update, context), timeout=5.0, default=(None, ["Sin datos por ahora"]))
         # If the handler returns a structured payload (dict or list), forward it as-is.
         # Otherwise, assume it's a list of strings and wrap in a text_block_list.
         if isinstance(result, (dict, list)):
@@ -206,13 +206,13 @@ async def chat_complete(messages: list[dict]) -> str:
         return {"type": "text_block_list", "intent": itype, "lines": result}
 
     if itype == "sueldos":
-        sf = await _with_timeout(grok_filters("sueldos", text), timeout=2.0, default={}) or {}
+        sf = await _with_timeout(grok_filters("sueldos", text), timeout=2.5, default={}) or {}
         # Pass the entire spec so the handler can use all filters/grouping without re-parsing
         context.user_data["sueldos_spec"] = sf
         if sf.get("period"): context.user_data["sueldos_period"] = sf["period"]
         if sf.get("mode"):   context.user_data["sueldos_mode"] = sf["mode"]
         if sf.get("rut") is not None: context.user_data["sueldos_rut"] = sf["rut"]
-        _, result = await _with_timeout(handle_sueldos(update, context), timeout=5.0, default=(None, ["Cálculo de sueldos no disponible en este momento"]))
+        _, result = await _with_timeout(handle_sueldos(update, context), timeout=6.0, default=(None, ["Cálculo de sueldos no disponible en este momento"]))
         # If the handler returns a structured payload (dict or list), forward it as-is.
         # Otherwise, assume it's a list of strings and wrap in a text_block_list.
         if isinstance(result, (dict, list)):
@@ -220,51 +220,51 @@ async def chat_complete(messages: list[dict]) -> str:
         return {"type": "text_block_list", "intent": itype, "lines": result}
 
     if itype == "ventas":
-        vf = await _with_timeout(grok_filters("ventas", text), timeout=1.5, default={}) or {}
+        vf = await _with_timeout(grok_filters("ventas", text), timeout=2.0, default={}) or {}
         _vp = vf.get("period")
         context.user_data["ventas_period"] = (_vp.lower() if isinstance(_vp, str) else _vp) or ""
-        _, lines = await _with_timeout(handle_ventas(update, context), timeout=4.0, default=(None, ["Ventas no disponibles ahora"]))
+        _, lines = await _with_timeout(handle_ventas(update, context), timeout=5.0, default=(None, ["Ventas no disponibles ahora"]))
         return {"type": "text_block_list", "intent": itype, "lines": lines}
 
     if itype == "productos":
-        f = await _with_timeout(grok_filters("productos", text), timeout=1.5, default={}) or {}
+        f = await _with_timeout(grok_filters("productos", text), timeout=2.0, default={}) or {}
         context.user_data["productos_by"] = (f.get("by") or "").lower()
         context.user_data["productos_q"] = (f.get("q") or "").strip()
         if f.get("period"): context.user_data["productos_period"] = f["period"]
         context.user_data["productos_top"] = bool(f.get("top", False))
         context.user_data["productos_hide_values"] = bool(f.get("hide_values", False))
-        _, result = await _with_timeout(handle_productos(update, context), timeout=4.0, default=(None, ["No hay datos de productos ahora"]))
+        _, result = await _with_timeout(handle_productos(update, context), timeout=5.0, default=(None, ["No hay datos de productos ahora"]))
         # If structured payload (dict, list), forward it; else wrap as text list
         if isinstance(result, (dict, list)):
             return result
         return {"type": "text_block_list", "intent": itype, "lines": result}
 
     if itype == "consumos":
-        f = await _with_timeout(grok_filters("consumos", text), timeout=1.5, default={}) or {}
+        f = await _with_timeout(grok_filters("consumos", text), timeout=2.0, default={}) or {}
         context.user_data["consumos_by"] = (f.get("by") or "").lower()
         context.user_data["consumos_q"] = (f.get("q") or "").strip()
         if f.get("period"): context.user_data["consumos_period"] = f["period"]
         context.user_data["consumos_top"] = bool(f.get("top", False))
         context.user_data["consumos_hide_values"] = bool(f.get("hide_values", False))
-        _, result = await _with_timeout(handle_consumos(update, context), timeout=4.0, default=(None, ["Consumos no disponibles ahora"]))
+        _, result = await _with_timeout(handle_consumos(update, context), timeout=5.0, default=(None, ["Consumos no disponibles ahora"]))
         if isinstance(result, (dict, list)):
             return result
         return {"type": "text_block_list", "intent": itype, "lines": result}
 
     if itype == "gastos":
-        gf = await _with_timeout(grok_filters("gastos", text), timeout=1.5, default={}) or {}
+        gf = await _with_timeout(grok_filters("gastos", text), timeout=2.0, default={}) or {}
         context.user_data["gastos_by"] = gf.get("by") or ""
         context.user_data["gastos_q"] = gf.get("q") or ""
         context.user_data["gastos_siglas"] = gf.get("include_siglas") or []
         context.user_data["gastos_siglas_excl"] = gf.get("exclude_siglas") or []
         context.user_data["gastos_cuentas"] = gf.get("include_cuentas") or []
         context.user_data["gastos_rut"] = gf.get("rut")
-        _, lines = await _with_timeout(handle_gastos(update, context), timeout=4.0, default=(None, ["Gastos no disponibles ahora"]))
+        _, lines = await _with_timeout(handle_gastos(update, context), timeout=5.0, default=(None, ["Gastos no disponibles ahora"]))
         return {"type": "text_block_list", "intent": itype, "lines": lines}
 
     if itype == "history":
-        _ = await _with_timeout(grok_filters("history", text), timeout=1.0, default={})
-        _, payload = await _with_timeout(handle_history(update, section="timeline"), timeout=3.0, default=(None, {"type": "timeline", "items": []}))
+        _ = await _with_timeout(grok_filters("history", text), timeout=1.5, default={})
+        _, payload = await _with_timeout(handle_history(update, section="timeline"), timeout=4.0, default=(None, {"type": "timeline", "items": []}))
         # Build a short summary prompt for the new ask_grok signature
         try:
             compact = json.dumps({k: payload.get(k) for k in ("title","subtitle","kpis","totals") if k in payload}, ensure_ascii=False)

@@ -140,7 +140,7 @@ export const pageMetadata = {
   label: 'admin.notifications.label',
   category: 'admin.category',
   minRoleLevel: 3,
-  maxRoleLevel: 5,
+  maxRoleLevel: 4,
   order: 1,
   locations: ['sidebar'],
   description: 'admin.notifications.description',

@@ -391,5 +391,9 @@
       "saturday": "Sabato",
       "sunday": "Domenica"
     }
+  },
+  "tools": {
+    "category": "Strumenti",
+    "description": "Strumenti per la gestione della società, automatizzazione dei processi, scambio e altro."
   }
 }

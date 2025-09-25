@@ -10,6 +10,7 @@ import traceback
 import argparse
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from pymongo.errors import DuplicateKeyError
 from utils.web3_utils import sync_company_data
 from utils.web3mongo import db
 from utils.companies_tokens import sync_token_pairs, update_pair_reserves
@@ -30,6 +31,11 @@ RUN_GROUPS_ON_START = os.getenv("RUN_GROUPS_ON_START", "0") == "1"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
+
+def launch_listener_worker(config):
+    logger.info(f"[EVENT LISTENER WORKER] Starting listener for {getattr(config, 'contract_name', 'unknown')} ({getattr(config, 'event_names', [])})...")
+    # listen_events espera una lista de configs
+    listen_events([config])
 
 def get_current_mesano_chile() -> str:
     """Return current mesano (YYYYMM) in Chile timezone."""
@@ -74,6 +80,8 @@ async def periodic_sync_companies():
             logger.info("[PERIODIC SYNC] sync_company_data completed for all companies.")
         except Exception as e:
             logger.error(f"[PERIODIC SYNC] Error: {e}\n{traceback.format_exc()}")
+        # Prevent tight loop hammering
+        await asyncio.sleep(60)
 
 async def periodic_sync_token_pairs():
     while True:
@@ -125,10 +133,106 @@ async def periodic_menu_data_worker():
             logger.error(f'[MENU DATA WORKER] Error: {e}\n{traceback.format_exc()}')
             await asyncio.sleep(60)
 
+async def periodic_sales_kpis_cache_worker():
+    """Compute and cache sales KPIs daily.
+
+    Runs once per day in Chile time after 04:00. If RUN_GROUPS_ON_START=1, also runs once at startup.
+    It calls utils.kpis.worker_sales_kpis_cache.run_worker(), which computes current month
+    and, during the first 15 days, also computes the previous month to keep it fresh.
+    """
+    started_once = False
+    last_run_date = None  # 'YYYY-MM-DD' en Chile
+    while True:
+        try:
+            try:
+                chile_tz = ZoneInfo('America/Santiago')
+            except Exception:
+                import pytz
+                chile_tz = pytz.timezone('America/Santiago')
+            now_chile = datetime.now(tz=chile_tz)
+
+            # Ejecutar una vez al inicio si así se configuró
+            if RUN_GROUPS_ON_START and not started_once:
+                try:
+                    logger.info('[SALES KPIS CACHE] Ejecutando en arranque (RUN_GROUPS_ON_START=1)')
+                    worker = importlib.import_module('utils.kpis.worker_sales_kpis_cache')
+                    if hasattr(worker, 'run_worker'):
+                        worker.run_worker()
+                        logger.info('[SALES KPIS CACHE] Finalizado OK en arranque')
+                    else:
+                        logger.warning('[SALES KPIS CACHE] Saltado (sin run_worker)')
+                except Exception as e:
+                    logger.error(f"[SALES KPIS CACHE] Error en arranque: {e}\n{traceback.format_exc()}")
+                started_once = True
+                await asyncio.sleep(61)
+                continue
+
+            today = now_chile.strftime('%Y-%m-%d')
+            if (now_chile.hour >= 4) and (last_run_date != today):
+                try:
+                    logger.info('[SALES KPIS CACHE] Ejecutando run_worker (>= 4:00 AM Chile)')
+                    worker = importlib.import_module('utils.kpis.worker_sales_kpis_cache')
+                    if hasattr(worker, 'run_worker'):
+                        worker.run_worker()
+                        logger.info('[SALES KPIS CACHE] Finalizado OK')
+                    else:
+                        logger.warning('[SALES KPIS CACHE] Saltado (sin run_worker)')
+                except Exception as e:
+                    logger.error(f"[SALES KPIS CACHE] Error: {e}\n{traceback.format_exc()}")
+                last_run_date = today
+                await asyncio.sleep(90)
+            else:
+                await asyncio.sleep(30)
+        except Exception as e:
+            logger.error(f"[SALES KPIS CACHE] Error del scheduler: {e}\n{traceback.format_exc()}")
+            await asyncio.sleep(60)
+
 def run_async_task(task_func):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(task_func())
+
+# --- Utilidades para consumir eventos desde Redis y persistir en Mongo ---
+
+def convert_big_ints_to_str(obj):
+    if isinstance(obj, dict):
+        return {k: convert_big_ints_to_str(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [convert_big_ints_to_str(v) for v in obj]
+    if isinstance(obj, int) and abs(obj) > 2**63 - 1:
+        return str(obj)
+    return obj
+
+def process_event(event_data: dict):
+    event_data = convert_big_ints_to_str(event_data)
+    collection_name = event_data.get('collection', 'staking_events')
+    try:
+        db[collection_name].insert_one(event_data)
+        logger.info(f"[EVENT WORKER] Inserted {event_data.get('event')} into {collection_name} tx={event_data.get('transactionHash')} idx={event_data.get('logIndex')}")
+    except DuplicateKeyError:
+        logger.info(f"[EVENT WORKER] Duplicate {event_data.get('event')} in {collection_name} tx={event_data.get('transactionHash')} idx={event_data.get('logIndex')}")
+    except Exception as e:
+        logger.error(f"[EVENT WORKER] Mongo insert failed: {e}\n{traceback.format_exc()}")
+
+async def event_worker_loop():
+    logger.info("[EVENT WORKER] Starting Redis event consumer loop...")
+    while True:
+        try:
+            result = redis_client.blpop(REDIS_QUEUE, timeout=5)
+            if result:
+                _, raw = result
+                try:
+                    payload = json.loads(raw)
+                except Exception:
+                    logger.error(f"[EVENT WORKER] Invalid JSON payload: {raw}")
+                    await asyncio.sleep(0.1)
+                    continue
+                process_event(payload)
+            else:
+                await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error(f"[EVENT WORKER] Error: {e}\n{traceback.format_exc()}")
+            await asyncio.sleep(1)
 
 async def periodic_intranet_group_worker():
     """Run all intranet workers at 4:00 AM Chile time.
@@ -195,8 +299,8 @@ async def periodic_intranet_group_worker():
                 continue
 
             today = now_chile.strftime('%Y-%m-%d')
-            if (now_chile.hour >= 4) and (last_run_date != today):
-                logger.info('[INTRANET GROUP] Ejecutando workers de intranet (>= 4:00 AM Chile)')
+            if (now_chile.hour >= 6) and (last_run_date != today):
+                logger.info('[INTRANET GROUP] Ejecutando workers de intranet (>= 6:00 AM Chile)')
                 mesano = now_chile.strftime('%Y%m')
                 ok_modules = []
                 err_modules = []
@@ -241,6 +345,7 @@ async def periodic_intranet_group_worker():
 async def periodic_tiempo_group_worker():
     """Run weather worker at 4:00 AM Chile passing current mesano (YYYYMM)."""
     started_once = False
+    last_run_date = None  # 'YYYY-MM-DD' en Chile
     while True:
         try:
             try:
@@ -312,6 +417,7 @@ async def periodic_mtz_group_worker():
     ]
 
     started_once = False
+    last_run_date = None  # 'YYYY-MM-DD' en Chile
     while True:
         try:
             try:
@@ -412,7 +518,7 @@ if __name__ == "__main__":
         setup_event_collections_indexes(CONFIGS)
         threads = []
         for config in CONFIGS:
-            t = threading.Thread(target=listen_events, args=([config],), daemon=True)
+            t = threading.Thread(target=launch_listener_worker, args=(config,), daemon=True)
             t.start()
             threads.append(t)
         for t in threads:
@@ -422,11 +528,13 @@ if __name__ == "__main__":
         'intranet_group_4am': periodic_intranet_group_worker,
         'mtz_group_4am': periodic_mtz_group_worker,
         'tiempo_group_4am': periodic_tiempo_group_worker,
+        'sales_kpis_cache': periodic_sales_kpis_cache_worker,
         'event_listener': event_listener_worker,
         'sync_companies': periodic_sync_companies,
         'update_pair_reserves': periodic_update_pair_reserves,
         'sync_payment_tokens': periodic_sync_payment_tokens,
         'menu_data_worker': periodic_menu_data_worker,
+        'event_worker_loop': event_worker_loop,
     }
 
     if args.list:
@@ -470,7 +578,12 @@ if __name__ == "__main__":
     worker_threads = {}
     for func in selected:
         name = func.__name__
-        t = WorkerThread(target=lambda: run_async_task(func), name=name)
+        # Detectar si el worker es async o sync
+        if asyncio.iscoroutinefunction(func):
+            target = (lambda f=func: run_async_task(f))
+        else:
+            target = func
+        t = WorkerThread(target=target, name=name)
         t.start()
         worker_threads[name] = t
 
@@ -480,7 +593,14 @@ if __name__ == "__main__":
             for name, t in list(worker_threads.items()):
                 if not t.is_alive():
                     logger.warning(f"[SUPERVISOR] Worker '{name}' murió. Reiniciando...")
-                    new_t = WorkerThread(target=lambda: run_async_task(selected[[f.__name__ for f in selected].index(name)]), name=name)
+                    # Reconstruir target con la misma lógica async/sync
+                    _idx = [f.__name__ for f in selected].index(name)
+                    _f = selected[_idx]
+                    if asyncio.iscoroutinefunction(_f):
+                        new_target = (lambda f=_f: run_async_task(f))
+                    else:
+                        new_target = _f
+                    new_t = WorkerThread(target=new_target, name=name)
                     new_t.start()
                     worker_threads[name] = new_t
     except KeyboardInterrupt:

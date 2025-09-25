@@ -4,9 +4,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from main import verify_session
+from utils.auth.session import verify_session
 from utils.web3mongo import db
-from apis.roles import get_company_role_level
+from config.roles.service import verify_subadmin, verify_admin
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -71,8 +71,7 @@ async def get_trabajadores_activos(
     Retorna trabajadores con campo 'activo' en valores truthy (1, True, "1").
     Permite filtrar por sucursal, cargo, y búsqueda simple en nombres/apellidos.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver trabajadores")
 
     # Build filter
@@ -224,8 +223,7 @@ async def get_trabajador_por_rut(
     Devuelve un trabajador por RUT. Acepta rut numérico o string.
     Intenta ambas representaciones al consultar MongoDB.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver trabajadores")
 
     or_terms = [{"rut": rut}]
@@ -270,8 +268,7 @@ async def get_asistencia_diaria(
     Devuelve registros desde `asistencia_diaria_intranet`.
     Filtros: rut, rango de fechas sobre `fecha_trabajada`, id_sucursal, tipo_marca.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver asistencia")
 
     match: dict = {}
@@ -429,8 +426,7 @@ async def get_asistencia_por_sucursal(
     limit: Optional[int] = Query(None, ge=1, le=100000),
     user: dict = Depends(verify_session),
 ):
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver asistencia")
 
     try:

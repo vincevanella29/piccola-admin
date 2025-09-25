@@ -13,8 +13,8 @@ from datetime import datetime
 import os
 from utils.time_utils import get_chile_time
 
-from main import verify_session
-from apis.roles import get_company_role_level
+from utils.auth.session import verify_session
+from config.roles.service import verify_admin
 from utils.web3mongo import db
 
 router = APIRouter()
@@ -81,16 +81,6 @@ class AdminProviderResponse(BaseModel):
     created_at: str
     updated_at: str
     created_by: str
-
-# ---------------
-# Helpers
-# ---------------
-def check_role(wallet: Optional[str], required_levels: List[int]):
-    if not wallet:
-        raise HTTPException(status_code=400, detail="No wallet address in session")
-    role_level = get_company_role_level(wallet)
-    if role_level not in required_levels:
-        raise HTTPException(status_code=403, detail="Insufficient role level")
 
 
 def sanitize_provider(provider: Dict[str, Any]) -> Dict[str, Any]:
@@ -286,7 +276,8 @@ def public_provider(provider: Dict[str, Any]) -> PublicProviderConfig:
 # -----------------------
 @router.post("/conversion-tracker/providers", response_model=ProviderResponse)
 async def create_provider(data: ProviderCreate, user: dict = Depends(verify_session)):
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
 
     creds = (
         data.credentials.to_dict() if isinstance(data.credentials, ProviderCredentials)
@@ -316,7 +307,8 @@ async def create_provider(data: ProviderCreate, user: dict = Depends(verify_sess
 
 @router.get("/conversion-tracker/providers", response_model=List[ProviderResponse])
 async def list_providers(user: dict = Depends(verify_session)):
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
     providers = list(db.conversion_tracker_providers.find({"company_id": COMPANY_ID}))
     out: List[ProviderResponse] = []
     for p in providers:
@@ -328,7 +320,8 @@ async def list_providers(user: dict = Depends(verify_session)):
 
 @router.patch("/conversion-tracker/providers/{provider_id}", response_model=ProviderResponse)
 async def update_provider(provider_id: str = Path(...), data: ProviderUpdate = None, user: dict = Depends(verify_session)):
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
     existing = db.conversion_tracker_providers.find_one({"id": provider_id, "company_id": COMPANY_ID})
     if not existing:
         raise HTTPException(status_code=404, detail="Provider not found")
@@ -369,7 +362,8 @@ async def update_provider(provider_id: str = Path(...), data: ProviderUpdate = N
 # -----------------------
 @router.post("/admin/conversion-tracker/providers", response_model=AdminProviderResponse)
 async def admin_create_provider(data: ProviderCreate, user: dict = Depends(verify_session)):
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
 
     creds = (
         data.credentials.to_dict() if isinstance(data.credentials, ProviderCredentials)
@@ -397,7 +391,8 @@ async def admin_create_provider(data: ProviderCreate, user: dict = Depends(verif
 
 @router.get("/admin/conversion-tracker/providers", response_model=List[AdminProviderResponse])
 async def admin_list_providers(user: dict = Depends(verify_session)):
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
     providers = list(db.conversion_tracker_providers.find({"company_id": COMPANY_ID}))
     out: List[AdminProviderResponse] = []
     for p in providers:
@@ -408,7 +403,8 @@ async def admin_list_providers(user: dict = Depends(verify_session)):
 
 @router.patch("/admin/conversion-tracker/providers/{provider_id}", response_model=AdminProviderResponse)
 async def admin_update_provider(provider_id: str = Path(...), data: ProviderUpdate = None, user: dict = Depends(verify_session)):
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
     existing = db.conversion_tracker_providers.find_one({"id": provider_id, "company_id": COMPANY_ID})
     if not existing:
         raise HTTPException(status_code=404, detail="Provider not found")
@@ -447,7 +443,8 @@ async def admin_update_provider(provider_id: str = Path(...), data: ProviderUpda
 # -----------------------
 @router.get("/conversion-tracker/services", response_model=List[Dict[str, Any]])
 async def list_services_for_forms(user: dict = Depends(verify_session)):
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
     services = [
         "firebase",
         "analytics",
@@ -464,7 +461,8 @@ async def list_services_for_forms(user: dict = Depends(verify_session)):
 
 @router.get("/conversion-tracker/services/{service}/rules", response_model=Dict[str, Any])
 async def get_service_rules(service: str, user: dict = Depends(verify_session)):
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
     return load_tracker_rules(service)
 
 
@@ -482,7 +480,8 @@ async def admin_upload_credentials_json(
     Default key is 'service_account' (for Firebase admin JSON).
     Applies tracker rules after merge.
     """
-    check_role(user.get("wallet"), [3, 4])
+    if not verify_admin(user):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
     existing = db.conversion_tracker_providers.find_one({"id": provider_id, "company_id": COMPANY_ID})
     if not existing:
         raise HTTPException(status_code=404, detail="Provider not found")

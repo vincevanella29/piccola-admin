@@ -389,5 +389,9 @@
       "saturday": "Saturday",
       "sunday": "Sunday"
     }
+  },
+  "tools": {
+    "category": "Tools",
+    "description": "Tools for company management, process automation, swap and more."
   }
 }

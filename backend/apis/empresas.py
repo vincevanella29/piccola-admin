@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from pydantic import BaseModel, Field
 from bson import ObjectId
 
-from main import verify_session
+from utils.auth.session import verify_session
 from utils.web3mongo import db
-from apis.roles import get_company_role_level
+from config.roles.service import verify_admin
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -62,8 +62,7 @@ class EmpresaUpdate(BaseModel):
 # --------- Helpers ---------
 
 def require_admin(user: Dict[str, Any]) -> None:
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden administrar empresas")
 
 
@@ -565,13 +564,6 @@ async def list_cuentas_refs(
         "[list_cuentas_refs] reached handler | skip=%s limit=%s q=%s resumen2=%s es_operacional=%s es_cuenta=%s wallet=%s",
         skip, limit, q, resumen2, es_operacional, es_cuenta, user.get("wallet")
     )
-
-    # Log role level before enforcing, to understand permission failures
-    try:
-        rl = get_company_role_level(user.get("wallet"))
-        logger.info("[list_cuentas_refs] caller role_level=%s", rl)
-    except Exception as e:
-        logger.error("[list_cuentas_refs] error computing role level: %s", e)
 
     require_admin(user)
 

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 POLL_INTERVAL = 10  # Poll every 10 seconds
-INITIAL_BLOCK = 23300000  # As per your FastAPI startup
+INITIAL_BLOCK = 26419000  # As per your FastAPI startup
 BLOCK_CHUNK_SIZE = 100  # Process 200 blocks at a time (reduce for RPC compatibility)
 MAX_RETRIES = 3  # Retry failed RPC calls
 RETRY_DELAY = 5  # Seconds between retries

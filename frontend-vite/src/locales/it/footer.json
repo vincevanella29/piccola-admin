@@ -5,5 +5,10 @@
     "language_it": "Italiano",
     "language_pt": "Português",
     "theme_dark": "Scuro",
-    "theme_light": "Chiaro"
+    "theme_light": "Chiaro",
+    "quick_actions": "Azioni rapide",
+    "theme": "Tema",
+    "pwa_hint": "PWA Hint",
+    "language": "Lingua",
+    "settings": "Configurazione"
   }

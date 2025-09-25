@@ -17,6 +17,7 @@ export const pageMetadata = {
   label: 'employees.label',
   category: 'analytics.Análisis',
   minRoleLevel: 3,
+  maxRoleLevel: 4,
   order: 2,
   orderWalletMenu: 2,
   orderFooter: 1,

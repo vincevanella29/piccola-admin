@@ -1,7 +1,7 @@
-// src/pages/community/components/UserModal.jsx
+// src/pages/chat/components/common/UserModal.jsx
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaCopy, FaExternalLinkAlt, FaTimes, FaTwitter, FaDiscord, FaInstagram, FaBirthdayCake, FaHeart, FaMapMarkerAlt, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaCopy, FaExternalLinkAlt, FaTimes, FaTwitter, FaDiscord, FaInstagram, FaBirthdayCake, FaMapMarkerAlt, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { ethers } from 'ethers';
 

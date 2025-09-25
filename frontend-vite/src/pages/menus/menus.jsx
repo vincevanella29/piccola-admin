@@ -246,6 +246,7 @@ export const pageMetadata = {
   label: 'menus.label',
   category: 'analytics.Análisis',
   minRoleLevel: 3,
+  maxRoleLevel: 4,
   order: 1,
   orderWalletMenu: 2,
   orderFooter: 1,

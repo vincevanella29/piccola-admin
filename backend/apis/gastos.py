@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from main import verify_session
+from utils.auth.session import verify_session
 from utils.web3mongo import db
-from apis.roles import get_company_role_level
+from config.roles.service import verify_admin
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -57,8 +57,7 @@ async def get_gastos(
     Devuelve gastos crudos dentro del rango [start_date, end_date] (por día, inclusivo).
     Sin lógica adicional. 'fecha_pago' normalizada a 'YYYY-MM-DD'. _id como string.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user.get("wallet")):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver gastos")
 
     try:
@@ -107,8 +106,7 @@ async def get_gastos_summary(
     Resume por resumen2 -> resumen -> tipo_gasto, con 'details' normalizados
     (fecha_pago 'YYYY-MM-DD', _id string). Sin lógica extra.
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver gastos")
 
     try:
@@ -268,8 +266,7 @@ async def get_gastos_totals(
       ...
     ]
     """
-    role_level = get_company_role_level(user.get("wallet"))
-    if role_level not in [3, 4]:
+    if not verify_admin(user["wallet"]):
         raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver gastos")
 
     try:

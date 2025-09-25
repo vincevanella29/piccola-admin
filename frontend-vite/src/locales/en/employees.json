@@ -169,5 +169,51 @@
     "current": "Current",
     "previous": "Previous",
     "change_pct": "Change %"
+  },
+
+  "register": {
+    "label": "Employee registration",
+    "category": "Registration",
+    "description": "Activate your account by verifying your identity with the camera (blink and turns).",
+    "toolbar": {
+      "rut_label": "Employee RUT",
+      "rut_placeholder": "Enter RUT (numbers only)",
+      "request": "Request registration",
+      "verify_rut": "Verify RUT",
+      "start_verification": "Start verification",
+      "validate": "Validate",
+      "models": "Models",
+      "session": "Session",
+      "camera": "Camera",
+      "restart": "Restart camera",
+      "profile_needed": "Employee profile needs a reference photo.",
+      "face_ok": "Face detected",
+      "face_place": "Align your face inside the frame",
+      "next_blink": "Blink",
+      "next_turn_left": "Look left",
+      "next_turn_right": "Look right",
+      "welcome": "Welcome {{name}}",
+      "steps_title": "Steps",
+      "step1": "Enter your RUT and press ‘Request registration’.",
+      "step2": "Allow camera access and select the correct device.",
+      "step3": "Perform the checks: blink, turn left and right.",
+      "step4": "Press ‘Validate’ to activate your account."
+    },
+    "panel": {
+      "blink": "Blink",
+      "left": "Left",
+      "right": "Right",
+      "tips_title": "Tips",
+      "tips": [
+        "Good frontal lighting, avoid backlight.",
+        "Bring your face closer to the camera until it is well framed.",
+        "Blink and turn your head left and right."
+      ]
+    }
+  },
+  "profiles": {
+    "label": "Employee profiles",
+    "category": "Employees",
+    "description": "View and manage your employee profiles."
   }
 }

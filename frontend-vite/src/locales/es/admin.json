@@ -389,5 +389,9 @@
       "saturday": "Sábado",
       "sunday": "Domingo"
     }
+  },
+  "tools": {
+    "category": "Herramientas",
+    "description": "Herramientas para la gestión de la empresa, automatización de procesos, intercambio y más."
   }
 }
