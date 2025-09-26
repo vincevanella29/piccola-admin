@@ -49,7 +49,7 @@ services:
       - REDIS_PORT=6379
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_QUEUE=${REDIS_QUEUE:-blockchain_events}
-      # Piccola Italia Specific
+      # Piccola Italia admin Specific
       - PRIVATE_KEY_WALLET=${PRIVATE_KEY_WALLET}
       - TOKEN_CONTRACT_ADDRESS=${TOKEN_CONTRACT_ADDRESS}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
@@ -89,7 +89,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: vanellix-worker
-    command: python utils/event_worker.py
+    command: python utils/emqueuer.py
     working_dir: /backend
     env_file:
       - ./backend/.env

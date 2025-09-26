@@ -1,0 +1,28 @@
+{
+    "tab_landing": "Bienvenida",
+    "tab_ficha": "Mi Ficha",
+    "tab_register": "Vincular Ficha",
+  
+    "welcome_title": "Bienvenido a la DAO de La Piccola Italia",
+    "welcome_subtitle": "Este es el hub de analítica y meritocracia del conglomerado. Mide tu desempeño, gana méritos on-chain y construye tu reputación profesional.",
+  
+    "connect_title": "Comienza tu viaje",
+    "connect_desc": "Conecta tu wallet para acceder a paneles, rankings, sueldos, asistencia y tu perfil de méritos.",
+    "cta_connect": "Conectar Wallet",
+  
+    "feature_titles": {
+      "merits": "Méritos on-chain",
+      "rankings": "Rankings & KPIs",
+      "payroll": "Sueldos y Asistencia",
+      "privacy": "Tu identidad"
+    },
+    "feature_list": {
+      "merits": "Mide y certifica tus méritos en la blockchain.",
+      "rankings": "Rankings de empresa y local, KPIs y comparativas.",
+      "payroll": "Acceso seguro a sueldos y asistencia.",
+      "privacy": "Tus llaves, tu identidad. Tú tienes el control."
+    },
+  
+    "disclaimer": "Al conectar una wallet aceptas las políticas internas y términos del sistema."
+  }
+  

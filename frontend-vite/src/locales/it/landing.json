@@ -1,0 +1,27 @@
+{
+  "tab_landing": "Benvenuto",
+  "tab_ficha": "Il Mio Profilo",
+  "tab_register": "Collega Profilo",
+
+  "welcome_title": "Benvenuto nella DAO di La Piccola Italia",
+  "welcome_subtitle": "È il centro di analisi e meritocrazia del gruppo. Monitora le tue prestazioni, ottieni meriti on-chain e costruisci la tua reputazione professionale.",
+
+  "connect_title": "Inizia il tuo percorso",
+  "connect_desc": "Collega il tuo wallet per accedere a dashboard, classifiche, buste paga, presenze e al tuo profilo dei meriti.",
+  "cta_connect": "Collega Wallet",
+
+  "feature_titles": {
+    "merits": "Meriti on-chain",
+    "rankings": "Classifiche & KPI",
+    "payroll": "Buste Paga e Presenze",
+    "privacy": "La tua identità"
+  },
+  "feature_list": {
+    "merits": "Misura e certifica i tuoi meriti sulla blockchain.",
+    "rankings": "Classifiche aziendali e del punto vendita, KPI e confronti.",
+    "payroll": "Accesso sicuro a buste paga e presenze.",
+    "privacy": "Le tue chiavi, la tua identità. Il controllo è tuo."
+  },
+
+  "disclaimer": "Collegando un wallet accetti le politiche interne e i termini."
+}
