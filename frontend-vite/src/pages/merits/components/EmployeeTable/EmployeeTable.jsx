@@ -32,6 +32,7 @@ export default function EmployeeTable({
   onSelectEmployee,
   loading,
   compareLabel, // opcional
+  allowedLocalOptions, // opcional: override de opciones de locales
 }) {
   // Estado general
   const [activeTab, setActiveTab] = useState('venta_total'); // KPI_TABS.key | 'merits'
@@ -68,8 +69,11 @@ export default function EmployeeTable({
   const isMerits = activeTab === 'merits';
   const activeKpi = KPI_TABS.find(t => t.key === activeTab) || KPI_TABS[0];
 
-  // Locales para selector
-  const localOptions = useMemo(() => ['Todos', ...getUniqueLocals(filteredByComp)], [filteredByComp]);
+  // Locales para selector (override si viene desde props)
+  const localOptions = useMemo(
+    () => (allowedLocalOptions?.length ? allowedLocalOptions : ['Todos', ...getUniqueLocals(filteredByComp)]),
+    [allowedLocalOptions, filteredByComp]
+  );
 
   // Filtrar por local + texto
   const textMatch = (e, q) => {

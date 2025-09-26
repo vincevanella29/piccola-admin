@@ -1,49 +1,69 @@
 // src/utils/adminRankings.js
 import api from './api.jsx';
 
+const buildAuthHeaders = (appState) => {
+  const token = appState?.token;
+  const wallet = appState?.account;
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (wallet) headers['X-Wallet-Address'] = wallet;
+  return headers;
+};
+
+const toParams = (obj) => {
+  const p = new URLSearchParams();
+  Object.entries(obj || {}).forEach(([k, v]) => {
+    if (v === null || v === undefined || v === '') return;
+    p.append(k, String(v));
+  });
+  return p;
+};
+
 /**
- * Fetches employee rankings from the backend.
- * @param {object} params - The query parameters.
- * @param {string} params.periodo_start - Start period in YYYY-MM format.
- * @param {string} params.periodo_end - End period in YYYY-MM format.
- * @param {string|null} params.compare_to - Comparison period ('previous_period' or 'previous_year').
- * @param {string|null} params.sort_by - Metric to sort by.
- * @param {string|null} params.sucursal - Filter by branch.
- * @param {string|null} params.cargo - Filter by role.
- * @param {string} params.walletAddress - The user's wallet address for authentication.
- * @param {string} params.token - The session token.
- * @param {number} params.skip - Number of items to skip for pagination.
- * @param {number|null} params.limit - Number of items per page.
- * @returns {Promise<object>} The API response with ranking data.
+ * Fetches employee rankings from the backend (auth desde appState).
+ * @param {object} appState - Global app state con token y account.
+ * @param {object} params
+ * @param {string} params.periodo_start - YYYY-MM
+ * @param {string} params.periodo_end   - YYYY-MM
+ * @param {'previous_period'|'previous_year'|null} [params.compare_to]
+ * @param {'total_venta'|'promedio_mesa'|'total_mesas'|'personas_atendidas'|'promedio_por_persona'|'promedio_venta_diaria'} [params.sort_by]
+ * @param {string|null} [params.sucursal]
+ * @param {string|null} [params.cargo]
+ * @param {number} [params.skip=0]
+ * @param {number} [params.limit=50]
  */
-export async function getRankings({
-  periodo_start,
-  periodo_end,
-  compare_to = null,
-  sort_by = 'total_venta',
-  sucursal = null,
-  cargo = null,
-  walletAddress,
-  token,
-  skip = 0,
-  limit = 50,
-}) {
-  if (!periodo_start || !periodo_end) throw new Error('Start and end periods are required');
-  
-  const params = new URLSearchParams({ periodo_start, periodo_end, sort_by, skip, limit });
-  
-  if (compare_to) params.append('compare_to', compare_to);
-  if (sucursal) params.append('sucursal', sucursal);
-  if (cargo) params.append('cargo', cargo);
+export async function getRankings(
+  appState,
+  {
+    periodo_start,
+    periodo_end,
+    compare_to = null,
+    sort_by = 'total_venta',
+    sucursal = null,
+    cargo = null,
+    skip = 0,
+    limit = 50,
+  } = {}
+) {
+  if (!periodo_start || !periodo_end) {
+    throw new Error('Start and end periods are required');
+  }
+
+  const params = toParams({
+    periodo_start,
+    periodo_end,
+    sort_by,
+    skip,
+    limit,
+    compare_to,
+    sucursal,
+    cargo,
+  });
 
   return api({
     method: 'GET',
-    // --- CORRECTION: Endpoint updated to match the backend router ---
     endpoint: `/admin/rankings/empleados?${params.toString()}`,
     withCredentials: true,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
-    },
+    headers: buildAuthHeaders(appState),
   });
 }

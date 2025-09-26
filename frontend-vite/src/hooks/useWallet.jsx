@@ -34,6 +34,8 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
 
   const [account, setAccount] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [permission, setPermission] = useState(null);
+  const [allowed, setAllowed] = useState(false);
   const [roleLevel, setRoleLevel] = useState(-1);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -142,7 +144,10 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           permissions_granted: permissionsGranted,
         });
         const res = await appData.fetchUserRole({ accessToken, walletAddress: newAddress.toLowerCase() });
+        console.log("res", res);
         setProfile(res.profile);
+        setPermission(res.permissions);
+        setAllowed(res.allowed);
         setRoleLevel(res.role_level ?? -1);
       }
 
@@ -249,8 +254,10 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           permissions_granted: permissionsGranted
         });
         const res = await appData.fetchUserRole({ accessToken, walletAddress: walletAddress.toLowerCase() });
+        console.log("res", res);
         setProfile(res.profile);
-
+        setPermission(res.permissions);
+        setAllowed(res.allowed);
         pendingWalletRef.current = walletAddress.toLowerCase();
         setRoleLevel(res.role_level ?? -1);
         setAccount(walletAddress.toLowerCase());
@@ -340,8 +347,10 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           permissions_granted: permissionsGranted
         });
         const res = await appData.fetchUserRole({ accessToken, walletAddress: walletAddress.toLowerCase() });
+        console.log("res", res);
         setProfile(res.profile);
-
+        setPermission(res.permissions);
+        setAllowed(res.allowed);
         pendingWalletRef.current = walletAddress.toLowerCase();
         setRoleLevel(res.role_level ?? -1);
         setAccount(walletAddress.toLowerCase());
@@ -539,6 +548,8 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
   return {
     account,
     profile,
+    permission,
+    allowed,
     setProfile,
     connectWallet,
     disconnectWallet,

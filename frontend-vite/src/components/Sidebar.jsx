@@ -227,7 +227,7 @@ const Sidebar = memo(({ isSidebarOpen, toggleSidebar, isAuthenticated, appState,
           position: 'fixed',
           top: 64,
           left: 0,
-          bottom: 'var(--app-footer-h,40px)',
+          bottom: 'var(--app-footer-h,64px)',
           width: (isHovered || isSidebarOpen) ? 264 : 64,
           overflow: 'visible', // necesario para los tooltips
           zIndex: 60,

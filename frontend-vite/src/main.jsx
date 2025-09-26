@@ -81,6 +81,8 @@ const MainContent = () => {
   const {
     account,
     profile,
+    permission,
+    allowed,
     setProfile,
     connectWallet,
     disconnectWallet,
@@ -183,6 +185,8 @@ const MainContent = () => {
     error: appDataError, // NUEVO
     account,
     profile,
+    permission,
+    allowed,
     setProfile,
     setSuccess: globalStatus.setSuccess,
     setError: globalStatus.setError,

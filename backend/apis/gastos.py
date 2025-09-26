@@ -1,14 +1,26 @@
+# backend/api/gastos.py
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from utils.auth.session import verify_session
 from utils.web3mongo import db
-from config.roles.service import verify_admin
+
+# utils de permisos/mapeos
+from config.roles.access_gastos import (
+    get_perms_from_user,
+    parse_date_yyyymmdd,
+    validate_include_sucursales_or_403,
+    allowed_sucursales_filter,
+    siglas_for_sucursal_ids,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+COL_GASTOS = db.gastos_intranet
+
 
 # ---------------------------
 # 1) FECHAS DISPONIBLES
@@ -17,6 +29,7 @@ logger = logging.getLogger(__name__)
 async def get_gastos_available_dates():
     """
     Retorna min/max usando $toDate sobre 'fecha_pago' (robusto a string o Date).
+    (No requiere sesión; info no sensible)
     """
     base = [
         {"$addFields": {
@@ -31,8 +44,8 @@ async def get_gastos_available_dates():
         {"$project": {"fecha_norm": 1, "_id": 0}},
     ]
 
-    min_doc = next(db.gastos_intranet.aggregate(base + [{"$sort": {"fecha_norm": 1}}, {"$limit": 1}]), None)
-    max_doc = next(db.gastos_intranet.aggregate(base + [{"$sort": {"fecha_norm": -1}}, {"$limit": 1}]), None)
+    min_doc = next(COL_GASTOS.aggregate(base + [{"$sort": {"fecha_norm": 1}}, {"$limit": 1}]), None)
+    max_doc = next(COL_GASTOS.aggregate(base + [{"$sort": {"fecha_norm": -1}}, {"$limit": 1}]), None)
 
     def to_iso(d):
         return d.isoformat() if isinstance(d, datetime) else d
@@ -42,10 +55,11 @@ async def get_gastos_available_dates():
         "max_date": to_iso(max_doc["fecha_norm"]) if max_doc else None,
     }
 
+
 # ---------------------------
-# 2) LISTADO CRUD0
+# 2) LISTADO CRUDO (con permisos)
 # ---------------------------
-@router.get("/gastos", summary="Listado crudo de gastos (nivel 3 o 4)")
+@router.get("/gastos", summary="Listado crudo de gastos (filtrado por permisos)")
 async def get_gastos(
     start_date: str = Query(..., description="YYYY-MM-DD"),
     end_date: str   = Query(..., description="YYYY-MM-DD"),
@@ -54,19 +68,20 @@ async def get_gastos(
     user: dict = Depends(verify_session),
 ):
     """
-    Devuelve gastos crudos dentro del rango [start_date, end_date] (por día, inclusivo).
-    Sin lógica adicional. 'fecha_pago' normalizada a 'YYYY-MM-DD'. _id como string.
+    Devuelve gastos crudos dentro del rango [start_date, end_date] (inclusive),
+    aplicando permisos de la sesión. Se restringe por id_sucursal/sigla según
+    lo permitido al usuario.
     """
-    if not verify_admin(user.get("wallet")):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver gastos")
+    perms = get_perms_from_user(user)
+    start = parse_date_yyyymmdd(start_date)
+    end   = parse_date_yyyymmdd(end_date) + timedelta(days=1)  # exclusivo
 
-    try:
-        start = datetime.strptime(start_date, "%Y-%m-%d")
-        end   = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # exclusivo
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Fechas deben ser en formato YYYY-MM-DD")
+    # Filtro por sucursales permitidas
+    allowed_ids = allowed_sucursales_filter(perms)
+    if allowed_ids is not None and not allowed_ids:
+        return {"count": 0, "gastos": []}
 
-    pipeline = [
+    pipeline: List[Dict[str, Any]] = [
         {"$addFields": {
             "fecha_norm": {
                 "$cond": [
@@ -77,6 +92,27 @@ async def get_gastos(
             }
         }},
         {"$match": {"fecha_norm": {"$gte": start, "$lt": end}}},
+    ]
+
+    # Match por permisos:
+    # Preferimos filtrar por id_sucursal; si no hay global acceso, también
+    # agregamos filtro por SIGLA (por si hay docs sin id_sucursal).
+    if allowed_ids is not None:
+        pipeline.append({"$match": {"id_sucursal": {"$in": list(allowed_ids)}}})
+        # Filtro extra por sigla para cubrir docs que no tengan id_sucursal
+        allowed_siglas = siglas_for_sucursal_ids(list(allowed_ids))
+        if allowed_siglas:
+            pipeline.append({
+                "$addFields": {"_sigla_up": {"$toUpper": {"$ifNull": ["$sigla", ""]}}}
+            })
+            pipeline.append({
+                "$match": {"$or": [
+                    {"id_sucursal": {"$in": list(allowed_ids)}},
+                    {"_sigla_up": {"$in": list(allowed_siglas)}},
+                ]}
+            })
+
+    pipeline += [
         {"$addFields": {
             "_id": {"$toString": "$_id"},
             "fecha_pago": {"$dateToString": {"format": "%Y-%m-%d", "date": "$fecha_norm"}}
@@ -87,14 +123,14 @@ async def get_gastos(
         {"$limit": limit if limit is not None else 100000},
     ]
 
-    rows = list(db.gastos_intranet.aggregate(pipeline))
+    rows = list(COL_GASTOS.aggregate(pipeline))
     return {"count": len(rows), "gastos": rows}
 
-# ---------------------------
-# 3) SUMMARY (por resumen2/resumen/tipo_gasto)
-# ---------------------------
 
-@router.get("/gastos/summary", summary="Resumen anidado (nivel 3 o 4)")
+# ---------------------------
+# 3) SUMMARY (por resumen2/resumen/tipo_gasto) con permisos
+# ---------------------------
+@router.get("/gastos/summary", summary="Resumen anidado (filtrado por permisos)")
 async def get_gastos_summary(
     start_date: str = Query(..., description="YYYY-MM-DD"),
     end_date: str   = Query(..., description="YYYY-MM-DD"),
@@ -103,19 +139,18 @@ async def get_gastos_summary(
     user: dict = Depends(verify_session),
 ):
     """
-    Resume por resumen2 -> resumen -> tipo_gasto, con 'details' normalizados
-    (fecha_pago 'YYYY-MM-DD', _id string). Sin lógica extra.
+    Resume por resumen2 -> resumen -> tipo_gasto, con 'details' normalizados,
+    aplicando permisos de sucursales.
     """
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver gastos")
+    perms = get_perms_from_user(user)
+    start = parse_date_yyyymmdd(start_date)
+    end   = parse_date_yyyymmdd(end_date) + timedelta(days=1)  # exclusivo
 
-    try:
-        start = datetime.strptime(start_date, "%Y-%m-%d")
-        end   = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # exclusivo
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Fechas deben ser en formato YYYY-MM-DD")
+    allowed_ids = allowed_sucursales_filter(perms)
+    if allowed_ids is not None and not allowed_ids:
+        return {'count': 0, 'gastos': []}
 
-    pipeline = [
+    pipeline: List[Dict[str, Any]] = [
         {"$addFields": {
             "fecha_norm": {
                 "$cond": [
@@ -126,6 +161,21 @@ async def get_gastos_summary(
             }
         }},
         {"$match": {"fecha_norm": {"$gte": start, "$lt": end}}},
+    ]
+
+    if allowed_ids is not None:
+        pipeline.append({"$match": {"id_sucursal": {"$in": list(allowed_ids)}}})
+        allowed_siglas = siglas_for_sucursal_ids(list(allowed_ids))
+        if allowed_siglas:
+            pipeline += [
+                {"$addFields": {"_sigla_up": {"$toUpper": {"$ifNull": ["$sigla", ""]}}}},
+                {"$match": {"$or": [
+                    {"id_sucursal": {"$in": list(allowed_ids)}},
+                    {"_sigla_up": {"$in": list(allowed_siglas)}},
+                ]}},
+            ]
+
+    pipeline += [
         {
             "$group": {
                 "_id": {"resumen2": "$resumen2", "resumen": "$resumen", "tipo_gasto": "$tipo_gasto"},
@@ -209,18 +259,18 @@ async def get_gastos_summary(
         {"$limit": limit if limit is not None else 100000},
     ]
 
-    result = list(db.gastos_intranet.aggregate(pipeline))
-    # Fill missing dates in nested details arrays
+    result = list(COL_GASTOS.aggregate(pipeline))
+
+    # Relleno de días faltantes en los arrays anidados
+    date_end_inclusive = end - timedelta(days=1)
     for resumen2 in result:
         for resumen in resumen2.get('resumen_data', []):
             for tipo_gasto in resumen.get('tipo_gasto_data', []):
-                # Build a mapping of fecha_pago to detail
                 details = tipo_gasto.get('details', [])
                 details_by_date = {d['fecha_pago']: d for d in details}
                 date_cursor = start
-                date_end = end - timedelta(days=1)
-                filled_details = []
-                while date_cursor <= date_end:
+                filled_details: List[Dict[str, Any]] = []
+                while date_cursor <= date_end_inclusive:
                     fecha_str = date_cursor.strftime('%Y-%m-%d')
                     if fecha_str in details_by_date:
                         filled_details.append(details_by_date[fecha_str])
@@ -230,17 +280,17 @@ async def get_gastos_summary(
                             'fecha_pago': fecha_str,
                             'cargo': 0,
                             'abono': 0,
-                            # add any other expected fields with sensible defaults
                         })
                     date_cursor += timedelta(days=1)
                 tipo_gasto['details'] = filled_details
+
     return {'count': len(result), 'gastos': result}
 
-# ---------------------------
-# 4) TOTALES POR CUENTA (rápido para widgets)
-# ---------------------------
 
-@router.get("/gastos/totals", summary="Totales por cuenta (agrupado por día) - rápido para widgets")
+# ---------------------------
+# 4) TOTALES POR CUENTA (rápido para widgets) con permisos
+# ---------------------------
+@router.get("/gastos/totals", summary="Totales por cuenta (agrupado por día) - con permisos")
 async def get_gastos_totals(
     start_date: str = Query(..., description="YYYY-MM-DD"),
     end_date: str   = Query(..., description="YYYY-MM-DD"),
@@ -256,46 +306,28 @@ async def get_gastos_totals(
     user: dict = Depends(verify_session),
 ):
     """
-    Agrega por 'by' (default 'resumen2') y por día. Devuelve:
-    [
-      {
-        resumen2|resumen|tipo_gasto|cuenta: "<grupo>",
-        total_cargo, total_abono, count,
-        details: [{ fecha: 'YYYY-MM-DD', total_cargo, total_abono, count }, ...]  # si include_daily
-      },
-      ...
-    ]
+    Agrega por 'by' (default 'resumen2') y por día. Aplica permisos de sucursales.
+    Si se especifican filtros de sucursales (ids/siglas), se validan contra permisos.
+    Si no, se restringe automáticamente a las sucursales permitidas por la sesión.
     """
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver gastos")
-
-    try:
-        start = datetime.strptime(start_date, "%Y-%m-%d")
-        end   = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # exclusivo
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Fechas deben ser en formato YYYY-MM-DD")
+    perms = get_perms_from_user(user)
+    start = parse_date_yyyymmdd(start_date)
+    end   = parse_date_yyyymmdd(end_date) + timedelta(days=1)  # exclusivo
 
     # Parsear filtros por cuenta/resumen2/sucursal
-    excl_list = []
-    if exclude_cuentas:
-        excl_list = [s.strip() for s in exclude_cuentas.split(",") if s.strip()]
-    include_res2_list = []
-    if include_resumen2:
-        include_res2_list = [s.strip() for s in include_resumen2.split(",") if s.strip()]
-    exclude_res2_list = []
-    if exclude_resumen2:
-        exclude_res2_list = [s.strip() for s in exclude_resumen2.split(",") if s.strip()]
-    include_suc_ids = []
-    if include_sucursales_ids:
-        include_suc_ids = [int(s.strip()) for s in include_sucursales_ids.split(",") if s.strip()]
-    include_siglas_list = []
-    if include_siglas:
-        include_siglas_list = [s.strip().upper() for s in include_siglas.split(",") if s.strip()]
+    excl_list = [s.strip() for s in (exclude_cuentas or "").split(",") if s.strip()]
+    include_res2_list = [s.strip() for s in (include_resumen2 or "").split(",") if s.strip()]
+    exclude_res2_list = [s.strip() for s in (exclude_resumen2 or "").split(",") if s.strip()]
 
-    # Campos a proyectar
+    include_suc_ids = [int(s.strip()) for s in (include_sucursales_ids or "").split(",") if s.strip()]
+    include_siglas_list = [s.strip().upper() for s in (include_siglas or "").split(",") if s.strip()]
+
+    # Validar filtros explícitos de sucursales
+    validate_include_sucursales_or_403(perms, include_suc_ids, include_siglas_list)
+
     group_field = f"${by}"
 
-    pipeline = [
+    pipeline: List[Dict[str, Any]] = [
         {"$addFields": {
             "fecha_norm": {
                 "$cond": [
@@ -308,29 +340,41 @@ async def get_gastos_totals(
         {"$match": {"fecha_norm": {"$gte": start, "$lt": end}}},
     ]
 
-    # Filtro por resumen2 (inclusión primero, luego exclusión)
+    # Filtro por resumen2 (incluye/excluye)
     if include_res2_list:
-        pipeline += [
-            {"$match": {"resumen2": {"$in": include_res2_list}}},
-        ]
+        pipeline.append({"$match": {"resumen2": {"$in": include_res2_list}}})
     if exclude_res2_list:
-        pipeline += [
-            {"$match": {"resumen2": {"$nin": exclude_res2_list}}},
-        ]
+        pipeline.append({"$match": {"resumen2": {"$nin": exclude_res2_list}}})
 
-    # Filtro por sucursales: por id_sucursal o por sigla (en mayúsculas)
+    # Filtro por sucursales (explícitos o por permisos)
     if include_suc_ids:
-        pipeline += [
-            {"$match": {"id_sucursal": {"$in": include_suc_ids}}},
-        ]
+        pipeline.append({"$match": {"id_sucursal": {"$in": include_suc_ids}}})
+
     if include_siglas_list:
         pipeline += [
             {"$addFields": {"_sigla_up": {"$toUpper": {"$ifNull": ["$sigla", ""]}}}},
             {"$match": {"_sigla_up": {"$in": include_siglas_list}}},
         ]
 
+    if not include_suc_ids and not include_siglas_list:
+        allowed_ids = allowed_sucursales_filter(perms)
+        if allowed_ids is not None:
+            if not allowed_ids:
+                return {"count": 0, "gastos": []}
+            pipeline.append({"$match": {"id_sucursal": {"$in": list(allowed_ids)}}})
+            # cubrir docs sin id_sucursal usando SIGLA
+            allowed_siglas = siglas_for_sucursal_ids(list(allowed_ids))
+            if allowed_siglas:
+                pipeline += [
+                    {"$addFields": {"_sigla_up": {"$toUpper": {"$ifNull": ["$sigla", ""]}}}},
+                    {"$match": {"$or": [
+                        {"id_sucursal": {"$in": list(allowed_ids)}},
+                        {"_sigla_up": {"$in": list(allowed_siglas)}},
+                    ]}},
+                ]
+
+    # Excluir cuentas (normalizando a string)
     if excl_list:
-        # normalizamos 'cuenta' a string antes de filtrar
         pipeline += [
             {"$addFields": {"cuenta_str": {"$toString": "$cuenta"}}},
             {"$match": {"cuenta_str": {"$nin": excl_list}}},
@@ -376,17 +420,17 @@ async def get_gastos_totals(
         {"$limit": limit if limit is not None else 100000},
     ]
 
-    result = list(db.gastos_intranet.aggregate(pipeline))
+    result = list(COL_GASTOS.aggregate(pipeline))
 
-    # Ordenar y rellenar 'details' por fecha en Python (simple y seguro)
+    # Relleno de 'details' por fecha (si include_daily = True)
     if include_daily:
+        date_end_inclusive = end - timedelta(days=1)
         for g in result:
             details = g.get("details", [])
             details_by_date = {d['fecha']: d for d in details}
+            filled_details: List[Dict[str, Any]] = []
             date_cursor = start
-            date_end = end - timedelta(days=1)
-            filled_details = []
-            while date_cursor <= date_end:
+            while date_cursor <= date_end_inclusive:
                 fecha_str = date_cursor.strftime('%Y-%m-%d')
                 if fecha_str in details_by_date:
                     filled_details.append(details_by_date[fecha_str])
@@ -396,7 +440,6 @@ async def get_gastos_totals(
                         'total_cargo': 0,
                         'total_abono': 0,
                         'count': 0,
-                        # add any other expected fields with sensible defaults
                     })
                 date_cursor += timedelta(days=1)
             g["details"] = filled_details

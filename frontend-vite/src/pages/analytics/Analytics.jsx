@@ -1,5 +1,5 @@
 // src/pages/analytics/Analytics.jsx
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Tabs, Tab } from '@mui/material';
 import dayjs from 'dayjs';
@@ -7,7 +7,6 @@ import minMax from 'dayjs/plugin/minMax';
 dayjs.extend(minMax);
 
 import useAnalyticsCache from '../../hooks/useAnalyticsCache';
-import { useEmpresaAdmin } from '../../hooks/useEmpresaAdmin.jsx';
 import AnalyticsView from './components/AnalyticsView';
 import ProjectionTab from './components/ProjectionTab';
 import ValuationTab from './components/ValuationTab';
@@ -60,15 +59,15 @@ function computeComparison(dateRange, minDate, maxDate, { comparisonType, compar
 }
 
 const Analytics = ({ appState }) => {
-  // ...
   const [applyNonce, setApplyNonce] = useState(0);
   const { t } = useTranslation();
-  const empresaAdmin = useEmpresaAdmin(appState, t);
+
   // empresa selection state must be defined before using as cache key
   const [selectedEmpresaId, setSelectedEmpresaId] = useState(null);
   const [selectedEmpresa, setSelectedEmpresa] = useState(null);
   // selección de sucursales (ids)
   const [selectedSucursalIds, setSelectedSucursalIds] = useState([]);
+
   const {
     loadAvailableVentasDates,
     loadAvailableGastosDates,
@@ -83,8 +82,13 @@ const Analytics = ({ appState }) => {
   const [quickRange, setQuickRange] = useState('CUSTOM');
   const [tab, setTab] = useState(0); // 0 Análisis, 1 Proyección, 2 Valorización
 
-  // empresas
-  const [empresas, setEmpresas] = useState([]);
+  // empresas: leer directamente desde appState.allowed.empresas
+  const [empresas, setEmpresas] = useState(() =>
+    Array.isArray(appState?.allowed?.empresas) ? appState.allowed.empresas : []
+  );
+  useEffect(() => {
+    setEmpresas(Array.isArray(appState?.allowed?.empresas) ? appState.allowed.empresas : []);
+  }, [appState?.allowed?.empresas]);
 
   const [pendingDateRange, setPendingDateRange] = useState({ start: null, end: null });
   const [dateRange, setDateRange] = useState({ start: null, end: null });
@@ -122,44 +126,18 @@ const Analytics = ({ appState }) => {
     })();
   }, [loadAvailableVentasDates, loadAvailableGastosDates]);
 
-  // load empresas list on mount (prime cache with full configs)
-  const primedRef = useRef(false);
-  useEffect(() => {
-    if (primedRef.current) return;
-    primedRef.current = true;
-    (async () => {
-      if (empresas.length > 0) return;
-      try {
-        const { items } = await empresaAdmin.primeEmpresas({ page: 1, limit: 200 });
-        setEmpresas(items || []);
-      } catch (e) {
-        // ignore; ControlsBar can show empty list
-      }
-    })();
-  }, []);
-
-  // when selecting empresa, set from cache; if cache lacks details, refetch once. Do NOT auto-apply
+  // when selecting empresa, set from allowed; Do NOT auto-apply
   const handleEmpresaSelect = useCallback((empresaId) => {
     console.debug('[Analytics.handleEmpresaSelect] empresaId', empresaId);
     setSelectedEmpresaId(empresaId || null);
+    setSelectedSucursalIds([]); // reset selección al cambiar empresa
     if (!empresaId) {
       setSelectedEmpresa(null);
-      setSelectedSucursalIds([]); // reset sucursales cuando se elige "Todas"
       return;
     }
-    const cached = empresaAdmin.getEmpresaFromCache?.(empresaId);
-    setSelectedEmpresa(cached || null);
-    setSelectedSucursalIds([]); // reset selección al cambiar empresa
-    const needsRefetch = !cached || !Array.isArray(cached.sucursales) || cached.sucursales.length === 0 ||
-      !Array.isArray(cached.cuentas_exclude) || !Array.isArray(cached.resumen2_exclude);
-    if (needsRefetch && typeof empresaAdmin.refetchEmpresa === 'function') {
-      empresaAdmin.refetchEmpresa({ empresaId }).then((full) => {
-        if (String(empresaId) === String(full?._id)) {
-          setSelectedEmpresa(full || cached || null);
-        }
-      }).catch(() => {/* silent */});
-    }
-  }, [empresaAdmin, clearCaches]);
+    const chosen = (Array.isArray(empresas) ? empresas : []).find(e => String(e?._id) === String(empresaId)) || null;
+    setSelectedEmpresa(chosen);
+  }, [empresas]);
 
   // No limpiar data ni caches al cambiar empresa; sólo en Search (handleApply)
 
@@ -175,6 +153,7 @@ const Analytics = ({ appState }) => {
     },
     []
   );
+
   const handleApply = async () => {
     setAppliedConfig(pendingConfig);
     setDateRange(pendingDateRange);
@@ -204,20 +183,6 @@ const Analytics = ({ appState }) => {
         ? selectedEmpresa.resumen2_exclude.map((r) => String(r).toLowerCase())
         : [];
 
-      // ventas: si hay empresa pero no tiene sucursales/siglas, primero intentar enriquecer si faltan datos
-      // hasEmpresa definido arriba
-      // Enrich if needed before computing derived filters
-      if (hasEmpresa && (!Array.isArray(selectedEmpresa?.sucursales) || selectedEmpresa.sucursales.length === 0)) {
-        try {
-          console.debug('[Analytics.handleApply] Empresa sin sucursales en cache, refetching empresa...');
-          if (typeof empresaAdmin.refetchEmpresa === 'function') {
-            const full = await empresaAdmin.refetchEmpresa({ empresaId: selectedEmpresaId });
-            if (full && Array.isArray(full.sucursales)) {
-              sucursalesArr = full.sucursales;
-            }
-          }
-        } catch {}
-      }
       // Aplicar filtro por sucursales seleccionadas (si hay)
       if (Array.isArray(selectedSucursalIds) && selectedSucursalIds.length > 0) {
         const selSet = new Set(selectedSucursalIds.map((n) => Number(n)));
@@ -226,21 +191,24 @@ const Analytics = ({ appState }) => {
         );
       }
 
-      // Compute derived filters AFTER potential enrichment y filtrado por selección
+      // Compute derived filters AFTER filtrado por selección
       const sucursalIds = (Array.isArray(sucursalesArr) ? sucursalesArr : [])
         .map((s) => (typeof s?.id_sucursal === 'number' ? s.id_sucursal : null))
         .filter((v) => v != null);
-      // Para VENTAS: necesitamos slugs de local (ALMLOC, PRVLOC, ...)
-      const toLocalSlug = (s) => s?.mtz?.sigla_local || s?.location?.permalink_slug || (s?.sigla ? `${String(s.sigla).toUpperCase()}LOC` : null);
+
+      // Para VENTAS: slugs de local (preferimos lo que viene en allowed)
+      const toLocalSlug = (s) =>
+        s?.sigla_local || s?.location_slug || (s?.sigla ? `${String(s.sigla).toUpperCase()}LOC` : null);
+
       const ventaLocalSlugs = (Array.isArray(sucursalesArr) ? sucursalesArr : [])
         .map((s) => toLocalSlug(s))
         .map((x) => (x ? String(x) : null))
         .filter(Boolean);
-      // Para GASTOS: seguimos usando ids y siglas (endpoint soporta ambos)
+
+      // Para GASTOS: usamos ids y siglas (endpoint soporta ambos)
       const sucursalSiglas = (Array.isArray(sucursalesArr) ? sucursalesArr : [])
         .map((s) => (s?.sigla ? String(s.sigla) : null))
         .filter(Boolean);
-      const sucursalLabels = ventaLocalSlugs; // labels usados en ventas
 
       console.debug('[Analytics.handleApply] selectedEmpresaId', selectedEmpresaId, {
         ventaLocalSlugs,
@@ -252,7 +220,8 @@ const Analytics = ({ appState }) => {
         startStr,
         endStr,
       });
-      // Siempre llamar ventas; si no hay slugs, la API trae global y luego filtramos si aplica
+
+      // Siempre llamar ventas; si no hay slugs y no hay empresa, la API trae global
       console.debug('[Analytics.handleApply] calling loadVentasSummary', { labels: hasEmpresa ? ventaLocalSlugs : [], force: filtersChanged });
       const vCur = await loadVentasSummary(startStr, endStr, { labels: hasEmpresa ? ventaLocalSlugs : [], force: filtersChanged });
       setVentas(vCur?.widget || []);
@@ -300,6 +269,7 @@ const Analytics = ({ appState }) => {
           setGastoComparison({ previous: [], comparisonStart: null, comparisonEnd: null });
         }
       }
+
       // marcar “nueva búsqueda”
       setApplyNonce(n => n + 1);
       setLastAppliedEmpresaId(selectedEmpresaId ?? null);
@@ -351,7 +321,7 @@ const Analytics = ({ appState }) => {
           sucursalOptions={(Array.isArray(selectedEmpresa?.sucursales) ? selectedEmpresa.sucursales : []).map((s) => ({
             id: s?.id_sucursal,
             sigla: s?.sigla,
-            label: s?.mtz?.sucursal || s?.location?.nombre || s?.sigla || `Sucursal ${s?.id_sucursal}`,
+            label: s?.sigla_local || s?.location_slug || s?.sigla || `Sucursal ${s?.id_sucursal}`,
           }))}
           selectedSucursalIds={selectedSucursalIds}
           onSelectSucursales={setSelectedSucursalIds}
@@ -389,11 +359,11 @@ export const pageMetadata = {
   label: 'analytics.label',
   category: 'analytics.Análisis',
   minRoleLevel: 3,
-  maxRoleLevel: 5,
+  maxRoleLevel: 6,
   order: 1,
   locations: ['sidebar'],
   description: 'analytics.description',
   icon: 'FaChartBar',
-  isMainPage: true,
+  isMainPage: false,
   isSearchable: true,
 };

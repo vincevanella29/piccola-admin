@@ -1,19 +1,26 @@
 # routers/admin_rankings.py
 
 import logging
-import os  # <-- agregado para COMPANY_ID en zero profile
-from typing import Optional, List, Dict, Any
+import os
+from typing import Optional, List, Dict, Any, Set
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
 from utils.web3mongo import db
 from utils.auth.session import verify_session
 from config.gamification.service import user_profile_summary
-from config.roles.service import verify_subadmin
-
-# <-- agregado: caché de segmentos permitidos para zero profile
 from config.gamification.helpers import list_permitted_segments_for_company
+
+# Helpers de permisos / locales (config)
+from config.roles.access_locals import (
+    get_perms_from_user,
+    validate_include_local_or_403,
+    allowed_local_filter,
+    derive_allowed_siglas_from_slugs,
+    normalize_sucursal_to_sigla,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -34,7 +41,7 @@ SORT_FIELD_MAP = {
     "promedio_venta_diaria": "kpi.promedio_venta_diaria",
 }
 
-# ==================== NUEVO: cache y helper para merit_profile en 0 ====================
+# ==================== caché de segmentos permitidos para zero profile ====================
 
 _SEGMENTS_CACHE: Dict[str, Any] = {}
 
@@ -84,7 +91,6 @@ def _zero_merit_profile(wallet: Optional[str]) -> Dict[str, Any]:
 
 # =======================================================================================
 
-
 def _calculate_comparison_periods(start_str: str, end_str: str, compare_to: str) -> Optional[Dict[str, str]]:
     """Calcula el rango de fechas para el período de comparación."""
     start_date = datetime.strptime(start_str, "%Y-%m")
@@ -106,12 +112,33 @@ def _calculate_comparison_periods(start_str: str, end_str: str, compare_to: str)
 
 
 def _build_aggregation_pipeline(
-    periodo_start: str, periodo_end: str, sucursal: Optional[str] = None, cargo: Optional[str] = None
+    periodo_start: str,
+    periodo_end: str,
+    sucursal: Optional[str] = None,          # puede venir como SIGLA (MAI) o slug (MAILOC)
+    allowed_slugs: Optional[Set[str]] = None, # slugs permitidos por permisos (o None => full)
+    cargo: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Construye el pipeline de agregación base para un rango de períodos y filtros."""
+    """
+    Construye el pipeline de agregación base para un rango de períodos y filtros + permisos.
+    - Si 'sucursal' viene → se normaliza a SIGLA (MAI).
+    - Si NO viene 'sucursal' y allowed_slugs is not None → se restringe a las SIGLAS derivadas.
+    """
     match_kpis = {"periodo": {"$gte": periodo_start, "$lte": periodo_end}}
 
-    pipeline = [
+    # Normaliza a SIGLA
+    normalized_sigla = normalize_sucursal_to_sigla(sucursal) if sucursal else None
+    allowed_siglas = derive_allowed_siglas_from_slugs(allowed_slugs) if (not normalized_sigla and allowed_slugs is not None) else set()
+
+    after_lookup_filters: Dict[str, Any] = {}
+    if cargo:
+        after_lookup_filters["trabajador_info.cargo"] = cargo
+    if normalized_sigla:
+        after_lookup_filters["trabajador_info.sucursal"] = {"$in": [normalized_sigla]}
+    elif allowed_slugs is not None:
+        # Si allowed_slugs == set() el caller maneja vacío con early-return
+        after_lookup_filters["trabajador_info.sucursal"] = {"$in": sorted(list(allowed_siglas)) if allowed_siglas else ["__NONE__"]}
+
+    pipeline: List[Dict[str, Any]] = [
         {"$match": match_kpis},
         {"$lookup": {
             "from": "trabajadores_vpn",
@@ -128,15 +155,17 @@ def _build_aggregation_pipeline(
             "as": "trabajador_info"
         }},
         {"$unwind": {"path": "$trabajador_info", "preserveNullAndEmptyArrays": True}},
-        {"$match": {
-            **({"trabajador_info.sucursal": sucursal} if sucursal else {}),
-            **({"trabajador_info.cargo": cargo} if cargo else {}),
-        }},
+    ]
+
+    if after_lookup_filters:
+        pipeline.append({"$match": after_lookup_filters})
+
+    pipeline += [
         {"$group": {
             "_id": "$rut",
             "nombre": {"$first": "$trabajador_info.nombres"},
             "apellido": {"$first": "$trabajador_info.apellidopaterno"},
-            "local": {"$first": "$local"},
+            "local": {"$first": "$local"},  # En KPIs, 'local' es la SIGLA (ALM, MAI, ...)
             "cargo": {"$first": "$trabajador_info.cargo"},
             "profile_image_url": {"$first": "$trabajador_info.profile_image_url"},
             "profile_image_hash": {"$first": "$trabajador_info.profile_image_hash"},
@@ -167,25 +196,50 @@ def _build_aggregation_pipeline(
     return pipeline
 
 
-@router.get("/admin/rankings/empleados", summary="Ranking de empleados por KPIs de ventas con comparativas")
+@router.get("/admin/rankings/empleados", summary="Ranking de empleados por KPIs de ventas con comparativas (filtrado por permisos)")
 async def get_employee_rankings(
     periodo_start: str = Query(..., description="Período de inicio (YYYY-MM)"),
     periodo_end: str = Query(..., description="Período de fin (YYYY-MM)"),
     compare_to: Optional[str] = Query(None, enum=["previous_period", "previous_year"]),
     sort_by: str = Query("total_venta", enum=list(SORT_FIELD_MAP.keys())),
-    sucursal: Optional[str] = None,
+    sucursal: Optional[str] = None,   # slug o SIGLA
     cargo: Optional[str] = None,
     limit: int = Query(50, ge=1, le=100000),
     skip: int = 0,
-    user: dict = Depends(verify_session)
+    user: dict = Depends(verify_session),
 ):
-    if not verify_subadmin(user):
-        raise HTTPException(status_code=403, detail="Acceso denegado.")
+    # --- Permisos por sesión ---
+    perms = get_perms_from_user(user)
+
+    # Validar sucursal solicitada contra permisos
+    if sucursal:
+        validate_include_local_or_403(perms, [sucursal])
+
+    # Si no viene sucursal, restringir a los slugs permitidos
+    allowed_slugs = allowed_local_filter(perms)  # None => full access; set() => nada
+    if not sucursal and allowed_slugs is not None and len(allowed_slugs) == 0:
+        # Usuario sin acceso a ningún local → payload vacío y filtros devueltos
+        return {
+            "count": 0,
+            "total_count": 0,
+            "filters": {
+                "periodo_start": periodo_start, "periodo_end": periodo_end,
+                "compare_to": compare_to, "sort_by": sort_by,
+                "sucursal": sucursal, "cargo": cargo
+            },
+            "ranking": [],
+            "workers": []
+        }
 
     sort_field = SORT_FIELD_MAP[sort_by]
 
     # --- 1. Ranking actual ---
-    current_pipeline = _build_aggregation_pipeline(periodo_start, periodo_end, sucursal, cargo)
+    current_pipeline = _build_aggregation_pipeline(
+        periodo_start, periodo_end,
+        sucursal=sucursal,
+        allowed_slugs=allowed_slugs,
+        cargo=cargo
+    )
     current_pipeline += [
         {"$setWindowFields": {
             "partitionBy": "$local", "sortBy": {sort_field: -1}, "output": {"puesto_local": {"$rank": {}}}
@@ -199,10 +253,29 @@ async def get_employee_rankings(
 
     present_ruts = {str(item.get("rut")) for item in current_results}
 
-    # --- 2. Agregar trabajadores activos sin KPI ---
-    trabajadores_match = {"activo": 1}
-    if sucursal: trabajadores_match["sucursal"] = sucursal
-    if cargo: trabajadores_match["cargo"] = cargo
+    # --- 2. Agregar trabajadores activos sin KPI (respetando permisos) ---
+    normalized_sigla = normalize_sucursal_to_sigla(sucursal) if sucursal else None
+    allowed_siglas_for_workers = derive_allowed_siglas_from_slugs(allowed_slugs) if (not normalized_sigla and allowed_slugs is not None) else set()
+
+    trabajadores_match: Dict[str, Any] = {"activo": 1}
+    if normalized_sigla:
+        trabajadores_match["sucursal"] = normalized_sigla
+    elif allowed_slugs is not None:
+        if len(allowed_siglas_for_workers) == 0:
+            return {
+                "count": 0,
+                "total_count": 0,
+                "filters": {
+                    "periodo_start": periodo_start, "periodo_end": periodo_end,
+                    "compare_to": compare_to, "sort_by": sort_by,
+                    "sucursal": sucursal, "cargo": cargo
+                },
+                "ranking": [],
+                "workers": []
+            }
+        trabajadores_match["sucursal"] = {"$in": sorted(list(allowed_siglas_for_workers))}
+    if cargo:
+        trabajadores_match["cargo"] = cargo
 
     trabajadores = list(TRABAJADORES_COLL.find(trabajadores_match, {
         "rut": 1, "nombres": 1, "apellidopaterno": 1, "cargo": 1, "sucursal": 1,
@@ -234,7 +307,7 @@ async def get_employee_rankings(
     ruts_list = [str(it.get("rut")) for it in current_results if it.get("rut")]
 
     if ruts_list:
-        # Méritos actuales, históricos y totales en un solo pipeline facet
+        # Méritos (summary + history + totals)
         merits_pipeline = [
             {"$match": {"rut": {"$in": ruts_list}}},
             {"$facet": {
@@ -271,8 +344,9 @@ async def get_employee_rankings(
 
         merits_map = {row["_id"]: row for row in merits_data["summary"]}
         history_map = {row["_id"]: row["items"] for row in merits_data["history"]}
+        totals_map = {row["_id"]: row for row in merits_data["totals"]}
 
-        # Enriquecer historial con metadatos del token (name, symbol) como en merit_profile
+        # Enriquecer historial con metadatos del token (name, symbol)
         allowed_segments = _get_allowed_segments_cached()  # {token_id: {name, symbol}}
 
         def _enrich_items_with_segment(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -290,13 +364,11 @@ async def get_employee_rankings(
                         },
                     }
                 else:
-                    # Aseguramos campo segment explícito para front (null si no aplica)
                     itx = {**itx, "segment": None}
                 enriched.append(itx)
             return enriched
 
         history_map = {rut: _enrich_items_with_segment(items) for rut, items in history_map.items()}
-        totals_map = {row["_id"]: row for row in merits_data["totals"]}
 
         # Wallets
         ruts_int = [int(r) for r in ruts_list if r.isdigit()]
@@ -342,20 +414,22 @@ async def get_employee_rankings(
                 try:
                     it["merit_profile"] = user_profile_summary(wallet)
                 except Exception:
-                    # si falla la consulta, perfil 0 con nombres/símbolos
                     it["merit_profile"] = _zero_merit_profile(wallet)
             else:
-                # sin wallet → perfil 0 con segmentos permitidos
                 it["merit_profile"] = _zero_merit_profile(None)
 
             # Adjuntar snapshot del KPI más reciente del rango
             it["latest_kpi"] = latest_map.get(rut)
 
-    # --- 4. Comparación ---
+    # --- 4. Comparación (mismo filtro de permisos) ---
     if compare_to:
         comp_periods = _calculate_comparison_periods(periodo_start, periodo_end, compare_to)
         prev_results = list(KPI_EMPLEADO_COLL.aggregate(_build_aggregation_pipeline(
-            comp_periods["start"], comp_periods["end"], sucursal, cargo)))
+            comp_periods["start"], comp_periods["end"],
+            sucursal=sucursal,
+            allowed_slugs=allowed_slugs,
+            cargo=cargo
+        )))
         prev_map = {item["rut"]: item["kpi"] for item in prev_results}
 
         for it in current_results:
@@ -365,7 +439,6 @@ async def get_employee_rankings(
             it["variacion"] = {}
             if prev_kpi:
                 for key, current_val in it.get("kpi", {}).items():
-                    # Coalesce None to 0 for safe math
                     curr = float(current_val or 0)
                     prev = float((prev_kpi.get(key) if isinstance(prev_kpi, dict) else 0) or 0)
                     if prev > 0:

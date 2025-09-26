@@ -8,7 +8,7 @@ from bson import ObjectId
 
 from utils.auth.session import verify_session
 from utils.web3mongo import db
-from config.roles.service import verify_admin
+from config.roles.access import require_admin_level
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -59,12 +59,6 @@ class EmpresaUpdate(BaseModel):
     cuentas_include: Optional[List[int]] = None
     cuentas_exclude: Optional[List[int]] = None
 
-# --------- Helpers ---------
-
-def require_admin(user: Dict[str, Any]) -> None:
-    if not verify_admin(user):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden administrar empresas")
-
 
 def _now_iso() -> str:
     return datetime.utcnow().isoformat()
@@ -99,7 +93,7 @@ async def create_empresa(
     req: EmpresaCreate = Body(...),
     user: dict = Depends(verify_session),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     # Build cuentas include/exclude starting from explicit ids
     cuentas_include_set = set(req.cuentas_include or [])
@@ -195,7 +189,7 @@ async def assign_sucursales(
     req: EmpresaAssignSucursales,
     user: dict = Depends(verify_session),
 ):
-    require_admin(user)
+    require_admin_level_level(user)
 
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
@@ -233,7 +227,7 @@ async def unassign_sucursal(
     id_sucursal: int,
     user: dict = Depends(verify_session),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
@@ -255,7 +249,7 @@ async def include_cuentas(
     req: EmpresaUpdateCuentas,
     user: dict = Depends(verify_session),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
@@ -276,7 +270,7 @@ async def exclude_cuentas(
     req: EmpresaUpdateCuentas,
     user: dict = Depends(verify_session),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
@@ -297,7 +291,7 @@ async def include_cuentas_by_resumen2(
     req: EmpresaUpdateByResumen2,
     user: dict = Depends(verify_session),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
@@ -345,7 +339,7 @@ async def exclude_cuentas_by_resumen2(
     req: EmpresaUpdateByResumen2,
     user: dict = Depends(verify_session),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
@@ -388,7 +382,7 @@ async def exclude_cuentas_by_resumen2(
 
 @router.get("/empresas/{empresa_id}", summary="Obtener empresa")
 async def get_empresa(empresa_id: str, user: dict = Depends(verify_session)):
-    require_admin(user)
+    require_admin_level(user, "admin")
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
@@ -402,7 +396,7 @@ async def get_empresa_cuentas(
     user: dict = Depends(verify_session),
     only_ids: bool = Query(False, description="Si True, solo retorna lista de ids de cuenta"),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
@@ -456,7 +450,7 @@ async def update_empresa(
     req: EmpresaUpdate = Body(...),
     user: dict = Depends(verify_session),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     empresa = COL_EMPRESAS.find_one({"_id": _to_oid(empresa_id)})
     if not empresa:
@@ -565,7 +559,7 @@ async def list_cuentas_refs(
         skip, limit, q, resumen2, es_operacional, es_cuenta, user.get("wallet")
     )
 
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     filt: Dict[str, Any] = {}
     if q:
@@ -607,7 +601,7 @@ async def list_sucursales_refs(
     limit: Optional[int] = Query(200, ge=1, le=1000),
     q: Optional[str] = Query(None, description="Buscar por sigla o nombre de location"),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     filt: Dict[str, Any] = {}
     if q:
@@ -648,7 +642,7 @@ async def list_sucursales_refs_with_assignment(
     Variante que anota cada sucursal con si está asignada y a qué empresa, evitando
     conflictos de ruta con "/empresas/{empresa_id}".
     """
-    require_admin(user)
+    require_admin_level(user, "admin")
 
     filt: Dict[str, Any] = {}
     if q:
@@ -705,7 +699,7 @@ async def list_empresas(
     limit: Optional[int] = Query(50, ge=1, le=200),
     q: Optional[str] = Query(None, description="Buscar por nombre o slug"),
 ):
-    require_admin(user)
+    require_admin_level(user, "admin")
     filt: Dict[str, Any] = {}
     if q:
         filt = {

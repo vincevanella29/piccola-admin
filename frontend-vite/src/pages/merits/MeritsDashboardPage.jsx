@@ -80,15 +80,33 @@ const MeritsDashboardPage = ({ appState }) => {
 
   console.log("filteredAndSortedEmployees", filteredAndSortedEmployees);
 
-  // Opciones para los selectores de filtro (se calculan dinámicamente)
+  // Opciones para selectores: locales desde appState.allowed, cargos desde data
   const clientFilterOptions = useMemo(() => {
-    const locales = new Set(allEmployees.map(e => e.local).filter(Boolean));
+    // 1) Locales PERMITIDOS (siglas) desde appState
+    const allowedEmpresas = Array.isArray(appState?.allowed?.empresas)
+      ? appState.allowed.empresas
+      : [];
+    const allowedSiglas = new Set();
+    for (const e of allowedEmpresas) {
+      for (const s of (e?.sucursales ?? [])) {
+        if (s?.sigla) allowedSiglas.add(String(s.sigla));
+      }
+    }
+
+    // fallback si no hay allowed (dev)
+    if (allowedSiglas.size === 0) {
+      allEmployees.forEach(e => e?.local && allowedSiglas.add(String(e.local)));
+    }
+
+    // 2) Cargos desde data (client-side)
     const cargos = new Set(allEmployees.map(e => e.cargo).filter(Boolean));
+
     return {
-      locales: ['all', ...Array.from(locales).sort()],
+      // DashboardToolbar arma {value,label} más abajo, acá sólo entregamos valores
+      locales: ['all', ...Array.from(allowedSiglas).sort()],
       cargos: ['all', ...Array.from(cargos).sort()],
     };
-  }, [allEmployees]);
+  }, [appState?.allowed?.empresas, allEmployees]);
 
   const handleSort = (key) => {
     setSortConfig(prev => ({
@@ -134,6 +152,8 @@ const MeritsDashboardPage = ({ appState }) => {
         sortConfig={sortConfig}
         onSelectEmployee={setSelectedEmployee}
         loading={loading}
+        // override: locales permitidos (mismo set pero con 'Todos' para la tabla)
+        allowedLocalOptions={['Todos', ...clientFilterOptions.locales.filter(v => v !== 'all')]}
       />
 
       <AnimatePresence>
@@ -153,13 +173,13 @@ export default MeritsDashboardPage;
 
 // Metadata para el router
 export const pageMetadata = {
-  path: '/app/kpis',
+  path: '/app/venta-garzones',
   label: 'kpis.label',
   category: 'analytics.Análisis',
   minRoleLevel: 3,
-  maxRoleLevel: 5,
+  maxRoleLevel: 6,
   order: 2,
-  locations: ['sidebar', 'header', 'footer', 'walletMenu'],
+  locations: ['sidebar', 'header', 'footer'],
   description: 'kpis.description',
   icon: 'FaTrophy',
   isMainPage: false,

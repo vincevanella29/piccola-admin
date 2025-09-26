@@ -48,18 +48,19 @@ export default function useAdminRankings(appState) {
     
     try {
         // Pedimos TODO en 1 llamada y paginamos en el cliente
-        const response = await getRankings({
+        const response = await getRankings(
+          appState,
+          {
             periodo_start: currentFilters.periodo_start,
             periodo_end: currentFilters.periodo_end,
             compare_to: currentFilters.compare_to,
             sort_by: currentFilters.sort_by,
             sucursal: currentFilters.sucursal,
             cargo: currentFilters.cargo,
-            walletAddress: wallet,
-            token: token,
             skip: 0,
             limit: 100000, // gran límite para traer todo
-        });
+          }
+        );
         console.log(response);
 
         const rows = response.ranking || [];
@@ -76,7 +77,7 @@ export default function useAdminRankings(appState) {
     } finally {
         setLoading(false);
     }
-  }, [wallet, token, pagination.itemsPerPage, t]);
+  }, [appState, wallet, token, pagination.itemsPerPage, t]);
 
   // --- Efecto para recargar datos cuando cambian los filtros o la página ---
   // Se gatilla cuando el componente llama a applyFilters o goToPage
