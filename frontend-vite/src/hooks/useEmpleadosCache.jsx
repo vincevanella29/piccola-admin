@@ -50,8 +50,15 @@ export default function useEmpleadosCache(appState) {
   const [sueldosCount, setSueldosCount] = React.useState(0);
 
   // Build a stable cache key for list queries
-  const buildKey = ({ sucursal, cargo, q, skip = 0, limit = 100 }) =>
-    JSON.stringify({ sucursal: sucursal || '', cargo: cargo || '', q: q || '', skip: Number(skip)||0, limit: Number(limit)||100 });
+  const buildKey = ({ sucursal, cargo, seccion, q, skip = 0, limit = 100 }) =>
+    JSON.stringify({
+      sucursal: sucursal || '',
+      cargo: cargo || '',
+      seccion: seccion || '',
+      q: q || '',
+      skip: Number(skip) || 0,
+      limit: Number(limit) || 100,
+    });
 
   // Load activos with optional filters
   const loadTrabajadoresActivos = React.useCallback(async (opts = {}) => {
@@ -76,6 +83,7 @@ export default function useEmpleadosCache(appState) {
       const res = await getTrabajadoresActivos({
         sucursal: opts.sucursal || null,
         cargo: opts.cargo || null,
+        seccion: opts.seccion || null,
         q: opts.q || null,
         skip: opts.skip ?? 0,
         limit: opts.limit ?? 100,

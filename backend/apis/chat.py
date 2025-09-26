@@ -26,7 +26,7 @@ from utils.chat.schemas import (
 from utils.bot.engine import chat_complete
 
 # Reuse role level logic
-from config.roles.service import verify_admin
+from config.roles.access import require_admin_level
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -109,8 +109,7 @@ def _admin_guard(user: dict):
     wallet = user.get("wallet")
     if not wallet:
         raise HTTPException(status_code=403, detail="Admin endpoints require wallet session")
-    if not verify_admin(user):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    require_admin_level(user, "admin")
     return wallet.lower(), level
 
 

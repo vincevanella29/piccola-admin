@@ -5,7 +5,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from utils.auth.session import verify_session
-from config.roles.service import verify_admin
+from config.roles.access import require_admin_level
 from utils.web3mongo import db
 from firebase_admin import messaging
 
@@ -63,8 +63,7 @@ async def send_fcm_notification(title: str, body: str, target_type: str, target_
 # CRUD Colores
 @router.post("/colors", response_model=ColorResponse)
 async def create_color(data: ColorCreate, user: dict = Depends(verify_session)):
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden crear colores")
+    require_admin_level(user, "admin")
     color = {
         "id": str(uuid.uuid4()),
         "name": data.name,
@@ -103,8 +102,7 @@ async def get_colors():
 
 @router.put("/colors/{color_id}", response_model=ColorResponse)
 async def update_color(color_id: str, data: ColorCreate, user: dict = Depends(verify_session)):
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden actualizar colores")
+    require_admin_level(user, "admin")
     color = db.colors.find_one({"id": color_id})
     if not color:
         raise HTTPException(status_code=404, detail="Color not found")
@@ -131,8 +129,7 @@ async def update_color(color_id: str, data: ColorCreate, user: dict = Depends(ve
 
 @router.delete("/colors/{color_id}")
 async def delete_color(color_id: str, user: dict = Depends(verify_session)):
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden eliminar colores")
+    require_admin_level(user, "admin")
     color = db.colors.find_one({"id": color_id})
     if not color:
         raise HTTPException(status_code=404, detail="Color not found")
@@ -151,8 +148,7 @@ async def delete_color(color_id: str, user: dict = Depends(verify_session)):
 # CRUD Niveles de Color
 @router.post("/color_levels", response_model=ColorLevelResponse)
 async def create_color_level(data: ColorLevelCreate, user: dict = Depends(verify_session)):
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden crear niveles de colores")
+    require_admin_level(user, "admin")
     level = {
         "id": str(uuid.uuid4()),
         "level": data.level,
@@ -193,8 +189,7 @@ async def get_color_levels():
 
 @router.put("/color_levels/{level_id}", response_model=ColorLevelResponse)
 async def update_color_level(level_id: str, data: ColorLevelCreate, user: dict = Depends(verify_session)):
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden actualizar niveles de colores")
+    require_admin_level(user, "admin")
     level = db.color_levels.find_one({"id": level_id})
     if not level:
         raise HTTPException(status_code=404, detail="Color level not found")
@@ -223,8 +218,7 @@ async def update_color_level(level_id: str, data: ColorLevelCreate, user: dict =
 
 @router.delete("/color_levels/{level_id}")
 async def delete_color_level(level_id: str, user: dict = Depends(verify_session)):
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(status_code=403, detail="Solo usuarios nivel 3 o 4 pueden eliminar niveles de colores")
+    require_admin_level(user, "admin")
     level = db.color_levels.find_one({"id": level_id})
     if not level:
         raise HTTPException(status_code=404, detail="Color level not found")

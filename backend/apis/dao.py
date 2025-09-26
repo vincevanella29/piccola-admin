@@ -12,7 +12,7 @@ from config.gamification.service import (
     get_company_dao_address_service,
     build_set_fast_minter_tx,
 )
-from config.roles.service import verify_admin
+from config.roles.access import require_admin_level
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ async def verify_admin(user: dict = Depends(verify_session)):
     wallet = user.get("wallet")
     if not wallet:
         raise HTTPException(status_code=401, detail="Wallet no encontrada en la sesión.")
-    if not verify_admin(user):
+    if not require_admin_level(user, "admin"):
         raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
     return user
 

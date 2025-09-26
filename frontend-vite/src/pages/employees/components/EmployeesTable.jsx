@@ -48,20 +48,37 @@ const EmployeesTable = ({ appState }) => {
     setRows(Array.isArray(items) ? items : []);
   }, [sucursal, cargo, seccion, loadTrabajadoresActivos]);
 
+  const sucursalOptions = useMemo(() => {
+    // 1) Tomar SIGLAs permitidas desde appState.allowed
+    const allowedEmpresas = Array.isArray(appState?.allowed?.empresas)
+      ? appState.allowed.empresas
+      : [];
+    const siglas = new Set();
+    for (const e of allowedEmpresas) {
+      for (const s of (e?.sucursales ?? [])) {
+        if (s?.sigla) siglas.add(String(s.sigla));
+      }
+    }
+    // 2) Fallback dev: si no hay allowed, usar lo observado en rows
+    if (siglas.size === 0) {
+      for (const r of rows) if (r?.sucursal) siglas.add(String(r.sucursal));
+    }
+    return Array.from(siglas).sort();
+  }, [appState?.allowed?.empresas, rows]);
+
   useEffect(() => {
+    // si hay exactamente 1 sucursal permitida y no hay selección, la usamos
+    if (!sucursal && sucursalOptions.length === 1) {
+      setSucursal(sucursalOptions[0]);
+    }
     fetchData().catch(() => {});
-  }, [fetchData]);
+  }, [fetchData, sucursal, sucursalOptions]);
 
   // Resetear a primera página cuando cambian filtros o query
   useEffect(() => {
     setPage(0);
   }, [debouncedQ, sucursal, cargo, seccion]);
 
-  const sucursalOptions = useMemo(() => {
-    const set = new Set();
-    for (const r of rows) if (r?.sucursal) set.add(String(r.sucursal));
-    return Array.from(set).sort();
-  }, [rows]);
   const cargoOptions = useMemo(() => {
     const set = new Set();
     for (const r of rows) if (r?.cargo) set.add(String(r.cargo));

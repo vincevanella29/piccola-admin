@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from utils.auth.session import verify_session
 from utils.web3mongo import db
-from config.roles.service import verify_admin
+from config.roles.access import require_admin_level
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -52,10 +52,7 @@ async def get_sueldos(
 
     Paginación con skip/limit. Requiere nivel de rol 3 o 4.
     """
-    if not verify_admin(user["wallet"]):
-        raise HTTPException(
-            status_code=403, detail="Solo usuarios nivel 3 o 4 pueden ver sueldos"
-        )
+    require_admin_level(user, "admin")
 
     match: dict = {}
 

@@ -9,7 +9,7 @@ import logging
 
 from utils.auth.session import verify_session
 from utils.web3mongo import db, w3
-from config.roles.service import verify_admin
+from config.roles.access import require_admin_level
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -135,8 +135,7 @@ async def revoke_api_key(key_id: str = Path(...), user: dict = Depends(verify_se
     # Solo el dueño o roles 3/4 (del dueño) pueden revocar. Como owner es el propio usuario, basta validar ownership
     if doc["owner"] != wallet.lower():
         # permitir si el caller es 3/4 (admin de la compañía)
-        if not verify_admin(user):
-            raise HTTPException(status_code=403, detail="Not allowed to revoke this API key")
+        require_admin_level(user, "admin")
 
     COLL.update_one({"_id": key_id}, {"$set": {"active": False}})
     return {"success": True}
