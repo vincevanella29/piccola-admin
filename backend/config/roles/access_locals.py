@@ -217,3 +217,17 @@ def validate_include_local_or_403(perms: Dict[str, Any], requested_locals: List[
         sigla = normalize_sucursal_to_sigla(s)
         if not sigla or sigla.upper() not in allowed_siglas:
             raise HTTPException(status_code=403, detail="Sucursal no permitida para este usuario.")
+
+
+# ===================== Fechas =====================
+
+from datetime import datetime
+
+def parse_date_yyyymmdd(s: str) -> datetime:
+    """
+    Convierte 'YYYY-MM-DD' a datetime. Si falla, lanza 400.
+    """
+    try:
+        return datetime.strptime(s, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Fechas deben ser en formato YYYY-MM-DD")
