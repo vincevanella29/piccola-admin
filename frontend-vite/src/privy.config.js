@@ -12,7 +12,7 @@ const privyConfig = (chainId, rpcUrl, privyAppId) => {
     },
   embeddedWallets: {
     ethereum: {
-      createOnLogin: 'users-without-wallets',
+      createOnLogin: 'off', // 'off' | 'users-without-wallets' | 'all-users'
       rpcUrl: rpcUrl,
       chainId: chainId,
     }

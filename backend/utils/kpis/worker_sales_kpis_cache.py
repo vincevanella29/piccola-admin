@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import argparse
 from pymongo import UpdateOne
@@ -484,7 +484,7 @@ def process_period(mesano: str):
     logger.info(f"--- Período {mesano} finalizado. ---")
 
 
-def run_worker(periodo: str | None = None):
+def run_worker(periodo: Optional[str] = None):
     _ensure_indexes()
     try:
         periods_to_process: List[str] = []

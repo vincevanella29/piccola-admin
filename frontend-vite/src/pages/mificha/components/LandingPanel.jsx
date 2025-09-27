@@ -20,6 +20,9 @@ const LandingPanel = ({ appState }) => {
   const handleConnect = async () => {
     try {
       if (typeof appState?.connectWallet === 'function') {
+        if (appState.account) {
+          return;
+        }
         await appState.connectWallet();
         return;
       }
