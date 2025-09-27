@@ -5,5 +5,6 @@
     "connect_wallet": "Iniciar sesión",
     "disconnect": "Cerrar sesión",
     "view_wallet": "Ver Billetera",
-    "create_wallet": "Crear Billetera"
+    "create_wallet": "Crear Billetera",
+    "no_wallet": "No tienes una billetera"
 }

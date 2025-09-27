@@ -5,5 +5,6 @@
     "connect_wallet": "Conectar carteira",
     "disconnect": "Desconectar",
     "view_wallet": "Ver carteira",
-    "create_wallet": "Criar carteira"
+    "create_wallet": "Criar carteira",
+    "no_wallet": "Não tem carteira"
   }

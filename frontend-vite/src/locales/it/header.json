@@ -5,5 +5,6 @@
     "connect_wallet": "Collega Portafoglio",
     "disconnect": "Disconnetti",
     "view_wallet": "Visualizza Portafoglio",
-    "create_wallet": "Crea Portafoglio"
+    "create_wallet": "Crea Portafoglio",
+    "no_wallet": "Non hai un portafoglio"
   }

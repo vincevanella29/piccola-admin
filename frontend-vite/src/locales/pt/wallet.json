@@ -66,5 +66,6 @@
   "send": "Enviar",
   "embedded_wallet_info": "Questi são tokens de fidelização completamente descentralizados e não custodiados. Seu wallet é incorporado e você tem acesso às suas chaves privadas. Piccola Italia não tem acesso nem controle sobre seus tokens ou wallet. Você é o único responsável pela proteção das suas chaves. Piccola Italia não assume nenhuma responsabilidade por perdas, roubos ou compromissos com seu wallet ou tokens.",
   "liquidity_info_description": "Todos os tokens são completamente descentralizados e não custodiados. Piccola Italia não pode acessar, recuperar ou controlar seus tokens em nenhuma circunstância. Certifique-se de fazer backup e proteger suas credenciais e chaves privadas." ,
-  "connect_wallet": "Conectar wallet"
+  "connect_wallet": "Conectar wallet",
+  "share": "Compartilhar wallet"
 }

@@ -131,7 +131,7 @@ const CommandOverlay = ({ open, onClose, searchConfig, onNavigate }) => {
 };
 
 // ---- Wallet Bottom Sheet (pro)
-const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconnect, menuItems = [], t, chainId, isOpenBalances = true }) => {
+const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconnect, menuItems = [], t, chainId, isAuthenticated, isOpenBalances = true }) => {
   // Reutiliza hooks reales: solo cuando hay wallet y el sheet está abierto
   const { tokens = [], loading: balancesLoading } = useWalletBalances(account, open && isOpenBalances, chainId) || {};
   const native = Array.isArray(tokens) ? tokens.find((t) => t?.isNative) : null;
@@ -245,7 +245,7 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
                     </button>
                   );
                 })}
-                {account ? (
+                {isAuthenticated ? (
                   <button onClick={() => { onDisconnect(); haptics(20); }} className="w-full flex items-center gap-2 px-4 py-3 text-sm text-light-error dark:text-dark-error hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover">
                     <LogOut size={16} /> {t('header.disconnect')}
                   </button>
@@ -436,6 +436,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
         menuItems={walletItemsWithNav}
         t={t}
         chainId={appState?.chainId}
+        isAuthenticated={appState?.isAuthenticated}
       />
     </header>
   );

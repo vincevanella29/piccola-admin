@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const ActionButtons = ({ appState, isSidebarHovered, isSidebarOpen }) => {
   const { t } = useTranslation();
-  const { account, disconnectWallet, isConnecting } = appState || {};
+  const { account, disconnectWallet, isConnecting, isAuthenticated} = appState || {};
   const isExpanded = isSidebarHovered || isSidebarOpen;
 
   const handleConnect = () => {
@@ -48,7 +48,7 @@ const ActionButtons = ({ appState, isSidebarHovered, isSidebarOpen }) => {
             <span className="w-5 h-5 rounded-full bg-light-border dark:bg-dark-border" />
             <span className="w-20 h-4 rounded bg-light-border dark:bg-dark-border" />
           </div>
-        ) : account ? (
+        ) : isAuthenticated ? (
           isExpanded ? (
             <motion.button
               whileHover={{}}

@@ -66,5 +66,6 @@
   "send": "Send",
   "embedded_wallet_info": "These are decentralized, non-custodial loyalty tokens. Your wallet is embedded and only you have access to your private keys. Piccola Italia does not have access to, nor control over, your tokens or wallet. You are solely responsible for safeguarding your keys. Piccola Italia assumes no responsibility or liability for any loss, theft, or compromise of your wallet or tokens.",
   "liquidity_info_description": "All tokens are fully decentralized and non-custodial. Piccola Italia cannot access, recover, or control your tokens under any circumstances. Please ensure you securely back up your credentials and private keys." ,
-  "connect_wallet": "Connect Wallet"
+  "connect_wallet": "Connect Wallet",
+  "share": "Share Wallet"
 }
