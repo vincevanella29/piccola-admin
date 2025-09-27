@@ -20,7 +20,8 @@ const LandingPanel = ({ appState }) => {
   const handleConnect = async () => {
     try {
       if (typeof appState?.connectWallet === 'function') {
-        if (appState.account) {
+        if (appState?.account || appState?.isAuthenticated) {
+          navigate('/app/mi-ficha');
           return;
         }
         await appState.connectWallet();
@@ -77,6 +78,7 @@ const LandingPanel = ({ appState }) => {
 
             <button
               onClick={handleConnect}
+              disabled={!!(appState?.account || appState?.isAuthenticated)}
               className="w-full px-4 py-2.5 rounded-lg bg-matrix-green text-white font-semibold hover:opacity-90 transition"
             >
               {t('landing.cta_connect')}

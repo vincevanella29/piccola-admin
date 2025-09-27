@@ -14,15 +14,13 @@ const EmployeesRegister = ({ appState }) => {
   const { loadingStates, ficha, fetchFicha } = fichaContext;
 
   useEffect(() => {
-    if (appState?.account) {
+    if (appState?.account || appState?.isAuthenticated) {
       fetchFicha();
     }
-  }, [appState?.account, fetchFicha]);
-  console.log(appState?.account);
-  console.log(appState?.token);
+  }, [appState?.account, appState?.isAuthenticated, fetchFicha]);
 
   const isLinked = ficha && ficha.rut;
-  const isLoggedIn = !!(appState?.account && appState?.token);
+  const isLoggedIn = !!(appState?.account || appState?.isAuthenticated);
 
   return (
     <div className="p-2 sm:p-4">
