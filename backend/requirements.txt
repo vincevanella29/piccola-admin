@@ -96,3 +96,4 @@ deepdiff>=6,<7
 python-telegram-bot==21.10
 websockets==15.0.1
 pytz==2025.2
+psutil==6.0.0
