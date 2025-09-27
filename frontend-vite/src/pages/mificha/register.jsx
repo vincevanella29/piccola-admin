@@ -7,7 +7,7 @@ import useMiFicha from '../../hooks/useMiFicha.jsx';
 import { LoaderCircle } from 'lucide-react';
 
 const EmployeesRegister = ({ appState }) => {
-  const { t } = useTranslation(['mificha', 'landing']); // ← también ‘landing’
+  const { t } = useTranslation([]); // ← también ‘landing’
   
   // Hook: ficha es “source of truth”
   const fichaContext = useMiFicha(appState, t);
@@ -28,14 +28,14 @@ const EmployeesRegister = ({ appState }) => {
         loadingStates.ficha ? (
           <div className="flex flex-col items-center justify-center h-64 text-dark-text-secondary text-sm">
             <LoaderCircle className="animate-spin text-matrix-green mb-4" size={32} />
-            {t('mificha:cargando_ficha', 'Cargando tu ficha...')}
+            {t('mificha.cargando_ficha')}
           </div>
         ) : isLinked ? (
           <MyFichaPanel appState={appState} fichaContext={fichaContext} />
         ) : (
           <>
             <div className="p-3 mb-3 rounded bg-yellow-900/50 border border-yellow-700/50 text-yellow-300 text-sm">
-              {t('mificha:not_linked', 'No hay ficha de empleado vinculada a esta identidad.')}
+              {t('mificha.not_linked')}
             </div>
             <RegisterPanel appState={appState} onRegistered={fetchFicha} />
           </>

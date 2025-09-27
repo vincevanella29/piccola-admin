@@ -8,8 +8,11 @@
   "comparando_periodos": "Comparando ventas de los períodos {{actuales}} contra {{anteriores}}.",
   "refrescar": "Refrescar",
   "cargando": "Cargando…",
+  "cargando_ficha": "Cargando tu ficha…",
   "detalle_liquidacion": "Detalle de Liquidación",
   "cerrar": "Cerrar",
+  "error_fetch": "Error al cargar la ficha",
+  "not_linked": "No hay ficha de empleado vinculada a esta identidad.",
   
   "total_venta": "Total Venta",
   "rotacion_mesas": "Rotación Mesas",

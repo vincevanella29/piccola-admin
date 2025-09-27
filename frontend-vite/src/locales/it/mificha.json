@@ -8,8 +8,11 @@
   "comparando_periodos": "Confronto vendite per i periodi {{actuales}} contro {{anteriores}}.",
   "refrescar": "Aggiorna",
   "cargando": "Caricamento…",
+  "cargando_ficha": "Caricando il tuo profilo…",
+  "error_fetch": "Errore al caricare la ficha",
   "detalle_liquidacion": "Dettaglio Busta Paga",
   "cerrar": "Chiudi",
+  "not_linked": "Nessun profilo dipendente collegato a questa identità.",
   
   "total_venta": "Vendita Totale",
   "rotacion_mesas": "Rotazione Tavoli",

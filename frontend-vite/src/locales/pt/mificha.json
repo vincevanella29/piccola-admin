@@ -8,8 +8,11 @@
   "comparando_periodos": "Comparando vendas dos períodos {{actuales}} contra {{anteriores}}.",
   "refrescar": "Atualizar",
   "cargando": "Carregando…",
+  "cargando_ficha": "Carregando seu perfil…",
   "detalle_liquidacion": "Detalhe do Holerite",
   "cerrar": "Fechar",
+  "error_fetch": "Erro ao carregar a ficha",
+  "not_linked": "Nenhum perfil de empregado vinculado a esta identidade.",
   
   "total_venta": "Venda Total",
   "rotacion_mesas": "Rotação de Mesas",

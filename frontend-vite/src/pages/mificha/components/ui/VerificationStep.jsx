@@ -88,7 +88,13 @@ const VerificationStep = ({ hook, onComplete, isLoading }) => {
   return (
     <div className="w-full flex flex-col items-center gap-4 animate-fadeIn">
       <div className="w-full max-w-xs mx-auto relative rounded-2xl overflow-hidden border-2 border-dark-border aspect-[3/4] bg-dark-background">
-        <video ref={videoRef} className="w-full h-full object-cover transform scale-x-[-1]" autoPlay playsInline muted />
+        <video
+          ref={videoRef}
+          className={`w-full h-full object-cover ${hook.usingFront ? 'transform scale-x-[-1]' : ''}`}
+          autoPlay
+          playsInline
+          muted
+        />
         <MaskOverlay hasFace={hasFace} />
         {!hasFace && (
           <div className="absolute top-3 left-3 right-3 bg-dark-surface/80 backdrop-blur-xs border border-dark-border rounded-lg p-2 text-xs text-dark-text-primary flex items-center gap-2">
@@ -140,6 +146,12 @@ const VerificationStep = ({ hook, onComplete, isLoading }) => {
       </div>
 
       <div className="w-full max-w-xs flex flex-col gap-3 mt-4">
+        <button
+          onClick={hook.switchCamera}
+          className="w-full px-4 py-2 rounded-lg font-medium text-sm bg-light-surface-secondary dark:bg-dark-surface-secondary hover:bg-light-surface-tertiary dark:hover:bg-dark-surface-tertiary"
+        >
+          Cambiar cámara
+        </button>
         <button
           onClick={onComplete}
           disabled={isLoading || !allChallengesMet}

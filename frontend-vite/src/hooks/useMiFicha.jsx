@@ -27,7 +27,7 @@ export default function useMiFicha(appState, t) {
   const createFetcher = useCallback((key, apiCall, setData, { hasData, makeKey } = {}) => {
     return async (params = {}) => {
       if (!wallet || !token) {
-        setError(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
+        setError(t?.('wallet.connect_wallet'));
         return null;
       }
       const force = params?.force === true;
@@ -56,7 +56,7 @@ export default function useMiFicha(appState, t) {
         console.log(`Result:`, result);
         return result;
       } catch (err) {
-        setError(t?.(`${key}.error_fetch`, { message: err.message }) || err.message);
+        setError(t?.(`mificha.error_fetch`, { message: err.message }));
         throw err;
       } finally {
         setLoadingStates(s => ({ ...s, [key]: false }));

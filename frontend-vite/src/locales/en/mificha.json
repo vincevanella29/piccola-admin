@@ -8,9 +8,12 @@
   "comparando_periodos": "Comparing sales for periods {{actuales}} versus {{anteriores}}.",
   "refrescar": "Refresh",
   "cargando": "Loading…",
+  "cargando_ficha": "Loading your profile…",
   "detalle_liquidacion": "Payslip Detail",
   "cerrar": "Close",
   "error_prefix": "Error",
+  "not_linked": "No employee profile linked to this identity.",
+  "error_fetch": "Error fetching data",
   
   "total_venta": "Total Sales",
   "rotacion_mesas": "Table Turnover",
