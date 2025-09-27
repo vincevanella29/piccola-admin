@@ -2,7 +2,7 @@ import logging
 import os
 import importlib.util
 from datetime import datetime
-from typing import Dict, List, Callable, Any
+from typing import Dict, List, Callable, Any, Optional
 
 import argparse
 from pymongo import UpdateOne
@@ -294,7 +294,7 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
 # -----------------------
 # Runner con guardas QOF
 # -----------------------
-def run_worker(periodo: str | None = None):
+def run_worker(periodo: Optional[str] = None):
     _ensure_indexes()
 
     rule_evaluators = load_rule_evaluators()
