@@ -1,3 +1,5 @@
+// src/hooks/useRegistroBiometrico.jsx
+// Recomendado en main.jsx: import 'webrtc-adapter';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import registroApi, { fetchFotoProxyBlob } from '../utils/registro.jsx';
 
@@ -11,6 +13,7 @@ function nowTs() {
 function logDuration(label, t0) {
   const dt = (performance.now() - t0).toFixed(1);
   // eslint-disable-next-line no-console
+  // console.log(`[Biometría][${label}] ${nowTs()} +${dt} ms`);
 }
 
 export default function useRegistroBiometrico({
@@ -23,10 +26,12 @@ export default function useRegistroBiometrico({
   const streamRef = useRef(null);
   const rafRef = useRef(null);
   const modelsLoadedRef = useRef(false);
+
   const [cameras, setCameras] = useState([]); // [{deviceId,label,kind}]
   const [selectedDeviceId, setSelectedDeviceId] = useState(null);
   const [usingFront, setUsingFront] = useState(true); // para espejar sólo si es frontal
-  
+  const [cameraStarted, setCameraStarted] = useState(false);
+
   const [turnedLeft, setTurnedLeft] = useState(false);
   const [turnedRight, setTurnedRight] = useState(false);
   const [lookedUp, setLookedUp] = useState(true);
@@ -38,11 +43,10 @@ export default function useRegistroBiometrico({
   const [hasFace, setHasFace] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Alinea tu rostro en el óvalo');
   const [identityVerified, setIdentityVerified] = useState(false);
-  const [cameraStarted, setCameraStarted] = useState(false);
-  
+
   const [sessionId, setSessionId] = useState(null);
   const [rut, setRut] = useState('');
-  
+
   const referenceDescriptorRef = useRef(null);
   const finalDescriptorRef = useRef(null);
   const authHeadersRef = useRef({});
@@ -129,71 +133,81 @@ export default function useRegistroBiometrico({
 
   const startCamera = useCallback(async (opts = {}) => {
     const { deviceId = selectedDeviceId, preferFront = true } = opts;
+
+    // Cerrar stream previo
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
     }
+
     const t0 = performance.now();
     try {
-      // Armar lista de intentos de constraints (de mayor preferencia a fallback)
+      if (!videoRef.current) throw new Error('Video no está listo');
+
+      // iOS: setear props ANTES de srcObject
+      try { videoRef.current.muted = true; } catch {}
+      try { videoRef.current.playsInline = true; } catch {}
+      try {
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('muted', 'true');
+      } catch {}
+
+      // Intentos simples primero (iOS-friendly)
       const attempts = [];
-      if (deviceId) {
-        attempts.push({ video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
-      }
-      // Heurística: frontal primero
-      if (preferFront) {
-        attempts.push({ video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
-        attempts.push({ video: { facingMode: 'user' }, audio: false });
-      }
-      // Luego trasera
-      attempts.push({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+      if (deviceId) attempts.push({ video: { deviceId: { exact: deviceId } }, audio: false });
+      if (preferFront) attempts.push({ video: { facingMode: 'user' }, audio: false });
       attempts.push({ video: { facingMode: 'environment' }, audio: false });
-      // Último recurso
-      attempts.push({ video: true, audio: false });
+      attempts.push({ video: true, audio: false }); // último fallback
 
       let stream = null;
-      let chosenAttempt = null;
       for (const c of attempts) {
         try {
           stream = await navigator.mediaDevices.getUserMedia(c);
-          chosenAttempt = c;
           break;
         } catch (e) {
-          // sigue intentando
+          // continuar con el siguiente
         }
       }
       if (!stream) throw new Error('No se pudo obtener acceso a la cámara.');
 
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        // iOS necesita esto a veces si el atributo no llegó al DOM aún
-        try { videoRef.current.setAttribute('playsinline', 'true'); } catch {}
-        try { videoRef.current.setAttribute('muted', 'true'); } catch {}
-        // Espera a que el video esté listo para reproducir (canplay) con timeout de seguridad
-        await new Promise((resolve) => {
-          let done = false;
-          const cleanup = () => { if (!done) { done = true; resolve(); } };
-          const onCanPlay = () => { videoRef.current?.removeEventListener('canplay', onCanPlay); cleanup(); };
-          const onLoadedMeta = () => { videoRef.current?.removeEventListener('loadedmetadata', onLoadedMeta); cleanup(); };
-          videoRef.current.addEventListener('canplay', onCanPlay, { once: true });
-          videoRef.current.addEventListener('loadedmetadata', onLoadedMeta, { once: true });
-          setTimeout(cleanup, 4000); // móviles pueden tardar más
-        });
+
+      // Asignar stream después de setear props
+      videoRef.current.srcObject = stream;
+
+      // Esperar readiness con timeout
+      await new Promise((resolve) => {
+        let done = false;
+        const cleanup = () => { if (!done) { done = true; resolve(); } };
+        const onCanPlay = () => { videoRef.current?.removeEventListener('canplay', onCanPlay); cleanup(); };
+        const onLoadedMeta = () => { videoRef.current?.removeEventListener('loadedmetadata', onLoadedMeta); cleanup(); };
+        videoRef.current.addEventListener('canplay', onCanPlay, { once: true });
+        videoRef.current.addEventListener('loadedmetadata', onLoadedMeta, { once: true });
+        setTimeout(cleanup, 4000);
+      });
+
+      try {
+        // Debe ser llamado tras un gesto del usuario en iOS
         await videoRef.current.play();
-        // Detectar si es frontal para espejar
-        const track = stream.getVideoTracks()[0];
-        const settings = track.getSettings?.() || {};
-        const label = track.label?.toLowerCase?.() || '';
-        const isFrontByLabel = /front|frontal|user/.test(label);
-        const isFrontByFacing = (settings.facingMode || '').toLowerCase() === 'user';
-        setUsingFront(isFrontByLabel || isFrontByFacing || preferFront);
+      } catch (e) {
+        console.warn('Safari bloqueó play(); requiere gesto adicional.', e);
+        throw new Error('Toca “Iniciar cámara” para continuar.');
       }
+
+      // Detectar si es frontal para espejar
+      const track = stream.getVideoTracks()[0];
+      const settings = track.getSettings?.() || {};
+      const label = track.label?.toLowerCase?.() || '';
+      const isFrontByLabel = /front|frontal|user/.test(label);
+      const isFrontByFacing = (settings.facingMode || '').toLowerCase() === 'user';
+      setUsingFront(isFrontByLabel || isFrontByFacing || preferFront);
+
       logDuration('startCamera', t0);
       setCameraStarted(true);
-      // Actualiza listado y seleccion actual si no estaba
+
+      // Actualizar listado y selección actual si no estaba
       const vids = await enumerateCameras();
       if (!deviceId && vids.length) {
-        // intenta elegir la frontal por label
         const front = vids.find(v => /front|frontal|user/i.test(v.label)) || vids[0];
         setSelectedDeviceId(front.deviceId);
       }
@@ -205,9 +219,12 @@ export default function useRegistroBiometrico({
         setError(new Error('No se encontró ninguna cámara disponible.'));
       } else if (e?.name === 'OverconstrainedError') {
         setError(new Error('La cámara no soporta los parámetros solicitados.'));
-      } else {
+      } else if (e instanceof Error) {
         setError(e);
+      } else {
+        setError(new Error('Error desconocido iniciando cámara'));
       }
+      setCameraStarted(false);
       throw e;
     }
   }, [enumerateCameras, selectedDeviceId]);
@@ -299,11 +316,10 @@ export default function useRegistroBiometrico({
       }
       // Asegura que el video tenga dimensiones válidas antes de detectar
       if ((videoRef.current.videoWidth || 0) === 0 || (videoRef.current.videoHeight || 0) === 0) {
-        // eslint-disable-next-line no-console
         rafRef.current = requestAnimationFrame(detectLoop);
         return;
       }
-      
+
       const now = performance.now();
       if (now - lastTick > minDelta) {
         lastTick = now;
@@ -318,10 +334,6 @@ export default function useRegistroBiometrico({
         detectionTask = needDescriptor ? detectionTask.withFaceLandmarks().withFaceDescriptor() : detectionTask.withFaceLandmarks();
         const detection = await detectionTask;
         const dms = performance.now() - detectT0;
-        // Loguea frames lentos (>100ms) o cada 10 frames aprox
-        if (dms > 100 || Math.floor(now / 1000) !== Math.floor((now - (now - lastTick)) / 1000)) {
-          // eslint-disable-next-line no-console
-        }
         if (needDescriptor) lastDescAtRef.current = now;
 
         if (detection) {
@@ -354,17 +366,15 @@ export default function useRegistroBiometrico({
             }
           } else {
             switch (nextInstruction) {
-              case 'turn_left':
+              case 'turn_left': {
                 const ratioL = (positions[30].x - positions[0].x) / ((positions[16].x - positions[30].x) || 1);
-                // Usa baseline si existe; de lo contrario, usa 1.0 como centro aproximado
                 const baseL = neutralHorizRef.current ?? 1.0;
                 const deltaL = ratioL - baseL;
-                // Cooldown para no encadenar con derecha inmediatamente
                 const nowMsL = performance.now();
                 const inCooldownL = lastTurnDirRef.current === 'right' && (nowMsL - lastTurnAtRef.current < 600);
                 if (!inCooldownL && (deltaL < -0.18 || ratioL < 0.75)) {
                   leftHoldRef.current += 1;
-                  if (leftHoldRef.current >= 4) { // requiere ~4 frames consecutivos
+                  if (leftHoldRef.current >= 4) {
                     setTurnedLeft(true);
                     lastTurnDirRef.current = 'left';
                     lastTurnAtRef.current = nowMsL;
@@ -375,7 +385,8 @@ export default function useRegistroBiometrico({
                   leftHoldRef.current = 0;
                 }
                 break;
-              case 'turn_right':
+              }
+              case 'turn_right': {
                 const ratioR = (positions[30].x - positions[0].x) / ((positions[16].x - positions[30].x) || 1);
                 const baseR = neutralHorizRef.current ?? 1.0;
                 const deltaR = ratioR - baseR;
@@ -394,7 +405,8 @@ export default function useRegistroBiometrico({
                   rightHoldRef.current = 0;
                 }
                 break;
-              case 'look_forward':
+              }
+              case 'look_forward': {
                 // Suavizado para evitar jitter del ratio horizontal
                 const horizNow = (positions[30].x - positions[0].x) / ((positions[16].x - positions[30].x) || 1);
                 const prevH = prevHorizRef.current == null ? horizNow : prevHorizRef.current;
@@ -427,7 +439,7 @@ export default function useRegistroBiometrico({
                     }
                   }
                 } else {
-                  // Pequeña gracia: no cancelar a la primera fluctuación; espera 400ms sin pose ok
+                  // Gracia: no cancelar a la primera fluctuación; espera 400ms sin pose ok
                   if (capturingForwardRef.current && !lookedForward) {
                     if (now - lastPoseOkAtRef.current > 400) {
                       capturingForwardRef.current = false;
@@ -436,6 +448,9 @@ export default function useRegistroBiometrico({
                     }
                   }
                 }
+                break;
+              }
+              default:
                 break;
             }
           }
@@ -472,7 +487,7 @@ export default function useRegistroBiometrico({
     const data = res?.data || res;
     if (!data?.exists) throw new Error('El RUT no se encuentra en nuestros registros.');
     if (!data?.has_photo || !data?.foto_url) throw new Error('Tu perfil no tiene foto de referencia. Contacta a RRHH.');
-    
+
     const tBuild = performance.now();
     const refDescriptor = await buildReferenceDescriptor(data.foto_url);
     logDuration('buildReferenceDescriptor(total)', tBuild);
@@ -549,6 +564,6 @@ export default function useRegistroBiometrico({
     forwardCountdown,
     setAuthFromAppState,
     cameras, selectedDeviceId, setSelectedDeviceId,
-    switchCamera, usingFront,
+    switchCamera, usingFront, cameraStarted,
   };
 }

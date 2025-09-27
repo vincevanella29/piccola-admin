@@ -1,12 +1,14 @@
+// src/pages/.../VerificationStep.jsx
 import React, { useEffect, useMemo, useRef } from 'react';
-import { FaCheck, FaSpinner, FaRedo } from 'react-icons/fa';
+import { FaCheck, FaSpinner, FaRedo, FaCamera } from 'react-icons/fa';
 
 const ChallengePill = ({ label, isComplete }) => (
-  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all duration-300 ${
-    isComplete
-      ? 'bg-matrix-green/20 text-matrix-green'
-      : 'bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'
-  }`}
+  <div
+    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all duration-300 ${
+      isComplete
+        ? 'bg-matrix-green/20 text-matrix-green'
+        : 'bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'
+    }`}
   >
     {isComplete ? <FaCheck /> : <div className="w-4 h-4 rounded-full border-2 border-current opacity-50" />}
     <span>{label}</span>
@@ -23,10 +25,41 @@ const MaskOverlay = ({ hasFace }) => (
         </mask>
       </defs>
       <rect x="0" y="0" width="100" height="133" fill="rgba(0,0,0,0.65)" mask="url(#face-mask-vertical)" />
-      <ellipse cx="50" cy="60" rx="35" ry="45" fill="none" strokeWidth="0.8" className={`transition-colors duration-300 ${hasFace ? 'stroke-matrix-green' : 'stroke-dark-border'}`} />
+      <ellipse
+        cx="50"
+        cy="60"
+        rx="35"
+        ry="45"
+        fill="none"
+        strokeWidth="0.8"
+        className={`transition-colors duration-300 ${hasFace ? 'stroke-matrix-green' : 'stroke-dark-border'}`}
+      />
     </svg>
   </div>
 );
+
+function StartCameraOverlay({ onStart, errorMessage }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px]">
+      <div className="flex flex-col items-center gap-3">
+        <button
+          onClick={onStart}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white bg-matrix-green hover:bg-dark-accent-hover shadow-lg"
+        >
+          <FaCamera /> Iniciar cámara
+        </button>
+        {errorMessage && (
+          <div className="text-xs text-red-300 bg-red-900/40 border border-red-800 rounded px-2 py-1 max-w-[18rem] text-center">
+            {errorMessage}
+          </div>
+        )}
+        <div className="text-[11px] text-dark-text-secondary text-center max-w-[18rem]">
+          En iPhone/Safari se requiere un toque para permitir la cámara.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const VerificationStep = ({ hook, onComplete, isLoading }) => {
   const {
@@ -35,18 +68,20 @@ const VerificationStep = ({ hook, onComplete, isLoading }) => {
     startLiveVerification, stopCamera, reset, nextInstruction, loadingModels,
     identityVerified,
     forwardCountdown,
+    usingFront,
+    cameraStarted,
+    error,
   } = hook;
 
-  const initOnceRef = useRef(false);
+  // Solo limpiar al desmontar (no iniciar automáticamente)
+  const mountedRef = useRef(false);
   useEffect(() => {
-    if (!initOnceRef.current) {
-      initOnceRef.current = true;
-      startLiveVerification().catch(console.error);
-    }
+    mountedRef.current = true;
     return () => {
       stopCamera();
+      mountedRef.current = false;
     };
-  }, [startLiveVerification, stopCamera]);
+  }, [stopCamera]);
 
   const allChallengesMet = useMemo(() => {
     return turnedLeft && turnedRight && lookedForward;
@@ -56,10 +91,10 @@ const VerificationStep = ({ hook, onComplete, isLoading }) => {
     if (!hasFace) return 'Alinea tu rostro en el óvalo';
     if (!identityVerified) return statusMessage || 'Verificando identidad...';
     if (allChallengesMet) return '¡Excelente! Todo listo para validar.';
-    
+
     switch (nextInstruction) {
-      case 'turn_left': return 'Identidad verificada. Gira tu cabeza a la IZQUIERDA';
       case 'turn_right': return 'Ahora, gira a la DERECHA';
+      case 'turn_left': return 'Identidad verificada. Gira tu cabeza a la IZQUIERDA';
       case 'look_forward': return 'Perfecto. MIRA AL FRENTE para la foto final';
       default: return 'Sigue las instrucciones';
     }
@@ -90,19 +125,28 @@ const VerificationStep = ({ hook, onComplete, isLoading }) => {
       <div className="w-full max-w-xs mx-auto relative rounded-2xl overflow-hidden border-2 border-dark-border aspect-[3/4] bg-dark-background">
         <video
           ref={videoRef}
-          className={`w-full h-full object-cover ${hook.usingFront ? 'transform scale-x-[-1]' : ''}`}
+          className={`w-full h-full object-cover ${usingFront ? 'transform scale-x-[-1]' : ''}`}
           autoPlay
           playsInline
           muted
         />
         <MaskOverlay hasFace={hasFace} />
-        {!hasFace && (
+
+        {!cameraStarted && (
+          <StartCameraOverlay
+            onStart={() => startLiveVerification().catch(() => {/* el hook ya setea error */})}
+            errorMessage={error?.message}
+          />
+        )}
+
+        {!hasFace && cameraStarted && (
           <div className="absolute top-3 left-3 right-3 bg-dark-surface/80 backdrop-blur-xs border border-dark-border rounded-lg p-2 text-xs text-dark-text-primary flex items-center gap-2">
             <FaSpinner className="animate-spin" />
             <span>Buscando rostro… Alinea tu rostro en el óvalo</span>
           </div>
         )}
-        {(!identityVerified) && (isPreparingReference || isVerifyingIdentity) && (
+
+        {cameraStarted && !identityVerified && (isPreparingReference || isVerifyingIdentity) && (
           <div className="absolute top-3 left-3 right-3 bg-dark-surface/80 backdrop-blur-xs border border-dark-border rounded-lg p-3 text-xs text-dark-text-primary shadow-lg">
             <div className="flex items-center gap-2 font-semibold">
               <FaSpinner className="animate-spin" />
@@ -120,6 +164,7 @@ const VerificationStep = ({ hook, onComplete, isLoading }) => {
             </div>
           </div>
         )}
+
         {identityVerified && forwardCountdown !== null && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <div className="relative w-24 h-24">
@@ -131,27 +176,33 @@ const VerificationStep = ({ hook, onComplete, isLoading }) => {
           </div>
         )}
         <style>{`.animate-spin-slow{animation:spin 1.2s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        <div className={`absolute bottom-4 left-4 right-4 text-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-300 backdrop-blur-xs ${
-            statusMessage.includes('no coincide') ? 'bg-dark-error/80 text-white' : 'bg-dark-surface/80 text-dark-text-primary'
-          }`}
-        >
-          {instructionText}
-        </div>
+
+        {cameraStarted && (
+          <div
+            className={`absolute bottom-4 left-4 right-4 text-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-300 backdrop-blur-xs ${
+              statusMessage.includes('no coincide') ? 'bg-dark-error/80 text-white' : 'bg-dark-surface/80 text-dark-text-primary'
+            }`}
+          >
+            {instructionText}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap justify-center items-center gap-3">
-        <ChallengePill label="Derecha" isComplete={turnedLeft} />
-        <ChallengePill label="Izquierda" isComplete={turnedRight} />
+        <ChallengePill label="Derecha" isComplete={turnedRight} />
+        <ChallengePill label="Izquierda" isComplete={turnedLeft} />
         <ChallengePill label="Frente" isComplete={lookedForward} />
       </div>
 
       <div className="w-full max-w-xs flex flex-col gap-3 mt-4">
         <button
           onClick={hook.switchCamera}
-          className="w-full px-4 py-2 rounded-lg font-medium text-sm bg-light-surface-secondary dark:bg-dark-surface-secondary hover:bg-light-surface-tertiary dark:hover:bg-dark-surface-tertiary"
+          disabled={!cameraStarted}
+          className="w-full px-4 py-2 rounded-lg font-medium text-sm bg-light-surface-secondary dark:bg-dark-surface-secondary hover:bg-light-surface-tertiary dark:hover:bg-dark-surface-tertiary disabled:opacity-50"
         >
           Cambiar cámara
         </button>
+
         <button
           onClick={onComplete}
           disabled={isLoading || !allChallengesMet}
@@ -159,6 +210,7 @@ const VerificationStep = ({ hook, onComplete, isLoading }) => {
         >
           {isLoading ? <FaSpinner className="animate-spin" /> : 'Completar Registro'}
         </button>
+
         <button
           onClick={reset}
           disabled={isLoading}

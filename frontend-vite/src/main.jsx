@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
+import 'webrtc-adapter';
 import { PrivyProvider } from '@privy-io/react-auth';
 import privyConfig from './privy.config.js';
 import { createConfig, http } from 'wagmi';

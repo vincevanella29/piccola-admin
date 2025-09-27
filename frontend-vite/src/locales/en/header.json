@@ -4,5 +4,6 @@
     "connecting": "Connecting...",
     "connect_wallet": "Connect Wallet",
     "disconnect": "Disconnect",
-    "view_wallet": "View Wallet"
+    "view_wallet": "View Wallet",
+    "create_wallet": "Create Wallet"
 }

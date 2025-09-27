@@ -14,31 +14,17 @@ const Feature = ({ icon: Icon, title, desc }) => (
   </div>
 );
 
-const LandingPanel = ({ appState, onConnectWallet }) => {
+const LandingPanel = ({ appState }) => {
   const { t } = useTranslation();
 
   const handleConnect = async () => {
     try {
-      if (typeof onConnectWallet === 'function') {
-        await onConnectWallet();
+      if (typeof appState?.connectWallet === 'function') {
+        await appState.connectWallet();
         return;
       }
-      if (typeof appState?.connect === 'function') {
-        await appState.connect();
-        return;
-      }
-      if (typeof appState?.onConnectWallet === 'function') {
-        await appState.onConnectWallet();
-        return;
-      }
-      if (window?.ethereum?.request) {
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
-        return;
-      }
-      // último recurso (event bus interno si lo usas)
-      window?.dispatchEvent?.(new CustomEvent('wallet:connect'));
     } catch (err) {
-      console.error('connect wallet error:', err);
+      console.error(t('wallet.connect_error'), err);
     }
   };
 

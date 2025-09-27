@@ -4,5 +4,6 @@
     "connecting": "Conectando...",
     "connect_wallet": "Iniciar sesión",
     "disconnect": "Cerrar sesión",
-    "view_wallet": "Ver Billetera"
+    "view_wallet": "Ver Billetera",
+    "create_wallet": "Crear Billetera"
 }

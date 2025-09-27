@@ -74,7 +74,8 @@
     "recharts": "^3.2.1",
     "ripple-canvas": "^1.0.1",
     "tailwindcss": "^3.4.17",
-    "web-vitals": "^4.2.4"
+    "web-vitals": "^4.2.4",
+    "webrtc-adapter": "^9.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
