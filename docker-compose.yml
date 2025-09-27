@@ -89,7 +89,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: vanellix-worker
-    command: python utils/emqueuer.py
+    command: python utils/enqueuer.py
     working_dir: /backend
     env_file:
       - ./backend/.env
