@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Body
 from utils.auth.session import verify_session
 from utils.web3mongo import db, w3
@@ -11,6 +11,7 @@ from config.gamification.service import (
     build_execute_tx_service,
     get_company_dao_address_service,
     build_set_fast_minter_tx,
+    build_create_segment_tx,
 )
 from config.roles.access import require_admin_level
 
@@ -22,8 +23,8 @@ async def verify_admin(user: dict = Depends(verify_session)):
     wallet = user.get("wallet")
     if not wallet:
         raise HTTPException(status_code=401, detail="Wallet no encontrada en la sesión.")
-    if not require_admin_level(user, "admin"):
-        raise HTTPException(status_code=403, detail="Acceso denegado. Se requiere nivel de administrador.")
+    # Validación de nivel admin (lanza HTTPException si no cumple)
+    require_admin_level(user, "admin")
     return user
 
 
@@ -53,7 +54,7 @@ async def bootstrap_special_via_dao(user: dict = Depends(verify_session)):
 )
 async def propose_create_segment(name: str, symbol: str, user: dict = Depends(verify_session)):
     admin_wallet = w3.to_checksum_address(user.get("wallet"))
-    return propose_create_segment_service(admin_wallet, name, symbol)
+    return build_create_segment_tx(admin_wallet, name, symbol)
 
 
 # ==== DAO proposals: list, vote, execute ====
@@ -63,7 +64,7 @@ async def propose_create_segment(name: str, symbol: str, user: dict = Depends(ve
     summary="Lista propuestas de la DAO desde Mongo (dao_events)",
     dependencies=[Depends(verify_admin)]
 )
-async def list_dao_proposals(from_block: int | None = None, to_block: int | None = None):
+async def list_dao_proposals(from_block: Optional[int] = None, to_block: Optional[int] = None):
     return list_dao_proposals_service(from_block, to_block)
 
 
