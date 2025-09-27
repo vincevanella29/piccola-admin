@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from utils.auth.session import verify_session
 from utils.web3mongo import db
 from utils.get_privy_email import get_email_from_privy
-from utils.rut_utils import is_valid_rut, clean_rut
+from utils.rut_utils import is_valid_rut, clean_rut, compute_dv
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -49,7 +49,8 @@ async def consulta_registro(rut: str, user: dict = Depends(verify_session)):
     if not rut:
         raise HTTPException(status_code=400, detail="Debe enviar rut")
     # Validación de RUT chileno completo (número + DV)
-    if not is_valid_rut(rut):
+    rutdv = rut + "-" + compute_dv(rut)
+    if not is_valid_rut(rutdv):
         raise HTTPException(status_code=400, detail="RUT inválido")
     emp = get_employee_profile(rut)
     if not emp:
@@ -94,7 +95,8 @@ async def solicitar_registro(request: Request, user: dict = Depends(verify_sessi
     if not rut:
         raise HTTPException(status_code=400, detail="Debe enviar rut")
     # Validación de RUT chileno completo (número + DV)
-    if not is_valid_rut(rut):
+    rutdv = rut + "-" + compute_dv(rut)
+    if not is_valid_rut(rutdv):
         raise HTTPException(status_code=400, detail="RUT inválido")
 
     emp = get_employee_profile(rut)
