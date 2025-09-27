@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from web3 import Web3
 from fastapi import HTTPException
 
@@ -129,7 +129,7 @@ def bootstrap_special_via_dao_service(admin_wallet: str) -> Dict[str, Any]:
 
     return {"ok": True, "daoAddress": dao_addr, "proposals": txs}
 
-def list_dao_proposals_service(from_block: int | None = None, to_block: int | None = None) -> Dict[str, Any]:
+def list_dao_proposals_service(from_block: Optional[int] = None, to_block: Optional[int] = None) -> Dict[str, Any]:
     try:
         dao_addr = resolve_company_dao_address()
         coll = db.get_collection('dao_events')

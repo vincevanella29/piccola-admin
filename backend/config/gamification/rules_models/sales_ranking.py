@@ -1,7 +1,7 @@
 # config/gamification/rules_models/sales_ranking.py
 
 from __future__ import annotations
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pymongo.database import Database
 import logging
 
@@ -99,7 +99,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
         year = (periodo_dash or "")[:4]
         base_match.update({"periodo": {"$regex": f"^{year}-"}})
 
-    def build_condition_filter(cond: Dict[str, Any]) -> Dict[str, Any] | None:
+    def build_condition_filter(cond: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         ctype = cond.get("type")
         metric_key = cond.get("metric_key")
         if metric_key not in METRIC_MAP:
@@ -336,7 +336,7 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
     progress_list: List[Dict[str, Any]] = []
 
     # Helper: días con venta (sirve para mostrar avance de la restricción min_days_worked)
-    def get_days_worked() -> int | None:
+    def get_days_worked() -> Optional[int]:
         try:
             pvd = (kpi_doc or {}).get("promedio_venta_diaria", {})
             if isinstance(pvd, dict):
@@ -346,7 +346,7 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
             return None
         return None
 
-    def metric_info(mkey: str, scope: str | None) -> Dict[str, Any]:
+    def metric_info(mkey: str, scope: Optional[str]) -> Dict[str, Any]:
         path = METRIC_MAP.get(mkey)
         data = kpi_doc.get(path, {}) if path else {}
         out = {
