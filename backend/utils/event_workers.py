@@ -165,6 +165,7 @@ async def mtz_group_task():
         'utils.mtz.worker_rentabilidad_por_producto_locales',
         'utils.mtz.worker_sales_by_waiter_hour_vpn',
         'utils.mtz.worker_cargos',
+        'utils.mtz.worker_restaurant_data',
     ]
     mesano = get_current_mesano_chile()
     for mod_path in mtz_modules:
@@ -224,11 +225,11 @@ ALL_WORKERS = {
     "sync_payment_tokens":  {"func": sync_payment_tokens_task,  "type": "io", "schedule": timedelta(minutes=10)},
     
     # Tareas de Grupo Diarias (con ejecución opcional al arranque)
-    "menu_data":            {"func": menu_data_task,            "type": "cpu", "schedule": "daily@04:00"},
-    "sales_kpis_cache":     {"func": sales_kpis_cache_task,     "type": "cpu", "schedule": "daily@04:00", "run_on_start": True},
-    "tiempo_group":         {"func": tiempo_group_task,         "type": "cpu", "schedule": "daily@04:00", "run_on_start": True},
-    "mtz_group":            {"func": mtz_group_task,            "type": "cpu", "schedule": "daily@04:00", "run_on_start": True},
-    "intranet_group":       {"func": intranet_group_task,       "type": "cpu", "schedule": "daily@06:00", "run_on_start": True},
+    "menu_data":            {"func": menu_data_task,            "type": "cpu", "schedule": "daily@08:00"},
+    "tiempo_group":         {"func": tiempo_group_task,         "type": "cpu", "schedule": "daily@08:00", "run_on_start": True},
+    "mtz_group":            {"func": mtz_group_task,            "type": "cpu", "schedule": "daily@08:00", "run_on_start": True},
+    "intranet_group":       {"func": intranet_group_task,       "type": "cpu", "schedule": "daily@08:00", "run_on_start": True},
+    "sales_kpis_cache":     {"func": sales_kpis_cache_task,     "type": "cpu", "schedule": "daily@08:00", "run_on_start": True},
 
     # Workers Persistentes (corren constantemente)
     "event_listener":           {"func": event_listener_persistent,           "type": "persistent", "schedule": None},
