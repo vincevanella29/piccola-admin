@@ -38,7 +38,8 @@ def setup_event_collections_indexes(event_listener_configs: List['EventListenerC
     db.notification_api_configs.create_index([("id", 1)], unique=True)
     db.user_notification_tokens.create_index([("wallet", 1), ("token", 1)], unique=True)
     db.notification_schedules.create_index([("notification_type_id", 1), ("schedule_time", 1)])
-    db.empleados_usuarios.create_index([("rut", 1)], unique=True)
+    # Ensure 'rut' unique index with a stable name to prevent IndexOptionsConflict when it already exists
+    db.empleados_usuarios.create_index([("rut", 1)], name="uniq_rut", unique=True, background=True)
     
 
     for config in event_listener_configs:
