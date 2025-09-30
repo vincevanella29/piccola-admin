@@ -11,5 +11,6 @@
   "select": "Select workers to run (optional):",
   "results": "Execution results:",
   "error": "Error loading workers.",
-  "description": "Automated process execution tools."
+  "description": "Automated process execution tools.",
+  "all_selected": "All workers"
 }

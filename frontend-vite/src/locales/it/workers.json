@@ -11,5 +11,6 @@
   "select": "Seleziona i workers da eseguire (opzionale):",
   "results": "Risultati dell'esecuzione:",
   "error": "Errore nel caricamento dei workers.",
-  "description": "Strumenti per l'esecuzione automatica dei processi."
+  "description": "Strumenti per l'esecuzione automatica dei processi.",
+  "all_selected": "Tutti i workers"
 }

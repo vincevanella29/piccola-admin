@@ -75,11 +75,12 @@ def execute_workers(data: ExecuteWorkersRequest, user: dict = Depends(verify_ses
             continue
         try:
             mod = importlib.import_module(module_path)
-            if hasattr(mod, "process_period"):
-                mod.process_period(mesano)
-                results.append({"worker": worker, "status": "ok"})
-            elif hasattr(mod, "run_worker"):
+            # Prefer run_worker when available, as some modules expose richer orchestration there
+            if hasattr(mod, "run_worker"):
                 mod.run_worker(mesano)
+                results.append({"worker": worker, "status": "ok"})
+            elif hasattr(mod, "process_period"):
+                mod.process_period(mesano)
                 results.append({"worker": worker, "status": "ok"})
             elif hasattr(mod, "main"):
                 import builtins as _builtins

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Building, Store } from 'lucide-react';
+import { Trophy, Building, Store, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const fmtCLP = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
 const fmtNum = new Intl.NumberFormat('es-CL');
@@ -40,11 +40,16 @@ const TopPerformerProfile = ({ performer, value, unit, label, icon: Icon, colorC
     </div>
 );
 
-export const BenchmarkDetailCard = ({ title, icon: Icon, unit = '', kpiData }) => {
+export const BenchmarkDetailCard = ({ title, icon: Icon, unit = '', kpiData, comparative, variation }) => {
     if (!kpiData) return null;
 
     const { yourValue, puestoLocal, puestoEmpresa, promedioLocal, promedioEmpresa, topLocal, topEmpresa, topLocalValue, topEmpresaValue } = kpiData;
     const formatValue = (val) => unit === '$' ? fmtCLP.format(val) : fmtNum.format(val);
+    const hasComparative = typeof comparative === 'number';
+    const hasVariation = typeof variation === 'number';
+    const absDelta = hasComparative ? (yourValue - comparative) : null;
+    const deltaSign = absDelta !== null ? (absDelta > 0 ? '+' : absDelta < 0 ? '-' : '') : '';
+    const fmtAbsDelta = absDelta !== null ? (unit === '$' ? fmtCLP.format(Math.abs(absDelta)) : fmtNum.format(Math.abs(absDelta))) : '';
     
     return (
         <div className="bg-dark-surface-secondary/50 border border-dark-border/10 rounded-xl p-4 space-y-4">
@@ -55,11 +60,68 @@ export const BenchmarkDetailCard = ({ title, icon: Icon, unit = '', kpiData }) =
                         <Icon size={18} className="text-matrix-green" /> {title}
                     </h3>
                 </div>
-                <div className="text-right">
+                <div className="text-right space-y-1">
                     <p className="text-3xl font-mono font-bold text-matrix-green">{formatValue(yourValue)}</p>
                     <p className="text-xs text-dark-text-secondary">Tu rendimiento</p>
+                    {(hasComparative || hasVariation) && (
+                        <div className="flex items-center justify-end gap-2 mt-1">
+                            {hasComparative && (
+                                <span className="px-2 py-0.5 rounded-full bg-dark-surface text-xs text-dark-text-secondary border border-dark-border/20">
+                                    Anterior: <span className="font-mono text-dark-text-primary">{formatValue(comparative)}</span>
+                                </span>
+                            )}
+                            {(hasComparative || hasVariation) && (
+                                <span className={`px-2 py-0.5 rounded-full text-xs border flex items-center gap-1 ${((hasVariation ? variation : absDelta) ?? 0) >= 0 ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
+                                    {((hasVariation ? variation : absDelta) ?? 0) >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                                    {hasComparative && <span className="font-mono">{deltaSign}{fmtAbsDelta}</span>}
+                                    {hasVariation && <span className="font-mono">({variation.toFixed(2)}%)</span>}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* Comparativos detallados */}
+            {hasComparative && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] font-mono text-dark-text-secondary">
+                    <div className="bg-dark-surface rounded-md px-2 py-1 border border-dark-border/10">
+                        <div className="text-xs">Vs Prom Local</div>
+                        <div className={`font-semibold ${yourValue - promedioLocal >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {yourValue - promedioLocal >= 0 ? '+' : ''}{unit === '$' ? fmtCLP.format(Math.abs(yourValue - promedioLocal)) : fmtNum.format(Math.abs(yourValue - promedioLocal))}
+                        </div>
+                    </div>
+                    <div className="bg-dark-surface rounded-md px-2 py-1 border border-dark-border/10">
+                        <div className="text-xs">Vs Prom Empresa</div>
+                        <div className={`font-semibold ${yourValue - promedioEmpresa >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {yourValue - promedioEmpresa >= 0 ? '+' : ''}{unit === '$' ? fmtCLP.format(Math.abs(yourValue - promedioEmpresa)) : fmtNum.format(Math.abs(yourValue - promedioEmpresa))}
+                        </div>
+                    </div>
+                    <div className="bg-dark-surface rounded-md px-2 py-1 border border-dark-border/10">
+                        <div className="text-xs">Gap a Top Local</div>
+                        <div className={`font-semibold ${topLocalValue - yourValue >= 0 ? 'text-cyan-400' : 'text-cyan-400'}`}>
+                            -{unit === '$' ? fmtCLP.format(Math.max(0, topLocalValue - yourValue)) : fmtNum.format(Math.max(0, topLocalValue - yourValue))}
+                        </div>
+                    </div>
+                    <div className="bg-dark-surface rounded-md px-2 py-1 border border-dark-border/10">
+                        <div className="text-xs">Gap a Top Empresa</div>
+                        <div className={`font-semibold ${topEmpresaValue - yourValue >= 0 ? 'text-cyan-400' : 'text-cyan-400'}`}>
+                            -{unit === '$' ? fmtCLP.format(Math.max(0, topEmpresaValue - yourValue)) : fmtNum.format(Math.max(0, topEmpresaValue - yourValue))}
+                        </div>
+                    </div>
+                    <div className="bg-dark-surface rounded-md px-2 py-1 border border-dark-border/10">
+                        <div className="text-xs">Anterior</div>
+                        <div className="font-semibold text-dark-text-primary">{formatValue(comparative)}</div>
+                    </div>
+                    <div className="bg-dark-surface rounded-md px-2 py-1 border border-dark-border/10">
+                        <div className="text-xs">Cambio</div>
+                        <div className={`font-semibold flex items-center gap-1 ${absDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {absDelta >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                            {deltaSign}{fmtAbsDelta}{hasVariation && <span className="opacity-70"> ({variation.toFixed(2)}%)</span>}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Benchmarks y Rankings */}
             <div className="space-y-3 text-sm">
