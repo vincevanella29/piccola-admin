@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Award, BarChart3, Gem, History } from 'lucide-react';
 
-import useMeritDisplay from '../../../../hooks/useMeritDisplay';
+import useMeritDisplay from '../../../../../hooks/useMeritDisplay';
 
 import { TabButton } from './ui/TabButton';
 import { KpiTab } from './KpiTab';

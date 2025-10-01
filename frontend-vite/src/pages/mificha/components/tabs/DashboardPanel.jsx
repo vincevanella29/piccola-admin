@@ -11,7 +11,7 @@ import KpiCard from '../ui/KpiCard';
 // CONSTANTE CLAVE: Define el umbral de rendimiento. 85 significa que se alerta si está por debajo del 85% del promedio.
 const MINIMUM_PERFORMANCE_PERCENT = 85;
 
-// --- Componente de Barra de Progreso para Benchmarks (AHORA CON ALERTAS) ---
+// --- Componente de Barra de Progreso para Benchmarks (estilo unificado con BenchmarkDetailCard) ---
 const BenchmarkBar = ({ title, yourValue, average, top, icon: Icon, colorClass, unit = '' }) => {
     const { t } = useTranslation();
     const formatValue = (val) => {
@@ -33,32 +33,35 @@ const BenchmarkBar = ({ title, yourValue, average, top, icon: Icon, colorClass, 
     const isBelowThreshold = safeYour < performanceThreshold;
     const difference = safeAvg - safeYour;
 
+    // Ensure the bar has a background color. If we receive 'text-*-*', convert to 'bg-*-*'.
+    const barColorClass = isBelowThreshold ? 'bg-red-500' : (colorClass?.startsWith('text-') ? colorClass.replace('text-', 'bg-') : colorClass || 'bg-cyan-400');
+
     return (
         <div className="space-y-2">
-            <p className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-2">
+            <p className="text-sm font-semibold text-dark-text-secondary flex items-center gap-2">
                 <Icon size={16} className={colorClass} /> {title}
             </p>
-            <div className="relative w-full h-4 bg-light-surface dark:bg-dark-surface rounded-full overflow-hidden">
-                <div 
-                    className="absolute top-0 h-full border-r-2 border-dashed border-purple-400 z-10" 
-                    style={{ left: `${avgPercent}%` }} 
-                    data-tooltip-id="dashboard-tooltip" 
+            <div className="relative w-full h-3 bg-dark-surface-secondary rounded-full overflow-hidden">
+                <div
+                    className="absolute top-0 h-full border-r-2 border-dashed border-purple-400/50 z-10"
+                    style={{ left: `${avgPercent}%` }}
+                    data-tooltip-id="dashboard-tooltip"
                     data-tooltip-content={`${t('mificha.promedio', 'Promedio')}: ${formatValue(safeAvg)}`}
+                    title={`${t('mificha.promedio', 'Promedio')}: ${formatValue(safeAvg)}`}
                 />
-                <div 
-                    className={`h-full rounded-full ${isBelowThreshold ? 'bg-red-500' : colorClass} bg-opacity-40`} 
+                <div
+                    className={`h-full rounded-full ${barColorClass} bg-opacity-40`}
                     style={{ width: `${yourPercent}%` }}
                 />
             </div>
-            <div className="flex justify-between text-xs mt-1 font-mono text-light-text-secondary dark:text-dark-text-secondary">
-                <span>Tú: {formatValue(safeYour)}</span>
+            <div className="flex justify-between text-xs mt-1 font-mono text-dark-text-secondary">
+                <span>Tú: <span className="text-dark-text-primary">{formatValue(safeYour)}</span></span>
                 <span className="font-bold text-cyan-400 flex items-center gap-1">
                     <Trophy size={12}/> Top: {formatValue(safeTop)}
                 </span>
             </div>
-            {/* --- NUEVO: Mensaje de Alerta --- */}
             {isBelowThreshold && (
-                <div className="mt-2 p-2 bg-red-900/50 border border-red-500/30 text-red-300 text-xs rounded-lg flex items-center gap-2">
+                <div className="mt-2 p-2 bg-red-900/40 border border-red-500/30 text-red-300 text-xs rounded-lg flex items-center gap-2">
                     <AlertTriangle size={16} />
                     <span>
                         Estás un <strong>{formatValue(difference)}</strong> bajo el promedio. ¡A mejorar!
@@ -67,7 +70,8 @@ const BenchmarkBar = ({ title, yourValue, average, top, icon: Icon, colorClass, 
             )}
         </div>
     );
-};
+}
+;
 
 
 export default function DashboardPanel({ isLoading, ficha, ventasKpis }) {

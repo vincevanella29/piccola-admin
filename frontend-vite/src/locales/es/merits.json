@@ -1,0 +1,77 @@
+{
+  "label": "Meritos",
+  "description": "Explore our merits and rewards.",
+  "category": "Meritos",
+  "rankings_title": "Ranking Público de Méritos",
+  "rankings_desc": "Quién tiene más puntos de mérito (últimos meses y por año)",
+  "mode_note": "Vista de méritos por segmento. “Simulado” = wallet + pendientes",
+  "mode_wallet": "Wallet",
+  "mode_simulated": "Simulado",
+  "toolbar": {
+    "search_placeholder": "Nombre, apellido o RUT",
+    "local_label": "Local",
+    "cargo_label": "Cargo",
+    "backend_sucursal": "Sucursal (backend)",
+    "backend_cargo": "Cargo (backend)",
+    "apply_backend": "Aplicar filtros backend",
+    "clear_filters": "Limpiar filtros",
+    "clear_backend": "Limpiar"
+  },
+  "filters": {
+    "all": "Todos",
+    "all_branches": "Todas las sucursales",
+    "all_roles": "Todos los cargos"
+  },
+  "table": {
+    "columns": {
+      "rank": "#",
+      "employee": "Empleado",
+      "local": "Local",
+      "cargo": "Cargo",
+      "total_wallet": "Total (Wallet)",
+      "total_simulated": "Total (Sim)",
+      "wallet": "Wallet"
+    },
+    "loading": "Cargando...",
+    "no_data": "Sin datos",
+    "has_wallet": "Tiene wallet",
+    "sort": {
+      "rank": "Ordenar por ranking empresa",
+      "name": "Ordenar por nombre",
+      "segment": "Ordenar por {{sym}}",
+      "total": "Ordenar por total",
+      "wallet": "Ordenar por presencia de wallet"
+    },
+    "pagination": "Mostrando <b>{{start}}</b>–<b>{{end}}</b> de <b>{{total}}</b>",
+    "page_label": "Página {{current}} / {{total}}",
+    "rows_per_page": "Filas por página",
+    "per_page_format": "{{n}} / pág"
+  },
+  "modal": {
+    "segment_pill": {
+      "wallet_title": "En wallet",
+      "pending_title": "Pendiente",
+      "total_title": "Total (simulado)"
+    },
+    "header_wallet_badge": "Wallet",
+    "header_no_wallet_badge": "Sin wallet",
+    "segment_summary_title": "Resumen por segmento",
+    "totals": {
+      "total_points": "Total puntos",
+      "fulfilled_count": "Cumplidos",
+      "not_fulfilled_count": "No cumplidos"
+    },
+    "history_title": "Historial de méritos (todos los períodos)",
+    "error_prefix": "Error:",
+    "empty_history": "Sin méritos registrados.",
+    "item": {
+      "fallback_rule_name": "Regla"
+    },
+    "badges": {
+      "minted": "Minted",
+      "pending": "Pending",
+      "not": "No cumple"
+    },
+    "close_button": "Cerrar"
+  }
+}

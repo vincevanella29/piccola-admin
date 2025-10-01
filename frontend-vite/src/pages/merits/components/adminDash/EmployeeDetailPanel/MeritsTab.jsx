@@ -2,7 +2,7 @@
 import React from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
 import { MeritSegmentRow } from './ui/MeritSegmentRow';
-import useMeritSystem from '../../../../hooks/useMeritSystem';
+import useMeritSystem from '../../../../../hooks/useMeritSystem';
 
 export const MeritsTab = ({ employee }) => {
   const { SEGMENT_ICONS, getSegmentIcon } = useMeritSystem();

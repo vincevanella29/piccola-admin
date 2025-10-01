@@ -1,4 +1,4 @@
-// src/pages/merits/components/DashboardToolbar.jsx
+// src/pages/merits/components/adminDash/DashboardToolbar.jsx
 import React from 'react';
 import { Search } from 'lucide-react';
 

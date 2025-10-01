@@ -1,0 +1,50 @@
+{
+  "label": "Meritos",
+  "description": "Explore our merits and rewards.",
+  "category": "Meritos",
+  "rankings_title": "Ranking Público de Méritos",
+  "rankings_desc": "Quem tem mais pontos de mérito (últimos meses e por ano)",
+  "mode_note": "Vista de méritos por segmento. “Simulado” = wallet + pendentes",
+  "mode_wallet": "Wallet",
+  "mode_simulated": "Simulado",
+  "toolbar": {
+    "search_placeholder": "Nome, sobrenome ou RUT",
+    "local_label": "Local",
+    "cargo_label": "Cargo",
+    "backend_sucursal": "Filial (backend)",
+    "backend_cargo": "Cargo (backend)",
+    "apply_backend": "Aplicar filtros backend",
+    "clear_filters": "Limpar filtros",
+    "clear_backend": "Limpar"
+  },
+  "filters": {
+    "all": "Todos",
+    "all_branches": "Todas as filiais",
+    "all_roles": "Todos os cargos"
+  },
+  "table": {
+    "columns": {
+      "rank": "#",
+      "employee": "Colaborador",
+      "local": "Local",
+      "cargo": "Cargo",
+      "total_wallet": "Total (Wallet)",
+      "total_simulated": "Total (Sim)",
+      "wallet": "Wallet"
+    },
+    "loading": "Carregando...",
+    "no_data": "Sem dados",
+    "has_wallet": "Possui wallet",
+    "sort": {
+      "rank": "Ordenar por ranking da empresa",
+      "name": "Ordenar por nome",
+      "segment": "Ordenar por {{sym}}",
+      "total": "Ordenar por total",
+      "wallet": "Ordenar por presença de wallet"
+    },
+    "pagination": "Mostrando <b>{{start}}</b>–<b>{{end}}</b> de <b>{{total}}</b>",
+    "page_label": "Página {{current}} / {{total}}",
+    "rows_per_page": "Linhas por página",
+    "per_page_format": "{{n}} / pág"
+  }
+}

@@ -6,11 +6,11 @@ import { AnimatePresence } from 'framer-motion';
 import useAdminRankings from '../../hooks/useAdminRankings';
 
 // Componentes
-import { DashboardToolbar } from './components/DashboardToolbar';
-import { SummaryCards } from './components/SummaryCards';
-import { EmployeeTable } from './components/EmployeeTable';
+import { DashboardToolbar } from './components/adminDash/DashboardToolbar';
+import { SummaryCards } from './components/adminDash/SummaryCards';
+import { EmployeeTable } from './components/adminDash/EmployeeTable';
 // Al importar del directorio, automáticamente resuelve a /EmployeeDetailPanel/index.jsx
-import { EmployeeDetailPanel } from './components/EmployeeDetailPanel'; 
+import { EmployeeDetailPanel } from './components/adminDash/EmployeeDetailPanel'; 
 
 const MeritsDashboardPage = ({ appState }) => {
   const { t } = useTranslation();

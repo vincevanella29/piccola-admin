@@ -1,0 +1,77 @@
+{
+  "label": "Merits",
+  "description": "Explore our merits and rewards.",
+  "category": "Merits",
+  "rankings_title": "Public Merit Rankings",
+  "rankings_desc": "Who has the most merit points (last months and yearly)",
+  "mode_note": "Merit view by segment. “Simulated” = wallet + pending",
+  "mode_wallet": "Wallet",
+  "mode_simulated": "Simulated",
+  "toolbar": {
+    "search_placeholder": "Name, last name or RUT",
+    "local_label": "Location",
+    "cargo_label": "Role",
+    "backend_sucursal": "Branch (backend)",
+    "backend_cargo": "Role (backend)",
+    "apply_backend": "Apply backend filters",
+    "clear_filters": "Clear filters",
+    "clear_backend": "Clear"
+  },
+  "filters": {
+    "all": "All",
+    "all_branches": "All branches",
+    "all_roles": "All roles"
+  },
+  "table": {
+    "columns": {
+      "rank": "#",
+      "employee": "Employee",
+      "local": "Location",
+      "cargo": "Role",
+      "total_wallet": "Total (Wallet)",
+      "total_simulated": "Total (Sim)",
+      "wallet": "Wallet"
+    },
+    "loading": "Loading...",
+    "no_data": "No data",
+    "has_wallet": "Has wallet",
+    "sort": {
+      "rank": "Sort by company rank",
+      "name": "Sort by name",
+      "segment": "Sort by {{sym}}",
+      "total": "Sort by total",
+      "wallet": "Sort by wallet presence"
+    },
+    "pagination": "Showing <b>{{start}}</b>–<b>{{end}}</b> of <b>{{total}}</b>",
+    "page_label": "Page {{current}} / {{total}}",
+    "rows_per_page": "Rows per page",
+    "per_page_format": "{{n}} / page"
+  },
+  "modal": {
+    "segment_pill": {
+      "wallet_title": "In wallet",
+      "pending_title": "Pending",
+      "total_title": "Total (simulated)"
+    },
+    "header_wallet_badge": "Wallet",
+    "header_no_wallet_badge": "No wallet",
+    "segment_summary_title": "Segment summary",
+    "totals": {
+      "total_points": "Total points",
+      "fulfilled_count": "Fulfilled",
+      "not_fulfilled_count": "Not fulfilled"
+    },
+    "history_title": "Merit history (all periods)",
+    "error_prefix": "Error:",
+    "empty_history": "No merits recorded.",
+    "item": {
+      "fallback_rule_name": "Rule"
+    },
+    "badges": {
+      "minted": "Minted",
+      "pending": "Pending",
+      "not": "Not met"
+    },
+    "close_button": "Close"
+  }
+}

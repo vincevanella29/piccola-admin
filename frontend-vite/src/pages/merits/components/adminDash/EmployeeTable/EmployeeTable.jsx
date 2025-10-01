@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowUpDown } from 'lucide-react';
-import useMeritDisplay from '../../../../hooks/useMeritDisplay';
+import useMeritDisplay from '../../../../../hooks/useMeritDisplay';
 
 // piezas
 import { Th, Td } from './TableParts.jsx';
