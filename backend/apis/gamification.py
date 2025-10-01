@@ -165,6 +165,43 @@ async def list_rule_templates():
     return gamification_service.list_rule_templates_service()
 
 
+# ---- Update Rule (PATCH-like) ----
+class UpdateRulePayload(BaseModel):
+    # Identificador de la regla a actualizar
+    identifier: str = Field(..., description="rule_name o _id (según use_id)")
+    use_id: bool = Field(False, description="Si True, 'identifier' se interpreta como _id")
+
+    # Campos actualizables (patch, opcionales)
+    rule_name: Optional[str] = None
+    segment_token_id: Optional[int] = None
+    template_key: Optional[str] = None
+    params: Optional[Dict[str, Any]] = None
+    merit_points: Optional[int] = None
+    is_active: Optional[bool] = None
+    scope: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Para eliminar scope pásalo explícitamente como null, para mantenerlo omite el campo",
+    )
+
+    # Flags
+    validate: bool = Field(True, description="Validar contra template + segmentos permitidos")
+
+
+@router.put(
+    "/admin/gamification/rules/update",
+    summary="Actualiza (patch) una regla de meritocracia",
+    dependencies=[Depends(admin_user)],
+)
+async def update_meritocracy_rule(payload: UpdateRulePayload):
+    """
+    - Identifica por rule_name (default) o por _id (use_id=True).
+    - Aplica patch solo a los campos provistos.
+    - Si validate=True: valida template, params, merit_points y que el segment_token_id esté permitido.
+    - Para remover 'scope' envía scope=null.
+    """
+    return gamification_service.update_meritocracy_rule(payload.model_dump())
+
+
 @router.post(
     "/admin/gamification/segments/create",
     summary="[PROPOSAL] Construye la TX para crear un nuevo segmento",

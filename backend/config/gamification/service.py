@@ -35,6 +35,7 @@ from .rules_services import (
     list_catalogs,
     list_rule_templates_service,
     validate_and_save_rule_from_template,
+    update_meritocracy_rule,
 )
 
 # Segment Permission Services
@@ -82,6 +83,7 @@ __all__ = [
     'list_catalogs',
     'list_rule_templates_service',
     'validate_and_save_rule_from_template',
+    'update_meritocracy_rule',
     # Segment Services
     'build_allow_dao_tx',
     'list_allowed_daos_for_token',

@@ -2,9 +2,11 @@ from __future__ import annotations
 import logging
 from typing import Dict, Any, Optional
 from fastapi import HTTPException
+from bson import ObjectId
 
 from utils.web3mongo import db
 from config.gamification.rules import list_rule_templates as rules_list_templates
+from .helpers import list_permitted_segments_for_company
 from utils.time_utils import get_chile_time
 
 logger = logging.getLogger(__name__)
@@ -92,6 +94,12 @@ def validate_and_save_rule_from_template(payload: Dict[str, Any]) -> Dict[str, A
     if merit_points <= 0.0:
         raise HTTPException(status_code=400, detail="merit_points debe ser > 0")
 
+    # Chequear que el segmento esté permitido por la compañía/DAO
+    meta = list_permitted_segments_for_company()  # { 'segments': [ {token_id, allowed, ...}, ... ] }
+    allowed = {seg.get("token_id") for seg in (meta.get("segments") or []) if seg.get("allowed")}
+    if segment_token_id not in allowed:
+        raise HTTPException(status_code=400, detail="segment_token_id no permitido para la compañía/DAO")
+
     # Find template
     templates = {t.get("key"): t for t in rules_list_templates()}
     tpl = templates.get(template_key)
@@ -170,4 +178,138 @@ def validate_and_save_rule_from_template(payload: Dict[str, Any]) -> Dict[str, A
         "message": "Regla validada y guardada",
         "modified_count": res.modified_count,
         "upserted_id": str(res.upserted_id) if res.upserted_id else None,
+    }
+
+# ================= NEW: Update (patch) service =================
+
+def _ensure_segment_allowed_or_400(segment_token_id: int):
+    meta = list_permitted_segments_for_company()
+    allowed = {seg.get("token_id") for seg in (meta.get("segments") or []) if seg.get("allowed")}
+    if int(segment_token_id) not in allowed:
+        raise HTTPException(status_code=400, detail="segment_token_id no permitido para la compañía/DAO")
+
+def _normalize_scope(scope: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if scope is None:
+        return None
+    norm: Dict[str, Any] = {}
+    key = 'cargos' if 'cargos' in scope else ('secciones' if 'secciones' in scope else None)
+    if key:
+        v = scope.get(key)
+        if isinstance(v, dict):
+            inc = v.get("include") or []
+            exc = v.get("exclude") or []
+            if isinstance(inc, list):
+                inc = sorted({str(x).strip() for x in inc if str(x).strip()})
+            else:
+                inc = []
+            if isinstance(exc, list):
+                exc = sorted({str(x).strip() for x in exc if str(x).strip()})
+            else:
+                exc = []
+            if inc or exc:
+                norm[key] = {"include": inc, "exclude": exc}
+    return norm or None
+
+def _validate_against_template(template_key: str, params: Dict[str, Any], merit_points: float):
+    if merit_points is None or float(merit_points) <= 0:
+        raise HTTPException(status_code=400, detail="merit_points debe ser > 0")
+
+    templates = {t.get("key"): t for t in rules_list_templates()}
+    tpl = templates.get(template_key)
+    if not tpl:
+        raise HTTPException(status_code=404, detail="Template no encontrado")
+
+    req = (tpl.get("required_params") or {})
+    for k, meta in req.items():
+        if k not in params:
+            if "default" in meta:
+                params[k] = meta["default"]
+            else:
+                raise HTTPException(status_code=400, detail=f"Falta parámetro requerido: {k}")
+        v = params.get(k)
+        if meta.get("type") == "number":
+            try:
+                vfloat = float(v)
+            except Exception:
+                raise HTTPException(status_code=400, detail=f"Parámetro {k} debe ser numérico")
+            if "min" in meta and vfloat < meta["min"]:
+                raise HTTPException(status_code=400, detail=f"Parámetro {k} < mínimo {meta['min']}")
+            if "max" in meta and vfloat > meta["max"]:
+                raise HTTPException(status_code=400, detail=f"Parámetro {k} > máximo {meta['max']}")
+            params[k] = int(vfloat) if vfloat.is_integer() else vfloat
+
+def update_meritocracy_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Patch de una regla:
+      payload = {
+        identifier: str, use_id: bool,
+        rule_name?: str, segment_token_id?: int, template_key?: str,
+        params?: dict, merit_points?: int, is_active?: bool, scope?: dict|null,
+        validate?: bool
+      }
+    """
+    col = db.gamification_meritocracy_rules
+
+    identifier = payload.get("identifier")
+    use_id = bool(payload.get("use_id"))
+
+    if not identifier:
+        raise HTTPException(status_code=400, detail="identifier es obligatorio")
+
+    # 1) Cargar documento actual
+    if use_id:
+        try:
+            oid = ObjectId(identifier)
+        except Exception:
+            raise HTTPException(status_code=400, detail="identifier no es un ObjectId válido")
+        f = {"_id": oid}
+    else:
+        f = {"rule_name": identifier}
+
+    current = col.find_one(f)
+    if not current:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+
+    # 2) Construir patch
+    fields = ["rule_name", "segment_token_id", "template_key", "params", "merit_points", "is_active"]
+    patch: Dict[str, Any] = {k: payload[k] for k in fields if k in payload and payload[k] is not None}
+
+    # scope: si viene explícito y es None → unset; si viene dict → normalizar y set
+    scope_in_payload = "scope" in payload
+    norm_scope = _normalize_scope(payload.get("scope")) if scope_in_payload and payload.get("scope") is not None else None
+
+    # 3) Validación (si aplica)
+    if payload.get("validate", True):
+        # valores efectivos tras el patch (lo nuevo si viene, o lo actual)
+        eff_template_key = patch.get("template_key", current.get("template_key"))
+        eff_params = patch.get("params", current.get("params") or {})
+        eff_merit_points = patch.get("merit_points", current.get("merit_points"))
+        eff_segment_token_id = int(patch.get("segment_token_id", current.get("segment_token_id") or 0))
+
+        if not eff_template_key:
+            raise HTTPException(status_code=400, detail="template_key es obligatorio (actual o nuevo)")
+
+        _validate_against_template(eff_template_key, eff_params, eff_merit_points)
+        if eff_segment_token_id > 0:
+            _ensure_segment_allowed_or_400(eff_segment_token_id)
+        patch["params"] = eff_params  # por si completamos defaults de template
+
+    # 4) Ejecutar update
+    ops: Dict[str, Any] = {"$set": {**patch, "updated_at": get_chile_time()}}
+    if scope_in_payload:
+        if norm_scope is None:
+            ops["$unset"] = {"scope": ""}
+        else:
+            ops["$set"]["scope"] = norm_scope
+
+    res = col.update_one(f, ops)
+
+    # 5) Devolver doc actualizado (sin _id)
+    updated = col.find_one(f, {"_id": 0})
+    return {
+        "ok": True,
+        "message": "Regla actualizada",
+        "matched_count": res.matched_count,
+        "modified_count": res.modified_count,
+        "rule": updated,
     }

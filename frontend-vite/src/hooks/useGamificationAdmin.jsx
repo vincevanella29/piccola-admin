@@ -26,6 +26,7 @@ export function useGamificationAdmin(appState, t) {
     defineRule: g.defineRule,
     listRuleTemplates: g.listRuleTemplates,
     defineRuleFromTemplate: g.defineRuleFromTemplate,
+    updateRuleFromTemplate: g.updateRuleFromTemplate,
     listMeritRules: g.listMeritRules,
     listRules: g.listRules,
     computePreview: g.computePreview,

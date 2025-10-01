@@ -141,7 +141,8 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
             birthdate = vpn_doc.get("fechanacimiento") or None
             cargo = vpn_doc.get("cargo") or None
             favorite_location = vpn_doc.get("sucursal") or None
-            role_level = 7
+            if role_level == -1:
+                role_level = 7
         if empleado:
             email = empleado.get("email") or email
 

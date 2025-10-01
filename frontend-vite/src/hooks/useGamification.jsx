@@ -7,6 +7,7 @@ import {
   defineMeritRule as apiDefineMeritRule,
   listRuleTemplates as apiListRuleTemplates,
   defineRuleFromTemplate as apiDefineRuleFromTemplate,
+  updateRuleFromTemplate as apiUpdateRuleFromTemplate,
   listMeritRules as apiListMeritRules,
   computeMeritPreview as apiComputeMeritPreview,
   listCatalogs as apiListCatalogs,
@@ -57,6 +58,12 @@ export function useGamification(appState, t) {
   const defineRuleFromTemplate = (payload) => handleApiCall(
     () => apiDefineRuleFromTemplate({ payload, walletAddress: effectiveWallet, token }),
     { successMsg: t?.('gamification.rule_saved_success') || 'Regla guardada con éxito.', errorMsg: 'gamification.error_define' }
+  );
+
+  // Update (misma forma que create, pero con identifier)
+  const updateRuleFromTemplate = (payload) => handleApiCall(
+    () => apiUpdateRuleFromTemplate({ payload, walletAddress: effectiveWallet, token }),
+    { successMsg: t?.('gamification.rule_updated_success') || 'Regla actualizada con éxito.', errorMsg: 'gamification.error_define' }
   );
 
   const listMeritRules = async ({ onlyActive } = {}) => {
@@ -113,6 +120,7 @@ export function useGamification(appState, t) {
     computePreview,
     listCatalogs: listAllCatalogs,
     listMeritResults,
+    updateRuleFromTemplate,
   };
 }
 

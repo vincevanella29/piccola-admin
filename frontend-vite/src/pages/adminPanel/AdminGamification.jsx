@@ -109,8 +109,18 @@ const AdminGamification = ({ appState }) => {
               onRefresh={api.listSegments} onBootstrapSpecial={api.bootstrapSpecialExecute}
               onAuthorizeAll={api.authorizeCompanyAllBuild} appState={appState}
             />
+          )} 
+          {activeSubTab === 'list' && (
+            <RuleList
+              isLoading={api.isLoading}
+              rules={api.rules}
+              onRefresh={api.listRules}
+              onUpdate={api.updateRuleFromTemplate}
+              loadTemplates={api.listRuleTemplates}
+              loadSegments={api.listSegments}
+              loadCatalogs={api.listCatalogs}
+            />
           )}
-          {activeSubTab === 'list' && <RuleList isLoading={api.isLoading} rules={api.rules} onRefresh={api.listRules} />}
           {activeSubTab === 'create' && (
             <RuleCreate
               isLoading={api.isLoading}

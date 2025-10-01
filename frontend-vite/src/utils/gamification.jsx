@@ -50,6 +50,21 @@ export async function defineRuleFromTemplate({ payload, walletAddress, token } =
   });
 }
 
+// ⬇️ NUEVO: Update rule from template (misma forma que create, pero con `identifier`)
+export async function updateRuleFromTemplate({ payload, walletAddress, token } = {}) {
+  if (!payload || typeof payload !== 'object') throw new Error('payload es obligatorio');
+  return api({
+    method: 'PUT',
+    endpoint: '/admin/gamification/rules/update',
+    data: payload,
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}
+
 // List stored rules
 export async function listMeritRules({ onlyActive, segmentTokenId, walletAddress, token } = {}) {
   const params = new URLSearchParams();
@@ -399,6 +414,7 @@ export default {
   defineMeritRule,
   listRuleTemplates,
   defineRuleFromTemplate,
+  updateRuleFromTemplate,
   listMeritRules,
   computeMeritPreview,
   listCatalogs,
