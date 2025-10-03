@@ -70,5 +70,18 @@
   "tab_wallet_scopes": "Alcances de wallet",
   "tab_policies": "Políticas",
   "policy_editor": "Editor de política",
-  "policies_list": "Políticas vigentes"
+  "policies_list": "Políticas vigentes",
+  "tab_cproduccion": "Centros de Producción",
+  "search": "Buscar",
+  "active": "Activo",
+  "cargos": "Cargos",
+  "search_cargos": "Buscar cargo por nombre o ID…",
+  "secciones": "Secciones",
+  "search_sections": "Buscar sección…",
+  "notes": "Notas",
+  "summary_cargos": "Cargos seleccionados",
+  "summary_sections": "Secciones seleccionadas",
+  "existing_configs": "Configuraciones existentes",
+  "pick_one": "Selecciona un centro para configurar.",
+  "empty": "Sin centros."
 }

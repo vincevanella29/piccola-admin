@@ -89,6 +89,17 @@ async def mi_meritos(
     if not emp:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado")
     cargo = (emp.get("cargo") or "").strip()
+    # Determinar sección del empleado: primero desde su ficha, si no, desde cargos_intranet
+    emp_section_raw = (
+        emp.get("seccion") or emp.get("Seccion") or emp.get("sección") or emp.get("section") or ""
+    )
+    if not str(emp_section_raw).strip():
+        cargo_doc = db.cargos_intranet.find_one({"cargo": cargo})
+        if not cargo_doc and cargo:
+            # intento case-insensitive si el match exacto falla
+            cargo_doc = db.cargos_intranet.find_one({"cargo": {"$regex": f"^{cargo}$", "$options": "i"}})
+        emp_section_raw = (cargo_doc or {}).get("seccion", "")
+    emp_section_norm = str(emp_section_raw).strip().lower()
     
     rules_map = {str(r["_id"]): r for r in RULES_COLL.find()}
     templates_map = get_rule_templates()
@@ -139,6 +150,13 @@ async def mi_meritos(
             include = scope["cargos"].get("include", [])
             exclude = scope["cargos"].get("exclude", [])
             if (include and cargo not in include) or (cargo in exclude):
+                continue
+
+        # Filtrar por secciones (include/exclude) si está definido en el scope
+        if scope and "secciones" in scope:
+            sec_include = [str(s).strip().lower() for s in scope["secciones"].get("include", [])]
+            sec_exclude = [str(s).strip().lower() for s in scope["secciones"].get("exclude", [])]
+            if (sec_include and emp_section_norm not in sec_include) or (emp_section_norm in sec_exclude):
                 continue
         
         template_key = rule_instance.get("template_key")

@@ -203,7 +203,7 @@ export default function RuleEditModal({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
           >
-            <div className="w-full max-w-5xl rounded-2xl border border-dark-border/20 bg-dark-surface shadow-2xl overflow-hidden">
+            <div className="w-full max-w-5xl rounded-2xl border border-dark-border/20 bg-light-surface/40 dark:bg-dark-surface-secondary/40 shadow-2xl overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-dark-border/20 bg-dark-surface-secondary/40">
                 <div className="text-lg font-semibold">Editar regla</div>
@@ -215,7 +215,7 @@ export default function RuleEditModal({
               {/* Body: Steps reutilizados */}
               <div className="p-5 space-y-6 max-h-[60vh] overflow-auto">
                 {error && (
-                  <div className="p-3 rounded-lg border border-rose-400/30 bg-rose-400/10 text-rose-200 text-sm">{error}</div>
+                  <div className="p-3 rounded-lg border border-rose-400/30 bg-rose-400/10 text-sm">{error}</div>
                 )}
 
                 <Step1_General
@@ -250,7 +250,7 @@ export default function RuleEditModal({
                 </button>
                 <button
                   onClick={handleSave}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-matrix-green text-white disabled:bg-matrix-green/40"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-matrix-green text-white dark:text-dark-text-secondary disabled:bg-matrix-green/40"
                   disabled={isSaving}
                 >
                   {isSaving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}

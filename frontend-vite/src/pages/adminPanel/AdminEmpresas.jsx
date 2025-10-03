@@ -2,12 +2,15 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Building2, Plus, RotateCw, ShieldCheck } from 'lucide-react';
+import { Building2, Plus, RotateCw, ShieldCheck, Factory } from 'lucide-react';
 
 import EmpresasList from './components/empresas/EmpresasList.jsx';
 import EmpresaCreateDrawer from './components/empresas/EmpresaCreateDrawer.jsx';
 import { useEmpresaAdmin } from '../../hooks/useEmpresaAdmin.jsx';
 import EmpresaRolesTab from './components/empresas/EmpresaRolesTab.jsx';
+
+// ⬅️ NUEVO: Tab de Centros de Producción
+import ProductionCentersTab from './components/empresas/components/cproduccion/ProductionCentersTab.jsx';
 
 // ⬅️ Usa los mismos Tabs que en MyFichaPanel:
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs';
@@ -67,10 +70,11 @@ const AdminEmpresas = ({ appState }) => {
     } finally {
       setInitLoading(false);
     }
-  }, [listEmpresas, listSucursalesRefs, listCuentasRefs]);
+  }, [listEmpresas, listSucursalesRefs, listCuentasRefs, t]);
 
   useEffect(() => {
     loadAllOnce();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // búsqueda/paginación 100% cliente
@@ -114,7 +118,7 @@ const AdminEmpresas = ({ appState }) => {
     } catch {
       appState?.setError?.(t('empresa.refresh_error'));
     }
-  }, [listEmpresas, appState]);
+  }, [listEmpresas, appState, t]);
 
   const empresasListProps = useMemo(
     () => ({
@@ -194,6 +198,7 @@ const AdminEmpresas = ({ appState }) => {
                   >
                     {t('empresa.tab_empresas') || 'Empresas'}
                   </TabsTrigger>
+
                   <TabsTrigger
                     isActive={activeTab === 'roles'}
                     onClick={() => setActiveTab('roles')}
@@ -201,6 +206,16 @@ const AdminEmpresas = ({ appState }) => {
                     className="whitespace-nowrap"
                   >
                     {t('empresa.tab_roles') || 'Roles & Scopes'}
+                  </TabsTrigger>
+
+                  {/* ⬇️ NUEVO TAB */}
+                  <TabsTrigger
+                    isActive={activeTab === 'cproduccion'}
+                    onClick={() => setActiveTab('cproduccion')}
+                    icon={Factory}
+                    className="whitespace-nowrap"
+                  >
+                    {t('empresa.tab_cproduccion') || 'Centros de Producción'}
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -283,6 +298,13 @@ const AdminEmpresas = ({ appState }) => {
                     prefetchedEmpresas={allEmpresas}
                     prefetchedSucursales={allSucursales}
                   />
+                </div>
+              </TabsContent>
+
+              {/* ⬇️ NUEVO CONTENIDO: Centros de Producción */}
+              <TabsContent isActive={activeTab === 'cproduccion'}>
+                <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
+                  <ProductionCentersTab appState={appState} t={t} />
                 </div>
               </TabsContent>
             </div>

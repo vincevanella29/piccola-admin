@@ -133,17 +133,17 @@
       "progress_label": "Your Progress",
       "absences": "Absences",
       "tooltip_title": "Goal: Perfect Attendance",
-      "tooltip_desc": "To earn this merit, you must not record any absences throughout the month.",
       "tooltip_li1": "Absences that cancel the merit: AUS, LIC, NVI, PSG.",
       "tooltip_li2": "Show your commitment and discipline."
     },
     "sales": {
       "metric_sales": "Total Sales",
-      "metric_avg_per_table": "Average per Table",
+      "metric_avg_per_table": "Avg. per Table",
       "metric_customers_served": "People Served",
-      "metric_avg_per_customer": "Average per Person",
+      "metric_avg_per_customer": "Avg. per Person",
       "metric_avg_daily_sales": "Avg. Daily Sales",
       "scope_local": "in the Store",
+      "scope_local_label": "Store",
       "scope_empresa": "in the Company",
       "card_desc_champ": "Become the Champion of Champions. Reach Top 1 across the company to earn this elite merit.",
       "card_desc_normal": "Reach Top {{position}} in the {{metric}} ranking at the {{scope}} level to prove your worth.",
@@ -156,8 +156,33 @@
       "tooltip_desc": "You must place within the Top {{position}} among the best at the {{scope}} level.",
       "tooltip_li1": "Your performance is measured monthly against your peers.",
       "tooltip_li2": "This merit is a key pillar of your reputation on the blockchain."
+    },
+    "sales_cat": {
+      "level_family": "Family",
+      "level_subfamily": "Subfamily",
+      "metric_amount": "Amount",
+      "metric_quantity": "Quantity",
+      "card_desc": "Aggregated ranking: reach Top {{position}} in {{metric}} at the {{scope}} level ({{count}} selected).",
+      "aggregated_from": "Aggregated from {{count}} selections"
+    },
+    "times": {
+      "no_data": "No data this month",
+      "your_position": "Your Position",
+      "target": "Target",
+      "best_value": "Best",
+      "avg_value": "Average",
+      "your_value": "Your Value",
+      "card_desc_champ": "Be the fastest in the company. Reach Top 1 company-wide to earn this merit.",
+      "card_desc_normal": "Reach Top {{position}} in the speed ranking at the {{scope}} level.",
+      "tooltip_title": "Goal: Top {{position}} in speed",
+      "tooltip_desc": "Rank based on your average seconds; lower is better at the {{scope}} level.",
+      "tooltip_li1": "Your performance is updated monthly.",
+      "tooltip_li2": "Consistency matters: keep your average low.",
+      "scope_local": "in the Store",
+      "scope_empresa": "in the Company"
     }
-  },
+  }
+,
   "common": {
     "cerrar": "Close",
     "copy": "Copy"

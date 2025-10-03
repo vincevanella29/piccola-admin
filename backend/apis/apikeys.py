@@ -59,7 +59,7 @@ async def create_api_key(data: CreateApiKeyRequest, user: dict = Depends(verify_
     if not wallet or not w3.is_address(wallet):
         raise HTTPException(status_code=400, detail="Invalid wallet in session")
 
-    ensure_level_3_or_4(wallet)
+    require_admin_level(wallet, "admin")
 
     # validate expiry selection
     allowed = {1, 3, 6, 12}

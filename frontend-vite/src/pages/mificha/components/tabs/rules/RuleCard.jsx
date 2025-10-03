@@ -4,7 +4,7 @@ import { Tooltip } from 'react-tooltip';
 import { HelpCircle, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { getRuleConfig } from './templates/_index';
 
-const RuleCard = ({ merit, type, segmentMap }) => {
+const RuleCard = ({ merit, type, segmentMap, historyStatus }) => {
   const baseConfig = getRuleConfig(merit.template_key);
   const dynamicConfig = baseConfig.getCardStyle(merit);
 
@@ -15,8 +15,9 @@ const RuleCard = ({ merit, type, segmentMap }) => {
   const segment = segmentMap[merit.segment_token_id] || { symbol: '???', name: 'Desconocido' };
 
   const isFulfilledThisMonth = type === 'current' && merit.status === 'fulfilled';
-  const isFulfilledHistorically = type === 'history';
-  const needsMinting = type === 'history' && merit.mint_status === 'pending';
+  const isHistory = type === 'history';
+  const isFulfilledHistorically = isHistory && ((historyStatus ?? merit.status) === 'fulfilled');
+  const needsMinting = isHistory && isFulfilledHistorically && merit.mint_status === 'pending';
 
   const tooltipId = `rule-tooltip-${merit.rule_id || merit.result_id}`;
 
@@ -57,18 +58,18 @@ const RuleCard = ({ merit, type, segmentMap }) => {
 
       </div>
       <div className="flex justify-between items-center mt-auto pt-3 border-t border-light-border/10 dark:border-dark-border/10">
-        {type === 'history' ? (
-            <div className='flex items-center gap-2'>
-                <span className="text-xs font-mono bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 text-light-text-secondary dark:text-dark-text-secondary px-2 py-1 rounded">
-                    Logrado: {merit.periodo}
-                </span>
-                {needsMinting && (
-                    <div className='flex items-center gap-1 text-xs text-blue-400 font-semibold' data-tooltip-id="mint-tooltip">
-                        <AlertTriangle size={14}/> 
-                        <span>Pendiente de Entrega</span>
-                    </div>
-                )}
-            </div>
+        {isHistory ? (
+          <div className='flex items-center gap-2'>
+            <span className={`text-xs font-mono px-2 py-1 rounded ${isFulfilledHistorically ? 'bg-matrix-green/20 text-matrix-green' : 'bg-red-500/20 text-red-500'}`}>
+              {isFulfilledHistorically ? `Logrado: ${merit.periodo}` : `No logrado: ${merit.periodo}`}
+            </span>
+            {needsMinting && (
+              <div className='flex items-center gap-1 text-xs text-blue-400 font-semibold' data-tooltip-id="mint-tooltip">
+                <AlertTriangle size={14}/> 
+                <span>Pendiente de Entrega</span>
+              </div>
+            )}
+          </div>
         ) : (
            <span className={`text-xs font-mono px-2 py-1 rounded ${isFulfilledThisMonth ? 'bg-matrix-green/20 text-matrix-green' : 'bg-yellow-400/20 text-yellow-400'}` }>
              {isFulfilledThisMonth ? '¡Logrado este mes!' : 'Misión Activa'}

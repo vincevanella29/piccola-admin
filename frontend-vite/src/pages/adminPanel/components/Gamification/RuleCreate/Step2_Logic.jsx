@@ -11,6 +11,7 @@ const Step2_Logic = ({ formData, setFormData, errors, templates, selectedTemplat
 
   const resolvedTemplate = useMemo(() => {
     const apiTpl = templates?.find?.(tpl => tpl.key === formData.selectedTemplateKey) || selectedTemplate || null;
+    formData.catalogs = selectedTemplate?.catalogs || {};
     const uiTpl = RULE_TEMPLATES.find(t => t.key === (apiTpl?.key || formData.selectedTemplateKey));
     if (!apiTpl && uiTpl) return uiTpl; // fallback to local template entirely
     if (!apiTpl) return null;

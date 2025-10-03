@@ -22,8 +22,8 @@ METRIC_MAP = {
 # ### CORRECCIÓN AQUÍ ### - El nombre de la variable ahora coincide con la convención
 SALES_RANKING_POSITION_RULE_TEMPLATE = {
     "key": TEMPLATE_KEY,
-    "name": "Ranking de Ventas (Top N)",
-    "description": "Otorga mérito a empleados que alcanzan una posición específica (Top N) en un ranking de ventas, ya sea a nivel de local o de empresa.",
+    "name": "Ranking de Ventas (Top N / Exacto / Rango)",
+    "description": "Otorga mérito a empleados según su posición en el ranking (Top N, exacto o rango) a nivel de local o empresa.",
     "category": "sales",
     "period": "month",
     "data_sources": [
@@ -31,88 +31,180 @@ SALES_RANKING_POSITION_RULE_TEMPLATE = {
             "collection": "kpis_empleado_mensual",
             "fields": [
                 "rut", "periodo", "local", "es_competidor",
-                "sales", "promedio_por_mesa", "personas_atendidas", "promedio_por_persona", "promedio_venta_diaria"
+                "sales", "promedio_por_mesa", "personas_atendidas",
+                "promedio_por_persona", "promedio_venta_diaria"
             ],
-            "filter": "Filtra por período y es_competidor=true, buscando la posición en el ranking anidado."
+            "filter": "Filtra por período (mensual o anual) y es_competidor=true, buscando la posición en el ranking anidado."
         }
     ],
+    # ---------- IMPORTANTES (con defaults para el front) ----------
     "required_params": {
         "metric_key": {
             "type": "select", "options": list(METRIC_MAP.keys()), "default": "sales",
-            "description": "Métrica de venta a evaluar (Venta Total, Promedio x Mesa, Personas Atendidas, Promedio x Persona)."
+            "description": "Métrica a evaluar."
         },
-        # Nuevo: permitir modo anual
         "period_mode": {
             "type": "select", "options": ["month", "year"], "default": "month",
-            "description": "Alcance temporal de la evaluación: mensual (month) o anual (year)."
+            "description": "Mensual o anual."
         },
         "ranking_scope": {
             "type": "select", "options": ["local", "empresa"], "default": "local",
-            "description": "Ámbito del ranking (a nivel de Local o de toda la Empresa)."
+            "description": "Ámbito del ranking."
         },
+        # MODO DE PUESTOS: top_n (<= N), exact (== N), range (entre [from..to])
+        "position_type": {
+            "type": "select", "options": ["top_n", "exact", "range"], "default": "top_n",
+            "description": "Cómo se evalúa la posición: Top N, Exacto o Rango."
+        },
+        # Para top_n y exact
         "ranking_position": {
             "type": "number", "min": 1, "max": 100, "default": 1,
-            "description": "Posición máxima para calificar (ej: 1 para ser el N°1, 10 para estar en el Top 10)."
+            "description": "N para Top N o posición exacta, según position_type."
+        },
+        # Para range
+        "position_from": {
+            "type": "number", "min": 1, "max": 100, "default": 4,
+            "description": "Desde (inclusive) cuando position_type = range."
+        },
+        "position_to": {
+            "type": "number", "min": 1, "max": 100, "default": 10,
+            "description": "Hasta (inclusive) cuando position_type = range."
         }
     },
-    # NUEVO: condiciones compuestas (AND). Si se define 'conditions', se ignoran los campos simples de arriba.
     "optional_params": {
+        # Condiciones compuestas (se ignoran los campos simples si vienen definidas)
         "conditions": {
             "type": "array",
-            "description": "Lista de condiciones a cumplir (AND). Cada condición puede ser de tipo 'ranking' o 'value'.",
+            "description": "Lista de condiciones (AND). Tipo 'ranking' o 'value'. 'ranking' ahora soporta min_position y/o max_position.",
             "example": [
                 {"type": "ranking", "metric_key": "sales", "scope": "local", "max_position": 10},
                 {"type": "value", "metric_key": "avg_daily_sales", "operator": "gte", "threshold": 500000}
             ]
+        },
+        # Umbral mínimo de días con venta
+        "min_days_worked": {
+            "type": "number", "min": 0, "default": 0,
+            "description": "Mínimo de días con venta requeridos."
         }
     },
     "metrics": {
         "check": "db.kpis_empleado_mensual.find({periodo, es_competidor: true, '[metric_path].puesto_[scope]': {$lte: position}})",
-        "notes": "Busca en los KPIs mensuales pre-calculados a los empleados que cumplen con el ranking."
+        "notes": "Busca en los KPIs pre-calculados a quienes cumplen posición/condiciones."
     },
     "example_payload": {
-        "rule_name": "top_1_ventas_local", "segment_token_id": 1, "template_key": TEMPLATE_KEY,
-        "params": {"metric_key": "sales", "ranking_scope": "local", "ranking_position": 1},
-        "merit_points": 10, "is_active": True
+        "rule_name": "ranking_ventas_top1_local",
+        "segment_token_id": 1,
+        "template_key": TEMPLATE_KEY,
+        "params": {
+            "metric_key": "sales",
+            "ranking_scope": "local",
+            "period_mode": "month",
+            "position_type": "top_n",
+            "ranking_position": 1
+        },
+        "merit_points": 10,
+        "is_active": True
     }
 }
+
+def _build_position_filter(position_type: str, pos: int, pos_from: int, pos_to: int) -> Dict[str, Any]:
+    """
+    Devuelve un filtro Mongo para puestos según el modo (top_n/exact/range).
+    Siempre fuerza > 0 para ignorar 'sin ranking'.
+    """
+    if position_type == "exact":
+        return {"$eq": int(pos)}
+    if position_type == "range":
+        lo = max(1, int(pos_from or 1))
+        hi = max(lo, int(pos_to or lo))
+        return {"$gte": lo, "$lte": hi}
+    # default: top_n
+    return {"$lte": int(pos), "$gt": 0}
+
+def _merge_and(and_list: List[Dict[str, Any]], extra: Dict[str, Any]) -> Dict[str, Any]:
+    if not and_list:
+        return extra
+    return {"$and": and_list + [extra]}
 
 # --- Función de Evaluación ---
 def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]:
     """
-    Evalúa la regla. Si 'conditions' está presente en params, aplica un AND sobre todas las condiciones.
-    Cada condición soporta:
-      - tipo 'ranking': requiere metric_key, scope ('local'|'empresa'), max_position (int)
-      - tipo 'value': requiere metric_key, operator ('gte'|'gt'|'lte'|'lt'|'eq'), threshold (num). Compara contra '[metric].valor'.
-    Si no hay 'conditions', cae a compatibilidad hacia atrás con los 3 params simples.
+    Evalúa la regla de ranking de ventas.
+    - Si NO hay 'conditions': aplica gating (cargos, min_days_worked), re-ordena con tiebreaker y numera con
+      $documentNumber para garantizar Top N EXACTO y determinístico (empresa o local) en mes/año.
+    - Si HAY 'conditions': mantiene el match por puestos/valores pre-calculados, pero con gating previo.
     """
-    params = rule.get("params", {})
+    params = rule.get("params", {}) or {}
     conditions: List[Dict[str, Any]] = params.get("conditions", []) or []
-    period_mode = params.get("period_mode", "month")
-    min_days_worked = params.get("min_days_worked", 0) or 0
 
-    base_match: Dict[str, Any] = {"es_competidor": True}
-    if period_mode == "month":
-        base_match.update({"periodo": periodo_dash})
-    else:
-        # year mode: periodo prefix 'YYYY-'
-        year = (periodo_dash or "")[:4]
-        base_match.update({"periodo": {"$regex": f"^{year}-"}})
+    period_mode = params.get("period_mode", "month")
+    metric_key = params.get("metric_key", "sales")
+    ranking_scope = params.get("ranking_scope", "local")   # "empresa" | "local"
+    position_type = params.get("position_type", "top_n")   # "top_n" | "exact" | "range"
+    ranking_position = int(params.get("ranking_position", 1) or 1)
+    position_from = int(params.get("position_from", 1) or 1)
+    position_to = int(params.get("position_to", max(1, position_from)) or max(1, position_from))
+    min_days_worked = int(params.get("min_days_worked", 0) or 0)
+
+    # ---------- Scope por cargos (opcional) ----------
+    allowed_ruts: Optional[set] = None
+    try:
+        scope_cfg = rule.get("scope") or {}
+        cargos_cfg = scope_cfg.get("cargos") or {}
+        include_cargos = cargos_cfg.get("include") or []
+        exclude_cargos = cargos_cfg.get("exclude") or []
+        if include_cargos or exclude_cargos:
+            tv_pipe = [
+                {"$match": {"activo": 1}},
+                {"$addFields": {"rut_str": {"$toString": "$rut"}}},
+            ]
+            cargo_match: Dict[str, Any] = {}
+            if include_cargos:
+                cargo_match["$in"] = include_cargos
+            if exclude_cargos:
+                cargo_match["$nin"] = exclude_cargos
+            if cargo_match:
+                tv_pipe.insert(1, {"$match": {"cargo": cargo_match}})
+            tv_pipe += [{"$project": {"_id": 0, "rut_str": 1}}]
+            allowed_ruts = {d["rut_str"] for d in db.trabajadores_vpn.aggregate(tv_pipe)}
+            if not allowed_ruts:
+                return []
+    except Exception as e:
+        logger.warning(f"sales_ranking_position: error resolviendo cargos en scope: {e}")
+
+    # ---------- Helpers ----------
+    def _row_filter(pt: str, pos: int, lo: int, hi: int) -> Dict[str, Any]:
+        if pt == "exact":
+            return {"$eq": int(pos)}
+        if pt == "range":
+            lo = max(1, int(lo or 1))
+            hi = max(lo, int(hi or lo))
+            return {"$gte": lo, "$lte": hi}
+        return {"$lte": int(pos)}  # top_n
 
     def build_condition_filter(cond: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         ctype = cond.get("type")
-        metric_key = cond.get("metric_key")
-        if metric_key not in METRIC_MAP:
-            logger.warning(f"Condición ignorada por métrica no válida: {metric_key}")
+        mkey = cond.get("metric_key")
+        if mkey not in METRIC_MAP:
+            logger.warning(f"Condición ignorada por métrica no válida: {mkey}")
             return None
-        path = METRIC_MAP[metric_key]
+        path = METRIC_MAP[mkey]
         if ctype == "ranking":
             scope = cond.get("scope", "local")
-            max_pos = cond.get("max_position", 1)
+            min_pos = cond.get("min_position")
+            max_pos = cond.get("max_position")
             if scope not in ["local", "empresa"]:
                 logger.warning(f"Scope inválido en condición ranking: {scope}")
                 return None
-            return {f"{path}.puesto_{scope}": {"$gt": 0, "$lte": max_pos}}
+            field = f"{path}.puesto_{scope}"
+            if min_pos is not None and max_pos is not None:
+                lo = max(1, int(min_pos)); hi = max(lo, int(max_pos))
+                return {field: {"$gte": lo, "$lte": hi}}
+            if min_pos is not None:
+                return {field: {"$gte": max(1, int(min_pos))}}
+            if max_pos is not None:
+                return {field: {"$gt": 0, "$lte": int(max_pos)}}
+            return {field: {"$eq": 1}}
         elif ctype == "value":
             op = cond.get("operator", "gte")
             threshold = cond.get("threshold")
@@ -125,116 +217,193 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
             logger.warning(f"Tipo de condición desconocido: {ctype}")
             return None
 
+    path = METRIC_MAP.get(metric_key, "sales")
+
+    # =========================
+    # MODO MENSUAL
+    # =========================
+    if period_mode == "month":
+        base_match: Dict[str, Any] = {"es_competidor": True, "periodo": periodo_dash}
+        if allowed_ruts is not None:
+            base_match["rut"] = {"$in": list(allowed_ruts)}
+
+        # --- Camino conditions: usar puestos/valores precalculados + gating ---
+        if conditions:
+            match_stage: Dict[str, Any] = dict(base_match)
+            and_filters = []
+            for c in conditions:
+                f = build_condition_filter(c)
+                if f: and_filters.append(f)
+            if not and_filters:
+                return []
+            match_stage = {**match_stage, "$and": and_filters}
+            if min_days_worked > 0:
+                extra = {"promedio_venta_diaria.dias_con_venta": {"$gte": int(min_days_worked)}}
+                if "$and" in match_stage: match_stage["$and"].append(extra)
+                else: match_stage = {**match_stage, **extra}
+            pipeline = [{"$match": match_stage}, {"$project": {"_id": 0, "rut": 1}}]
+            return [d["rut"] for d in db.kpis_empleado_mensual.aggregate(pipeline)]
+
+        # --- Camino simple: re-ranking exacto con $documentNumber y tiebreaker escalar ---
+        metric_expr = "$sales.total" if path == "sales" else f"${path}.valor"
+        pipeline: List[Dict[str, Any]] = [
+            {"$match": base_match},
+            {"$addFields": {
+                "metric_value": {"$ifNull": [metric_expr, 0]},
+                "dias_worked": {"$ifNull": ["$promedio_venta_diaria.dias_con_venta", 0]},
+            }},
+        ]
+        if min_days_worked > 0:
+            pipeline.append({"$match": {"dias_worked": {"$gte": int(min_days_worked)}}})
+        pipeline += [
+            {"$match": {"metric_value": {"$gt": 0}}},
+            # tiebreaker determinístico basado en RUT numérico (si no convertible -> 0)
+            {"$addFields": {
+                "_rut_num": {
+                    "$convert": {"input": "$rut", "to": "double", "onError": 0.0, "onNull": 0.0}
+                }
+            }},
+            {"$addFields": {"metric_value_tb": {"$add": ["$metric_value", {"$divide": ["$_rut_num", 1e12]}]}}},
+        ]
+
+        if ranking_scope == "empresa":
+            pipeline += [
+                {"$setWindowFields": {
+                    "sortBy": {"metric_value_tb": -1},   # ← un solo campo: cumple requisito de $documentNumber
+                    "output": {"rownum": {"$documentNumber": {}}}
+                }},
+            ]
+        else:  # local
+            pipeline += [
+                {"$setWindowFields": {
+                    "partitionBy": "$local",
+                    "sortBy": {"metric_value_tb": -1},   # ← un solo campo
+                    "output": {"rownum": {"$documentNumber": {}}}
+                }},
+            ]
+
+        pipeline += [
+            {"$match": {"rownum": _row_filter(position_type, ranking_position, position_from, position_to)}},
+            {"$project": {"_id": 0, "rut": 1}}
+        ]
+        return [d["rut"] for d in db.kpis_empleado_mensual.aggregate(pipeline)]
+
+    # =========================
+    # MODO ANUAL
+    # =========================
+    year = (periodo_dash or "")[:4]
+    year_match: Dict[str, Any] = {"periodo": {"$regex": f"^{year}-"}, "es_competidor": True}
+    if allowed_ruts is not None:
+        year_match["rut"] = {"$in": list(allowed_ruts)}
+
+    # --- Camino conditions (match directo) ---
     if conditions:
+        match_stage: Dict[str, Any] = dict(year_match)
         and_filters = []
         for c in conditions:
             f = build_condition_filter(c)
-            if f:
-                and_filters.append(f)
+            if f: and_filters.append(f)
         if not and_filters:
             return []
-        match_stage = {**base_match, "$and": and_filters}
-    else:
-        # Compatibilidad hacia atrás
-        metric_key = params.get("metric_key", "sales")
-        ranking_scope = params.get("ranking_scope", "local")
-        ranking_position = params.get("ranking_position", 1)
-        if metric_key not in METRIC_MAP or ranking_scope not in ["local", "empresa"]:
-            logger.warning(f"Parámetros inválidos para regla de ranking: metric='{metric_key}', scope='{ranking_scope}'")
-            return []
-        mongo_field_path = METRIC_MAP[metric_key]
-        query_field = f"{mongo_field_path}.puesto_{ranking_scope}"
-        match_stage = {**base_match, query_field: {"$lte": ranking_position, "$gt": 0}}
+        match_stage = {**match_stage, "$and": and_filters}
+        if min_days_worked > 0:
+            extra = {"promedio_venta_diaria.dias_con_venta": {"$gte": int(min_days_worked)}}
+            if "$and" in match_stage: match_stage["$and"].append(extra)
+            else: match_stage = {**match_stage, **extra}
+        pipeline = [{"$match": match_stage}, {"$project": {"_id": 0, "rut": 1}}]
+        return [d["rut"] for d in db.kpis_empleado_mensual.aggregate(pipeline)]
 
-    # Filtro mínimo de días trabajados (días con venta)
-    if min_days_worked and min_days_worked > 0:
-        # Para month: usa el campo existente
-        # Para year: usaremos el mismo nombre en el pipeline anual
-        extra = {"promedio_venta_diaria.dias_con_venta": {"$gte": int(min_days_worked)}}
-        if "$and" in match_stage:
-            match_stage["$and"].append(extra)
-        else:
-            match_stage = {**match_stage, **extra}
-
-    if period_mode == "month":
-        pipeline = [
-            {"$match": match_stage},
+    # --- Camino simple anual: agregar + tiebreaker + $documentNumber ---
+    winners: List[str] = []
+    if ranking_scope == "empresa":
+        agg_pipeline: List[Dict[str, Any]] = [
+            {"$match": year_match},
+            {"$group": {
+                "_id": {"rut": "$rut"},
+                "sales_total": {"$sum": "$sales.total"},
+                "mesas": {"$sum": "$total_mesas.valor"},
+                "personas": {"$sum": "$personas_atendidas.valor"},
+                "dias": {"$sum": {"$ifNull": ["$promedio_venta_diaria.dias_con_venta", 0]}},
+                "pvd_avg": {"$avg": "$promedio_venta_diaria.valor"}
+            }},
+            {"$addFields": {
+                "rut": "$_id.rut",
+                "sales": {"total": "$sales_total"},
+                "total_mesas": {"valor": "$mesas"},
+                "personas_atendidas": {"valor": "$personas"},
+                "promedio_por_mesa": {"valor": {"$cond": [{"$gt": ["$mesas", 0]}, {"$divide": ["$sales_total", "$mesas"]}, 0]}},
+                "promedio_por_persona": {"valor": {"$cond": [{"$gt": ["$personas", 0]}, {"$divide": ["$sales_total", "$personas"]}, 0]}},
+                "promedio_venta_diaria": {"valor": "$pvd_avg", "dias_con_venta": "$dias"},
+            }},
+            {"$addFields": {
+                "metric_value": ("$sales.total" if path == "sales" else f"${path}.valor"),
+                "dias_worked": "$promedio_venta_diaria.dias_con_venta"
+            }},
+        ]
+        if min_days_worked > 0:
+            agg_pipeline.append({"$match": {"dias_worked": {"$gte": int(min_days_worked)}}})
+        agg_pipeline += [
+            {"$match": {"metric_value": {"$gt": 0}}},
+            {"$addFields": {
+                "_rut_num": {"$convert": {"input": "$rut", "to": "double", "onError": 0.0, "onNull": 0.0}}
+            }},
+            {"$addFields": {"metric_value_tb": {"$add": ["$metric_value", {"$divide": ["$_rut_num", 1e12]}]}}},
+            {"$setWindowFields": {
+                "sortBy": {"metric_value_tb": -1},
+                "output": {"rownum": {"$documentNumber": {}}}
+            }},
+            {"$match": {"rownum": _row_filter(position_type, ranking_position, position_from, position_to)}},
             {"$project": {"_id": 0, "rut": 1}},
         ]
-        winner_docs = list(db.kpis_empleado_mensual.aggregate(pipeline))
-        return [doc["rut"] for doc in winner_docs]
-
-    # period_mode == 'year' -> agregación anual por rut+local
-    year = (periodo_dash or "")[:4]
-    metric_key = params.get("metric_key", "sales")
-    ranking_scope = params.get("ranking_scope", "local")
-    ranking_position = params.get("ranking_position", 1)
-
-    # Construimos un pipeline que normaliza todas las métricas con el mismo shape mensual
-    agg_pipeline: List[Dict[str, Any]] = [
-        {"$match": {"periodo": {"$regex": f"^{year}-"}, "es_competidor": True}},
-        {"$group": {
-            "_id": {"rut": "$rut", "local": "$local"},
-            "sales_total": {"$sum": "$sales.total"},
-            "mesas": {"$sum": "$total_mesas.valor"},
-            "personas": {"$sum": "$personas_atendidas.valor"},
-            "dias": {"$sum": {"$ifNull": ["$promedio_venta_diaria.dias_con_venta", 0]}},
-            "pvd_avg": {"$avg": "$promedio_venta_diaria.valor"}
-        }},
-        {"$addFields": {
-            "rut": "$_id.rut",
-            "local": "$_id.local",
-            "sales": {"total": "$sales_total"},
-            "total_mesas": {"valor": "$mesas"},
-            "personas_atendidas": {"valor": "$personas"},
-            "promedio_por_mesa": {"valor": {"$cond": [{"$gt": ["$mesas", 0]}, {"$divide": ["$sales_total", "$mesas"]}, 0]}},
-            "promedio_por_persona": {"valor": {"$cond": [{"$gt": ["$personas", 0]}, {"$divide": ["$sales_total", "$personas"]}, 0]}},
-            "promedio_venta_diaria": {"valor": "$pvd_avg", "dias_con_venta": "$dias"}
-        }},
-    ]
-
-    # Calcular ranking según metric_key (agregamos 'metric_value' para sortBy/Max)
-    path = METRIC_MAP.get(metric_key, "sales")
-    metric_expr = ({"$getField": {"field": "valor", "input": f"${path}"}} if path != "sales" else "$sales.total")
-    agg_pipeline += [
-        {"$addFields": {"metric_value": metric_expr}},
-        {"$setWindowFields": {
-            "sortBy": {"metric_value": -1},
-            "output": {"puesto_empresa": {"$denseRank": {}}, "top_empresa": {"$max": "$metric_value"}}
-        }},
-        {"$setWindowFields": {
-            "partitionBy": "$local",
-            "sortBy": {"metric_value": -1},
-            "output": {"puesto_local": {"$denseRank": {}}, "top_local": {"$max": "$metric_value"}}
-        }},
-        {"$unset": "metric_value"}
-    ]
-
-    # Filtros finales (conditions/simple) + min_days_worked
-    post_filters: Dict[str, Any] = {}
-    if conditions:
-        and_arr = []
-        for c in conditions:
-            f = build_condition_filter(c)
-            if f:
-                and_arr.append(f)
-        if min_days_worked and min_days_worked > 0:
-            and_arr.append({"promedio_venta_diaria.dias_con_venta": {"$gte": int(min_days_worked)}})
-        if and_arr:
-            post_filters = {"$and": and_arr}
+        winners = [w["rut"] for w in db.kpis_empleado_mensual.aggregate(agg_pipeline)]
     else:
-        # simple mode
-        if metric_key in METRIC_MAP and ranking_scope in ["local", "empresa"]:
-            post_filters[f"puesto_{ranking_scope}"] = {"$lte": int(ranking_position), "$gt": 0}
-        if min_days_worked and min_days_worked > 0:
-            post_filters["promedio_venta_diaria.dias_con_venta"] = {"$gte": int(min_days_worked)}
+        agg_pipeline: List[Dict[str, Any]] = [
+            {"$match": year_match},
+            {"$group": {
+                "_id": {"rut": "$rut", "local": "$local"},
+                "sales_total": {"$sum": "$sales.total"},
+                "mesas": {"$sum": "$total_mesas.valor"},
+                "personas": {"$sum": "$personas_atendidas.valor"},
+                "dias": {"$sum": {"$ifNull": ["$promedio_venta_diaria.dias_con_venta", 0]}},
+                "pvd_avg": {"$avg": "$promedio_venta_diaria.valor"}
+            }},
+            {"$addFields": {
+                "rut": "$_id.rut",
+                "local": "$_id.local",
+                "sales": {"total": "$sales_total"},
+                "total_mesas": {"valor": "$mesas"},
+                "personas_atendidas": {"valor": "$personas"},
+                "promedio_por_mesa": {"valor": {"$cond": [{"$gt": ["$mesas", 0]}, {"$divide": ["$sales_total", "$mesas"]}, 0]}},
+                "promedio_por_persona": {"valor": {"$cond": [{"$gt": ["$personas", 0]}, {"$divide": ["$sales_total", "$personas"]}, 0]}},
+                "promedio_venta_diaria": {"valor": "$pvd_avg", "dias_con_venta": "$dias"},
+            }},
+            {"$addFields": {
+                "metric_value": ("$sales.total" if path == "sales" else f"${path}.valor"),
+                "dias_worked": "$promedio_venta_diaria.dias_con_venta"
+            }},
+        ]
+        if min_days_worked > 0:
+            agg_pipeline.append({"$match": {"dias_worked": {"$gte": int(min_days_worked)}}})
+        agg_pipeline += [
+            {"$match": {"metric_value": {"$gt": 0}}},
+            {"$addFields": {
+                "_rut_num": {"$convert": {"input": "$rut", "to": "double", "onError": 0.0, "onNull": 0.0}}
+            }},
+            {"$addFields": {"metric_value_tb": {"$add": ["$metric_value", {"$divide": ["$_rut_num", 1e12]}]}}},
+            {"$setWindowFields": {
+                "partitionBy": "$local",
+                "sortBy": {"metric_value_tb": -1},
+                "output": {"rownum": {"$documentNumber": {}}}
+            }},
+            {"$match": {"rownum": _row_filter(position_type, ranking_position, position_from, position_to)}},
+            {"$project": {"_id": 0, "rut": 1}},
+        ]
+        winners = [w["rut"] for w in db.kpis_empleado_mensual.aggregate(agg_pipeline)]
 
-    if post_filters:
-        agg_pipeline.append({"$match": post_filters})
+    # Únicos por si un RUT califica en más de un local
+    return list(dict.fromkeys(winners))
 
-    agg_pipeline.append({"$project": {"rut": 1}})
-    winners = list(db.kpis_empleado_mensual.aggregate(agg_pipeline))
-    return [w["rut"] for w in winners]
+
 
 # ### NUEVA FUNCIÓN DE PROGRESO ###
 def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash: str) -> Dict[str, Any]:

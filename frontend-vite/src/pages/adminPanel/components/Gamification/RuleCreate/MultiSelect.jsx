@@ -56,6 +56,10 @@ const customStyles = {
 const MultiSelect = ({ options, value, onChange, placeholder }) => {
   const selectOptions = options.map(opt => ({ value: opt, label: opt }));
   const selectValue = value.map(val => ({ value: val, label: val }));
+  const mergedStyles = {
+    ...customStyles,
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+  };
 
   return (
     <Select
@@ -63,9 +67,14 @@ const MultiSelect = ({ options, value, onChange, placeholder }) => {
       options={selectOptions}
       value={selectValue}
       onChange={(selected) => onChange(selected.map(s => s.value))}
-      styles={customStyles}
+      styles={mergedStyles}
       placeholder={placeholder}
       noOptionsMessage={() => 'No options'}
+      // Ensure the menu overlays above sticky footers/buttons to avoid click-through
+      menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+      menuShouldScrollIntoView={false}
+      menuPlacement="auto"
+      closeMenuOnSelect={false}
     />
   );
 };

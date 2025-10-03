@@ -81,6 +81,7 @@ export default function MeritosPanel({ isLoading, meritos, ficha }) {
   const currentPeriod = meritos?.current_period || '';
   const currentMonthRaw = meritos?.merits?.current_month || [];
   const historyFulfilled = meritos?.merits?.history_fulfilled || [];
+  const historyNotFulfilled = meritos?.merits?.history_not_fulfilled || [];
 
   // Particiona: mes vs año (period_mode: 'year')
   const yearMissions = currentMonthRaw.filter((m) => m?.params?.period_mode === 'year');
@@ -139,7 +140,7 @@ export default function MeritosPanel({ isLoading, meritos, ficha }) {
                 label="Historial"
                 shortLabel="Hist."
                 icon={History}
-                count={historyFulfilled.length}
+                count={historyFulfilled.length + historyNotFulfilled.length}
                 active={activeTab === 'history'}
                 onClick={() => setActiveTab('history')}
               />
@@ -202,17 +203,38 @@ export default function MeritosPanel({ isLoading, meritos, ficha }) {
           )}
 
           {activeTab === 'history' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {historyFulfilled.length > 0 ? (
-                historyFulfilled.map((merit) => (
-                  <RuleCard key={merit.result_id} merit={merit} type="history" segmentMap={segmentMap} />
-                ))
+            <div className="space-y-4">
+              {(historyFulfilled.length + historyNotFulfilled.length) > 0 ? (
+                <>
+                  {historyFulfilled.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide mb-2 text-light-text-tertiary dark:text-dark-text-tertiary">Completadas</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {historyFulfilled.map((merit) => (
+                          <RuleCard key={merit.result_id} merit={merit} type="history" historyStatus="fulfilled" segmentMap={segmentMap} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {historyNotFulfilled.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide mb-2 text-light-text-tertiary dark:text-dark-text-tertiary">No completadas</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {historyNotFulfilled.map((merit) => (
+                          <RuleCard key={merit.result_id} merit={merit} type="history" historyStatus="not_fulfilled" segmentMap={segmentMap} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
-                <EmptyState
-                  icon={History}
-                  title="Sin historial todavía"
-                  subtitle="A medida que cumplas misiones, tu historial se irá llenando."
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <EmptyState
+                    icon={History}
+                    title="Sin historial todavía"
+                    subtitle="A medida que cumplas o intentes misiones, el historial aparecerá aquí."
+                  />
+                </div>
               )}
             </div>
           )}

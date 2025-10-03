@@ -142,6 +142,7 @@
       "metric_avg_per_customer": "Media per Persona",
       "metric_avg_daily_sales": "Media Giornaliera di Vendite",
       "scope_local": "della Sede",
+      "scope_local_label": "Sede",
       "scope_empresa": "dell'Azienda",
       "card_desc_champ": "Diventa il Campione dei Campioni. Raggiungi il Top 1 in tutta l'azienda per ottenere questo merito d'élite.",
       "card_desc_normal": "Raggiungi il Top {{position}} nel ranking di {{metric}} a livello {{scope}} per dimostrare il tuo valore.",
@@ -154,8 +155,33 @@
       "tooltip_desc": "Devi posizionarti entro il Top {{position}} tra i migliori a livello {{scope}}.",
       "tooltip_li1": "La tua performance è misurata mensilmente rispetto ai tuoi pari.",
       "tooltip_li2": "Questo merito è un pilastro chiave della tua reputazione sulla blockchain."
+    },
+    "sales_cat": {
+      "level_family": "Famiglia",
+      "level_subfamily": "Sottofamiglia",
+      "metric_amount": "Importo",
+      "metric_quantity": "Quantità",
+      "card_desc": "Ranking aggregato: raggiungi il Top {{position}} in {{metric}} a livello {{scope}} ({{count}} selezionate).",
+      "aggregated_from": "Aggregato da {{count}} selezioni"
+    },
+    "times": {
+      "no_data": "Nessun dato questo mese",
+      "your_position": "La Tua Posizione",
+      "target": "Obiettivo",
+      "best_value": "Migliore",
+      "avg_value": "Media",
+      "your_value": "Il Tuo Valore",
+      "card_desc_champ": "Sii il più veloce dell'azienda. Raggiungi il Top 1 in tutta l'azienda per ottenere questo merito.",
+      "card_desc_normal": "Raggiungi il Top {{position}} nel ranking della velocità a livello {{scope}}.",
+      "tooltip_title": "Obiettivo: Top {{position}} in velocità",
+      "tooltip_desc": "Classifica basata sulla tua media in secondi; più basso è meglio a livello {{scope}}.",
+      "tooltip_li1": "La tua performance è aggiornata mensilmente.",
+      "tooltip_li2": "La costanza conta: mantieni bassa la tua media.",
+      "scope_local": "della Sede",
+      "scope_empresa": "dell'Azienda"
     }
-  },
+  }
+,
   "common": {
     "cerrar": "Chiudi",
     "copy": "Copia"

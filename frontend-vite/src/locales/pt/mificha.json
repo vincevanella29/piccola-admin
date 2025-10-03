@@ -141,6 +141,7 @@
       "metric_avg_per_customer": "Média por Pessoa",
       "metric_avg_daily_sales": "Média Diária de Vendas",
       "scope_local": "na Unidade",
+      "scope_local_label": "Unidade",
       "scope_empresa": "na Empresa",
       "card_desc_champ": "Torne-se o Campeão dos Campeões. Alcance o Top 1 em toda a empresa para obter este mérito de elite.",
       "card_desc_normal": "Alcance o Top {{position}} no ranking de {{metric}} a nível {{scope}} para provar seu valor.",
@@ -153,8 +154,33 @@
       "tooltip_desc": "Você deve se posicionar dentro do Top {{position}} entre os melhores a nível {{scope}}.",
       "tooltip_li1": "Seu desempenho é medido mensalmente em relação aos seus pares.",
       "tooltip_li2": "Este mérito é um pilar fundamental da sua reputação na blockchain."
+    },
+    "sales_cat": {
+      "level_family": "Família",
+      "level_subfamily": "Subfamília",
+      "metric_amount": "Montante",
+      "metric_quantity": "Quantidade",
+      "card_desc": "Ranking agregado: alcance o Top {{position}} em {{metric}} no nível {{scope}} ({{count}} selecionadas).",
+      "aggregated_from": "Agregado de {{count}} seleções"
+    },
+    "times": {
+      "no_data": "Sem dados neste mês",
+      "your_position": "Sua Posição",
+      "target": "Objetivo",
+      "best_value": "Melhor",
+      "avg_value": "Média",
+      "your_value": "Seu Valor",
+      "card_desc_champ": "Seja o mais veloz da empresa. Alcance o Top 1 em toda a empresa para obter este mérito.",
+      "card_desc_normal": "Alcance o Top {{position}} no ranking de velocidade a nível {{scope}}.",
+      "tooltip_title": "Objetivo: Top {{position}} em velocidade",
+      "tooltip_desc": "O ranking é baseado na sua média de segundos; menor é melhor a nível {{scope}}.",
+      "tooltip_li1": "Seu desempenho é atualizado mensalmente.",
+      "tooltip_li2": "Consistência importa: mantenha sua média baixa.",
+      "scope_local": "na Unidade",
+      "scope_empresa": "na Empresa"
     }
-  },
+  }
+,
   "common": {
     "cerrar": "Fechar",
     "copy": "Copiar"

@@ -70,5 +70,18 @@
   "tab_wallet_scopes": "Ambiti wallet",
   "tab_policies": "Policy",
   "policy_editor": "Editor di policy",
-  "policies_list": "Policy attive"
+  "policies_list": "Policy attive",
+  "tab_cproduccion": "Centri di Produzione",
+  "search": "Cerca",
+  "active": "Attivo",
+  "cargos": "Ruoli",
+  "search_cargos": "Cerca ruolo per nome o ID…",
+  "secciones": "Sezioni",
+  "search_sections": "Cerca sezione…",
+  "notes": "Note",
+  "summary_cargos": "Ruoli selezionati",
+  "summary_sections": "Sezioni selezionate",
+  "existing_configs": "Configurazioni esistenti",
+  "pick_one": "Seleziona un centro da configurare.",
+  "empty": "Nessun centro."
 }

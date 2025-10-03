@@ -64,5 +64,18 @@
   "saved": "Salvo",
   "save_error": "Erro ao salvar",
   "cleared": "Configuração removida",
-  "clear_error": "Erro ao limpar"
+  "clear_error": "Erro ao limpar",
+  "tab_cproduccion": "Centros de Produção",
+  "search": "Pesquisar",
+  "active": "Ativo",
+  "cargos": "Cargos",
+  "search_cargos": "Pesquisar cargo por nome ou ID…",
+  "secciones": "Seções",
+  "search_sections": "Pesquisar seção…",
+  "notes": "Notas",
+  "summary_cargos": "Cargos selecionados",
+  "summary_sections": "Seções selecionadas",
+  "existing_configs": "Configurações existentes",
+  "pick_one": "Selecione um centro para configurar.",
+  "empty": "Sem centros."
 }

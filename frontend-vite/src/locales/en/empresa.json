@@ -70,5 +70,19 @@
   "tab_wallet_scopes": "Wallet scopes",
   "tab_policies": "Policies",
   "policy_editor": "Policy editor",
-  "policies_list": "Active policies"
+  "policies_list": "Active policies",
+  "tab_cproduccion": "Production Centers",
+  "tab_cargos": "Positions",
+  "search": "Search",
+  "active": "Active",
+  "cargos": "Positions",
+  "search_cargos": "Search position by name or ID…",
+  "secciones": "Sections",
+  "search_sections": "Search section…",
+  "notes": "Notes",
+  "summary_cargos": "Selected positions",
+  "summary_sections": "Selected sections",
+  "existing_configs": "Existing configurations",
+  "pick_one": "Select a center to configure.",
+  "empty": "No centers."
 }
