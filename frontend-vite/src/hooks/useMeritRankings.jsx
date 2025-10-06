@@ -20,6 +20,21 @@ function buildBySegmentFromMeritObject(meritObj) {
   return by;
 }
 
+function buildBySegmentFromRow(row) {
+  const list = Array.isArray(row?.merits_by_segment) ? row.merits_by_segment : [];
+  if (!list.length) return null;
+  const by = {};
+  for (const seg of list) {
+    const sym = seg?.symbol;
+    if (!sym) continue;
+    by[sym] = {
+      wallet: Number(seg?.wallet ?? 0),
+      pending: Number(seg?.pending ?? 0),
+    };
+  }
+  return by;
+}
+
 function aggregateBySegmentFromHistory(history = []) {
   const by = {};
   let fulfilled = 0, notFulfilled = 0, minted = 0;
@@ -99,6 +114,7 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
         skip: 0,
         limit: 100000,
       });
+      console.log('response', response);
       const rows = response?.ranking || [];
       setData(rows);
       setPagination((prev) => ({
@@ -148,8 +164,16 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
       wallet: e.wallet || e?.merit_profile?.wallet || null,
     };
 
-    const byFromRow = buildBySegmentFromMeritObject(e.__merit);
-    const previewTotals = {
+    // Preferir nuevos campos del backend para el preview
+    const byFromNew = buildBySegmentFromRow(e);
+    const byFromRow = byFromNew || buildBySegmentFromMeritObject(e.__merit);
+    const totalsFromNew = e?.merits_summary || null;
+    const previewTotals = totalsFromNew ? {
+      total_points: Number(totalsFromNew.total_simulated ?? 0),
+      fulfilled_count: null,
+      not_fulfilled_count: null,
+      minted_count: null,
+    } : {
       total_points: Object.values(byFromRow).reduce((acc, v) => acc + (v.wallet || 0) + (v.pending || 0), 0),
       fulfilled_count: null,
       not_fulfilled_count: null,
@@ -175,6 +199,7 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
       const res = await getPublicEmployeeMeritHistory(appState, {
         rut: e.rut, wallet: preEmployee.wallet, include_profile: true,
       });
+      console.log('res', res);
 
       // Si el backend no incluyó by_segment/totals, los construimos
       let finalPayload = { ...res };

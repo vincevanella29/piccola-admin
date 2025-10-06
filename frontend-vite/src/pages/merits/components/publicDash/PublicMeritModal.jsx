@@ -49,16 +49,15 @@ function Avatar({ src, alt }) {
   );
 }
 
-// Shimmer skeleton block
+// Shimmer skeleton block (no inline <style> to avoid React static flag warnings)
 function Shimmer({ className = '' }) {
-  return <div className={`relative overflow-hidden bg-dark-surface-secondary/40 ${className}`}>
-    <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-    <style>{`@keyframes shimmer{100%{transform:translateX(100%)}}`}</style>
-  </div>;
+  return (
+    <div className={`bg-dark-surface-secondary/40 animate-pulse ${className}`} />
+  );
 }
 
 export default function PublicMeritModal({ open, loading, error, data, preview, onClose }) {
-  if (!open) return null;
+  // Hooks must be called unconditionally before any return
   const { t } = useTranslation();
 
   // usa preview como base, y mergea data cuando llega
@@ -76,6 +75,9 @@ export default function PublicMeritModal({ open, loading, error, data, preview, 
     Object.keys(bySegment).forEach((sym) => { if (!map[sym]) map[sym] = sym; });
     return map;
   }, [data, preview, bySegment]);
+
+  // Early return AFTER hooks
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50">

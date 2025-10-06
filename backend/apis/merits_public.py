@@ -95,6 +95,30 @@ def _monthly_points(periods: List[str]) -> List[Dict[str, Any]]:
     ]
     return list(RESULTS.aggregate(pipe))
 
+def _segment_totals_all_time() -> List[Dict[str, Any]]:
+    """
+    Totales por RUT y segmento para toda la historia (sin filtro de periodo), separando minted vs pending.
+    """
+    pipe = [
+        {"$group": {
+            "_id": {"rut": "$rut", "seg": "$segment_token_id"},
+            "wallet_pts": {"$sum": {
+                "$cond": [{"$eq": ["$mint_status", "minted"]}, {"$ifNull": ["$merit_points", 0]}, 0]
+            }},
+            "pending_pts": {"$sum": {
+                "$cond": [{"$ne": ["$mint_status", "minted"]}, {"$ifNull": ["$merit_points", 0]}, 0]
+            }},
+        }},
+        {"$project": {
+            "_id": 0,
+            "rut": {"$toString": "$_id.rut"},
+            "segment_token_id": "$_id.seg",
+            "wallet_pts": 1,
+            "pending_pts": 1
+        }}
+    ]
+    return list(RESULTS.aggregate(pipe))
+
 def _segment_totals(periods: List[str]) -> List[Dict[str, Any]]:
     """
     Totales por RUT y segmento en N meses, separando minted (wallet) vs pending.
@@ -189,7 +213,7 @@ async def public_merit_rankings(
         if rut in emp_map and per in emp_map[rut]["months"]:
             emp_map[rut]["months"][per]["puntos"] = pts
 
-    # cargar totales por segmento wallet/pending
+    # cargar totales por segmento wallet/pending (ventana de meses) para ranking
     for d in _segment_totals(periods):
         rut = d.get("rut")
         if rut not in emp_map:
@@ -205,19 +229,70 @@ async def public_merit_rankings(
         emp["__merit"]["walletBySegment"][symbol] = emp["__merit"]["walletBySegment"].get(symbol, 0) + wpts
         emp["__merit"]["pendingBySegment"][symbol] = emp["__merit"]["pendingBySegment"].get(symbol, 0) + ppts
 
+    # cargar totales por segmento ALL-TIME para presentación en tabla
+    __all_map: Dict[str, Dict[str, Dict[str, float]]] = {}
+    for d in _segment_totals_all_time():
+        rut = d.get("rut")
+        if rut not in emp_map:
+            continue
+        seg_id = d.get("segment_token_id")
+        meta = seg_catalog.get(seg_id) if isinstance(seg_id, int) else None
+        symbol = (meta or {}).get("symbol") or (f"SEG_{seg_id}" if seg_id is not None else "UNK")
+        wpts = float(d.get("wallet_pts") or 0)
+        ppts = float(d.get("pending_pts") or 0)
+        if rut not in __all_map:
+            __all_map[rut] = {"walletBy": {}, "pendingBy": {}}
+        __all_map[rut]["walletBy"][symbol] = __all_map[rut]["walletBy"].get(symbol, 0.0) + wpts
+        __all_map[rut]["pendingBy"][symbol] = __all_map[rut]["pendingBy"].get(symbol, 0.0) + ppts
+
     # totales y wallet
     links = list(LINKS.find({"rut": {"$in": list(emp_map.keys())}}, {"rut": 1, "wallet": 1}))
     link_map = {str(x.get("rut")): (x.get("wallet") or None) for x in links}
 
     for rut, emp in emp_map.items():
-        wm = emp["__merit"]["walletBySegment"]; pm = emp["__merit"]["pendingBySegment"]
-        total_wallet = sum(float(v or 0) for v in wm.values())
-        total_pending = sum(float(v or 0) for v in pm.values())
-        emp["__merit"]["total_wallet"] = total_wallet
-        emp["__merit"]["total_pending"] = total_pending
-        emp["__merit"]["total_simulated"] = total_wallet + total_pending
+        # Para ranking seguimos usando la ventana de meses (emp["__merit"]).
+        # Para mostrar en tabla usamos los totales ALL-TIME si existen.
+        wm_months = emp["__merit"]["walletBySegment"]; pm_months = emp["__merit"]["pendingBySegment"]
+        total_wallet_months = sum(float(v or 0) for v in wm_months.values())
+        total_pending_months = sum(float(v or 0) for v in pm_months.values())
+        emp["__merit"]["total_wallet"] = total_wallet_months
+        emp["__merit"]["total_pending"] = total_pending_months
+        emp["__merit"]["total_simulated"] = total_wallet_months + total_pending_months
+
+        # All-time totals for presentation
+        wm_all = (__all_map.get(rut, {}) or {}).get("walletBy", {})
+        pm_all = (__all_map.get(rut, {}) or {}).get("pendingBy", {})
+        total_wallet_all = sum(float(v or 0) for v in wm_all.values())
+        total_pending_all = sum(float(v or 0) for v in pm_all.values())
+        # NOTE: Do not overwrite monthly totals stored in emp['__merit'].
+        # Monthly totals are used for ranking; all-time totals are used for presentation below.
         emp["wallet"] = link_map.get(rut)
         emp["merit_profile"] = _zero_merit_profile(emp["wallet"])  # estructura completa de segmentos
+
+        # Build consolidated merits list by segment with token_id, name, symbol, and wallet/pending/simulated
+        merits_list = []
+        for tid, meta in sorted(seg_catalog.items(), key=lambda x: x[0]):
+            symbol = meta.get("symbol")
+            wallet_pts = float(wm_all.get(symbol, 0) or 0)
+            pending_pts = float(pm_all.get(symbol, 0) or 0)
+            simulated_pts = wallet_pts + pending_pts
+            total_pts = wallet_pts if rank_mode == "wallet" else simulated_pts
+            merits_list.append({
+                "token_id": tid,
+                "name": meta.get("name"),
+                "symbol": symbol,
+                "wallet": round(wallet_pts, 2),
+                "pending": round(pending_pts, 2),
+                "simulated": round(simulated_pts, 2),
+                # total keeps backward-compat with current rank_mode
+                "total": round(total_pts, 2),
+            })
+        emp["merits_by_segment"] = merits_list
+        emp["merits_summary"] = {
+            "total_wallet": round(total_wallet_all, 2),
+            "total_pending": round(total_pending_all, 2),
+            "total_simulated": round(total_wallet_all + total_pending_all, 2),
+        }
 
     # ranking por méritos (wallet o simulado)
     metric_key = "__merit.total_wallet" if rank_mode == "wallet" else "__merit.total_simulated"

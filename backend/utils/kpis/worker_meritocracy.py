@@ -25,6 +25,7 @@ RULES_COLL = db.gamification_meritocracy_rules
 EMPLOYEES_COLL = db.empleados_usuarios
 TRABAJADORES_COLL = db.trabajadores_vpn
 KPI_RESULT_COLL = db.meritocracy_kpi_results  # Nueva colección de resultados
+CARGOS_COLL = db.cargos_intranet
 
 
 def _ensure_indexes():
@@ -157,6 +158,61 @@ def get_attendance_ruts_for_period(mesano: str) -> set:
         return set()
 
 
+def get_attendance_roles_for_period(mesano: str) -> Dict[str, Dict[str, Optional[str]]]:
+    """Devuelve por RUT la seccion y el cargo (nombre) derivados de asistencia en el período YYYYMM.
+    - Si hay múltiples asistencias en el mes, toma el último registro (fecha mayor) como representativo.
+    - Para 'cargo' intenta resolver nombre desde cargos_intranet usando id_cargo/id_cargo_ficha.
+    """
+    try:
+        periodo_int = int(mesano)
+    except Exception:
+        return {}
+
+    # Recoger la última asistencia por RUT en el mes
+    cursor = db.asistencia_diaria_intranet.find(
+        {"periodo": periodo_int},
+        {"rut": 1, "seccion": 1, "id_cargo": 1, "id_cargo_ficha": 1, "fecha_trabajada": 1}
+    )
+    latest: Dict[str, Dict[str, Any]] = {}
+    for a in cursor:
+        rut = str(a.get("rut") or "").strip()
+        if not rut:
+            continue
+        f = a.get("fecha_trabajada")
+        # Normalizar comparable
+        try:
+            fkey = f.timestamp() if hasattr(f, "timestamp") else None
+        except Exception:
+            fkey = None
+        # Mantener el más reciente
+        prev = latest.get(rut)
+        if not prev or (fkey is not None and (prev.get("_fkey") or 0) < fkey):
+            latest[rut] = {"doc": a, "_fkey": fkey or 0}
+
+    out: Dict[str, Dict[str, Optional[str]]] = {}
+    for rut, bundle in latest.items():
+        a = bundle.get("doc") or {}
+        seccion = (a.get("seccion") or None)
+        # Resolver cargo por id
+        cid = a.get("id_cargo_ficha") or a.get("id_cargo")
+        cargo_name = None
+        try:
+            cargo_doc = None
+            if cid is not None:
+                cargo_doc = CARGOS_COLL.find_one({"$or": [
+                    {"id_cargo": cid}, {"id": cid}
+                ]}, {"cargo": 1, "seccion": 1})
+            if cargo_doc:
+                cargo_name = (cargo_doc.get("cargo") or None)
+                # Si asistencia no trae seccion, intentar derivarla desde el cargo
+                if not seccion:
+                    seccion = (cargo_doc.get("seccion") or None)
+        except Exception:
+            cargo_name = cargo_name or None
+        out[rut] = {"seccion": seccion, "cargo": cargo_name}
+    return out
+
+
 # -----------------------
 # Proceso por período (gating)
 # -----------------------
@@ -211,6 +267,52 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
     }
     logger.info(f"Empleados con ficha válida y asistencia en {mesano}: {len(filtered_employees)}")
 
+    def _norm(s: Optional[str]) -> str:
+        return (str(s or "").strip().lower())
+
+    def _filter_by_scope(rule: Dict[str, Any], base: Dict[str, Dict]) -> Dict[str, Dict]:
+        """Filtra empleados por scope de la regla (secciones/cargos) si existe.
+        Estructura esperada en rule.scope:
+          {
+            "secciones": {"include": [..], "exclude": [..]},
+            "cargos": {"include": [..], "exclude": [..]}
+          }
+        Matchea por nombre textual (de trabajadores_vpn: campos 'seccion' y 'cargo').
+        """
+        scope = rule.get("scope") or {}
+        if not isinstance(scope, dict) or not scope:
+            return base
+        secs = scope.get("secciones") or {}
+        cargos = scope.get("cargos") or {}
+
+        sec_inc = {_norm(x) for x in (secs.get("include") or []) if _norm(x)}
+        sec_exc = {_norm(x) for x in (secs.get("exclude") or []) if _norm(x)}
+        car_inc = {_norm(x) for x in (cargos.get("include") or []) if _norm(x)}
+        car_exc = {_norm(x) for x in (cargos.get("exclude") or []) if _norm(x)}
+
+        def allowed(emp: Dict[str, Any]) -> bool:
+            # Preferir seccion/cargo derivados de asistencia del período
+            erut = str(emp.get("rut") or "").strip()
+            role = attendance_roles.get(erut) or {}
+            esec = _norm(role.get("seccion") or emp.get("seccion"))
+            ecar = _norm(role.get("cargo") or emp.get("cargo"))
+            # secciones
+            if sec_inc and esec not in sec_inc:
+                return False
+            if sec_exc and esec in sec_exc:
+                return False
+            # cargos
+            if car_inc and ecar not in car_inc:
+                return False
+            if car_exc and ecar in car_exc:
+                return False
+            return True
+
+        return {rut: emp for rut, emp in base.items() if allowed(emp)}
+
+    # Cargar mapa de roles (seccion/cargo) desde asistencia del mes para usar en scope
+    attendance_roles = get_attendance_roles_for_period(mesano)
+
     for rule in active_rules:
         template_key = rule.get("template_key")
         rule_id = str(rule["_id"])
@@ -220,12 +322,15 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
         # -------------------
         # Gating por período
         # -------------------
+        # Aplicar scope de la regla lo antes posible para evitar generar docs fuera de alcance
+        scoped_employees = _filter_by_scope(rule, filtered_employees)
+
         if period_mode == "year":
             year_is_final = is_year_finalized(year)
             if not year_is_final:
                 logger.info(f"[SKIP] Regla '{rule['rule_name']}' (anual) no apta: año {year} aún no finalizado.")
                 # Placeholder para que el FE muestre el estado
-                for rut in filtered_employees.keys():
+                for rut in scoped_employees.keys():
                     bulk_operations.append(UpdateOne(
                         {"periodo": periodo_dash, "rut": rut, "rule_id": rule_id},
                         {"$set": {
@@ -249,7 +354,7 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
             # Si prefieres que corra en cualquier mes una vez finalizado el año, comenta este if.
             if month != 12:
                 logger.info(f"[SKIP] Regla anual '{rule['rule_name']}' evaluada solo en diciembre. Mes actual: {periodo_dash}.")
-                for rut in all_employees.keys():
+                for rut in scoped_employees.keys():
                     bulk_operations.append(UpdateOne(
                         {"periodo": periodo_dash, "rut": rut, "rule_id": rule_id},
                         {"$set": {
@@ -271,7 +376,7 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
         else:  # period_mode == "month"
             if not month_finalized:
                 logger.info(f"[SKIP] Regla '{rule['rule_name']}' (mensual) no apta: mes {periodo_dash} aún no finalizado.")
-                for rut in filtered_employees.keys():
+                for rut in scoped_employees.keys():
                     bulk_operations.append(UpdateOne(
                         {"periodo": periodo_dash, "rut": rut, "rule_id": rule_id},
                         {"$set": {
@@ -298,12 +403,12 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
             logger.warning(f"No se encontró una función de evaluación para la regla '{rule.get('rule_name', template_key)}' (template: {template_key}). Se omitirá.")
             continue
 
-        logger.info(f"Ejecutando regla finalizada: '{rule.get('rule_name', template_key)}'...")
+        logger.info(f"Ejecutando regla finalizada: '{rule.get('rule_name', template_key)}' sobre {len(scoped_employees)} empleados (post-scope)...")
         try:
             winners_ruts = set(eval_func(db, rule, periodo_dash))
             logger.info(f"Regla '{rule.get('rule_name', template_key)}' evaluada. Ganadores: {len(winners_ruts)}")
 
-            for rut in filtered_employees.keys():
+            for rut in scoped_employees.keys():
                 status = "fulfilled" if rut in winners_ruts else "not_fulfilled"
 
                 doc = {

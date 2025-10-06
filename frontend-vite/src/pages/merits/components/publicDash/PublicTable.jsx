@@ -83,17 +83,47 @@ export default function PublicTable({ employees = [], loading, mode = 'wallet', 
   const [page, setPage] = useState(1);
   const handleChangePageSize = (n) => { setPageSize(n); setPage(1); };
 
-  // Pre-computo por fila: puntos por segmento y total (según mode)
+  // Pre-cálculo por fila: usar datos del backend (merits_by_segment y merits_summary)
   const computed = useMemo(() => {
     return employees.map((e) => {
-      const { walletBy, pendingBy } = getSegmentMaps(e);
       const bySym = {};
-      SEG_ORDER.forEach((s) => {
-        const w = Number(walletBy?.[s] || 0);
-        const p = Number(pendingBy?.[s] || 0);
-        bySym[s] = mode === 'wallet' ? w : (w + p);
-      });
-      const total = SEG_ORDER.reduce((acc, s) => acc + (bySym[s] || 0), 0);
+      const segList = Array.isArray(e?.merits_by_segment) ? e.merits_by_segment : null;
+      const summary = e?.merits_summary || null;
+
+      if (segList && segList.length > 0) {
+        // Construir mapa por símbolo desde merits_by_segment
+        const segMap = {};
+        for (const seg of segList) {
+          const sym = seg?.symbol;
+          if (!sym) continue;
+          const val = mode === 'wallet'
+            ? Number(seg?.wallet ?? seg?.total ?? 0)
+            : Number(seg?.simulated ?? seg?.total ?? 0);
+          segMap[sym] = val;
+        }
+        SEG_ORDER.forEach((s) => {
+          bySym[s] = Number(segMap[s] || 0);
+        });
+      } else {
+        // Fallback: calcular desde estructuras antiguas
+        const { walletBy, pendingBy } = getSegmentMaps(e);
+        SEG_ORDER.forEach((s) => {
+          const w = Number(walletBy?.[s] || 0);
+          const p = Number(pendingBy?.[s] || 0);
+          bySym[s] = mode === 'wallet' ? w : (w + p);
+        });
+      }
+
+      // Total preferentemente desde merits_summary
+      let total;
+      if (summary) {
+        total = mode === 'wallet'
+          ? Number(summary?.total_wallet || 0)
+          : Number(summary?.total_simulated || 0);
+      } else {
+        total = SEG_ORDER.reduce((acc, s) => acc + (Number(bySym[s]) || 0), 0);
+      }
+
       return { e, bySym, total };
     });
   }, [employees, mode]);
