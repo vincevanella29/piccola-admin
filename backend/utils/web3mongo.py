@@ -40,7 +40,52 @@ def setup_event_collections_indexes(event_listener_configs: List['EventListenerC
     db.notification_schedules.create_index([("notification_type_id", 1), ("schedule_time", 1)])
     # Ensure 'rut' unique index with a stable name to prevent IndexOptionsConflict when it already exists
     db.empleados_usuarios.create_index([("rut", 1)], name="uniq_rut", unique=True, background=True)
-    
+    # ------------------------------
+    # Application indexes (avoid COLLSCANs)
+    # ------------------------------
+    try:
+        # asistencia_diaria_intranet
+        db.asistencia_diaria_intranet.create_index(
+            [("periodo", 1), ("rut", 1)], name="idx_periodo_rut", background=True
+        )
+        db.asistencia_diaria_intranet.create_index(
+            [("periodo", 1), ("tipo_movimiento", 1), ("rut", 1)],
+            name="idx_periodo_mov_rut",
+            background=True,
+        )
+        db.asistencia_diaria_intranet.create_index(
+            [("fecha_trabajada", 1), ("rut", 1)], name="idx_fecha_rut", background=True
+        )
+
+        # restaurant_data
+        db.restaurant_data.create_index(
+            [("mesano", 1), ("Estado", 1), ("Tipo", 1), ("local_norm", 1), ("Fecha", 1)],
+            name="idx_mesano_estado_tipo_localnorm_fecha",
+            background=True,
+        )
+
+        # ventas_producto_dia_hora_cprodu
+        db.ventas_producto_dia_hora_cprodu.create_index(
+            [("mesano", 1), ("local_norm", 1), ("fecha", 1)],
+            name="idx_mesano_localnorm_fecha",
+            background=True,
+        )
+
+        # sales_by_waiter_hour
+        db.sales_by_waiter_hour.create_index(
+            [("MESANO", 1), ("LOCAL", 1)], name="idx_mesano_local", background=True
+        )
+        db.sales_by_waiter_hour.create_index(
+            [("MESANO", 1), ("LOCAL", 1), ("HORA", 1)],
+            name="idx_mesano_local_hora",
+            background=True,
+        )
+        db.sales_by_waiter_hour.create_index(
+            [("RUT", 1), ("MESANO", 1)], name="idx_rut_mesano", background=True
+        )
+        logger.info("Application indexes ensured (setup_event_collections_indexes).")
+    except Exception as e:
+        logger.error(f"Error ensuring application indexes: {e}")
 
     for config in event_listener_configs:
         collection_name = config.collection_name
@@ -112,6 +157,9 @@ def setup_event_collections_indexes(event_listener_configs: List['EventListenerC
                         logger.warning(f"  Event '{event_name_to_index}', Param: '{param_name}' (is indexed but has no name). Skipping index creation for this parameter.")
             else:
                 logger.warning(f"Event ABI entry for '{event_name_to_index}' not found in contract for collection {collection_name}.")
+
+
+ 
 
 # Contract ABIs
 CONTRACTS_DIR = "contracts/"
@@ -197,5 +245,3 @@ uniswap_factory_contract = contracts["UniswapV2Factory"]
 uniswap_router_contract = contracts["UniswapV2Router02"]
 redemption_contract = contracts["VanellixRedemption"]
 global_meritocracy_contract = contracts["GlobalMeritocracy"]
-
-

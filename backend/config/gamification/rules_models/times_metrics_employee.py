@@ -341,11 +341,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
             {"$setWindowFields": {
                 "sortBy": {"rank_value": 1},
                 "output": {
-                    "puesto_empresa": {"$denseRank": {}},
-                    "best_empresa": {"$cond": [
-                        {"$eq": [position_metric, "samples"]}, {"$max": "$metric_value"}, {"$min": "$metric_value"}
-                    ]},
-                    "avg_empresa": {"$avg": "$metric_value"}
+                    "puesto_empresa": {"$denseRank": {}}
                 }
             }},
             {"$match": {"puesto_empresa": _pos_filter(position_type, ranking_position, position_from, position_to)}},
@@ -359,11 +355,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
                 "partitionBy": "$local",
                 "sortBy": {"rank_value": 1},
                 "output": {
-                    "puesto_local": {"$denseRank": {}},
-                    "best_local": {"$cond": [
-                        {"$eq": [position_metric, "samples"]}, {"$max": "$metric_value"}, {"$min": "$metric_value"}
-                    ]},
-                    "avg_local": {"$avg": "$metric_value"}
+                    "puesto_local": {"$denseRank": {}}
                 }
             }},
             {"$match": {"puesto_local": _pos_filter(position_type, ranking_position, position_from, position_to)}},
@@ -482,17 +474,19 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
                     {"$group": {"_id": {"rut": "$rut"}, "samples_total": {"$sum": "$samples_total"}}},
                     {"$addFields": {"rut": "$_id.rut", "metric_value": "$samples_total"}},
                     {"$match": {"metric_value": {"$gt": 0}}},
+                    {"$addFields": {"rank_value": {"$multiply": ["$metric_value", -1]}}},
                 ]
             else:
                 pipe += [
                     {"$group": {"_id": {"rut": "$rut"}, "sum_dias": {"$sum": "$dias"}, "sum_w": {"$sum": {"$multiply": ["$avg_seg", "$dias"]}}}},
                     {"$addFields": {"rut": "$_id.rut", "metric_value": {"$cond": [{"$gt": ["$sum_dias", 0]}, {"$divide": ["$sum_w", "$sum_dias"]}, None]}}},
                     {"$match": {"metric_value": {"$ne": None}}},
+                    {"$addFields": {"rank_value": "$metric_value"}},
                 ]
             if min_days_worked > 0:
                 pipe.append({"$match": {"sum_dias": {"$gte": int(min_days_worked)}}})
             pipe += [
-                {"$setWindowFields": {"sortBy": {"metric_value": {"$cond": [{"$eq": [position_metric, "samples"]}, -1, 1]}}, "output": {"puesto_empresa": {"$denseRank": {}}, "best_empresa": {"$cond": [{"$eq": [position_metric, "samples"]}, {"$max": "$metric_value"}, {"$min": "$metric_value"}]}, "avg_empresa": {"$avg": "$metric_value"}}}},
+                {"$setWindowFields": {"sortBy": {"rank_value": 1}, "output": {"puesto_empresa": {"$denseRank": {}}}}},
                 {"$match": {"rut": rut}},
                 {"$project": {"_id": 0}},
             ]
@@ -515,18 +509,20 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
                     {"$group": {"_id": {"rut": "$rut", "local": "$local"}, "samples_total": {"$sum": "$samples_total"}}},
                     {"$addFields": {"rut": "$_id.rut", "local": "$_id.local", "metric_value": "$samples_total"}},
                     {"$match": {"metric_value": {"$gt": 0}}},
+                    {"$addFields": {"rank_value": {"$multiply": ["$metric_value", -1]}}},
                 ]
             else:
                 pipe += [
                     {"$group": {"_id": {"rut": "$rut", "local": "$local"}, "sum_dias": {"$sum": "$dias"}, "sum_w": {"$sum": {"$multiply": ["$avg_seg", "$dias"]}}}},
                     {"$addFields": {"rut": "$_id.rut", "local": "$_id.local", "metric_value": {"$cond": [{"$gt": ["$sum_dias", 0]}, {"$divide": ["$sum_w", "$sum_dias"]}, None]}}},
                     {"$match": {"metric_value": {"$ne": None}}},
+                    {"$addFields": {"rank_value": "$metric_value"}},
                 ]
             if min_days_worked > 0:
                 pipe.append({"$match": {"sum_dias": {"$gte": int(min_days_worked)}}})
             pipe += [
-                {"$setWindowFields": {"partitionBy": "$local", "sortBy": {"metric_value": {"$cond": [{"$eq": [position_metric, "samples"]}, -1, 1]}}, "output": {"puesto_local": {"$denseRank": {}}, "best_local": {"$cond": [{"$eq": [position_metric, "samples"]}, {"$max": "$metric_value"}, {"$min": "$metric_value"}]}, "avg_local": {"$avg": "$metric_value"}}}},
-                {"$setWindowFields": {"partitionBy": "$rut", "sortBy": {"$literal": 1}, "output": {"best_local_rank": {"$denseRank": {}}}}},
+                {"$setWindowFields": {"partitionBy": "$local", "sortBy": {"rank_value": 1}, "output": {"puesto_local": {"$denseRank": {}}}}},
+                {"$setWindowFields": {"partitionBy": "$rut", "sortBy": {"puesto_local": 1}, "output": {"best_local_rank": {"$denseRank": {}}}}},
                 {"$match": {"rut": rut, "best_local_rank": 1}},
                 {"$project": {"_id": 0}},
             ]
@@ -557,7 +553,8 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
                     {"$group": {"_id": {"rut": "$rut"}, "samples_total": {"$sum": {"$ifNull": ["$samples_total", {"$ifNull": ["$tiempos.samples_share", 0]}]}}}},
                     {"$addFields": {"rut": "$_id.rut", "metric_value": "$samples_total"}},
                     {"$match": {"metric_value": {"$ne": None}}},
-                    {"$setWindowFields": {"sortBy": {"metric_value": -1}, "output": {"puesto_empresa": {"$denseRank": {}}, "best_empresa": {"$max": "$metric_value"}, "avg_empresa": {"$avg": "$metric_value"}}}},
+                    {"$addFields": {"rank_value": {"$multiply": ["$metric_value", -1]}}},
+                    {"$setWindowFields": {"sortBy": {"rank_value": 1}, "output": {"puesto_empresa": {"$denseRank": {}}}}},
                     {"$match": {"rut": rut}},
                     {"$project": {"_id": 0}},
                 ]))
@@ -567,7 +564,8 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
                     {"$group": {"_id": {"rut": "$rut"}, "sum_share": {"$sum": {"$ifNull": ["$tiempos.samples_share", 0]}}, "sum_w": {"$sum": {"$multiply": [{"$ifNull": ["$tiempos.avg_seg", 0]}, {"$ifNull": ["$tiempos.samples_share", 0]}]}}, "dias": {"$sum": {"$ifNull": ["$tiempos.dias_con_registro", 0]}}}},
                     {"$addFields": {"rut": "$_id.rut", "metric_value": {"$cond": [{"$gt": ["$sum_share", 0]}, {"$divide": ["$sum_w", "$sum_share"]}, None]}}},
                     {"$match": {"metric_value": {"$ne": None}}},
-                    {"$setWindowFields": {"sortBy": {"metric_value": 1}, "output": {"puesto_empresa": {"$denseRank": {}}, "best_empresa": {"$min": "$metric_value"}, "avg_empresa": {"$avg": "$metric_value"}}}},
+                    {"$addFields": {"rank_value": "$metric_value"}},
+                    {"$setWindowFields": {"sortBy": {"rank_value": 1}, "output": {"puesto_empresa": {"$denseRank": {}}}}},
                     {"$match": {"rut": rut}},
                     {"$project": {"_id": 0}},
                 ]))
@@ -588,8 +586,9 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
                     {"$group": {"_id": {"rut": "$rut", "local": "$local"}, "samples_total": {"$sum": {"$ifNull": ["$samples_total", {"$ifNull": ["$tiempos.samples_share", 0]}]}}}},
                     {"$addFields": {"rut": "$_id.rut", "local": "$_id.local", "metric_value": "$samples_total"}},
                     {"$match": {"metric_value": {"$ne": None}}},
-                    {"$setWindowFields": {"partitionBy": "$local", "sortBy": {"metric_value": -1}, "output": {"puesto_local": {"$denseRank": {}}, "best_local": {"$max": "$metric_value"}, "avg_local": {"$avg": "$metric_value"}}}},
-                    {"$setWindowFields": {"partitionBy": "$rut", "sortBy": {"$literal": 1}, "output": {"best_local_rank": {"$denseRank": {}}}}},
+                    {"$addFields": {"rank_value": {"$multiply": ["$metric_value", -1]}}},
+                    {"$setWindowFields": {"partitionBy": "$local", "sortBy": {"rank_value": 1}, "output": {"puesto_local": {"$denseRank": {}}}}},
+                    {"$setWindowFields": {"partitionBy": "$rut", "sortBy": {"puesto_local": 1}, "output": {"best_local_rank": {"$denseRank": {}}}}},
                     {"$match": {"rut": rut, "best_local_rank": 1}},
                     {"$project": {"_id": 0}},
                 ]))
@@ -599,8 +598,9 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
                     {"$group": {"_id": {"rut": "$rut", "local": "$local"}, "sum_share": {"$sum": {"$ifNull": ["$tiempos.samples_share", 0]}}, "sum_w": {"$sum": {"$multiply": [{"$ifNull": ["$tiempos.avg_seg", 0]}, {"$ifNull": ["$tiempos.samples_share", 0]}]}}}},
                     {"$addFields": {"rut": "$_id.rut", "local": "$_id.local", "metric_value": {"$cond": [{"$gt": ["$sum_share", 0]}, {"$divide": ["$sum_w", "$sum_share"]}, None]}}},
                     {"$match": {"metric_value": {"$ne": None}}},
-                    {"$setWindowFields": {"partitionBy": "$local", "sortBy": {"metric_value": 1}, "output": {"puesto_local": {"$denseRank": {}}, "best_local": {"$min": "$metric_value"}, "avg_local": {"$avg": "$metric_value"}}}},
-                    {"$setWindowFields": {"partitionBy": "$rut", "sortBy": {"$literal": 1}, "output": {"best_local_rank": {"$denseRank": {}}}}},
+                    {"$addFields": {"rank_value": "$metric_value"}},
+                    {"$setWindowFields": {"partitionBy": "$local", "sortBy": {"rank_value": 1}, "output": {"puesto_local": {"$denseRank": {}}}}},
+                    {"$setWindowFields": {"partitionBy": "$rut", "sortBy": {"puesto_local": 1}, "output": {"best_local_rank": {"$denseRank": {}}}}},
                     {"$match": {"rut": rut, "best_local_rank": 1}},
                     {"$project": {"_id": 0}},
                 ]))
