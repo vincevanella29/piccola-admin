@@ -322,11 +322,10 @@ async def validar_registro(request: Request, user: dict = Depends(verify_session
         except Exception:
             email = None
 
-    # Requerimos wallet para vincular correctamente
-    if not wallet:
-        raise HTTPException(status_code=400, detail="Falta wallet en la sesión o en X-Wallet-Address")
-
-    identity = {"wallet": wallet, "email": email, "sub": sub}
+    # Wallet es opcional: si no está, seguimos adelante; guardamos lo disponible
+    identity = {"email": email, "sub": sub}
+    if wallet:
+        identity["wallet"] = wallet
 
     # Datos de cargo/sección para perfilar usuario empleado
     cargo = (emp.get("cargo") or "").strip() or None
@@ -340,28 +339,28 @@ async def validar_registro(request: Request, user: dict = Depends(verify_session
         pass
 
     # Upsert de vínculo a "empleados_usuarios" como base de usuarios empleados
+    update_fields = {
+        "rut": rut,
+        "email": email,
+        "sub": sub,
+        "linked_at": int(time.time()),
+        "biometric": {
+            "dist": dist,
+            "threshold": MATCH_THRESHOLD,
+            "liveness": liveness,
+            "session_id": session_id,
+        },
+        "status": "active",
+        "role": "employee",
+        "cargo": cargo,
+        "seccion": seccion,
+    }
+    if wallet:
+        update_fields["wallet"] = wallet
+
     LINKS.update_one(
         {"rut": rut},
-        {
-            "$set": {
-                "rut": rut,
-                "wallet": wallet,
-                "email": email,
-                "sub": sub,
-                "linked_at": int(time.time()),
-                "biometric": {
-                    "dist": dist,
-                    "threshold": MATCH_THRESHOLD,
-                    "liveness": liveness,
-                    "session_id": session_id,
-                },
-                "status": "active",
-                "role": "employee",
-                "cargo": cargo,
-                "seccion": seccion,
-            },
-            "$setOnInsert": {"created_at": int(time.time())},
-        },
+        {"$set": update_fields, "$setOnInsert": {"created_at": int(time.time())}},
         upsert=True,
     )
 

@@ -241,14 +241,20 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
         pipeline += [
             {"$addFields": {"_rut_num": {"$convert": {"input": "$rut", "to": "double", "onError": 0.0, "onNull": 0.0}}}},
             {"$addFields": {"metric_value_tb": {"$add": ["$metric_value", {"$divide": ["$_rut_num", 1e12]}]}}},
+            # normalized value so we can always sort ascending without expressions in sortBy
+            {"$addFields": {"rank_value": {"$cond": [
+                {"$eq": [position_metric, "samples"]},
+                {"$multiply": ["$metric_value_tb", -1]},
+                "$metric_value_tb"
+            ]}}},
         ]
         if ranking_scope == "empresa":
             pipeline += [
-                {"$setWindowFields": {"sortBy": {"metric_value_tb": {"$cond": [{"$eq": [position_metric, "samples"]}, -1, 1]}}, "output": {"rownum": {"$documentNumber": {}}}}},
+                {"$setWindowFields": {"sortBy": {"rank_value": 1}, "output": {"rownum": {"$documentNumber": {}}}}},
             ]
         else:
             pipeline += [
-                {"$setWindowFields": {"partitionBy": "$local", "sortBy": {"metric_value_tb": {"$cond": [{"$eq": [position_metric, "samples"]}, -1, 1]}}, "output": {"rownum": {"$documentNumber": {}}}}},
+                {"$setWindowFields": {"partitionBy": "$local", "sortBy": {"rank_value": 1}, "output": {"rownum": {"$documentNumber": {}}}}},
             ]
         pipeline += [
             {"$match": {"rownum": _pos_filter(position_type, ranking_position, position_from, position_to)}},
@@ -322,10 +328,18 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
         pipeline.append({"$match": {"dias": {"$gte": int(min_days_worked)}}})
 
     # Rankings y selección por scope
+    # Normalize for sorting: always sort ascending by a precomputed rank_value
+    pipeline += [
+        {"$addFields": {"rank_value": {"$cond": [
+            {"$eq": [position_metric, "samples"]},
+            {"$multiply": ["$metric_value", -1]},
+            "$metric_value"
+        ]}}}
+    ]
     if ranking_scope == "empresa":
         pipeline += [
             {"$setWindowFields": {
-                "sortBy": {"metric_value": {"$cond": [{"$eq": [position_metric, "samples"]}, -1, 1]}},
+                "sortBy": {"rank_value": 1},
                 "output": {
                     "puesto_empresa": {"$denseRank": {}},
                     "best_empresa": {"$cond": [
@@ -343,7 +357,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
         pipeline += [
             {"$setWindowFields": {
                 "partitionBy": "$local",
-                "sortBy": {"metric_value": {"$cond": [{"$eq": [position_metric, "samples"]}, -1, 1]}},
+                "sortBy": {"rank_value": 1},
                 "output": {
                     "puesto_local": {"$denseRank": {}},
                     "best_local": {"$cond": [
