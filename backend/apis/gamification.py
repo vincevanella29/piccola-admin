@@ -184,7 +184,7 @@ class UpdateRulePayload(BaseModel):
     )
 
     # Flags
-    validate: bool = Field(True, description="Validar contra template + segmentos permitidos")
+    validates: bool = Field(True, description="Validar contra template + segmentos permitidos")
 
 
 @router.put(
@@ -196,7 +196,7 @@ async def update_meritocracy_rule(payload: UpdateRulePayload):
     """
     - Identifica por rule_name (default) o por _id (use_id=True).
     - Aplica patch solo a los campos provistos.
-    - Si validate=True: valida template, params, merit_points y que el segment_token_id esté permitido.
+    - Si validates=True: valida template, params, merit_points y que el segment_token_id esté permitido.
     - Para remover 'scope' envía scope=null.
     """
     return gamification_service.update_meritocracy_rule(payload.model_dump())

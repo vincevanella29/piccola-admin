@@ -8,6 +8,7 @@ import EmpresasList from './components/empresas/EmpresasList.jsx';
 import EmpresaCreateDrawer from './components/empresas/EmpresaCreateDrawer.jsx';
 import { useEmpresaAdmin } from '../../hooks/useEmpresaAdmin.jsx';
 import EmpresaRolesTab from './components/empresas/EmpresaRolesTab.jsx';
+import ApiAccessRulesTab from './components/empresas/components/roles/ApiAccessRulesTab.jsx';
 
 // ⬅️ NUEVO: Tab de Centros de Producción
 import ProductionCentersTab from './components/empresas/components/cproduccion/ProductionCentersTab.jsx';
@@ -208,6 +209,16 @@ const AdminEmpresas = ({ appState }) => {
                     {t('empresa.tab_roles') || 'Roles & Scopes'}
                   </TabsTrigger>
 
+                  {/* Nuevo Tab: Secciones por API */}
+                  <TabsTrigger
+                    isActive={activeTab === 'secciones'}
+                    onClick={() => setActiveTab('secciones')}
+                    icon={ShieldCheck}
+                    className="whitespace-nowrap"
+                  >
+                    {t('empresa.tab_secciones') || 'Secciones por API'}
+                  </TabsTrigger>
+
                   {/* ⬇️ NUEVO TAB */}
                   <TabsTrigger
                     isActive={activeTab === 'cproduccion'}
@@ -298,6 +309,13 @@ const AdminEmpresas = ({ appState }) => {
                     prefetchedEmpresas={allEmpresas}
                     prefetchedSucursales={allSucursales}
                   />
+                </div>
+              </TabsContent>
+
+              {/* Nuevo contenido: Secciones por API */}
+              <TabsContent isActive={activeTab === 'secciones'}>
+                <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
+                  <ApiAccessRulesTab appState={appState} t={t} />
                 </div>
               </TabsContent>
 

@@ -29,6 +29,85 @@ export async function getMyPermissions({ walletAddress, token }) {
 }
 
 /**
+ * API ACCESS RULES (por prefijo /api/...)
+ * - listApiAccessRules
+ * - upsertApiAccessRule
+ * - toggleApiAccessRule
+ * - deleteApiAccessRule
+ */
+export async function listApiAccessRules({ path_prefix, walletAddress, token } = {}) {
+  const params = new URLSearchParams();
+  if (path_prefix) params.set('path_prefix', path_prefix);
+  return api({
+    method: 'GET',
+    endpoint: `/roles/access/rules${params.toString() ? `?${params}` : ''}`,
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}
+
+export async function upsertApiAccessRule({
+  path_prefix,
+  include_cargos = [],
+  exclude_cargos = [],
+  include_secciones = [],
+  exclude_secciones = [],
+  enabled = true,
+  walletAddress,
+  token,
+}) {
+  if (!path_prefix) throw new Error('path_prefix es obligatorio');
+  return api({
+    method: 'POST',
+    endpoint: '/roles/access/rules/upsert',
+    data: {
+      path_prefix,
+      include_cargos,
+      exclude_cargos,
+      include_secciones,
+      exclude_secciones,
+      enabled,
+    },
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}
+
+export async function toggleApiAccessRule({ path_prefix, enabled, walletAddress, token }) {
+  if (!path_prefix) throw new Error('path_prefix es obligatorio');
+  return api({
+    method: 'POST',
+    endpoint: '/roles/access/rules/toggle',
+    data: { path_prefix, enabled: !!enabled },
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}
+
+export async function deleteApiAccessRule({ path_prefix, walletAddress, token }) {
+  if (!path_prefix) throw new Error('path_prefix es obligatorio');
+  const params = new URLSearchParams({ path_prefix });
+  return api({
+    method: 'DELETE',
+    endpoint: `/roles/access/rules?${params.toString()}`,
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}
+
+/**
  * Permisos efectivos de un wallet (solo admin 3/4).
  * GET /roles/scopes/wallet/{wallet}
  */
@@ -300,4 +379,8 @@ export default {
   listPolicies,
   upsertPolicy,
   deletePolicy,
+  listApiAccessRules,
+  upsertApiAccessRule,
+  toggleApiAccessRule,
+  deleteApiAccessRule,
 };

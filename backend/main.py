@@ -4,7 +4,7 @@ import sys
 import time
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.backends.inmemory import InMemoryBackend
@@ -12,17 +12,17 @@ from fastapi.exceptions import RequestValidationError  # en vez de fastapi.excep
 from redis import asyncio as aioredis
 from fastapi.middleware.cors import CORSMiddleware
 from utils.web3mongo import w3, sessions_collection
-import importlib
 import jwt as pyjwt
 import glob
+import importlib
 from utils.time_utils import format_chile_time, CHILE_TZ
+from utils.auth.access_control import ensure_api_rules_for_app, check_api_access
 from datetime import datetime
 
 # Set timezone to Chile
 os.environ['TZ'] = 'America/Santiago'
 time.tzset()
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 load_dotenv()
 
 # Logging setup with Chile timezone
@@ -178,11 +178,14 @@ for file_path in api_files:
     try:
         module = importlib.import_module(f"apis.{module_name}")
         if hasattr(module, "router"):
-            app.include_router(module.router, prefix="/api")
+            app.include_router(module.router, prefix="/api", dependencies=[Depends(check_api_access)])
         else:
             logger.warning(f"apis.{module_name} has no router defined")
     except Exception as e:
         logger.error(f"Error loading API {module_name}: {str(e)}")
+
+# Ensure default API access rules exist for all prefixes
+ensure_api_rules_for_app(app)
 
 # Debug routes
 @app.get("/debug/routes")

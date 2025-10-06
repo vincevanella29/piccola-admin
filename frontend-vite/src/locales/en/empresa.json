@@ -84,5 +84,15 @@
   "summary_sections": "Selected sections",
   "existing_configs": "Existing configurations",
   "pick_one": "Select a center to configure.",
-  "empty": "No centers."
+  "empty": "No centers.",
+  "tab_secciones": "API Sections",
+  "api_access_rules": "API Access Rules (Sections)",
+  "api_prefix": "API prefix",
+  "pick_api_prefix": "Select an /api path",
+  "rule_for": "Rule for",
+  "include_sections": "Include Sections (not enforced yet)",
+  "pick_sections": "Select sections",
+  "exclude_sections": "Block Sections (enforced)"
+  ,
+  "api_rule_saved": "API rule saved"
 }

@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 COMPANY_ID = int(os.getenv("COMPANY_ID", "1"))
 
+def _now_iso() -> str:
+    return datetime.now().isoformat()
+
 # --- Collections
 COL_REFS_SUC = db.gastos_refs_sucursales
 COL_EMPRESAS = db.empresas
@@ -25,11 +28,23 @@ COL_EMPRESA_SUC = db.empresa_sucursales
 COL_ROLE_LEVEL_SCOPES = db.role_level_scopes        # ⬅️ NUEVO: scopes por nivel de rol
 COL_CARGOS = db.cargos_intranet
 COL_POLICIES = db.cargo_access_policies
+COL_API_RULES = db.api_access_rules
 
 # --- Indexes
 COL_ROLE_LEVEL_SCOPES.create_index([("company_id", 1), ("role_level", 1)], unique=True)
 COL_REFS_SUC.create_index("id_sucursal", unique=True)
 COL_POLICIES.create_index([("company_id", 1), ("type", 1), ("key", 1)], unique=True)
+
+try:
+    # Create unique index for path_prefix if not present; ignore conflicts with existing non-unique index
+    existing = COL_API_RULES.index_information() or {}
+    has_path_prefix = any(
+        any(k == "path_prefix" for k, _ in info.get("key", [])) for info in existing.values()
+    )
+    if not has_path_prefix:
+        COL_API_RULES.create_index("path_prefix", unique=True)
+except Exception as e:
+    logger.warning(f"[roles_access] Skipping api_access_rules index creation: {e}")
 
 # -------------------- MODELOS --------------------
 class RoleLevelScopeIn(BaseModel):
@@ -48,16 +63,12 @@ class PolicyUpsert(BaseModel):
     empresa_ids_allow: Optional[List[str]] = None
     sucursal_ids_allow: Optional[List[int]] = None
     empresa_ids_block: Optional[List[str]] = None
-    sucursal_ids_block: Optional[List[int]] = None
     active_required: Optional[bool] = True
     # ⬇️ NUEVO
     own_sucursal_grants_all: Optional[bool] = False
     own_sucursal_ids_grant_all: Optional[List[int]] = None
 
-def _now_iso() -> str:
-    return datetime.utcnow().isoformat()
 
-# -------------------- HELPERS --------------------
 def _validate_empresas(ids: Optional[List[str]]) -> List[str]:
     out = []
     for eid in ids or []:
@@ -303,3 +314,83 @@ def roles_meta(user: Dict[str, Any] = Depends(verify_session)):
         for d in COL_EMPRESAS.find({}, {"_id": 1, "nombre": 1, "slug": 1})
     ]
     return {"cargos": cargos, "secciones": secciones, "sucursales": suc, "empresas": emp}
+
+# -------------------- API ACCESS RULES (por prefijo /api/...) --------------------
+class ApiRuleUpsert(BaseModel):
+    path_prefix: str = Field(..., description="Prefijo exacto de API, p.ej. /api/admin o /api/ws")
+    include_cargos: Optional[List[str]] = None
+    exclude_cargos: Optional[List[str]] = None
+    include_secciones: Optional[List[str]] = None
+    exclude_secciones: Optional[List[str]] = None
+    enabled: Optional[bool] = True
+
+
+def _norm_list(items: Optional[List[str]]) -> List[str]:
+    out: List[str] = []
+    for v in items or []:
+        s = str(v).strip()
+        if s:
+            out.append(s)
+    return sorted(list(dict.fromkeys(out)))
+
+
+@router.get("/roles/access/rules", summary="Listar reglas de acceso por prefijo de API (solo admin)")
+def list_api_rules(path_prefix: Optional[str] = None, user: Dict[str, Any] = Depends(verify_session)):
+    require_admin_level(user, "admin")
+    where: Dict[str, Any] = {}
+    if path_prefix:
+        where["path_prefix"] = path_prefix
+    items = list(COL_API_RULES.find(where).sort([("path_prefix", 1)]))
+    for it in items:
+        it["_id"] = str(it["_id"])
+    return {"items": items, "count": len(items)}
+
+
+@router.post("/roles/access/rules/upsert", summary="Crear/actualizar regla de acceso por prefijo de API (solo admin)")
+def upsert_api_rule(req: ApiRuleUpsert, user: Dict[str, Any] = Depends(verify_session)):
+    require_admin_level(user, "admin")
+    pfx = req.path_prefix.strip()
+    if not pfx.startswith("/api"):
+        raise HTTPException(status_code=400, detail="path_prefix debe comenzar con /api")
+
+    doc: Dict[str, Any] = {
+        "path_prefix": pfx,
+        "include_cargos": _norm_list(req.include_cargos),
+        "exclude_cargos": _norm_list(req.exclude_cargos),
+        "include_secciones": _norm_list(req.include_secciones),
+        "exclude_secciones": _norm_list(req.exclude_secciones),
+        "enabled": True if req.enabled is None else bool(req.enabled),
+        "updated_at": _now_iso(),
+    }
+
+    COL_API_RULES.update_one(
+        {"path_prefix": pfx},
+        {"$set": doc, "$setOnInsert": {"created_at": _now_iso()}},
+        upsert=True,
+    )
+    out = COL_API_RULES.find_one({"path_prefix": pfx})
+    if out:
+        out["_id"] = str(out["_id"])
+    return {"ok": True, "rule": out}
+
+
+@router.post("/roles/access/rules/toggle", summary="Habilitar/Deshabilitar regla (solo admin)")
+def toggle_api_rule(path_prefix: str = Body(...), enabled: bool = Body(...), user: Dict[str, Any] = Depends(verify_session)):
+    require_admin_level(user, "admin")
+    pfx = path_prefix.strip()
+    res = COL_API_RULES.update_one({"path_prefix": pfx}, {"$set": {"enabled": bool(enabled), "updated_at": _now_iso()}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    out = COL_API_RULES.find_one({"path_prefix": pfx})
+    out["_id"] = str(out["_id"])
+    return {"ok": True, "rule": out}
+
+
+@router.delete("/roles/access/rules", summary="Eliminar regla por path_prefix (solo admin)")
+def delete_api_rule(path_prefix: str, user: Dict[str, Any] = Depends(verify_session)):
+    require_admin_level(user, "admin")
+    pfx = path_prefix.strip()
+    res = COL_API_RULES.delete_one({"path_prefix": pfx})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+    return {"ok": True}

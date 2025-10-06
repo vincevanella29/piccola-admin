@@ -180,6 +180,35 @@
       "tooltip_li2": "Consistency matters: keep your average low.",
       "scope_local": "in the Store",
       "scope_empresa": "in the Company"
+    },
+    "times_local": {
+      "no_data": "No data this month",
+      "your_position": "Your Position",
+      "target": "Target",
+      "best_value": "Best",
+      "avg_value": "Average",
+      "your_value": "Your Value",
+      "top_n": "Top {{n}}",
+      "card_desc_champ": "Be the fastest in your store.",
+      "card_desc_normal": "Reach Top {{position}} in your store's speed ranking.",
+      "tooltip_title": "Goal: Top {{position}} in your store",
+      "tooltip_desc": "Rank based on your average seconds in your store (lower is better).",
+      "tooltip_li1": "Updated monthly.",
+      "tooltip_li2": "Keep your average low to win."
+    },
+    "times_local_center": {
+      "no_data": "No data this month",
+      "center_label": "Center",
+      "local_label": "Store",
+      "current_value": "Your Value",
+      "current_position": "Your Position",
+      "best_value": "Best",
+      "avg_value": "Average",
+      "card_desc": "Your store's performance by selected centers ({{count}}).",
+      "tooltip_title": "Local center ranking",
+      "tooltip_desc": "Shows your store's position and values by each selected center (lower is better).",
+      "tooltip_li1": "Based on monthly KPIs.",
+      "tooltip_li2": "Focus on improving the slowest centers."
     }
   }
 ,

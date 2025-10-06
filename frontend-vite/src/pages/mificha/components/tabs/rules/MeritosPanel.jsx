@@ -68,6 +68,8 @@ function formatPeriodo(periodo = '', locale = 'es') {
 export default function MeritosPanel({ isLoading, meritos, ficha }) {
   const { i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState('month'); // 'month' | 'year' | 'history'
+  const [historyFilter, setHistoryFilter] = useState('fulfilled'); // 'fulfilled' | 'not_fulfilled'
+  const [openPeriods, setOpenPeriods] = useState({}); // { '2025-09': true }
   const segmentMap = useSegmentMap(ficha);
 
   if (isLoading && !meritos) {
@@ -102,6 +104,26 @@ export default function MeritosPanel({ isLoading, meritos, ficha }) {
   const yearDone = yearMissions.filter((m) => m.status === 'fulfilled').length;
 
   const periodPretty = formatPeriodo(currentPeriod, i18n?.language || 'es');
+
+  // Agrupa historial por periodo con sumatoria de puntos
+  const groupByPeriod = (items) => {
+    const map = new Map();
+    for (const it of items) {
+      const per = it.periodo || 'desconocido';
+      const prev = map.get(per) || { periodo: per, items: [], total_points: 0 };
+      prev.items.push(it);
+      prev.total_points += Number(it.merit_points || 0);
+      map.set(per, prev);
+    }
+    // Orden descendente por periodo (YYYY-MM)
+    return Array.from(map.values()).sort((a, b) => (b.periodo || '').localeCompare(a.periodo || ''));
+  };
+
+  const historyGroupsFulfilled = groupByPeriod(historyFulfilled);
+  const historyGroupsNotFulfilled = groupByPeriod(historyNotFulfilled);
+  const activeHistoryGroups = historyFilter === 'fulfilled' ? historyGroupsFulfilled : historyGroupsNotFulfilled;
+
+  const togglePeriod = (per) => setOpenPeriods((st) => ({ ...st, [per]: !st[per] }));
 
   return (
     <div className="space-y-6">
@@ -206,26 +228,78 @@ export default function MeritosPanel({ isLoading, meritos, ficha }) {
             <div className="space-y-4">
               {(historyFulfilled.length + historyNotFulfilled.length) > 0 ? (
                 <>
-                  {historyFulfilled.length > 0 && (
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide mb-2 text-light-text-tertiary dark:text-dark-text-tertiary">Completadas</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {historyFulfilled.map((merit) => (
-                          <RuleCard key={merit.result_id} merit={merit} type="history" historyStatus="fulfilled" segmentMap={segmentMap} />
-                        ))}
-                      </div>
+                  {/* Inner segmented control */}
+                  <div className="w-full">
+                    <div className="rounded-xl border border-light-border/20 dark:border-dark-border/20 bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 p-1 inline-flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setHistoryFilter('fulfilled')}
+                        className={[
+                          'px-3 py-1.5 rounded-lg text-xs font-semibold',
+                          historyFilter === 'fulfilled'
+                            ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary'
+                            : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover',
+                        ].join(' ')}
+                      >
+                        Completadas ({historyFulfilled.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHistoryFilter('not_fulfilled')}
+                        className={[
+                          'px-3 py-1.5 rounded-lg text-xs font-semibold',
+                          historyFilter === 'not_fulfilled'
+                            ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary'
+                            : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover',
+                        ].join(' ')}
+                      >
+                        No completadas ({historyNotFulfilled.length})
+                      </button>
                     </div>
-                  )}
-                  {historyNotFulfilled.length > 0 && (
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide mb-2 text-light-text-tertiary dark:text-dark-text-tertiary">No completadas</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {historyNotFulfilled.map((merit) => (
-                          <RuleCard key={merit.result_id} merit={merit} type="history" historyStatus="not_fulfilled" segmentMap={segmentMap} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  </div>
+
+                  {/* Groups by period with totals and collapsible lists */}
+                  <div className="space-y-3">
+                    {activeHistoryGroups.map((grp) => {
+                      const pretty = formatPeriodo(grp.periodo, i18n?.language || 'es');
+                      const open = !!openPeriods[grp.periodo];
+                      return (
+                        <div key={grp.periodo} className="rounded-xl border border-light-border/20 dark:border-dark-border/20 overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => togglePeriod(grp.periodo)}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-2 bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 hover:bg-light-accent-hover/40 dark:hover:bg-dark-accent-hover/40"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary">{pretty || grp.periodo}</span>
+                              <span className="text-[11px] px-2 py-0.5 rounded-full border border-light-border/50 dark:border-dark-border/50 text-light-text-secondary dark:text-dark-text-secondary">
+                                {grp.items.length} misiones
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono px-2 py-1 rounded bg-light-surface/60 dark:bg-dark-surface/60 text-light-text-secondary dark:text-dark-text-secondary">
+                                Total: +{grp.total_points}
+                              </span>
+                              <svg className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.24 4.38a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"/></svg>
+                            </div>
+                          </button>
+                          {open && (
+                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                              {grp.items.map((merit) => (
+                                <RuleCard
+                                  key={merit.result_id}
+                                  merit={merit}
+                                  type="history"
+                                  historyStatus={historyFilter}
+                                  segmentMap={segmentMap}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

@@ -22,7 +22,7 @@ METRIC_MAP = {
 # ### CORRECCIÓN AQUÍ ### - El nombre de la variable ahora coincide con la convención
 SALES_RANKING_POSITION_RULE_TEMPLATE = {
     "key": TEMPLATE_KEY,
-    "name": "Ranking de Ventas (Top N / Exacto / Rango)",
+    "name": "Ranking de Ventas Garzones (Top N / Exacto / Rango)",
     "description": "Otorga mérito a empleados según su posición en el ranking (Top N, exacto o rango) a nivel de local o empresa.",
     "category": "sales",
     "period": "month",

@@ -126,13 +126,35 @@ def get_eligible_employees() -> Dict[str, Dict]:
             "wallet": "$usuario_info.wallet",
             "cargo": "$cargo",
             "seccion": "$seccion",
-            "sucursal": "$sucursal"
+            "sucursal": "$sucursal",
+            # Fecha creación de la ficha (o fecha de ingreso como respaldo)
+            "ficha_created_at": {
+                "$ifNull": [
+                    {"$toDate": "$fechacreacion"},
+                    {"$toDate": {"$concat": ["$fechaingreso", "T00:00:00Z"]}}
+                ]
+            }
         }}
     ]
 
     employees = list(TRABAJADORES_COLL.aggregate(pipeline))
     logger.info(f"Encontrados {len(employees)} empleados activos en total para evaluar.")
     return {emp['rut']: emp for emp in employees}
+
+
+def get_attendance_ruts_for_period(mesano: str) -> set:
+    """Devuelve RUTs que tienen al menos 1 registro de asistencia en el período YYYYMM."""
+    try:
+        periodo_int = int(mesano)
+    except Exception:
+        return set()
+    try:
+        ruts = db.asistencia_diaria_intranet.distinct('rut', { 'periodo': periodo_int })
+        # convertir a str como en empleados (rut_str)
+        return {str(r) for r in ruts}
+    except Exception as e:
+        logger.warning(f"No se pudo obtener asistencia para {mesano}: {e}")
+        return set()
 
 
 # -----------------------
@@ -165,6 +187,30 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
     # cache del estado mensual (evita recalcular)
     month_finalized = is_month_finalized(periodo_dash)
 
+    # Filtrado por fecha de creación de ficha y por asistencia del período
+    # Fecha fin del mes en CL_TZ
+    if month == 12:
+        next_month_start = datetime(year + 1, 1, 1, 0, 0, tzinfo=CL_TZ)
+    else:
+        next_month_start = datetime(year, month + 1, 1, 0, 0, tzinfo=CL_TZ)
+    month_end = next_month_start
+
+    def _aware(dt: Optional[datetime]) -> Optional[datetime]:
+        if dt is None:
+            return None
+        # Si viene naive, asumimos CL_TZ para comparación consistente
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=CL_TZ)
+
+    attendance_ruts = get_attendance_ruts_for_period(mesano)
+    if not attendance_ruts:
+        logger.info(f"[WARN] No se encontraron asistencias para {mesano}. Se evaluarán 0 empleados.")
+    
+    filtered_employees = {
+        rut: emp for rut, emp in all_employees.items()
+        if (_aware(emp.get('ficha_created_at')) is None or _aware(emp.get('ficha_created_at')) <= month_end) and rut in attendance_ruts
+    }
+    logger.info(f"Empleados con ficha válida y asistencia en {mesano}: {len(filtered_employees)}")
+
     for rule in active_rules:
         template_key = rule.get("template_key")
         rule_id = str(rule["_id"])
@@ -179,7 +225,7 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
             if not year_is_final:
                 logger.info(f"[SKIP] Regla '{rule['rule_name']}' (anual) no apta: año {year} aún no finalizado.")
                 # Placeholder para que el FE muestre el estado
-                for rut in all_employees.keys():
+                for rut in filtered_employees.keys():
                     bulk_operations.append(UpdateOne(
                         {"periodo": periodo_dash, "rut": rut, "rule_id": rule_id},
                         {"$set": {
@@ -225,7 +271,7 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
         else:  # period_mode == "month"
             if not month_finalized:
                 logger.info(f"[SKIP] Regla '{rule['rule_name']}' (mensual) no apta: mes {periodo_dash} aún no finalizado.")
-                for rut in all_employees.keys():
+                for rut in filtered_employees.keys():
                     bulk_operations.append(UpdateOne(
                         {"periodo": periodo_dash, "rut": rut, "rule_id": rule_id},
                         {"$set": {
@@ -257,7 +303,7 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
             winners_ruts = set(eval_func(db, rule, periodo_dash))
             logger.info(f"Regla '{rule.get('rule_name', template_key)}' evaluada. Ganadores: {len(winners_ruts)}")
 
-            for rut in all_employees.keys():
+            for rut in filtered_employees.keys():
                 status = "fulfilled" if rut in winners_ruts else "not_fulfilled"
 
                 doc = {
@@ -312,10 +358,17 @@ def run_worker(periodo: Optional[str] = None):
             # Año completo
             if len(periodo) == 4 and periodo.isdigit():
                 y = int(periodo)
-                if not is_year_finalized(y):
-                    logger.info(f"[SKIP] Año {y} aún no finalizado. No se procesará.")
+                # Procesa todos los meses FINALIZADOS de ese año (aunque el año no haya finalizado)
+                months = [f"{y}{m:02d}" for m in range(1, 13)]
+                finalized_months: List[str] = []
+                for ym in months:
+                    pdash = f"{ym[:4]}-{ym[4:6]}"
+                    if is_month_finalized(pdash):
+                        finalized_months.append(ym)
+                if not finalized_months:
+                    logger.info(f"[SKIP] Ningún mes finalizado en {y}. Nada que procesar.")
                     return
-                periods_to_process = [f"{y}{m:02d}" for m in range(1, 13)]
+                periods_to_process = finalized_months
             # Mes específico
             elif len(periodo) == 6 and periodo.isdigit():
                 y = int(periodo[:4])

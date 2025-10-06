@@ -13,6 +13,7 @@
   "levels": "Livelli",
   "month_short": "m",
   "rule_saved_success": "Regola salvata.",
+  "rule_updated_success": "Regola aggiornata.",
   "error_define": "Errore nel salvataggio della regola: {{message}}",
   "error_list": "Errore nel caricamento delle regole: {{message}}",
   "scope_type": "Tipo di ambito",
@@ -151,13 +152,28 @@
   "sales": {
     "metric_key": "Metrica",
     "scope": "Ambito",
+    "scope_level": "Livello ambito",
     "top": "Top (≤)",
-    "conditions_and": "Condizioni (AND)",
     "no_conditions": "Nessuna condizione. Puoi usare i parametri semplici o aggiungere condizioni composte.",
     "period_mode": "Periodo",
     "period_month": "Mensile",
     "period_year": "Annuale",
     "min_days_worked": "Min. giorni lavorati",
-    "min_days_worked_help": "0 disattiva il filtro. In annuale, usa i giorni con vendita dell'anno."
+    "min_days_worked_help": "0 disattiva il filtro. In annuale, usa i giorni con vendite nell'anno."
+  },
+  "times": {
+    "metric": "Metrica",
+    "centers_label": "Centri di produzione (uno o più)",
+    "search_centers": "Cerca centri…",
+    "centers_selection_help": "La selezione verrà salvata in selected_centers (slug) e selected_center_labels.",
+    "mode_position_label": "Modalità posizione",
+    "option_top_n": "Top N (≤N)",
+    "option_exact": "Esatto (=N)",
+    "option_range": "Intervallo (da/a)",
+    "position_exact_label": "Posizione (=N)",
+    "position_top_label": "Top (≤N)",
+    "position_from_label": "Da (posizione)",
+    "position_to_label": "A (posizione)",
+    "local_ranking_help": "Usa kpis_tiempos_local_mensual (raggruppato per locale) e assegna premi ai dipendenti con presenza nel locale vincitore."
   }
 }

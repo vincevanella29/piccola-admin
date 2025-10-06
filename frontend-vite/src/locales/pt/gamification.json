@@ -13,6 +13,7 @@
   "levels": "Níveis",
   "month_short": "m",
   "rule_saved_success": "Regra salva.",
+  "rule_updated_success": "Regra atualizada.",
   "error_define": "Erro ao salvar a regra: {{message}}",
   "error_list": "Erro ao listar regras: {{message}}",
   "thresholds": "Limiares",
@@ -149,20 +150,34 @@
     "enabled": "Habilitado",
     "disabled": "Desabilitado",
     "tx_sent": "Transação enviada",
-    "empty": "Nenhum Fast Minter configurado.",
     "refreshing_list": "Atualizando lista de minters..."
   }
   ,
   "sales": {
     "metric_key": "Métrica",
-    "scope": "Escopo",
+    "scope": "Âmbito",
+    "scope_level": "Nível do âmbito",
     "top": "Top (≤)",
     "conditions_and": "Condições (AND)",
     "no_conditions": "Sem condições. Você pode usar os parâmetros simples ou adicionar condições compostas.",
     "period_mode": "Período",
     "period_month": "Mensal",
-    "period_year": "Anual",
     "min_days_worked": "Mín. dias trabalhados",
     "min_days_worked_help": "0 desativa o filtro. Em anual, usa dias com venda no ano."
+  },
+  "times": {
+    "metric": "Métrica",
+    "centers_label": "Centros de produção (um ou mais)",
+    "search_centers": "Buscar centros…",
+    "centers_selection_help": "A seleção será salva em selected_centers (slug) e selected_center_labels.",
+    "mode_position_label": "Modo de posição",
+    "option_top_n": "Top N (≤N)",
+    "option_exact": "Exato (=N)",
+    "option_range": "Intervalo (de/até)",
+    "position_exact_label": "Posição (=N)",
+    "position_top_label": "Top (≤N)",
+    "position_from_label": "De (posição)",
+    "position_to_label": "Até (posição)",
+    "local_ranking_help": "Usa kpis_tiempos_local_mensual (agrupado por local) e atribui prêmios aos colaboradores com presença no local vencedor."
   }
 }

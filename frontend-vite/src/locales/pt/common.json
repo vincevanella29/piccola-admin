@@ -60,7 +60,8 @@
     "save": "Salvar",
     "save_changes": "Salvar alterações",
     "copy": "Copiar",
-    "delete": "Deletar",
+    "delete": "Excluir",
     "esc": "Esc",
-    "enter": "Enter"
+    "enter": "Enter",
+    "enabled": "Habilitado"
 }

@@ -178,6 +178,35 @@
       "tooltip_li2": "Consistência importa: mantenha sua média baixa.",
       "scope_local": "na Unidade",
       "scope_empresa": "na Empresa"
+    },
+    "times_local": {
+      "no_data": "Sem dados neste mês",
+      "your_position": "Sua Posição",
+      "target": "Objetivo",
+      "best_value": "Melhor",
+      "avg_value": "Média",
+      "your_value": "Seu Valor",
+      "top_n": "Top {{n}}",
+      "card_desc_champ": "Seja o mais veloz na sua unidade.",
+      "card_desc_normal": "Alcance o Top {{position}} no ranking de velocidade da sua unidade.",
+      "tooltip_title": "Objetivo: Top {{position}} na sua unidade",
+      "tooltip_desc": "Ranking baseado na sua média de segundos na sua unidade (menor é melhor).",
+      "tooltip_li1": "Atualizado mensalmente.",
+      "tooltip_li2": "Mantenha sua média baixa para ganhar."
+    },
+    "times_local_center": {
+      "no_data": "Sem dados neste mês",
+      "center_label": "Centro",
+      "local_label": "Unidade",
+      "current_value": "Seu Valor",
+      "current_position": "Sua Posição",
+      "best_value": "Melhor",
+      "avg_value": "Média",
+      "card_desc": "Desempenho da sua unidade por centros selecionados ({{count}}).",
+      "tooltip_title": "Ranking por centro da unidade",
+      "tooltip_desc": "Mostra a posição e valores da sua unidade por cada centro selecionado (menor é melhor).",
+      "tooltip_li1": "Baseado em KPIs mensais.",
+      "tooltip_li2": "Foque em melhorar os centros mais lentos."
     }
   }
 ,

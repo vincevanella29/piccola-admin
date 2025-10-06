@@ -261,7 +261,7 @@ def update_meritocracy_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
     scope_in_payload = "scope" in payload
     norm_scope = _normalize_scope(payload.get("scope")) if scope_in_payload and payload.get("scope") is not None else None
 
-    if payload.get("validate", True):
+    if payload.get("validates", True):
         eff_template_key = patch.get("template_key", current.get("template_key"))
         eff_params = patch.get("params", current.get("params") or {})
         eff_merit_points = patch.get("merit_points", current.get("merit_points"))

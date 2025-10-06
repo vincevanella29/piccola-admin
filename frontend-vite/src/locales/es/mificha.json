@@ -178,6 +178,35 @@
       "tooltip_li2": "La constancia importa: mantén tu promedio bajo.",
       "scope_local": "del Local",
       "scope_empresa": "de la Empresa"
+    },
+    "times_local": {
+      "no_data": "Sin datos este mes",
+      "your_position": "Tu Posición",
+      "target": "Objetivo",
+      "best_value": "Mejor",
+      "avg_value": "Promedio",
+      "your_value": "Tu Valor",
+      "top_n": "Top {{n}}",
+      "card_desc_champ": "Sé el más veloz de tu local.",
+      "card_desc_normal": "Alcanza el Top {{position}} en el ranking de velocidad de tu local.",
+      "tooltip_title": "Objetivo: Top {{position}} en tu local",
+      "tooltip_desc": "Ranking basado en tu promedio de segundos en tu local (menor es mejor).",
+      "tooltip_li1": "Se actualiza mensualmente.",
+      "tooltip_li2": "Mantén tu promedio bajo para ganar."
+    },
+    "times_local_center": {
+      "no_data": "Sin datos este mes",
+      "center_label": "Centro",
+      "local_label": "Local",
+      "current_value": "Tu Valor",
+      "current_position": "Tu Posición",
+      "best_value": "Mejor",
+      "avg_value": "Promedio",
+      "card_desc": "Rendimiento de tu local por centros seleccionados ({{count}}).",
+      "tooltip_title": "Ranking por centro del local",
+      "tooltip_desc": "Muestra la posición y valores de tu local por cada centro seleccionado (menor es mejor).",
+      "tooltip_li1": "Basado en KPIs mensuales.",
+      "tooltip_li2": "Enfócate en mejorar los centros más lentos."
     }
   }
 ,

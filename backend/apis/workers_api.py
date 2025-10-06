@@ -23,6 +23,7 @@ WORKER_MODULES = {
     "worker_sales_by_waiter_hour_vpn": "utils.mtz.worker_sales_by_waiter_hour_vpn",
     "worker_restaurant_data": "utils.mtz.worker_restaurant_data",
     "worker_ventas_hora_tiempo_promedio": "utils.mtz.worker_ventas_hora_tiempo_promedio",
+    "worker_ventas_producto_cprodu": "utils.mtz.worker_ventas_producto_cprodu",
 
     # Intranet
     "worker_asistencia_diaria_intranet": "utils.intranet.archivos.worker_asistencia_diaria_intranet",
@@ -37,6 +38,7 @@ WORKER_MODULES = {
     "worker_meritocracy": "utils.kpis.worker_meritocracy",
     "worker_sales_kpis_cache": "utils.kpis.worker_sales_kpis_cache",
     "worker_tiempos_centros": "utils.kpis.worker_tiempos_centros",
+    "worker_admin_kpis": "utils.kpis.worker_admin_kpis",
 }
 
 class ListWorkersResponse(BaseModel):

@@ -12,9 +12,13 @@ import {
   listPolicies as apiListPolicies,
   upsertPolicy as apiUpsertPolicy,
   deletePolicy as apiDeletePolicy,
+  listApiAccessRules as apiListApiAccessRules,
+  upsertApiAccessRule as apiUpsertApiAccessRule,
+  toggleApiAccessRule as apiToggleApiAccessRule,
+  deleteApiAccessRule as apiDeleteApiAccessRule,
 } from '../utils/rolesAccess.jsx';
 
-function getErrMessage(err, fallback = 'Error') {
+function getErrMessage(err, fallback) {
   // adapta según tu capa api.jsx si usas axios/fetch
   const d = err?.response?.data;
   return (
@@ -22,7 +26,7 @@ function getErrMessage(err, fallback = 'Error') {
     d?.detail ||
     d?.error ||
     err?.message ||
-    fallback
+    (typeof fallback === 'string' ? fallback : undefined)
   );
 }
 
@@ -58,17 +62,61 @@ export function useRolesAccess(appState, t) {
     return hasAllSucursales || allowedSucursalIds.includes(n);
   };
 
+  // ------- API ACCESS RULES (prefix /api) -------
+  const listApiAccessRules = async ({ path_prefix } = {}) => {
+    try {
+      const resp = await apiListApiAccessRules({ path_prefix, walletAddress: wallet, token });
+      return resp?.items || [];
+    } catch (err) {
+      setError?.(getErrMessage(err, t?.('empresa.api_rules_load_error')));
+      throw err;
+    }
+  };
+
+  const upsertApiAccessRule = async (payload) => {
+    try {
+      const resp = await apiUpsertApiAccessRule({ ...payload, walletAddress: wallet, token });
+      setSuccess?.(t?.('empresa.api_rule_saved'));
+      return resp?.rule || null;
+    } catch (err) {
+      setError?.(getErrMessage(err, t?.('empresa.api_rule_save_error')));
+      throw err;
+    }
+  };
+
+  const toggleApiAccessRule = async ({ path_prefix, enabled }) => {
+    try {
+      const resp = await apiToggleApiAccessRule({ path_prefix, enabled, walletAddress: wallet, token });
+      setSuccess?.(t?.('empresa.api_rule_toggled'));
+      return resp?.rule || null;
+    } catch (err) {
+      setError?.(getErrMessage(err, t?.('empresa.api_rule_toggle_error')));
+      throw err;
+    }
+  };
+
+  const deleteApiAccessRule = async ({ path_prefix }) => {
+    try {
+      await apiDeleteApiAccessRule({ path_prefix, walletAddress: wallet, token });
+      setSuccess?.(t?.('empresa.api_rule_deleted'));
+      return { ok: true };
+    } catch (err) {
+      setError?.(getErrMessage(err, t?.('empresa.api_rule_delete_error')));
+      throw err;
+    }
+  };
+
   // ------- actions (existentes) -------
   const fetchMyPermissions = async () => {
     setIsLoading(true);
     try {
-      if (!wallet || !token) throw new Error(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
+      if (!wallet || !token) throw new Error(t?.('wallet.connect_wallet'));
       const resp = await apiGetMyPermissions({ walletAddress: wallet, token });
       const perms = resp?.permissions || null;
       setMyPermissions(perms);
       return perms;
     } catch (err) {
-      const msg = getErrMessage(err, 'No se pudieron obtener tus permisos');
+      const msg = getErrMessage(err, t?.('empresa.my_perms_load_error'));
       setError?.(msg);
       throw err;
     } finally {
@@ -78,14 +126,14 @@ export function useRolesAccess(appState, t) {
 
   const fetchPermissionsOfWallet = async ({ targetWallet }) => {
     try {
-      if (!wallet || !token) throw new Error(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
-      if (!targetWallet) throw new Error(t?.('roles.target_wallet_required') || 'targetWallet es obligatorio');
+      if (!wallet || !token) throw new Error(t?.('wallet.connect_wallet'));
+      if (!targetWallet) throw new Error(t?.('empresa.target_wallet_required'));
       const resp = await apiGetPermissionsOfWallet({ targetWallet, walletAddress: wallet, token });
       const perms = resp?.permissions || null;
       setPermissionsByWallet((prev) => ({ ...prev, [targetWallet.toLowerCase()]: perms }));
       return perms;
     } catch (err) {
-      const msg = getErrMessage(err, 'No se pudieron obtener permisos del wallet objetivo');
+      const msg = getErrMessage(err, t?.('empresa.wallet_perms_load_error'));
       setError?.(msg);
       throw err;
     }
@@ -94,16 +142,16 @@ export function useRolesAccess(appState, t) {
   const saveScopes = async ({ targetWallet, role_level, empresa_ids, sucursal_ids }) => {
     setIsLoading(true);
     try {
-      if (!wallet || !token) throw new Error(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
-      if (!targetWallet) throw new Error(t?.('roles.target_wallet_required') || 'targetWallet es obligatorio');
+      if (!wallet || !token) throw new Error(t?.('wallet.connect_wallet'));
+      if (!targetWallet) throw new Error(t?.('empresa.target_wallet_required'));
       const resp = await apiUpsertScopes({ targetWallet, role_level, empresa_ids, sucursal_ids, walletAddress: wallet, token });
       const perms = resp?.permissions || null;
       setPermissionsByWallet((prev) => ({ ...prev, [targetWallet.toLowerCase()]: perms }));
-      setSuccess?.(t?.('roles.scopes_saved') || 'Scopes guardados');
+      setSuccess?.(t?.('empresa.scopes_saved'));
       if (targetWallet?.toLowerCase?.() === wallet?.toLowerCase?.()) setMyPermissions(perms);
       return perms;
     } catch (err) {
-      const msg = getErrMessage(err, 'No se pudieron guardar los scopes');
+      const msg = getErrMessage(err, t?.('empresa.scopes_save_error'));
       setError?.(msg);
       throw err;
     } finally {
@@ -114,19 +162,19 @@ export function useRolesAccess(appState, t) {
   const removeScopes = async ({ targetWallet }) => {
     setIsLoading(true);
     try {
-      if (!wallet || !token) throw new Error(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
-      if (!targetWallet) throw new Error(t?.('roles.target_wallet_required') || 'targetWallet es obligatorio');
+      if (!wallet || !token) throw new Error(t?.('wallet.connect_wallet'));
+      if (!targetWallet) throw new Error(t?.('empresa.target_wallet_required'));
       await apiClearScopes({ targetWallet, walletAddress: wallet, token });
       setPermissionsByWallet((prev) => {
         const copy = { ...prev };
         delete copy[targetWallet.toLowerCase()];
         return copy;
       });
-      setSuccess?.(t?.('roles.scopes_cleared') || 'Scopes eliminados');
+      setSuccess?.(t?.('empresa.scopes_cleared'));
       if (targetWallet?.toLowerCase?.() === wallet?.toLowerCase?.()) await fetchMyPermissions();
       return { ok: true };
     } catch (err) {
-      const msg = getErrMessage(err, 'No se pudieron eliminar los scopes');
+      const msg = getErrMessage(err, t?.('empresa.scopes_clear_error'));
       setError?.(msg);
       throw err;
     } finally {
@@ -181,7 +229,7 @@ export function useRolesAccess(appState, t) {
       });
       return resp;
     } catch (err) {
-      setError?.(getErrMessage(err, 'No se pudo cargar metadata de roles'));
+      setError?.(getErrMessage(err, t?.('empresa.roles_meta_load_error')));
       throw err;
     }
   };
@@ -193,7 +241,7 @@ export function useRolesAccess(appState, t) {
       setPolicies(items);
       return items;
     } catch (err) {
-      setError?.(getErrMessage(err, 'No se pudieron cargar políticas'));
+      setError?.(getErrMessage(err, t?.('empresa.policies_load_error')));
       throw err;
     }
   };
@@ -201,11 +249,11 @@ export function useRolesAccess(appState, t) {
   const savePolicy = async (payload) => {
     try {
       const resp = await apiUpsertPolicy({ ...payload, walletAddress: wallet, token });
-      setSuccess?.(t?.('roles.policy_saved') || 'Política guardada');
+      setSuccess?.(t?.('empresa.policy_saved'));
       await fetchPolicies(); // refresca listado
       return resp?.policy;
     } catch (err) {
-      setError?.(getErrMessage(err, 'No se pudo guardar la política'));
+      setError?.(getErrMessage(err, t?.('empresa.policy_save_error')));
       throw err;
     }
   };
@@ -213,11 +261,11 @@ export function useRolesAccess(appState, t) {
   const removePolicy = async (policy_id) => {
     try {
       await apiDeletePolicy({ policy_id, walletAddress: wallet, token });
-      setSuccess?.(t?.('roles.policy_deleted') || 'Política eliminada');
+      setSuccess?.(t?.('empresa.policy_deleted'));
       await fetchPolicies();
       return { ok: true };
     } catch (err) {
-      setError?.(getErrMessage(err, 'No se pudo eliminar la política'));
+      setError?.(getErrMessage(err, t?.('empresa.policy_delete_error')));
       throw err;
     }
   };
@@ -254,6 +302,12 @@ export function useRolesAccess(appState, t) {
     fetchPolicies,
     savePolicy,
     removePolicy,
+
+    // API rules
+    listApiAccessRules,
+    upsertApiAccessRule,
+    toggleApiAccessRule,
+    deleteApiAccessRule,
   };
 }
 

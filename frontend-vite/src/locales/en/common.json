@@ -66,5 +66,6 @@
     "threshold": "Threshold",
     "delete": "Delete",
     "esc": "Esc",
-    "enter": "Enter"
+    "enter": "Enter",
+    "enabled": "Enabled"
 }

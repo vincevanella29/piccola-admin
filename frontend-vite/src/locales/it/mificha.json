@@ -179,6 +179,35 @@
       "tooltip_li2": "La costanza conta: mantieni bassa la tua media.",
       "scope_local": "della Sede",
       "scope_empresa": "dell'Azienda"
+    },
+    "times_local": {
+      "no_data": "Nessun dato questo mese",
+      "your_position": "La Tua Posizione",
+      "target": "Obiettivo",
+      "best_value": "Migliore",
+      "avg_value": "Media",
+      "your_value": "Il Tuo Valore",
+      "top_n": "Top {{n}}",
+      "card_desc_champ": "Sii il più veloce nel tuo punto vendita.",
+      "card_desc_normal": "Raggiungi il Top {{position}} nella classifica di velocità del tuo punto vendita.",
+      "tooltip_title": "Obiettivo: Top {{position}} nel tuo punto vendita",
+      "tooltip_desc": "Classifica basata sulla tua media di secondi nel tuo punto vendita (più basso è meglio).",
+      "tooltip_li1": "Aggiornato mensilmente.",
+      "tooltip_li2": "Mantieni bassa la tua media per vincere."
+    },
+    "times_local_center": {
+      "no_data": "Nessun dato questo mese",
+      "center_label": "Centro",
+      "local_label": "Punto vendita",
+      "current_value": "Il Tuo Valore",
+      "current_position": "La Tua Posizione",
+      "best_value": "Migliore",
+      "avg_value": "Media",
+      "card_desc": "Prestazioni del tuo punto vendita per i centri selezionati ({{count}}).",
+      "tooltip_title": "Classifica per centro del punto vendita",
+      "tooltip_desc": "Mostra la posizione e i valori del tuo punto vendita per ciascun centro selezionato (più basso è meglio).",
+      "tooltip_li1": "Basato su KPI mensili.",
+      "tooltip_li2": "Concentrati sul migliorare i centri più lenti."
     }
   }
 ,

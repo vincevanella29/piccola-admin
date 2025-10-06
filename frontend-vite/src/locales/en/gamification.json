@@ -13,6 +13,7 @@
   "levels": "Levels",
   "month_short": "m",
   "rule_saved_success": "Rule saved.",
+  "rule_updated_success": "Rule updated.",
   "error_define": "Error saving rule: {{message}}",
   "error_list": "Error listing rules: {{message}}",
   "thresholds": "Thresholds",
@@ -155,6 +156,7 @@
   "sales": {
     "metric_key": "Metric",
     "scope": "Scope",
+    "scope_level": "Scope level",
     "top": "Top (≤)",
     "conditions_and": "Conditions (AND)",
     "no_conditions": "No conditions. You can use the simple parameters or add composite conditions.",
@@ -163,5 +165,20 @@
     "period_year": "Yearly",
     "min_days_worked": "Min. days worked",
     "min_days_worked_help": "0 disables the filter. In yearly mode, uses days with sales in the year."
+  },
+  "times": {
+    "metric": "Metric",
+    "centers_label": "Production centers (one or more)",
+    "search_centers": "Search centers…",
+    "centers_selection_help": "The selection will be saved in selected_centers (slug) and selected_center_labels.",
+    "mode_position_label": "Position mode",
+    "option_top_n": "Top N (≤N)",
+    "option_exact": "Exact (=N)",
+    "option_range": "Range (from/to)",
+    "position_exact_label": "Position (=N)",
+    "position_top_label": "Top (≤N)",
+    "position_from_label": "From (position)",
+    "position_to_label": "To (position)",
+    "local_ranking_help": "Uses kpis_tiempos_local_mensual (grouped by local) and assigns rewards to employees with attendance in the winning local."
   }
 }

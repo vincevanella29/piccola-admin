@@ -83,5 +83,15 @@
   "summary_sections": "Secciones seleccionadas",
   "existing_configs": "Configuraciones existentes",
   "pick_one": "Selecciona un centro para configurar.",
-  "empty": "Sin centros."
+  "empty": "Sin centros.",
+  "tab_secciones": "Secciones por API",
+  "api_access_rules": "Reglas de Acceso por API (Secciones)",
+  "api_prefix": "Prefijo de API",
+  "pick_api_prefix": "Selecciona una ruta /api",
+  "rule_for": "Regla para",
+  "include_sections": "Incluir Secciones (aún no aplicado)",
+  "pick_sections": "Selecciona secciones",
+  "exclude_sections": "Bloquear Secciones (aplicado)"
+  ,
+  "api_rule_saved": "Regla de API guardada"
 }
