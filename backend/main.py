@@ -45,7 +45,16 @@ app = FastAPI(title="Api Club Della Nonna")
 
 @app.on_event("startup")
 async def startup():
-    redis_url = os.getenv("REDIS_HOST", "redis://localhost")
+    # Prefer full REDIS_URL. Otherwise, build from host/port/db and ensure scheme.
+    redis_url = os.getenv("REDIS_URL")
+    if not redis_url:
+        host = os.getenv("REDIS_HOST", "localhost")
+        port = os.getenv("REDIS_PORT", "6379")
+        db = os.getenv("REDIS_DB", "0")
+        if host.startswith(("redis://", "rediss://", "unix://")):
+            redis_url = host
+        else:
+            redis_url = f"redis://{host}:{port}/{db}"
     try:
         redis = aioredis.from_url(redis_url, encoding="utf-8", decode_responses=True)
         await redis.ping()
