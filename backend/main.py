@@ -45,7 +45,7 @@ app = FastAPI(title="Api Club Della Nonna")
 
 @app.on_event("startup")
 async def startup():
-    redis_url = os.getenv("REDIS_URL", "redis://localhost")
+    redis_url = os.getenv("REDIS_HOST", "redis://localhost")
     try:
         redis = aioredis.from_url(redis_url, encoding="utf-8", decode_responses=True)
         await redis.ping()
