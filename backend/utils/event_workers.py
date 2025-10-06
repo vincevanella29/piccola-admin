@@ -103,8 +103,32 @@ async def menu_data_task():
 
 async def sales_kpis_cache_task():
     logger.info("Iniciando tarea de grupo: sales_kpis_cache_task")
-    worker = importlib.import_module('utils.kpis.worker_sales_kpis_cache')
-    worker.run_worker()
+    kpi_modules = [
+        'utils.kpis.worker_sales_kpis_cache',
+        'utils.kpis.worker_admin_kpis',
+        'utils.kpis.worker_tiempos_centros',
+    ]
+    mesano = get_current_mesano_chile()
+    for mod_path in kpi_modules:
+        try:
+            logger.info(f"[KPI GROUP] Ejecutando {mod_path}...")
+            mod = importlib.import_module(mod_path)
+            if hasattr(mod, 'process_period'):
+                mod.process_period(mesano)
+            elif hasattr(mod, 'run_worker'):
+                mod.run_worker(mesano)
+            elif hasattr(mod, 'main'):
+                import builtins as _builtins
+                _orig_input = getattr(_builtins, 'input', None)
+                try:
+                    _builtins.input = lambda prompt='': mesano
+                    mod.main()
+                finally:
+                    if _orig_input is not None: _builtins.input = _orig_input
+            else:
+                logger.warning(f"[KPI GROUP] Saltado (sin método de ejecución): {mod_path}")
+        except Exception as e:
+            logger.error(f"Error en sub-tarea {mod_path}: {e}")
     return {"status": "completed"}
 
 async def intranet_group_task():
@@ -166,6 +190,7 @@ async def mtz_group_task():
         'utils.mtz.worker_sales_by_waiter_hour_vpn',
         'utils.mtz.worker_cargos',
         'utils.mtz.worker_restaurant_data',
+        'utils.mtz.worker_ventas_producto_cprodu',
     ]
     mesano = get_current_mesano_chile()
     for mod_path in mtz_modules:
