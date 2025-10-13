@@ -226,6 +226,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
         base_match: Dict[str, Any] = {"es_competidor": True, "periodo": periodo_dash}
         if allowed_ruts is not None:
             base_match["rut"] = {"$in": list(allowed_ruts)}
+        scoped_whitelist = set(rule.get("_scoped_ruts") or [])
 
         # --- Camino conditions: usar puestos/valores precalculados + gating ---
         if conditions:
@@ -241,13 +242,22 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
                 extra = {"promedio_venta_diaria.dias_con_venta": {"$gte": int(min_days_worked)}}
                 if "$and" in match_stage: match_stage["$and"].append(extra)
                 else: match_stage = {**match_stage, **extra}
-            pipeline = [{"$match": match_stage}, {"$project": {"_id": 0, "rut": 1}}]
+            pipeline = [{"$match": match_stage}, {"$addFields": {"rut_str": {"$toString": "$rut"}}}]
+            if scoped_whitelist:
+                pipeline.append({"$match": {"rut_str": {"$in": list(scoped_whitelist)}}})
+            pipeline.append({"$project": {"_id": 0, "rut": "$rut_str"}})
             return [d["rut"] for d in db.kpis_empleado_mensual.aggregate(pipeline)]
 
         # --- Camino simple: re-ranking exacto con $documentNumber y tiebreaker escalar ---
         metric_expr = "$sales.total" if path == "sales" else f"${path}.valor"
         pipeline: List[Dict[str, Any]] = [
             {"$match": base_match},
+            {"$addFields": {"rut_str": {"$toString": "$rut"}}},
+        ]
+        if scoped_whitelist:
+            pipeline.append({"$match": {"rut_str": {"$in": list(scoped_whitelist)}}})
+        # add metric fields before gating
+        pipeline += [
             {"$addFields": {
                 "metric_value": {"$ifNull": [metric_expr, 0]},
                 "dias_worked": {"$ifNull": ["$promedio_venta_diaria.dias_con_venta", 0]},
@@ -284,7 +294,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
 
         pipeline += [
             {"$match": {"rownum": _row_filter(position_type, ranking_position, position_from, position_to)}},
-            {"$project": {"_id": 0, "rut": 1}}
+            {"$project": {"_id": 0, "rut": "$rut_str"}}
         ]
         return [d["rut"] for d in db.kpis_empleado_mensual.aggregate(pipeline)]
 
@@ -295,6 +305,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
     year_match: Dict[str, Any] = {"periodo": {"$regex": f"^{year}-"}, "es_competidor": True}
     if allowed_ruts is not None:
         year_match["rut"] = {"$in": list(allowed_ruts)}
+    scoped_whitelist = set(rule.get("_scoped_ruts") or [])
 
     # --- Camino conditions (match directo) ---
     if conditions:
@@ -318,6 +329,8 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
     if ranking_scope == "empresa":
         agg_pipeline: List[Dict[str, Any]] = [
             {"$match": year_match},
+            {"$addFields": {"rut_str": {"$toString": "$rut"}}},
+            *([{"$match": {"rut_str": {"$in": list(scoped_whitelist)}}}] if scoped_whitelist else []),
             {"$group": {
                 "_id": {"rut": "$rut"},
                 "sales_total": {"$sum": "$sales.total"},
@@ -353,12 +366,14 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
                 "output": {"rownum": {"$documentNumber": {}}}
             }},
             {"$match": {"rownum": _row_filter(position_type, ranking_position, position_from, position_to)}},
-            {"$project": {"_id": 0, "rut": 1}},
+            {"$project": {"_id": 0, "rut": {"$toString": "$rut"}}},
         ]
         winners = [w["rut"] for w in db.kpis_empleado_mensual.aggregate(agg_pipeline)]
     else:
         agg_pipeline: List[Dict[str, Any]] = [
             {"$match": year_match},
+            {"$addFields": {"rut_str": {"$toString": "$rut"}}},
+            *([{"$match": {"rut_str": {"$in": list(scoped_whitelist)}}}] if scoped_whitelist else []),
             {"$group": {
                 "_id": {"rut": "$rut", "local": "$local"},
                 "sales_total": {"$sum": "$sales.total"},

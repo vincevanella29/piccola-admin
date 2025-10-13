@@ -209,6 +209,9 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
     position_to = int(params.get("position_to", max(1, position_from)) or max(1, position_from))
     min_days_worked = int(params.get("min_days_worked", 0) or 0)
 
+    # Whitelist inyectada por el worker (post-scope)
+    scoped_whitelist = set(rule.get("_scoped_ruts") or [])
+
     base_match: Dict[str, Any] = {"es_competidor": True}
     if period_mode == "month":
         base_match["periodo"] = periodo_dash
@@ -226,6 +229,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
                 "metric_samples": {"$ifNull": ["$samples_total", {"$ifNull": ["$tiempos.samples_share", 0]}]},
                 "dias": {"$ifNull": ["$tiempos.dias_con_registro", 0]},
                 "rut": "$rut",
+                "rut_str": {"$toString": "$rut"},
                 "local": "$local",
             }},
             {"$addFields": {
@@ -235,6 +239,8 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
             }},
             {"$match": {"metric_value": {"$ne": None}}},
         ]
+        if scoped_whitelist:
+            pipeline.append({"$match": {"rut_str": {"$in": list(scoped_whitelist)}}})
         if min_days_worked > 0:
             pipeline.append({"$match": {"dias": {"$gte": int(min_days_worked)}}})
         # tiebreaker
@@ -258,7 +264,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
             ]
         pipeline += [
             {"$match": {"rownum": _pos_filter(position_type, ranking_position, position_from, position_to)}},
-            {"$project": {"_id": 0, "rut": 1}},
+            {"$project": {"_id": 0, "rut": "$rut_str"}},
         ]
         return [d["rut"] for d in db.kpis_tiempos_empleado_mensual.aggregate(pipeline)]
 
@@ -319,10 +325,14 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
                 {"$eq": [position_metric, "samples"]}, "$metric_samples", "$metric_avg"
             ]},
             "rut": "$rut",
+            "rut_str": {"$toString": "$rut"},
             "local": "$local",
         }},
         {"$match": {"key": {"$in": selected_keys}, "metric_value": {"$ne": None, "$gt": 0}}},
     ]
+
+    if scoped_whitelist:
+        pipeline.append({"$match": {"rut_str": {"$in": list(scoped_whitelist)}}})
 
     if min_days_worked > 0:
         pipeline.append({"$match": {"dias": {"$gte": int(min_days_worked)}}})
@@ -345,7 +355,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
                 }
             }},
             {"$match": {"puesto_empresa": _pos_filter(position_type, ranking_position, position_from, position_to)}},
-            {"$project": {"_id": 0, "rut": 1}},
+            {"$project": {"_id": 0, "rut": "$rut_str"}},
             {"$group": {"_id": "$rut"}},
             {"$project": {"_id": 0, "rut": "$_id"}},
         ]
@@ -359,7 +369,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
                 }
             }},
             {"$match": {"puesto_local": _pos_filter(position_type, ranking_position, position_from, position_to)}},
-            {"$project": {"_id": 0, "rut": 1}},
+            {"$project": {"_id": 0, "rut": "$rut_str"}},
             {"$group": {"_id": "$rut"}},
             {"$project": {"_id": 0, "rut": "$_id"}},
         ]
@@ -468,6 +478,14 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
         else:
             return {"progress": [], "summary": f"level inválido: {level}"}
 
+        scoped_whitelist = set(rule.get("_scoped_ruts") or [])
+        if scoped_whitelist:
+            pipe.append({"$addFields": {"rut_str": {"$toString": "$rut"}}})
+            pipe.append({"$match": {"rut_str": {"$in": list(scoped_whitelist)}}})
+
+        if min_days_worked > 0:
+            pipe.append({"$match": {"dias": {"$gte": int(min_days_worked)}}})
+
         if scope == "empresa":
             if position_metric == "samples":
                 pipe += [
@@ -550,6 +568,8 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
             if position_metric == "samples":
                 rows = list(db.kpis_tiempos_empleado_mensual.aggregate([
                     {"$match": match},
+                    {"$addFields": {"rut_str": {"$toString": "$rut"}}},
+                    *([{"$match": {"rut_str": {"$in": list(scoped_whitelist)}}}] if scoped_whitelist else []),
                     {"$group": {"_id": {"rut": "$rut"}, "samples_total": {"$sum": {"$ifNull": ["$samples_total", {"$ifNull": ["$tiempos.samples_share", 0]}]}}}},
                     {"$addFields": {"rut": "$_id.rut", "metric_value": "$samples_total"}},
                     {"$match": {"metric_value": {"$ne": None}}},
@@ -561,6 +581,8 @@ def get_progress_data(db: Database, rule: Dict[str, Any], rut: str, periodo_dash
             else:
                 rows = list(db.kpis_tiempos_empleado_mensual.aggregate([
                     {"$match": match},
+                    {"$addFields": {"rut_str": {"$toString": "$rut"}}},
+                    *([{"$match": {"rut_str": {"$in": list(scoped_whitelist)}}}] if scoped_whitelist else []),
                     {"$group": {"_id": {"rut": "$rut"}, "sum_share": {"$sum": {"$ifNull": ["$tiempos.samples_share", 0]}}, "sum_w": {"$sum": {"$multiply": [{"$ifNull": ["$tiempos.avg_seg", 0]}, {"$ifNull": ["$tiempos.samples_share", 0]}]}}, "dias": {"$sum": {"$ifNull": ["$tiempos.dias_con_registro", 0]}}}},
                     {"$addFields": {"rut": "$_id.rut", "metric_value": {"$cond": [{"$gt": ["$sum_share", 0]}, {"$divide": ["$sum_w", "$sum_share"]}, None]}}},
                     {"$match": {"metric_value": {"$ne": None}}},

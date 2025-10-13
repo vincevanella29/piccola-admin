@@ -47,7 +47,7 @@ def _suc_id_to_sigla(db: Database) -> Dict[int, str]:
     return m
 
 
-def _attendance_ruts_for_local(db: Database, ym: str, local_sigla: str, min_days: int, suc_map: Dict[int, str]) -> List[str]:
+def _attendance_ruts_for_local(db: Database, ym: str, local_sigla: str, min_days: int, suc_map: Dict[int, str], *, whitelist: Optional[set] = None) -> List[str]:
     ym_int = int(ym)
     norm_target = {_norm_sigla(local_sigla), local_sigla}
     by_rut_days: Dict[str, int] = {}
@@ -70,9 +70,47 @@ def _attendance_ruts_for_local(db: Database, ym: str, local_sigla: str, min_days
             continue
         if _norm_sigla(loc) in norm_target or loc in norm_target:
             by_rut_days[rut] = by_rut_days.get(rut, 0) + 1
-    if min_days > 0:
-        return [r for r, d in by_rut_days.items() if d >= min_days]
-    return list(by_rut_days.keys())
+    # Aplicar min_days
+    ruts = [r for r, d in by_rut_days.items() if (d >= min_days if min_days > 0 else True)]
+    # Aplicar whitelist si corresponde
+    if whitelist is not None:
+        ruts = [r for r in ruts if r in whitelist]
+    return ruts
+
+
+def _best_attendance_rut_for_local(db: Database, ym: str, local_sigla: str, min_days: int, suc_map: Dict[int, str], *, whitelist: Optional[set] = None) -> Optional[str]:
+    """Devuelve el RUT (str) con más días de asistencia en el local dado para el mes 'YYYYMM'.
+    Aplica filtro por 'min_days' si corresponde. En caso de empate, elige el RUT lexicográficamente menor.
+    """
+    ym_int = int(ym)
+    norm_target = {_norm_sigla(local_sigla), local_sigla}
+    by_rut_days: Dict[str, int] = {}
+    cursor = db.asistencia_diaria_intranet.find(
+        {"periodo": ym_int},
+        {"rut": 1, "sigla_local": 1, "local": 1, "id_sucursal": 1}
+    )
+    for a in cursor:
+        rut = str(a.get("rut") or "").strip()
+        if not rut:
+            continue
+        loc = (a.get("sigla_local") or a.get("local") or "").strip()
+        if not loc:
+            sid = a.get("id_sucursal")
+            try:
+                loc = suc_map.get(int(sid)) or ""
+            except Exception:
+                loc = ""
+        if not loc:
+            continue
+        if _norm_sigla(loc) in norm_target or loc in norm_target:
+            by_rut_days[rut] = by_rut_days.get(rut, 0) + 1
+    # Aplicar min_days y whitelist
+    candidates = [(r, d) for r, d in by_rut_days.items() if (d >= min_days if min_days > 0 else True) and (whitelist is None or r in whitelist)]
+    if not candidates:
+        return None
+    # Elegir por mayor días y luego por rut más bajo para desempatar
+    candidates.sort(key=lambda x: (-x[1], x[0]))
+    return candidates[0][0]
 
 
 # ===========================
@@ -378,8 +416,23 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
 
     # Mapear a RUTs por asistencia
     winners_ruts: List[str] = []
-    for loc in set(winners_locals):
-        winners_ruts.extend(_attendance_ruts_for_local(db, ym, loc, min_days, suc_map))
+    scope = rule.get("scope") or {}
+    secs = scope.get("secciones") or {}
+    sec_inc = { (str(x) or "").strip().lower() for x in (secs.get("include") or []) }
+
+    admin_single_winner = ("administracion local" in sec_inc)
+    # Whitelist de RUTs (post-scope) inyectada por el worker
+    scoped_whitelist = set(rule.get("_scoped_ruts") or []) or None
+
+    if admin_single_winner:
+        # Un ganador por local (mejor asistencia) para evitar múltiples admins por local
+        for loc in set(winners_locals):
+            best = _best_attendance_rut_for_local(db, ym, loc, min_days, suc_map, whitelist=scoped_whitelist)
+            if best:
+                winners_ruts.append(best)
+    else:
+        for loc in set(winners_locals):
+            winners_ruts.extend(_attendance_ruts_for_local(db, ym, loc, min_days, suc_map, whitelist=scoped_whitelist))
 
     return list(sorted(set(winners_ruts)))
 

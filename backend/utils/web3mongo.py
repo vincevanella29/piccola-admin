@@ -7,13 +7,19 @@ from pymongo import MongoClient
 from web3 import Web3
 from web3.middleware.proof_of_authority import ExtraDataToPOAMiddleware
 import glob
+import os
+from dotenv import load_dotenv
 
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+# Load .env here as a safeguard in case the app didn't load it yet
+load_dotenv()
+
+MONGODB_URI = os.getenv("MONGODB_URI")
 WEB3_PROVIDER_URL = os.getenv("WEB3_PROVIDER_URL", "https://rpc-amoy.polygon.technology")
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
+logger.info(f"MONGODB_URI: {MONGODB_URI}")
 
 # MongoDB setup
 client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)

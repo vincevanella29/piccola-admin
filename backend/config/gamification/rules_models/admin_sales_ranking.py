@@ -201,6 +201,8 @@ def evaluate(db, rule: Dict[str, Any], periodo_dash: str) -> List[str]:
         base_match: Dict[str, Any] = {"periodo": periodo_dash}
         if allowed_ruts is not None:
             base_match["rut"] = {"$in": list(allowed_ruts)}
+        # Apply scoped whitelist injected by worker (overrides/augments allowed_ruts)
+        scoped_whitelist = set(rule.get("_scoped_ruts") or [])
 
         # Camino conditions: match directo por puestos/valores + gating
         if conditions:
@@ -219,7 +221,12 @@ def evaluate(db, rule: Dict[str, Any], periodo_dash: str) -> List[str]:
                     match_stage["$and"].append(extra)
                 else:
                     match_stage = {**match_stage, **extra}
-            pipeline = [{"$match": match_stage}, {"$project": {"_id": 0, "rut": 1}}]
+            pipeline = [{"$match": match_stage}]
+            # Normalize and filter by whitelist if present
+            pipeline.append({"$addFields": {"rut_str": {"$toString": "$rut"}}})
+            if scoped_whitelist:
+                pipeline.append({"$match": {"rut_str": {"$in": list(scoped_whitelist)}}})
+            pipeline.append({"$project": {"_id": 0, "rut": "$rut_str"}})
             return [d["rut"] for d in coll.aggregate(pipeline)]
 
         # Camino simple: reranking exacto determinístico con $documentNumber
@@ -231,6 +238,11 @@ def evaluate(db, rule: Dict[str, Any], periodo_dash: str) -> List[str]:
 
         pipeline: List[Dict[str, Any]] = [
             {"$match": base_match},
+            {"$addFields": {"rut_str": {"$toString": "$rut"}}},
+        ]
+        if scoped_whitelist:
+            pipeline.append({"$match": {"rut_str": {"$in": list(scoped_whitelist)}}})
+        pipeline += [
             {"$addFields": {
                 "metric_value": {"$ifNull": [metric_expr, 0]},
                 "dias_worked": {"$ifNull": ["$promedio_venta_diaria.dias_con_venta", 0]},
@@ -249,7 +261,7 @@ def evaluate(db, rule: Dict[str, Any], periodo_dash: str) -> List[str]:
             pipeline += [{"$setWindowFields": {"partitionBy": "$local", "sortBy": {"metric_value_tb": -1}, "output": {"rownum": {"$documentNumber": {}}}}}]
         pipeline += [
             {"$match": {"rownum": _row_filter(position_type, ranking_position, position_from, position_to)}},
-            {"$project": {"_id": 0, "rut": 1}},
+            {"$project": {"_id": 0, "rut": "$rut_str"}},
         ]
         return [d["rut"] for d in coll.aggregate(pipeline)]
 
@@ -258,6 +270,7 @@ def evaluate(db, rule: Dict[str, Any], periodo_dash: str) -> List[str]:
     year_match: Dict[str, Any] = {"periodo": {"$regex": f"^{year}-"}}
     if allowed_ruts is not None:
         year_match["rut"] = {"$in": list(allowed_ruts)}
+    scoped_whitelist = set(rule.get("_scoped_ruts") or [])
 
     # Agregado anual: sumar totales y calcular métricas derivadas
     winners: List[str] = []
@@ -274,6 +287,8 @@ def evaluate(db, rule: Dict[str, Any], periodo_dash: str) -> List[str]:
 
     pipeline: List[Dict[str, Any]] = [
         {"$match": year_match},
+        {"$addFields": {"rut_str": {"$toString": "$rut"}}},
+        *([{"$match": {"rut_str": {"$in": list(scoped_whitelist)}}}] if scoped_whitelist else []),
         {"$group": {
             "_id": group_id,
             "sales_total": {"$sum": "$sales.total"},
@@ -309,7 +324,7 @@ def evaluate(db, rule: Dict[str, Any], periodo_dash: str) -> List[str]:
         pipeline += [{"$setWindowFields": {"partitionBy": "$local", "sortBy": {"metric_value_tb": -1}, "output": {"rownum": {"$documentNumber": {}}}}}]
     pipeline += [
         {"$match": {"rownum": _row_filter(position_type, ranking_position, position_from, position_to)}},
-        {"$project": {"_id": 0, "rut": 1}},
+        {"$project": {"_id": 0, "rut": {"$toString": "$rut"}}},
     ]
     winners = [w["rut"] for w in coll.aggregate(pipeline)]
     return list(dict.fromkeys(winners))

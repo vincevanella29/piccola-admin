@@ -281,6 +281,8 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
                 "sub_norm": {"$trim": {"input": {"$ifNull": ["$sales_by_category.subfamilia", ""]}}},
                 "amount_v": {"$ifNull": ["$sales_by_category.total", 0]},
                 "qty_v": {"$ifNull": ["$sales_by_category.cantidad", 0]},
+                # Normalizar rut a string para poder matchear con whitelist
+                "rut_str": {"$toString": "$rut"},
             }},
         ]
         if level == "family":
@@ -295,7 +297,7 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
     # 4) Agrupar por admin/local y calcular la métrica agregada
     pipeline += [
         {"$group": {
-            "_id": {"rut": "$rut", "local": "$local"},
+            "_id": {"rut": "$rut_str", "local": "$local"},
             "metric_value": {"$sum": metric_field},
             "dias": {"$sum": {"$ifNull": ["$promedio_venta_diaria.dias_con_venta", 0]}},
         }},
@@ -305,6 +307,11 @@ def evaluate(db: Database, rule: Dict[str, Any], periodo_dash: str) -> List[str]
     # 5) Post-filtros: días mínimos + ranking
     if min_days_worked > 0:
         pipeline.append({"$match": {"dias": {"$gte": int(min_days_worked)}}})
+
+    # 5.5) Whitelist de RUTs (post-scope) inyectada por el worker
+    scoped_whitelist = set(rule.get("_scoped_ruts") or [])
+    if scoped_whitelist:
+        pipeline.append({"$match": {"rut": {"$in": list(scoped_whitelist)}}})
 
     if ranking_scope == "empresa":
         pipeline += [

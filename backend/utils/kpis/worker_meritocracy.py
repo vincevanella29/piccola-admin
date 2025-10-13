@@ -405,8 +405,23 @@ def process_period(mesano: str, evaluators: Dict[str, RuleEvaluator]):
 
         logger.info(f"Ejecutando regla finalizada: '{rule.get('rule_name', template_key)}' sobre {len(scoped_employees)} empleados (post-scope)...")
         try:
-            winners_ruts = set(eval_func(db, rule, periodo_dash))
-            logger.info(f"Regla '{rule.get('rule_name', template_key)}' evaluada. Ganadores: {len(winners_ruts)}")
+            # Inyectar whitelist de RUTs (post-scope) para que el evaluador rankee SOLO dentro del scope
+            rule_eval = dict(rule)
+            rule_eval['_scoped_ruts'] = list(scoped_employees.keys())
+            winners_ruts = set(eval_func(db, rule_eval, periodo_dash))
+            # Loggear ganadores reales post-scope (intersección) para evitar confusión
+            scoped_ruts_set = set(scoped_employees.keys())
+            winners_scoped = winners_ruts & scoped_ruts_set
+            if len(winners_scoped) != len(winners_ruts):
+                logger.info(
+                    f"Regla '{rule.get('rule_name', template_key)}' evaluada. "
+                    f"Ganadores (post-scope): {len(winners_scoped)} | "
+                    f"fuera de scope: {len(winners_ruts) - len(winners_scoped)}"
+                )
+            else:
+                logger.info(
+                    f"Regla '{rule.get('rule_name', template_key)}' evaluada. Ganadores (post-scope): {len(winners_scoped)}"
+                )
 
             for rut in scoped_employees.keys():
                 status = "fulfilled" if rut in winners_ruts else "not_fulfilled"
