@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Query
+from bson import ObjectId
 from utils.web3mongo import db
 from utils.auth.session import verify_session
 from config.roles.access_locals import normalize_sucursal_to_sigla
@@ -16,6 +17,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 RESULTS = db.meritocracy_kpi_results
+RULES = db.gamification_meritocracy_rules
+ASIS = db.asistencia_diaria_intranet
+CARGOS = db.cargos_intranet
 WORKERS = db.trabajadores_vpn
 LINKS = db.empleados_usuarios
 

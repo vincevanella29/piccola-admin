@@ -1,7 +1,7 @@
 // src/hooks/useDaoMeritocracy.jsx
 // Hook para DAO + Meritocracy (segmentos, proposals, batch)
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { getContractInstance } from '../context/contracts';
 import {
@@ -27,6 +27,13 @@ export function useDaoMeritocracy(appState, t) {
   const [isLoading, setIsLoading] = useState(false);
   const [segments, setSegments] = useState([]);
   const [fastMinters, setFastMinters] = useState([]);
+  const CACHE_TTL_MS = 30000; // 30s
+  const cacheRef = useRef({
+    segments: { ts: 0, data: null },
+    fastMinters: { ts: 0, data: null },
+  });
+  const now = () => Date.now();
+  const isFresh = (ts) => ts && (now() - ts) < CACHE_TTL_MS;
 
   const {
     account: wallet,
@@ -75,7 +82,7 @@ export function useDaoMeritocracy(appState, t) {
       const hash = await sendTx(tx, appState);
       if (!hash) throw new Error('La transacción fue rechazada o no se envió');
       setSuccess?.(t?.('gamification.segment_tx_sent', { hash }) || `Tx enviada: ${hash}`, hash, blockExplorer ? `${blockExplorer}/tx/${hash}` : undefined);
-      setTimeout(() => { listSegments().catch(() => {}); }, 6000);
+      setTimeout(() => { listSegments({ forceRefresh: true }).catch(() => {}); }, 6000);
       return { ok: true, hash };
     } catch (err) {
       const msg = err?.message || 'Error al crear el segmento (backend)';
@@ -198,7 +205,7 @@ export function useDaoMeritocracy(appState, t) {
     if (allTxs.length) {
       await sendTxBundle(allTxs, { title: 'Authorize DAO (All)' });
     }
-    await listSegments().catch(() => {});
+    await listSegments({ forceRefresh: true }).catch(() => {});
     return { ok: true };
   }, [bootstrapSpecialBuild, sendTxBundle, authorizeCompanyAllBuild]);
 
@@ -235,14 +242,20 @@ export function useDaoMeritocracy(appState, t) {
   }, [provider, sendTx, effectiveWallet, token, t]);
 
   // Listing segments
-  const listSegments = useCallback(async () => {
+  const listSegments = useCallback(async ({ forceRefresh = false } = {}) => {
     if (!effectiveWallet || !token) throw new Error(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
+    const cache = cacheRef.current.segments;
+    if (!forceRefresh && cache.data && isFresh(cache.ts)) {
+      if (!segments?.length) setSegments(cache.data);
+      return { segments: cache.data };
+    }
     const res = await apiListMeritSegments({ walletAddress: effectiveWallet, token });
     console.log('listSegments', res);
     const items = res?.data?.segments || res?.segments || [];
     setSegments(items);
+    cacheRef.current.segments = { ts: now(), data: items };
     return res?.data || res;
-  }, [effectiveWallet, token, t]);
+  }, [effectiveWallet, token, t, segments]);
 
   // Batch merit
   const planBatch = useCallback(async ({ ym, employees } = {}) => {
@@ -285,12 +298,19 @@ export function useDaoMeritocracy(appState, t) {
     return { ok: true, hash: txHash, confirmed_count: resultIds.length };
   }, [provider, sendTx, t, appState, effectiveWallet, token]);
 
-  const listFastMinters = useCallback(async () => {
+  const listFastMinters = useCallback(async ({ forceRefresh = false } = {}) => {
+    const cache = cacheRef.current.fastMinters;
+    if (!forceRefresh && cache.data && isFresh(cache.ts)) {
+      if (!fastMinters?.length) setFastMinters(cache.data);
+      return cache.data;
+    }
     const res = await handleApiCall(() => apiListFastMinters({ walletAddress: effectiveWallet, token }));
     const items = res?.fastMinters || res?.data?.fastMinters || [];
-    setFastMinters(Array.isArray(items) ? items : []);
-    return items;
-  }, [handleApiCall, effectiveWallet, token]);
+    const arr = Array.isArray(items) ? items : [];
+    setFastMinters(arr);
+    cacheRef.current.fastMinters = { ts: now(), data: arr };
+    return arr;
+  }, [handleApiCall, effectiveWallet, token, fastMinters]);
 
   // --- FUNCIÓN CORREGIDA ---
   const setFastMinter = useCallback(async ({ minterWallet, enabled }) => {
@@ -311,7 +331,7 @@ export function useDaoMeritocracy(appState, t) {
     // ¡LA MAGIA! Refrescamos la lista después de un tiempo prudente
     setTimeout(() => {
       toast.info(t('gamification.minter.refreshing_list') || 'Actualizando lista de minters...');
-      listFastMinters().catch(console.error);
+      listFastMinters({ forceRefresh: true }).catch(console.error);
     }, 6000);
     
     return hash;
