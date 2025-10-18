@@ -15,6 +15,8 @@
   "rtsp_path": "RTSP path",
   "username": "Username",
   "password": "Password",
+  "vpn_user": "VPN user",
+  "vpn_pass": "VPN password",
   "save": "Save",
   "saving": "Saving...",
   "loading": "Loading...",

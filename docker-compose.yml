@@ -72,6 +72,13 @@ services:
       - XAI_API_KEY=${XAI_API_KEY}
       - XAI_API_URL=${XAI_API_URL}
       - XAI_MODEL=${XAI_MODEL}
+      # ONVIF / FFmpeg
+      - ONVIF_WSDL_DIR=${ONVIF_WSDL_DIR}
+      - ONVIF_PORT=${ONVIF_PORT}
+      - FFMPEG_BIN=${FFMPEG_BIN}
+      # Vanellix AI
+      - VANELLIX_AI_BASE_URL=${VANELLIX_AI_BASE_URL}
+      - VANELLIX_AI_API_KEY=${VANELLIX_AI_API_KEY}
     ports:
       - "${BACKEND_HOST_PORT:-8081}:8081"
     restart: unless-stopped
@@ -105,6 +112,10 @@ services:
       - REDIS_PORT=6379
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_QUEUE=${REDIS_QUEUE:-blockchain_events}
+      # ONVIF / FFmpeg for worker tasks if needed
+      - ONVIF_WSDL_DIR=${ONVIF_WSDL_DIR}
+      - ONVIF_PORT=${ONVIF_PORT}
+      - FFMPEG_BIN=${FFMPEG_BIN}
       # VPN credentials for MTZ workers
       - VPN_USER=${VPN_USER}
       - VPN_PASS=${VPN_PASS}
@@ -139,6 +150,9 @@ services:
       - XAI_API_KEY=${XAI_API_KEY}
       - XAI_API_URL=${XAI_API_URL}
       - XAI_MODEL=${XAI_MODEL}
+      # Vanellix AI
+      - VANELLIX_AI_BASE_URL=${VANELLIX_AI_BASE_URL}
+      - VANELLIX_AI_API_KEY=${VANELLIX_AI_API_KEY}
       - TELEGRAM_LINK_URL_BASE=${TELEGRAM_LINK_URL_BASE}
       # Add any other required env vars for the bot here
     restart: unless-stopped
