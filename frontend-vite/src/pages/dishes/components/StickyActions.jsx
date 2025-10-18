@@ -60,8 +60,8 @@ const ActionButton = ({ onClick, disabled, active, label, icon }) => (
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
-    className={`pointer-events-auto h-9 w-9 rounded-full flex items-center justify-center border border-white/10 bg-transparent text-white/90 hover:text-white active:scale-95 disabled:opacity-50 ${
-      active ? 'ring-1 ring-white/30' : ''
+    className={`pointer-events-auto h-9 w-9 rounded-full flex items-center justify-center border border-light-border/60 dark:border-dark-border/60 bg-light-surface-tertiary/40 dark:bg-dark-surface-tertiary/40 text-light-text-primary dark:text-dark-text-primary hover:bg-light-accent-hover/50 dark:hover:bg-dark-accent-hover/40 active:scale-95 disabled:opacity-50 ${
+      active ? 'ring-1 ring-light-border/60 dark:ring-dark-border/60' : ''
     }`}
   >
     {icon}

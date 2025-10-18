@@ -265,17 +265,17 @@ const Sidebar = memo(({ isSidebarOpen, toggleSidebar, isAuthenticated, appState,
             <motion.div
               key="sidebar-overlay"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-              className="fixed top-16 left-0 right-0 bottom-[var(--app-footer-h,40px)] z-50 lg:hidden bg-black/60 backdrop-blur-sm"
+              className="fixed top-16 left-0 right-0 bottom-[calc(var(--app-footer-h,40px)+env(safe-area-inset-bottom)+12px)] z-50 lg:hidden bg-black/60 backdrop-blur-sm"
               onClick={toggleSidebar}
               aria-label="Close sidebar"
             />
             <motion.div
               key="sidebar-mobile"
               initial={{ x: -320, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -320, opacity: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="fixed top-16 left-0 bottom-[var(--app-footer-h,40px)] w-72 bg-light-surface/95 dark:bg-dark-surface/95 backdrop-blur-xl z-[80] rounded-r-xl shadow-2xl flex flex-col"
+              className="fixed top-16 left-0 bottom-[calc(var(--app-footer-h,40px)+env(safe-area-inset-bottom)+12px)] w-72 bg-light-surface/95 dark:bg-dark-surface/95 backdrop-blur-xl z-[80] rounded-r-xl shadow-2xl flex flex-col"
               style={{ overflow: 'hidden' }}
             >
-              <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: 0.08 }} className="p-4 space-y-4 h-full overflow-y-auto flex flex-col">
+              <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: 0.08 }} className="p-4 space-y-4 h-full overflow-y-auto flex flex-col pb-[calc(env(safe-area-inset-bottom)+24px)]">
                 <nav className="space-y-3">
                   {pagesConfig.map((cat) => (
                     <div key={cat.category}>
@@ -310,7 +310,7 @@ const Sidebar = memo(({ isSidebarOpen, toggleSidebar, isAuthenticated, appState,
                     </div>
                   ))}
                 </nav>
-                <div className="mt-auto pt-3 border-t border-light-border/70 dark:border-dark-border/70">
+                <div className="sticky bottom-0 left-0 right-0 bg-light-surface/95 dark:bg-dark-surface/95 pt-3 border-t border-light-border/70 dark:border-dark-border/70 pb-[calc(env(safe-area-inset-bottom)+12px)]">
                   <ActionButtons appState={appState} isSidebarHovered={false} isSidebarOpen={true} />
                 </div>
               </motion.div>

@@ -216,7 +216,7 @@ export const pageMetadata = {
   order: 2,
   locations: ['sidebar'],
   description: 'camera.description',
-  icon: 'FaTools',
-  isMainPage: true,
+  icon: 'FaVideo',
+  isMainPage: false,
   isSearchable: true,
 };

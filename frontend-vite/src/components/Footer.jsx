@@ -157,13 +157,25 @@ const BottomSheet = ({ open, onClose, title, children, footer }) => {
   );
 };
 
-const MobileExplore = ({ items, onClose, onSearchChange }) => {
+const MobileExplore = ({ categories, allowedFullPaths, onClose, onSearchChange, t }) => {
   const [query, setQuery] = useState('');
-  const filtered = React.useMemo(() => {
+  const [openCat, setOpenCat] = useState(null);
+
+  const allowedSet = React.useMemo(() => new Set(allowedFullPaths || []), [allowedFullPaths]);
+
+  const filteredCategories = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) => (it.label || '').toLowerCase().includes(q));
-  }, [items, query]);
+    return (categories || []).map((cat) => {
+      const itemsBase = cat.items || [];
+      const visible = allowedSet.size
+        ? itemsBase.filter((it) => allowedSet.has(it.fullPath))
+        : itemsBase;
+      const items = q
+        ? visible.filter((it) => (it.label || '').toLowerCase().includes(q))
+        : visible;
+      return { category: cat.category, items };
+    }).filter((c) => c.items.length > 0);
+  }, [categories, allowedSet, query]);
 
   return (
     <div className="pt-1 pb-2">
@@ -175,29 +187,54 @@ const MobileExplore = ({ items, onClose, onSearchChange }) => {
           className="w-full h-10 rounded-xl px-3 border border-light-border dark:border-dark-border bg-light-surface-secondary dark:bg-dark-surface-secondary text-sm text-light-text-primary dark:text-dark-text-primary placeholder:text-light-text-tertiary dark:placeholder:text-dark-text-tertiary focus:outline-none"
         />
       </div>
-      <div className="grid grid-cols-4 gap-2 max-h-[48vh] overflow-auto pr-1">
-        {filtered.map((item) => {
-          const IconComponent = Icons[item.icon] || Icons.FaFileAlt;
-          const El = item.isExternal ? 'a' : Link;
-          const elProps = item.isExternal
-            ? { href: item.fullPath, target: item.newTab ? '_blank' : '_self', rel: item.newTab ? 'noopener noreferrer' : undefined }
-            : { to: item.fullPath };
-          return (
-            <El
-              key={item.fullPath}
-              {...elProps}
-              onClick={onClose}
-              className="group flex flex-col items-center gap-1 p-2 rounded-xl border border-transparent hover:border-light-border dark:hover:border-dark-border hover:bg-light-accent-hover/60 dark:hover:bg-dark-accent-hover/50 transition"
-              title={item.description || item.label}
-              aria-label={item.label}
+      <div className="max-h-[48vh] overflow-auto pr-1">
+        {filteredCategories.map((cat) => (
+          <div key={cat.category} className="mb-1 rounded-xl border border-light-border/60 dark:border-dark-border/60 bg-light-surface-tertiary/40 dark:bg-dark-surface-tertiary/40">
+            <button
+              className="w-full flex items-center justify-between px-3 py-2"
+              onClick={() => setOpenCat((prev) => prev === cat.category ? null : cat.category)}
             >
-              <div className="h-12 w-12 rounded-2xl bg-light-surface-tertiary dark:bg-dark-surface-tertiary border border-light-border dark:border-dark-border flex items-center justify-center shadow-sm">
-                <IconComponent className="text-light-accent dark:text-dark-accent" size={18} />
-              </div>
-              <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate w-full text-center">{item.label}</span>
-            </El>
-          );
-        })}
+              <span className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary truncate">{t ? t(cat.category) : cat.category}</span>
+              <ChevronDown size={16} className={`transition-transform ${openCat === cat.category ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence initial={false}>
+              {openCat === cat.category && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="px-2 pb-2"
+                >
+                  <div className="grid grid-cols-4 gap-2">
+                    {cat.items.map((item) => {
+                      const IconComponent = Icons[item.icon] || Icons.FaFileAlt;
+                      const El = item.isExternal ? 'a' : Link;
+                      const elProps = item.isExternal
+                        ? { href: item.fullPath, target: item.newTab ? '_blank' : '_self', rel: item.newTab ? 'noopener noreferrer' : undefined }
+                        : { to: item.fullPath };
+                      return (
+                        <El
+                          key={item.fullPath}
+                          {...elProps}
+                          onClick={onClose}
+                          className="group flex flex-col items-center gap-1 p-2 rounded-xl border border-transparent hover:border-light-border dark:hover:border-dark-border hover:bg-light-accent-hover/60 dark:hover:bg-dark-accent-hover/50 transition"
+                          title={item.description || item.label}
+                          aria-label={item.label}
+                        >
+                          <div className="h-12 w-12 rounded-2xl bg-light-surface-tertiary dark:bg-dark-surface-tertiary border border-light-border dark:border-dark-border flex items-center justify-center shadow-sm">
+                            <IconComponent className="text-light-accent dark:text-dark-accent" size={18} />
+                          </div>
+                          <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary truncate w-full text-center">{item.label}</span>
+                        </El>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -208,6 +245,7 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
   const [menuOpen, setMenuOpen] = useState(false);
   const [cfgOpen, setCfgOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [socialOpen, setSocialOpen] = useState(false);
 
   const footerConfig = useMemo(() => getFooterConfig(roleLevel, t), [roleLevel, t]);
 
@@ -312,25 +350,74 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
           onClose={() => setMenuOpen(false)}
           title={t('footer.explore') || 'Explore'}
         >
-          <MobileExplore items={overflowMobile.length ? overflowMobile : buttons} onClose={() => setMenuOpen(false)} />
+          <MobileExplore
+            categories={footerConfig}
+            allowedFullPaths={(overflowMobile.length ? overflowMobile : buttons).map((b) => b.fullPath)}
+            onClose={() => setMenuOpen(false)}
+            t={t}
+          />
         </BottomSheet>
 
         {/* Derecha: Social + Config */}
         <div className="flex items-center gap-2">
-          {/* Socials */}
-          <IconCircleBtn label="X / Twitter" href="https://x.com/LaPiccolaChile">
-            <Icons.FaTwitter size={16} />
-          </IconCircleBtn>
-          <IconCircleBtn label="Discord" href="https://discord.gg/SyCcpcEUxM">
-            <Icons.FaDiscord size={16} />
-          </IconCircleBtn>
-          <IconCircleBtn label="Instagram" href="https://www.instagram.com/lapiccolaitaliaoficial/">
-            <Icons.FaInstagram size={16} />
-          </IconCircleBtn>
+          {/* Socials submenu */}
+          <div className="relative">
+            <IconCircleBtn
+              label={t('footer.socials') || 'Socials'}
+              onClick={() => { setSocialOpen((v) => !v); setMenuOpen(false); setCfgOpen(false); setLangOpen(false); }}
+            >
+              <Icons.FaShareAlt size={16} />
+            </IconCircleBtn>
+            <Popover open={socialOpen}>
+              <div className="p-2 w-64">
+                <div className="grid grid-cols-3 gap-2">
+                  <a
+                    href="https://x.com/LaPiccolaChile"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setSocialOpen(false)}
+                    className="group flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition"
+                    aria-label="X / Twitter"
+                  >
+                    <div className="h-10 w-10 rounded-full border border-light-border dark:border-dark-border bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center">
+                      <Icons.FaTwitter className="text-light-accent dark:text-dark-accent" size={16} />
+                    </div>
+                    <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">Twitter</span>
+                  </a>
+                  <a
+                    href="https://discord.gg/SyCcpcEUxM"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setSocialOpen(false)}
+                    className="group flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition"
+                    aria-label="Discord"
+                  >
+                    <div className="h-10 w-10 rounded-full border border-light-border dark:border-dark-border bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center">
+                      <Icons.FaDiscord className="text-light-accent dark:text-dark-accent" size={16} />
+                    </div>
+                    <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">Discord</span>
+                  </a>
+                  <a
+                    href="https://www.instagram.com/lapiccolaitaliaoficial/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setSocialOpen(false)}
+                    className="group flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover transition"
+                    aria-label="Instagram"
+                  >
+                    <div className="h-10 w-10 rounded-full border border-light-border dark:border-dark-border bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center">
+                      <Icons.FaInstagram className="text-light-accent dark:text-dark-accent" size={16} />
+                    </div>
+                    <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">Instagram</span>
+                  </a>
+                </div>
+              </div>
+            </Popover>
+          </div>
 
           {/* Language popover (desktop+mobile) */}
           <div className="relative">
-            <IconCircleBtn label={t('footer.language') || 'Language'} onClick={() => { setLangOpen((v) => !v); setMenuOpen(false); setCfgOpen(false); }}>
+            <IconCircleBtn label={t('footer.language') || 'Language'} onClick={() => { setLangOpen((v) => !v); setMenuOpen(false); setCfgOpen(false); setSocialOpen(false); }}>
               <Globe size={16} />
             </IconCircleBtn>
             <Popover open={langOpen}>
@@ -353,7 +440,7 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
 
           {/* Extra config (if needed) */}
           <div className="relative hidden md:block">
-            <IconCircleBtn label={t('footer.settings') || 'Settings'} onClick={() => { setCfgOpen((v) => !v); setMenuOpen(false); setLangOpen(false); }}>
+            <IconCircleBtn label={t('footer.settings') || 'Settings'} onClick={() => { setCfgOpen((v) => !v); setMenuOpen(false); setLangOpen(false); setSocialOpen(false); }}>
               <Settings size={16} />
             </IconCircleBtn>
             <Popover open={cfgOpen}>

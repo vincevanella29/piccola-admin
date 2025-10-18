@@ -119,7 +119,7 @@ export default function DishesPage({ appState }) {
   }, [classifyFromVideo, lastShotAt, classifying]);
 
   return (
-    <div className="h-[80svh] w-full bg-black overflow-hidden relative select-none">
+    <div className="h-[80svh] w-full bg-light-surface dark:bg-dark-surface overflow-hidden relative select-none">
       
       <CameraBox
         videoRef={videoRef}
@@ -133,19 +133,19 @@ export default function DishesPage({ appState }) {
       <header className="absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)]">
          <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center">
-              <Utensils className="h-5 w-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-light-surface-tertiary/60 dark:bg-dark-surface-tertiary/60 backdrop-blur-sm border border-light-border dark:border-dark-border flex items-center justify-center">
+              <Utensils className="h-5 w-5 text-light-text-primary dark:text-dark-text-primary" />
             </div>
             <div>
-              <h1 className="text-base font-semibold text-white" style={{textShadow: '0 1px 3px rgba(0,0,0,0.5)'}}>{t('dishes.title')}</h1>
-              <p className="text-xs text-white/80" style={{textShadow: '0 1px 2px rgba(0,0,0,0.5)'}}>{t('dishes.subtitle')}</p>
+              <h1 className="text-base font-semibold text-light-text-primary dark:text-dark-text-primary">{t('dishes.title')}</h1>
+              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t('dishes.subtitle')}</p>
             </div>
           </div>
           {cameraStarted && (
              <button
               onClick={() => doSyncCatalog().catch(() => {})}
               disabled={syncing}
-              className="h-10 w-10 rounded-xl bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"
+              className="h-10 w-10 rounded-xl bg-light-surface-tertiary/60 dark:bg-dark-surface-tertiary/60 backdrop-blur-sm border border-light-border dark:border-dark-border flex items-center justify-center text-light-text-primary dark:text-dark-text-primary active:scale-95 transition-transform disabled:opacity-50"
              >
                 <RefreshCw className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
              </button>
