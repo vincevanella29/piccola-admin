@@ -22,10 +22,15 @@
     "dish": "Plato",
     "confidence": "Confianza estimada",
     "topk": "Top-K",
-    "threshold_note": "Umbral backend: {{thr}}. Si el puntaje cae bajo ese valor, se reporta como “desconocido”."
+    "threshold_note": "Umbral backend: {{thr}}. Si el puntaje cae bajo ese valor, se reporta como “desconocido”.",
+    "no_strong_match": "No se encontró un plato con confianza suficiente. Posibles coincidencias:",
+    "other_matches": "Ver otras coincidencias",
+    "confidence_short": "Conf:"
   },
   "modes": {
-    "auto": "Auto"
+    "auto": "Auto",
+    "auto_on": "Auto ON",
+    "auto_off": "Auto OFF"
   },
   "actions": {
     "toggle_details": "Alternar detalles",

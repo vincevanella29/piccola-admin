@@ -157,10 +157,97 @@ async def dishes_match_ai(
             )
         if r.status_code >= 400:
             raise HTTPException(status_code=r.status_code, detail=r.text)
+        # Parse upstream JSON
         try:
-            return r.json()
+            payload = r.json()
         except Exception:
             return JSONResponse(content={"ok": True, "raw": r.text})
+
+        # Enriquecer con datos del menú (precio, media, etc.)
+        try:
+            if not isinstance(payload, dict):
+                return payload
+
+            # Recolectar IDs a resolver
+            ids: set[str] = set()
+            # match._id
+            match = payload.get("match")
+            if isinstance(match, dict):
+                mid = str(match.get("_id")) if match.get("_id") is not None else None
+                if mid:
+                    ids.add(mid)
+            # label_info._id
+            label_info = payload.get("label_info")
+            if isinstance(label_info, dict):
+                lid = str(label_info.get("_id")) if label_info.get("_id") is not None else None
+                if lid:
+                    ids.add(lid)
+            # topk[].doc._id or topk[].plato_id
+            topk = payload.get("topk")
+            if isinstance(topk, list):
+                for item in topk:
+                    if not isinstance(item, dict):
+                        continue
+                    doc = item.get("doc")
+                    if isinstance(doc, dict) and doc.get("_id") is not None:
+                        ids.add(str(doc.get("_id")))
+                    elif item.get("plato_id") is not None:
+                        ids.add(str(item.get("plato_id")))
+
+            if ids:
+                # Traer docs del menú
+                menu_docs = list(db.menus.find({"_id": {"$in": list(ids)}}))
+                by_id = {str(d.get("_id")): d for d in menu_docs}
+
+                def _merge(dst: dict, src: dict):
+                    # No pisar campos ya retornados por el upstream a menos que aporten valor
+                    for k, v in src.items():
+                        if k not in dst or dst.get(k) in (None, ""):
+                            dst[k] = v
+
+                # Merge en match
+                if isinstance(match, dict):
+                    mid = str(match.get("_id")) if match.get("_id") is not None else None
+                    if mid and mid in by_id:
+                        _merge(match, by_id[mid])
+                        payload["match"] = match
+
+                # Merge/establecer label_info basado en match o ID conocido
+                if isinstance(label_info, dict):
+                    lid = str(label_info.get("_id")) if label_info.get("_id") is not None else None
+                    if lid and lid in by_id:
+                        _merge(label_info, by_id[lid])
+                        payload["label_info"] = label_info
+                elif isinstance(match, dict) and match.get("_id") is not None:
+                    mid = str(match.get("_id"))
+                    if mid in by_id:
+                        payload["label_info"] = {**by_id[mid]}
+
+                # Merge en topk[].doc
+                if isinstance(topk, list):
+                    for i, item in enumerate(topk):
+                        if not isinstance(item, dict):
+                            continue
+                        doc = item.get("doc")
+                        pid = None
+                        if isinstance(doc, dict) and doc.get("_id") is not None:
+                            pid = str(doc.get("_id"))
+                        elif item.get("plato_id") is not None:
+                            pid = str(item.get("plato_id"))
+                            # asegurar estructura doc
+                            if not isinstance(doc, dict):
+                                doc = {}
+                                item["doc"] = doc
+                                doc["_id"] = pid
+                        if pid and pid in by_id:
+                            _merge(doc, by_id[pid])
+                            topk[i] = item
+                    payload["topk"] = topk
+
+            return payload
+        except Exception:
+            # Si algo falla en el enriquecimiento, devolver payload original
+            return payload
     except HTTPException as e:
         raise e
     except Exception as e:

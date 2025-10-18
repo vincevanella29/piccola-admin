@@ -1,87 +1,176 @@
-import React from 'react';
-import Pill from './ui/Pill.jsx';
+import React, { useEffect, useState } from 'react';
+import { CheckCircle2, ChevronDown, Utensils, XCircle } from 'lucide-react';
 import ConfidenceBar from './ui/ConfidenceBar.jsx';
-import { CheckCircle2, XCircle } from 'lucide-react';
 
-const ResultSheet = ({
-  t,
-  sheetOpen,
-  setSheetOpen,
-  autoMode,
-  setAutoMode,
-  result,
-  hasLabel,
-  labelDoc,
-  conf,
-  topkInfo = [],
-}) => {
+const ResultSheet = ({ result, classifying, t }) => {
+  const hasResult = result && result.topk && result.topk.length > 0;
+  const best = hasResult ? result.topk[0] : null;
+  const confidence = best ? Math.max(0, Math.min(1, Number(best.score) || 0)) : 0;
+  const MIN_CONF = 0.75;
+  const isVisible = hasResult || classifying;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  // Reopen when a new classification cycle starts
+  useEffect(() => {
+    if (classifying) setSheetOpen(true);
+  }, [classifying]);
+  // Reopen when a new result object arrives
+  useEffect(() => {
+    if (result) setSheetOpen(true);
+  }, [result]);
+
+  if (!sheetOpen) return null;
+
   return (
-    <div className={`mt-3 transition-all ${sheetOpen ? 'opacity-100 translate-y-0' : 'opacity-70 translate-y-1'}`}>
-      <div className="bg-dark-surface border border-dark-border rounded-2xl p-3">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold">{t('dishes.result.title')}</div>
-          <div className="flex gap-2">
-            <Pill onClick={() => setAutoMode(v => !v)} active={autoMode}>{t('dishes.modes.auto')}</Pill>
-            <Pill onClick={() => setSheetOpen(v => !v)}>{sheetOpen ? t('dishes.actions.hide') : t('dishes.actions.show')}</Pill>
-          </div>
-        </div>
+    <div
+      onClick={() => setSheetOpen(false)}
+      className={`absolute inset-0 z-40 p-3 transition-transform duration-500 ease-out ${
+        isVisible ? 'translate-y-0 pointer-events-auto' : 'translate-y-[calc(100%+12px)] pointer-events-none'
+      }`}
+    >
+      {/* Backdrop click area */}
+      <div className="absolute inset-0 bg-black/30" />
 
-        <div className="mt-3 space-y-2">
-          <div className="flex items-start gap-2">
-            {hasLabel
-              ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-matrix-green" />
-              : <XCircle className="mt-0.5 h-4 w-4 text-red-400" />}
-            <div className="text-sm">
-              <div>
-                <b>{t('dishes.result.dish')}:</b> {labelDoc?.nombre ?? result?.label ?? t('dishes.unknown')}
-              </div>
-              {labelDoc?.descripcion && (
-                <div className="text-xs text-dark-text-secondary mt-0.5 line-clamp-3">
-                  {labelDoc.descripcion}
-                </div>
-              )}
-              {typeof labelDoc?.precio !== 'undefined' && (
-                <div className="text-xs text-dark-text-secondary mt-0.5">
-                  {t('dishes.fields.price')}: {labelDoc.precio}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <div className="text-xs text-dark-text-secondary">{t('dishes.result.confidence')}</div>
-            <ConfidenceBar value={conf} />
-          </div>
-
-          {!!topkInfo.length && (
-            <div className="mt-2">
-              <div className="text-xs text-dark-text-secondary mb-1">{t('dishes.result.topk')}</div>
-              <ul className="space-y-1 text-sm">
-                {topkInfo.map((r, i) => {
-                  const name = r?.doc?.nombre || r.plato_id;
-                  const price = r?.doc?.precio;
-                  return (
-                    <li key={i} className="flex items-center justify-between">
-                      <span className="truncate">
-                        {name}{typeof price !== 'undefined' ? ` · ${price}` : ''}
-                      </span>
-                      <span className="tabular-nums text-dark-text-secondary">
-                        {Number(r.score ?? 0).toFixed(3)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+      {/* Sheet card */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative max-w-md mx-auto bg-dark-surface/90 backdrop-blur-xl border border-dark-border rounded-3xl p-4 shadow-2xl"
+      >
+        
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold">{t('dishes.result.title')}</h3>
+          {classifying && !hasResult && (
+            <div className="text-sm text-dark-text-secondary flex items-center gap-2">
+              <div className="h-2 w-2 bg-matrix-green rounded-full animate-pulse" />
+              <span>{t('dishes.actions.classifying')}...</span>
             </div>
           )}
-
-          <div className="text-[11px] text-dark-text-tertiary mt-2">
-            {t('dishes.result.threshold_note', { thr: result?.threshold_min ?? 0.25 })}
-          </div>
+          <button
+            onClick={() => setSheetOpen(false)}
+            aria-label={t('dishes.actions.hide')}
+            className="absolute top-3 right-3 h-8 w-8 rounded-full flex items-center justify-center text-dark-text-secondary hover:text-white hover:bg-white/10"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
         </div>
+
+        {hasResult && (
+          <div className="space-y-4">
+            {confidence >= MIN_CONF ? (
+              <StrongMatch result={result} t={t} />
+            ) : (
+              <WeakMatch result={result} t={t} />
+            )}
+            
+            <div>
+              <ConfidenceBar value={confidence} />
+              <div className="text-[10px] text-dark-text-tertiary text-center mt-1.5">
+                {t('dishes.result.confidence')} ({Math.round(confidence * 100)}%)
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
+};
+
+const StrongMatch = ({ result, t }) => {
+  const labelDoc = result.label_info || {};
+  const imgSrc = labelDoc?.media_r2 || labelDoc?.media_url || labelDoc?.media_local || null;
+  return (
+    <div className="flex items-center gap-4">
+      {imgSrc ? (
+        <img src={imgSrc} alt={labelDoc?.nombre} className="h-16 w-16 rounded-xl object-cover border border-dark-border flex-shrink-0" />
+      ) : (
+        <div className="h-16 w-16 rounded-xl bg-dark-background border border-dark-border flex-shrink-0 flex items-center justify-center">
+            <Utensils className="h-6 w-6 text-dark-text-tertiary" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-matrix-green flex-shrink-0" />
+            <div className="font-semibold leading-tight truncate">{labelDoc?.nombre ?? result?.label}</div>
+        </div>
+        {labelDoc?.descripcion && (
+          <p className="text-xs text-dark-text-secondary mt-1 line-clamp-2">{labelDoc.descripcion}</p>
+        )}
+      </div>
+       <PriceDisplay doc={labelDoc} t={t} />
+    </div>
+  );
+};
+
+const WeakMatch = ({ result, t }) => {
+  const bestGuess = (result?.topk_info || [])[0] || {};
+  const otherGuesses = (result?.topk_info || []).slice(1, 4);
+
+  return (
+    <div className="space-y-3">
+        <div className="flex items-start gap-2 p-2 rounded-lg bg-dark-background/50">
+            <XCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-dark-text-secondary">
+               {t('dishes.result.no_strong_match')}
+            </p>
+        </div>
+
+        {bestGuess?.doc && <ListItem r={bestGuess} isBestGuess t={t} />}
+      
+        {otherGuesses.length > 0 && (
+            <details className="group">
+                <summary className="list-none flex items-center justify-between cursor-pointer py-1 text-xs text-dark-text-secondary hover:text-white">
+                    <span>{t('dishes.result.other_matches', 'Ver otras coincidencias')}</span>
+                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <ul className="space-y-2 pt-2 border-t border-dark-border">
+                    {otherGuesses.map((r, i) => (
+                        <ListItem key={i} r={r} t={t} />
+                    ))}
+                </ul>
+            </details>
+        )}
+    </div>
+  );
+};
+
+const ListItem = ({ r, isBestGuess = false, t }) => {
+  const d = r?.doc || {};
+  const img = d.media_r2 || d.media_url || d.media_local || null;
+  return (
+     <li className={`flex items-center gap-3 ${isBestGuess ? 'p-2 rounded-lg bg-dark-background/40' : ''}`}>
+      {img ? (
+        <img src={img} alt={d.nombre || 'dish'} className="h-10 w-10 rounded-md object-cover border border-dark-border" />
+      ) : (
+        <div className="h-10 w-10 rounded-md bg-dark-background border border-dark-border flex items-center justify-center"><Utensils className="h-5 w-5 text-dark-text-tertiary"/></div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{d.nombre || d._id}</div>
+        <div className="text-xs text-dark-text-secondary">
+            {t('dishes.result.confidence_short', 'Conf:')} {Math.round((r.score || 0) * 100)}%
+        </div>
+      </div>
+      <PriceDisplay doc={d} t={t} />
+    </li>
+  )
+}
+
+const PriceDisplay = ({ doc, t }) => {
+    const curr = doc?.currency || '$';
+    const price = doc?.precio;
+    const sp = doc?.especial?.special_status ? doc?.especial?.special_price : null;
+    
+    if (typeof sp === 'number' && sp > 0) {
+      return (
+        <div className="text-right flex-shrink-0">
+          <div className="text-[11px] text-dark-text-tertiary line-through tabular-nums">{curr}{price}</div>
+          <div className="text-base font-mono font-semibold text-white tabular-nums">{curr}{sp}</div>
+        </div>
+      );
+    }
+    return (
+      <div className="text-base font-mono font-semibold text-white tabular-nums flex-shrink-0">
+        {typeof price !== 'undefined' ? `${curr}${price}` : '—'}
+      </div>
+    );
 };
 
 export default ResultSheet;

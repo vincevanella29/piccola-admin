@@ -22,10 +22,15 @@
     "dish": "Prato",
     "confidence": "Confiança estimada",
     "topk": "Top-K",
-    "threshold_note": "Limite do backend: {{thr}}. Se a melhor pontuação ficar abaixo desse valor, é reportado como ‘desconhecido’."
+    "threshold_note": "Limite do backend: {{thr}}. Se a melhor pontuação ficar abaixo desse valor, é reportado como ‘desconhecido’.",
+    "no_strong_match": "Nenhuma correspondência forte encontrada. Possíveis correspondências:",
+    "other_matches": "Ver outras correspondências",
+    "confidence_short": "Conf:"
   },
   "modes": {
-    "auto": "Auto"
+    "auto": "Auto",
+    "auto_on": "Auto ON",
+    "auto_off": "Auto OFF"
   },
   "actions": {
     "toggle_details": "Alternar detalhes",

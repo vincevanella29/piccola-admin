@@ -22,10 +22,15 @@
     "dish": "Dish",
     "confidence": "Estimated confidence",
     "topk": "Top-K",
-    "threshold_note": "Backend threshold: {{thr}}. If the best score falls below this value, it is reported as ‘unknown’."
+    "threshold_note": "Backend threshold: {{thr}}. If the best score falls below this value, it is reported as ‘unknown’.",
+    "no_strong_match": "No strong match found. Possible matches:",
+    "other_matches": "See other matches",
+    "confidence_short": "Conf:"
   },
   "modes": {
-    "auto": "Auto"
+    "auto": "Auto",
+    "auto_on": "Auto ON",
+    "auto_off": "Auto OFF"
   },
   "actions": {
     "toggle_details": "Toggle details",

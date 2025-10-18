@@ -1,12 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Utensils, ChevronDown, ChevronUp } from 'lucide-react';
+import { Utensils, RefreshCw } from 'lucide-react';
 import useDishRecognition from '../../hooks/useDishRecognition.jsx';
 
 import CameraBox from './components/CameraBox.jsx';
 import ResultSheet from './components/ResultSheet.jsx';
-import StickyActions from './components/StickyActions.jsx';
-import Pill from './components/ui/Pill.jsx';
+import CameraControls from './components/CameraControls.jsx';
 
 const isIOS = () =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -16,31 +15,27 @@ export default function DishesPage({ appState }) {
   const { t } = useTranslation();
   const videoRef = useRef(null);
 
-  // cam & ui
+  // --- State ---
   const [cameraStarted, setCameraStarted] = useState(false);
   const [usingFront, setUsingFront] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
-  const [autoMode, setAutoMode] = useState(true);
-  const [sheetOpen, setSheetOpen] = useState(true);
+  const [autoMode, setAutoMode] = useState(false);
   const [permError, setPermError] = useState(null);
-  const [cooldown, setCooldown] = useState(0);
-
-  // inference loop
   const [lastShotAt, setLastShotAt] = useState(0);
+
   const TICK_MS = 1200;
   const COOLDOWN_MS = 1000;
   const MIN_GESTURE_GAP = 600;
 
-  // hook back
   const {
-    doSyncCatalog, syncing, syncError,
-    classifyFromVideo, classifying, result, classifyError,
+    doSyncCatalog, syncing,
+    classifyFromVideo, classifying, result,
   } = useDishRecognition(appState);
 
-  // media stream refs
   const streamRef = useRef(null);
   const trackRef = useRef(null);
 
+  // --- Lógica de Control de Cámara (Completa) ---
   const stopCamera = useCallback(() => {
     try {
       const s = streamRef.current;
@@ -74,9 +69,9 @@ export default function DishesPage({ appState }) {
         audio: false,
         video: {
           facingMode: front ? 'user' : 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30, max: 30 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 },
         },
       };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -96,26 +91,16 @@ export default function DishesPage({ appState }) {
     }
   }, [stopCamera, t]);
 
-  const switchCamera = useCallback(async () => {
-    await startCamera(!usingFront);
-  }, [startCamera, usingFront]);
-
-  const toggleTorch = useCallback(async () => {
-    const ok = await applyTorch(!torchOn);
-    if (!ok) {
-      try { navigator.vibrate?.(30); } catch {}
-    }
-  }, [torchOn, applyTorch]);
+  const switchCamera = useCallback(() => startCamera(!usingFront), [startCamera, usingFront]);
+  const toggleTorch = useCallback(() => applyTorch(!torchOn), [applyTorch, torchOn]);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  // auto-loop
   useEffect(() => {
     if (!autoMode || !cameraStarted || classifying) return;
     let active = true;
     const id = setInterval(async () => {
-      if (!active || !videoRef.current) return;
-      if (Date.now() - lastShotAt < COOLDOWN_MS) return;
+      if (!active || !videoRef.current || (Date.now() - lastShotAt < COOLDOWN_MS)) return;
       try {
         setLastShotAt(Date.now());
         await classifyFromVideo(videoRef.current);
@@ -124,115 +109,73 @@ export default function DishesPage({ appState }) {
     return () => { active = false; clearInterval(id); };
   }, [autoMode, cameraStarted, classifying, classifyFromVideo, lastShotAt]);
 
-  // cooldown badge
-  useEffect(() => {
-    if (!cameraStarted) return;
-    const h = setInterval(() => {
-      const left = Math.max(0, (COOLDOWN_MS - (Date.now() - lastShotAt)) / 1000);
-      setCooldown(left > 0 && left < 1 ? 0.5 : Math.ceil(left));
-    }, 100);
-    return () => clearInterval(h);
-  }, [cameraStarted, lastShotAt]);
-
-  // results mapping
-  const topk = result?.topk || [];
-  const topkInfo = result?.topk_info || [];
-  const best = topk[0];
-  const hasLabel = !!result?.label;
-  const labelDoc = result?.label_info;
-  const conf = useMemo(() => {
-    const s = Math.max(-1, Math.min(1, best?.score ?? 0));
-    return (s + 1) / 2;
-  }, [best]);
-
   const handleManualShot = useCallback(async () => {
-    if (Date.now() - lastShotAt < MIN_GESTURE_GAP) return;
+    if (classifying || (Date.now() - lastShotAt < MIN_GESTURE_GAP)) return;
     setLastShotAt(Date.now());
     try {
       await classifyFromVideo(videoRef.current);
       if (isIOS()) try { navigator.vibrate?.(20); } catch {}
     } catch {}
-  }, [classifyFromVideo, lastShotAt]);
+  }, [classifyFromVideo, lastShotAt, classifying]);
 
   return (
-    <div className="min-h-[100svh] bg-dark-background text-dark-text-primary">
-      {/* Header */}
-      <div className="sticky top-0 z-20 bg-dark-background/80 backdrop-blur border-b border-dark-border">
-        <div className="max-w-md mx-auto px-4 py-3 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-dark-surface border border-dark-border flex items-center justify-center">
-            <Utensils className="h-5 w-5" />
-          </div>
-          <div className="flex-1">
-            <div className="text-base font-semibold">{t('dishes.title')}</div>
-            <div className="text-xs text-dark-text-secondary">
-              {t('dishes.subtitle')}
+    <div className="h-[80svh] w-full bg-black overflow-hidden relative select-none">
+      
+      <CameraBox
+        videoRef={videoRef}
+        cameraStarted={cameraStarted}
+        usingFront={usingFront}
+        permError={permError}
+        startCamera={startCamera}
+        t={t}
+      />
+      
+      <header className="absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)]">
+         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center">
+              <Utensils className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold text-white" style={{textShadow: '0 1px 3px rgba(0,0,0,0.5)'}}>{t('dishes.title')}</h1>
+              <p className="text-xs text-white/80" style={{textShadow: '0 1px 2px rgba(0,0,0,0.5)'}}>{t('dishes.subtitle')}</p>
             </div>
           </div>
-          <Pill
-            onClick={() => setSheetOpen(v => !v)}
-            active={sheetOpen}
-            aria-label={t('dishes.actions.toggle_details')}
-          >
-            {sheetOpen ? (
-              <span className="inline-flex items-center gap-1">
-                <ChevronDown className="h-4 w-4" /> {t('dishes.details')}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1">
-                <ChevronUp className="h-4 w-4" /> {t('dishes.details')}
-              </span>
-            )}
-          </Pill>
+          {cameraStarted && (
+             <button
+              onClick={() => doSyncCatalog().catch(() => {})}
+              disabled={syncing}
+              className="h-10 w-10 rounded-xl bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"
+             >
+                <RefreshCw className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
+             </button>
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* Body */}
-      <div className="max-w-md mx-auto px-4 pt-3 pb-24">
-        <CameraBox
-          t={t}
-          videoRef={videoRef}
-          cameraStarted={cameraStarted}
-          usingFront={usingFront}
-          torchOn={torchOn}
-          cooldown={cooldown}
-          permError={permError}
-          startCamera={startCamera}
-        />
-
-        <ResultSheet
-          t={t}
-          sheetOpen={sheetOpen}
-          setSheetOpen={setSheetOpen}
-          autoMode={autoMode}
-          setAutoMode={setAutoMode}
-          result={result}
-          hasLabel={hasLabel}
-          labelDoc={labelDoc}
-          conf={conf}
-          topkInfo={topkInfo}
-        />
-
-        {/* errors */}
-        {syncError && <div className="mt-2 text-xs text-red-400">{t('dishes.errors.sync_prefix')}: {syncError}</div>}
-        {classifyError && <div className="mt-2 text-xs text-red-400">{t('dishes.errors.classify_prefix')}: {classifyError}</div>}
-      </div>
-
-      <StickyActions
+      <ResultSheet
+        result={result}
+        classifying={classifying}
         t={t}
+      />
+      
+      <CameraControls
         cameraStarted={cameraStarted}
         usingFront={usingFront}
         torchOn={torchOn}
-        syncing={syncing}
         classifying={classifying}
-        switchCamera={() => switchCamera()}
-        toggleTorch={() => toggleTorch()}
-        handleManualShot={() => handleManualShot()}
-        handleSync={() => doSyncCatalog().catch(() => {})}
+        autoMode={autoMode}
+        setAutoMode={setAutoMode}
+        switchCamera={switchCamera}
+        toggleTorch={toggleTorch}
+        handleManualShot={handleManualShot}
+        t={t}
       />
     </div>
   );
 }
 
+// Metadata no cambia
 export const pageMetadata = {
   path: '/app/analytics/dishes',
   label: 'dishes.label',

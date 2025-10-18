@@ -1,92 +1,72 @@
+// src/components/StickyActions.jsx
 import React from 'react';
-import { Camera, RefreshCw, Bolt, Repeat } from 'lucide-react';
+import { Camera, RefreshCw, Bolt, Repeat, Zap } from 'lucide-react';
 
-const StickyActions = ({
-  t,
-  cameraStarted,
-  usingFront,
-  torchOn,
-  syncing,
-  classifying,
-  switchCamera,
-  toggleTorch,
-  handleManualShot,
-  handleSync,
-}) => {
+const StickyActions = ({ t, cameraStarted, usingFront, torchOn, syncing, classifying, autoMode, setAutoMode, switchCamera, toggleTorch, handleManualShot, handleSync }) => {
+  if (!cameraStarted) return null; // Ocultar si la cámara no ha iniciado
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 mb-20 sm:mb-20">
-      <div className="mx-auto max-w-md px-3 pb-[env(safe-area-inset-bottom)]">
-        {/* Mobile: grid para no desbordar, icon-only; en sm+ muestra texto */}
-        <div className="bg-dark-surface border border-dark-border rounded-2xl shadow-xl p-1.5 sm:p-2 grid grid-cols-4 gap-1.5 sm:flex sm:gap-2">
-          {/* Cambiar cámara */}
-          <button
-            className="col-span-1 sm:flex-1 px-3 sm:px-3 py-2 sm:py-3 rounded-xl bg-dark-surface text-dark-text-primary border border-dark-border active:scale-[0.98] min-w-0"
-            onClick={switchCamera}
-            disabled={!cameraStarted}
-            title={t('dishes.actions.switch_camera')}
-            aria-label={t('dishes.actions.switch_camera')}
-          >
-            <div className="flex items-center justify-center gap-0.5 sm:gap-2">
-              <Repeat className="h-5 w-5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline text-sm font-semibold">{t('dishes.actions.camera')}</span>
-            </div>
-          </button>
+    // Barra superior minimalista dentro del área de cámara
+    <div className="absolute inset-x-0 top-20 z-30 pointer-events-none">
+      <div className="max-w-md mx-auto px-3 flex items-center justify-end gap-2">
+        {/* Auto toggle */}
+        <ActionButton
+          onClick={() => setAutoMode(v => !v)}
+          active={!!autoMode}
+          label={t('dishes.modes.auto')}
+          icon={<Zap className={`h-4 w-4 ${autoMode ? 'text-matrix-green' : ''}`} />}
+        />
 
-          {/* Torch */}
-          <button
-            className={`col-span-1 sm:flex-1 px-3 sm:px-3 py-2 sm:py-3 rounded-xl border active:scale-[0.98] min-w-0 ${
-              torchOn
-                ? 'bg-matrix-green text-white border-matrix-green'
-                : 'bg-dark-surface text-dark-text-primary border-dark-border'
-            }`}
-            onClick={toggleTorch}
-            disabled={!cameraStarted || usingFront}
-            title={usingFront ? t('dishes.actions.flash_unavailable') : t('dishes.actions.flash')}
-            aria-label={usingFront ? t('dishes.actions.flash_unavailable') : t('dishes.actions.flash')}
-          >
-            <div className="flex items-center justify-center gap-0.5 sm:gap-2">
-              <Bolt className="h-5 w-5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline text-sm font-semibold">
-                {torchOn ? t('dishes.actions.torch_on') : t('dishes.actions.torch')}
-              </span>
-            </div>
-          </button>
+        {/* Disparo / Clasificar */}
+        <ActionButton
+          onClick={handleManualShot}
+          disabled={classifying}
+          label={classifying ? t('dishes.actions.classifying') : t('dishes.actions.classify')}
+          icon={<Camera className="h-4 w-4" />}
+        />
 
-          {/* Clasificar */}
-          <button
-            className="col-span-1 sm:flex-[1.4] px-3 sm:px-3 py-2 sm:py-3 rounded-xl bg-matrix-green text-white border border-matrix-green shadow-lg active:scale-[0.98] min-w-0"
-            onClick={handleManualShot}
-            disabled={!cameraStarted || classifying}
-            title={t('dishes.actions.classify')}
-            aria-label={t('dishes.actions.classify')}
-          >
-            <div className="flex items-center justify-center gap-0.5 sm:gap-2">
-              <Camera className="h-5 w-5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline text-sm font-semibold">
-                {classifying ? t('dishes.actions.classifying') : t('dishes.actions.classify')}
-              </span>
-            </div>
-          </button>
+        {/* Sincronizar catálogo */}
+        <ActionButton
+          onClick={handleSync}
+          disabled={syncing}
+          label={syncing ? t('dishes.actions.syncing') : t('dishes.actions.sync')}
+          icon={<RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />}
+        />
 
-          {/* Sync catálogo */}
-          <button
-            className="col-span-1 sm:flex-1 px-3 sm:px-3 py-2 sm:py-3 rounded-xl bg-dark-surface text-dark-text-primary border border-dark-border active:scale-[0.98] min-w-0"
-            onClick={handleSync}
-            disabled={syncing}
-            title={t('dishes.actions.sync')}
-            aria-label={t('dishes.actions.sync')}
-          >
-            <div className="flex items-center justify-center gap-0.5 sm:gap-2">
-              <RefreshCw className={`h-5 w-5 sm:h-4 sm:w-4 ${syncing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline text-sm font-semibold">
-                {syncing ? t('dishes.actions.syncing') : t('dishes.actions.sync')}
-              </span>
-            </div>
-          </button>
-        </div>
+        {/* Cambiar cámara */}
+        <ActionButton
+          onClick={switchCamera}
+          label={t('dishes.actions.camera')}
+          icon={<Repeat className="h-4 w-4" />}
+        />
+
+        {/* Linterna (deshabilitada en cámara frontal) */}
+        <ActionButton
+          onClick={toggleTorch}
+          disabled={usingFront}
+          active={torchOn}
+          label={t('dishes.actions.flash')}
+          icon={<Bolt className="h-4 w-4" />}
+        />
+
       </div>
     </div>
   );
 };
+
+// Componente helper para botones de acción consistentes
+const ActionButton = ({ onClick, disabled, active, label, icon }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={label}
+    className={`pointer-events-auto h-9 w-9 rounded-full flex items-center justify-center border border-white/10 bg-transparent text-white/90 hover:text-white active:scale-95 disabled:opacity-50 ${
+      active ? 'ring-1 ring-white/30' : ''
+    }`}
+  >
+    {icon}
+  </button>
+);
+
 
 export default StickyActions;
