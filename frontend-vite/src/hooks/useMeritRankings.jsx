@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   getPublicMeritRankings,
   getPublicEmployeeMeritHistory,
+  getPublicMeritFilters,
 } from '../utils/meritRankings.jsx';
 
 // Helpers ---------
@@ -75,8 +76,9 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
   const [filters, setFilters] = useState({
     sucursal: null,
     cargo: null,
+    seccion: null,
     months: defaultMonths,
-    rank_mode: undefined, // 'wallet' | 'simulated' si lo quieres mandar al backend
+    rank_mode: 'simulated', // 'wallet' | 'simulated'
   });
 
   // Paginación (cliente)
@@ -96,6 +98,26 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
   const wallet = appState?.account;
   const token = appState?.token;
 
+  // Opciones rápidas de filtros (desde backend)
+  const [clientFilterOptions, setClientFilterOptions] = useState({ locales: ['all'], cargos: ['all'], secciones: ['all'] });
+  const [filtersLoading, setFiltersLoading] = useState(false);
+  const [filtersError, setFiltersError] = useState(null);
+
+  // Module-scoped memoization (per hook instance)
+  const lastRankingKeyRef = useRef(null);
+  const inflightRankingRef = useRef(null);
+
+  const buildRankingKey = (f) =>
+    JSON.stringify({
+      months: Number(f.months) || defaultMonths,
+      sucursal: f.sucursal || null,
+      cargo: f.cargo || null,
+      seccion: f.seccion || null,
+      rank_mode: f.rank_mode || undefined,
+      skip: 0,
+      limit: 100000,
+    });
+
   // ============ Ranking ============
   const fetchRankings = useCallback(async (currentFilters) => {
     if (!wallet || !token) {
@@ -103,17 +125,24 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
       setData([]);
       return;
     }
+    const key = buildRankingKey(currentFilters);
+    if (inflightRankingRef.current && lastRankingKeyRef.current === key) {
+      return inflightRankingRef.current; // dedupe
+    }
+    lastRankingKeyRef.current = key;
     setLoading(true);
     setError(null);
     try {
-      const response = await getPublicMeritRankings(appState, {
+      inflightRankingRef.current = getPublicMeritRankings(appState, {
         months: Number(currentFilters.months) || defaultMonths,
         sucursal: currentFilters.sucursal,
         cargo: currentFilters.cargo,
+        seccion: currentFilters.seccion,
         rank_mode: currentFilters.rank_mode,
         skip: 0,
         limit: 100000,
       });
+      const response = await inflightRankingRef.current;
       console.log('response', response);
       const rows = response?.ranking || [];
       setData(rows);
@@ -126,6 +155,7 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
       setError(err?.message || t('errors.fetch_rankings', 'Error al obtener los rankings.'));
       setData([]);
     } finally {
+      inflightRankingRef.current = null;
       setLoading(false);
     }
   }, [appState, wallet, token, t, defaultMonths]);
@@ -145,6 +175,66 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
     applyFilters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Cargar opciones de filtros desde backend con cache (memoria + localStorage)
+  const inflightFiltersRef = useRef(null);
+  useEffect(() => {
+    let mounted = true;
+    if (!wallet || !token) return;
+
+    const LS_KEY = 'publicMeritFilters:v1';
+    const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
+
+    const fromLS = (() => {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.savedAt || !parsed.data) return null;
+        if (Date.now() - parsed.savedAt > MAX_AGE_MS) return null;
+        return parsed.data;
+      } catch {
+        return null;
+      }
+    })();
+
+    if (fromLS) {
+      setClientFilterOptions(fromLS);
+      return () => { mounted = false; };
+    }
+
+    if (inflightFiltersRef.current) {
+      // dedupe concurrent/strict-mode double mount
+      inflightFiltersRef.current.then((res) => {
+        if (!mounted) return;
+        if (res) setClientFilterOptions(res);
+      }).catch((e) => {
+        if (!mounted) return;
+        setFiltersError(e?.message || 'Error filtros');
+      });
+      return () => { mounted = false; };
+    }
+
+    setFiltersLoading(true);
+    setFiltersError(null);
+    inflightFiltersRef.current = getPublicMeritFilters(appState);
+    inflightFiltersRef.current
+      .then((res) => {
+        if (!mounted) return;
+        if (res) {
+          setClientFilterOptions(res);
+          try {
+            localStorage.setItem(LS_KEY, JSON.stringify({ savedAt: Date.now(), data: res }));
+          } catch {}
+        }
+      })
+      .catch((e) => { if (mounted) setFiltersError(e?.message || 'Error filtros'); })
+      .finally(() => {
+        if (mounted) setFiltersLoading(false);
+        inflightFiltersRef.current = null;
+      });
+    return () => { mounted = false; };
+  }, [appState, wallet, token]);
 
   // ============ Historial (con preview) ============
   const showHistoryFor = useCallback(async (target) => {
@@ -249,6 +339,11 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
     handleFilterChange,
     applyFilters,
     goToPage,
+
+    // opciones de filtros (para toolbar)
+    clientFilterOptions,
+    filtersLoading,
+    filtersError,
 
     // historial (modal)
     historyOpen,

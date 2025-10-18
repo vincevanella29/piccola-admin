@@ -346,7 +346,7 @@ const Main = ({ locale, theme, firebase, providers }) => {
         <WagmiProvider config={getWagmiConfig(chainId, rpcUrl, blockExplorer)}>
           <AppCacheProvider>
             <ChileTimeContext.Provider value={{ chileTime: new Date(), firebase, providers }}>
-              <RouterProvider router={router} />
+              <RouterProvider router={router} future={{ v7_startTransition: true }} />
             </ChileTimeContext.Provider>
           </AppCacheProvider>
         </WagmiProvider>

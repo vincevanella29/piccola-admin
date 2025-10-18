@@ -26,9 +26,9 @@ const toParams = (obj) => {
  */
 export async function getPublicMeritRankings(
   appState,
-  { months = 3, sucursal = null, cargo = null, rank_mode = undefined, skip = 0, limit = 100000 } = {}
+  { months = 3, sucursal = null, cargo = null, seccion = null, rank_mode = undefined, skip = 0, limit = 100000 } = {}
 ) {
-  const params = toParams({ months, sucursal, cargo, rank_mode, skip, limit });
+  const params = toParams({ months, sucursal, cargo, seccion, rank_mode, skip, limit });
   return api({
     method: 'GET',
     endpoint: `/public/merits/rankings?${params.toString()}`,
@@ -50,6 +50,18 @@ export async function getPublicEmployeeMeritHistory(
   return api({
     method: 'GET',
     endpoint: `/public/merits/history?${params.toString()}`,
+    withCredentials: true,
+    headers: buildAuthHeaders(appState),
+  });
+}
+
+/**
+ * Opciones rápidas para filtros (locales, cargos, secciones).
+ */
+export async function getPublicMeritFilters(appState) {
+  return api({
+    method: 'GET',
+    endpoint: '/public/merits/filters',
     withCredentials: true,
     headers: buildAuthHeaders(appState),
   });

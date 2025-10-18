@@ -1,0 +1,60 @@
+{
+  "label": "Dishes",
+  "title": "Dish Recognition",
+  "subtitle": "iPhone-ready · CLIP embeddings + NN",
+  "details": "Details",
+  "unknown": "unknown",
+  "fields": {
+    "price": "Price"
+  },
+  "camera": {
+    "front": "Camera: front",
+    "rear": "Camera: rear"
+  },
+  "health": {
+    "checking": "Checking index…",
+    "ready": "Index ready ({{count}})",
+    "not_ready": "Index not ready"
+  },
+  "cooldown": "Cooldown: {{s}}s",
+  "result": {
+    "title": "Result",
+    "dish": "Dish",
+    "confidence": "Estimated confidence",
+    "topk": "Top-K",
+    "threshold_note": "Backend threshold: {{thr}}. If the best score falls below this value, it is reported as ‘unknown’."
+  },
+  "modes": {
+    "auto": "Auto"
+  },
+  "actions": {
+    "toggle_details": "Toggle details",
+    "allow_camera": "Allow camera",
+    "hide": "Hide",
+    "show": "Show",
+    "camera": "Camera",
+    "switch_camera": "Switch camera",
+    "flash": "Flash/torch",
+    "flash_unavailable": "Flash unavailable on front",
+    "torch": "Torch",
+    "torch_on": "Torch ON",
+    "classify": "Classify",
+    "classifying": "Classifying…",
+    "sync": "Sync catalog",
+    "syncing": "Syncing…",
+    "wait_index": "Waiting for index…",
+    "reindex": "Reindex",
+    "reindexing": "Reindex…"
+  },
+  "hints": {
+    "ios_tap": "On iPhone/Safari a tap is required to start the camera (autoplay blocked)."
+  },
+  "errors": {
+    "camera_access": "Could not access the camera",
+    "reindex_prefix": "Reindex",
+    "health_prefix": "Health",
+    "classify_prefix": "Classify",
+    "sync_prefix": "Sync"
+  },
+  "description": "Dish recognition by camera"
+}

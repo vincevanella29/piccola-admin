@@ -83,9 +83,48 @@ export default function PublicTable({ employees = [], loading, mode = 'wallet', 
   const [page, setPage] = useState(1);
   const handleChangePageSize = (n) => { setPageSize(n); setPage(1); };
 
+  // --- filtros rápidos (cliente)
+  const [q, setQ] = useState('');
+  const [fLocal, setFLocal] = useState('all');
+  const [fCargo, setFCargo] = useState('all');
+  const [fSeccion, setFSeccion] = useState('all');
+
+  // opciones deducidas desde la data visible
+  const quickOptions = useMemo(() => {
+    const locs = new Set();
+    const cargos = new Set();
+    const secciones = new Set();
+    employees.forEach((e) => {
+      if (e?.local) locs.add(String(e.local));
+      if (e?.cargo) cargos.add(String(e.cargo));
+      if (e?.seccion) secciones.add(String(e.seccion));
+    });
+    return {
+      locales: ['all', ...Array.from(locs).sort()],
+      cargos: ['all', ...Array.from(cargos).sort()],
+      secciones: ['all', ...Array.from(secciones).sort()],
+    };
+  }, [employees]);
+
+  // aplicar filtros rápidos antes de cálculo/orden/paginación
+  const filteredEmployees = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    let arr = employees;
+    if (term) {
+      arr = arr.filter((emp) =>
+        (`${emp.nombre || ''} ${emp.apellido || ''}`.toLowerCase().includes(term)) ||
+        (String(emp.rut || '').includes(term))
+      );
+    }
+    if (fLocal !== 'all') arr = arr.filter((e) => String(e.local) === fLocal);
+    if (fCargo !== 'all') arr = arr.filter((e) => String(e.cargo) === fCargo);
+    if (fSeccion !== 'all') arr = arr.filter((e) => String(e.seccion) === fSeccion);
+    return arr;
+  }, [employees, q, fLocal, fCargo, fSeccion]);
+
   // Pre-cálculo por fila: usar datos del backend (merits_by_segment y merits_summary)
   const computed = useMemo(() => {
-    return employees.map((e) => {
+    return filteredEmployees.map((e) => {
       const bySym = {};
       const segList = Array.isArray(e?.merits_by_segment) ? e.merits_by_segment : null;
       const summary = e?.merits_summary || null;
@@ -126,7 +165,7 @@ export default function PublicTable({ employees = [], loading, mode = 'wallet', 
 
       return { e, bySym, total };
     });
-  }, [employees, mode]);
+  }, [filteredEmployees, mode]);
 
   // sort
   const sorted = useMemo(() => {
@@ -165,35 +204,49 @@ export default function PublicTable({ employees = [], loading, mode = 'wallet', 
 
   return (
     <div className="rounded-xl border border-dark-border/20 bg-dark-surface shadow-sm">
-      {/* Top bar (resumen paginación) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 text-xs border-b border-dark-border/10">
-        <div className="text-dark-text-secondary">
-          {t('merits.table.pagination', {
-            start: Math.min((currentPage - 1) * pageSize + 1, totalRows),
-            end: Math.min(currentPage * pageSize, totalRows),
-            total: fmt.format(totalRows),
-          })}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            className="px-2 py-1 border border-dark-border/30 rounded disabled:opacity-40"
-            disabled={currentPage <= 1 || loading}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            ←
-          </button>
-          <span className="px-2">{t('merits.table.page_label', { current: currentPage, total: totalPages })}</span>
-          <button
-            className="px-2 py-1 border border-dark-border/30 rounded disabled:opacity-40"
-            disabled={currentPage >= totalPages || loading}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            →
-          </button>
+      {/* Header filtros rápidos */}
+      <div className="flex flex-col md:flex-row gap-2 px-4 py-3 text-xs border-b border-dark-border/10">
+        <input
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setPage(1); }}
+          placeholder={t('common.search')}
+          className="flex-1 min-w-[200px] px-3 py-2 rounded bg-dark-surface-secondary border border-dark-border/30"
+        />
+        <select
+          value={fLocal}
+          onChange={(e) => { setFLocal(e.target.value); setPage(1); }}
+          className="px-3 py-2 rounded bg-dark-surface-secondary border border-dark-border/30"
+          title={t('merits.filters.local')}
+        >
+          {quickOptions.locales.map((v) => (
+            <option key={`ql-${v}`} value={v}>{v === 'all' ? t('merits.filters.all_branches') : v}</option>
+          ))}
+        </select>
+        <select
+          value={fCargo}
+          onChange={(e) => { setFCargo(e.target.value); setPage(1); }}
+          className="px-3 py-2 rounded bg-dark-surface-secondary border border-dark-border/30"
+          title={t('merits.filters.cargo')}
+        >
+          {quickOptions.cargos.map((v) => (
+            <option key={`qc-${v}`} value={v}>{v === 'all' ? t('merits.filters.all_roles') : v}</option>
+          ))}
+        </select>
+        <select
+          value={fSeccion}
+          onChange={(e) => { setFSeccion(e.target.value); setPage(1); }}
+          className="px-3 py-2 rounded bg-dark-surface-secondary border border-dark-border/30"
+          title={t('merits.filters.seccion', 'Sección')}
+        >
+          {quickOptions.secciones.map((v) => (
+            <option key={`qs-${v}`} value={v}>{v === 'all' ? t('merits.filters.all_sections', 'Todas') : v}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-2 ml-auto">
           <select
             value={pageSize}
             onChange={(e) => handleChangePageSize(Number(e.target.value))}
-            className="ml-2 bg-dark-surface-secondary border border-dark-border/30 rounded px-2 py-1 text-xs"
+            className="bg-dark-surface-secondary border border-dark-border/30 rounded px-2 py-1"
             title={t('merits.table.rows_per_page')}
           >
             {[10, 20, 50, 100].map((n) => (

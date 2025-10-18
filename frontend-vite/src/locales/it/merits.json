@@ -13,6 +13,7 @@
     "cargo_label": "Ruolo",
     "backend_sucursal": "Filiale (backend)",
     "backend_cargo": "Ruolo (backend)",
+    "backend_seccion": "Sezione (backend)",
     "apply_backend": "Applica filtri backend",
     "clear_filters": "Pulisci filtri",
     "clear_backend": "Pulisci"
@@ -20,7 +21,11 @@
   "filters": {
     "all": "Tutti",
     "all_branches": "Tutte le filiali",
-    "all_roles": "Tutti i ruoli"
+    "all_roles": "Tutti i ruoli",
+    "all_sections": "Tutte le sezioni",
+    "local": "Filiale",
+    "cargo": "Ruolo",
+    "seccion": "Sezione"
   },
   "table": {
     "columns": {
@@ -59,18 +64,50 @@
     "totals": {
       "total_points": "Punti totali",
       "fulfilled_count": "Completati",
-      "not_fulfilled_count": "Non completati"
+      "not_fulfilled_count": "Non completati",
+      "minted_count": "Mintati",
+      "fulfilled_count_short": "Completati",
+      "minted_count_short": "Mintati",
+      "not_fulfilled_count_short": "Non comp."
     },
     "history_title": "Storico dei meriti (tutti i periodi)",
     "error_prefix": "Errore:",
     "empty_history": "Nessun merito registrato.",
     "item": {
-      "fallback_rule_name": "Regola"
+      "fallback_rule_name": "Regola",
+      "unknown_segment": "Segmento sconosciuto",
+      "scope": "Ambito",
+      "scope_type": {
+        "empresa": "Azienda",
+        "local": "Filiale"
+      },
+      "position": "Posizione",
+      "position_type": {
+        "exact": "Posizione esatta",
+        "top_n": "Top"
+      },
+      "metric": "Metrica",
+      "metric_type": {
+        "total_sales": "Vendite totali",
+        "amount": "Importo"
+      },
+      "min_days": "Giorni minimi",
+      "company_rank": "Posizione azienda",
+      "local_rank": "Posizione filiale",
+      "status": "Stato",
+      "status_type": {
+        "fulfilled": "Completato",
+        "not_fulfilled": "Non completato"
+      }
     },
     "badges": {
       "minted": "Minted",
       "pending": "In attesa",
       "not": "Non soddisfa"
+    },
+    "tabs": {
+      "profile": "Profilo",
+      "history": "Storico"
     },
     "close_button": "Chiudi"
   }

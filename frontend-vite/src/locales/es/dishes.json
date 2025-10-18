@@ -1,0 +1,60 @@
+{
+  "label": "Platos",
+  "title": "Reconocimiento de Platos",
+  "subtitle": "iPhone-ready · CLIP embeddings + NN",
+  "details": "Detalles",
+  "unknown": "desconocido",
+  "fields": {
+    "price": "Precio"
+  },
+  "camera": {
+    "front": "Cámara: frontal",
+    "rear": "Cámara: trasera"
+  },
+  "health": {
+    "checking": "Chequeando índice…",
+    "ready": "Índice listo ({{count}})",
+    "not_ready": "Índice no listo"
+  },
+  "cooldown": "Cooldown: {{s}}s",
+  "result": {
+    "title": "Resultado",
+    "dish": "Plato",
+    "confidence": "Confianza estimada",
+    "topk": "Top-K",
+    "threshold_note": "Umbral backend: {{thr}}. Si el puntaje cae bajo ese valor, se reporta como “desconocido”."
+  },
+  "modes": {
+    "auto": "Auto"
+  },
+  "actions": {
+    "toggle_details": "Alternar detalles",
+    "allow_camera": "Permitir cámara",
+    "hide": "Ocultar",
+    "show": "Mostrar",
+    "camera": "Cámara",
+    "switch_camera": "Cambiar cámara",
+    "flash": "Flash/torch",
+    "flash_unavailable": "Flash no disponible en frontal",
+    "torch": "Torch",
+    "torch_on": "Torch ON",
+    "classify": "Clasificar",
+    "classifying": "Clasificando…",
+    "sync": "Sincronizar catálogo",
+    "syncing": "Sincronizando…",
+    "wait_index": "Esperando índice…",
+    "reindex": "Reindex",
+    "reindexing": "Reindex…"
+  },
+  "hints": {
+    "ios_tap": "En iPhone/Safari se requiere un toque para iniciar la cámara (autoplay bloqueado)."
+  },
+  "errors": {
+    "camera_access": "No se pudo acceder a la cámara",
+    "reindex_prefix": "Reindex",
+    "health_prefix": "Health",
+    "classify_prefix": "Clasificar",
+    "sync_prefix": "Sync"
+  },
+  "description": "Reconocimiento de platos por cámara"
+}

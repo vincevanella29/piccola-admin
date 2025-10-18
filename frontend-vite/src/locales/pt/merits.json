@@ -13,6 +13,7 @@
     "cargo_label": "Cargo",
     "backend_sucursal": "Filial (backend)",
     "backend_cargo": "Cargo (backend)",
+    "backend_seccion": "Seção (backend)",
     "apply_backend": "Aplicar filtros backend",
     "clear_filters": "Limpar filtros",
     "clear_backend": "Limpar"
@@ -20,7 +21,11 @@
   "filters": {
     "all": "Todos",
     "all_branches": "Todas as filiais",
-    "all_roles": "Todos os cargos"
+    "all_roles": "Todos os cargos",
+    "all_sections": "Todas as seções",
+    "local": "Filial",
+    "cargo": "Cargo",
+    "seccion": "Seção"
   },
   "table": {
     "columns": {
@@ -46,5 +51,64 @@
     "page_label": "Página {{current}} / {{total}}",
     "rows_per_page": "Linhas por página",
     "per_page_format": "{{n}} / pág"
+  },
+  "modal": {
+    "segment_pill": {
+      "wallet_title": "Na wallet",
+      "pending_title": "Pendente",
+      "total_title": "Total (simulado)"
+    },
+    "header_wallet_badge": "Wallet",
+    "header_no_wallet_badge": "Sem wallet",
+    "segment_summary_title": "Resumo por segmento",
+    "totals": {
+      "total_points": "Pontos totais",
+      "fulfilled_count": "Cumpridos",
+      "not_fulfilled_count": "Não cumpridos",
+      "minted_count": "Minteados",
+      "fulfilled_count_short": "Cumpridos",
+      "minted_count_short": "Minteados",
+      "not_fulfilled_count_short": "Não cumpl."
+    },
+    "history_title": "Histórico de méritos (todos os períodos)",
+    "error_prefix": "Erro:",
+    "empty_history": "Sem méritos registrados.",
+    "item": {
+      "fallback_rule_name": "Regra",
+      "unknown_segment": "Segmento desconhecido",
+      "scope": "Âmbito",
+      "scope_type": {
+        "empresa": "Empresa",
+        "local": "Filial"
+      },
+      "position": "Posição",
+      "position_type": {
+        "exact": "Posição exata",
+        "top_n": "Top"
+      },
+      "metric": "Métrica",
+      "metric_type": {
+        "total_sales": "Vendas totais",
+        "amount": "Montante"
+      },
+      "min_days": "Dias mínimos",
+      "company_rank": "Ranking empresa",
+      "local_rank": "Ranking filial",
+      "status": "Status",
+      "status_type": {
+        "fulfilled": "Cumprido",
+        "not_fulfilled": "Não cumprido"
+      }
+    },
+    "badges": {
+      "minted": "Mintado",
+      "pending": "Pendente",
+      "not": "Não cumpre"
+    },
+    "tabs": {
+      "profile": "Perfil",
+      "history": "Histórico"
+    },
+    "close_button": "Fechar"
   }
 }

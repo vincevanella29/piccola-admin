@@ -12,15 +12,29 @@ COPY requirements.txt ./
 
 # Instala OpenVPN (para workers MTZ) y dependencias de Python
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openvpn \
+    && apt-get install -y --no-install-recommends \
+        openvpn \
+        ffmpeg \
+        ca-certificates \
+        curl \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements.txt
+
+# Descarga WSDLs necesarios en tiempo de build para ONVIF
+RUN mkdir -p /backend/wsdl \
+ && curl -fL https://www.onvif.org/ver10/device/wsdl/devicemgmt.wsdl -o /backend/wsdl/devicemgmt.wsdl \
+ && curl -fL https://www.onvif.org/ver20/media/wsdl/media.wsdl       -o /backend/wsdl/media.wsdl \
+ && curl -fL https://www.onvif.org/ver20/ptz/wsdl/ptz.wsdl           -o /backend/wsdl/ptz.wsdl
+
+# Valor por defecto dentro del contenedor (puede sobreescribirse en runtime)
+ENV ONVIF_WSDL_DIR=/backend/wsdl
 
 # Copia el resto del código fuente del backend
 COPY . .
 
 # Expone el puerto de FastAPI (uvicorn)
 ENV PORT=8081
+ENV FFMPEG_BIN=/usr/bin/ffmpeg
 EXPOSE $PORT
 
 # Comando por defecto para correr el backend

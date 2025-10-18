@@ -13,6 +13,7 @@
     "cargo_label": "Role",
     "backend_sucursal": "Branch (backend)",
     "backend_cargo": "Role (backend)",
+    "backend_seccion": "Section (backend)",
     "apply_backend": "Apply backend filters",
     "clear_filters": "Clear filters",
     "clear_backend": "Clear"
@@ -20,7 +21,11 @@
   "filters": {
     "all": "All",
     "all_branches": "All branches",
-    "all_roles": "All roles"
+    "all_roles": "All roles",
+    "all_sections": "All sections",
+    "local": "Branch",
+    "cargo": "Role",
+    "seccion": "Section"
   },
   "table": {
     "columns": {
@@ -59,18 +64,50 @@
     "totals": {
       "total_points": "Total points",
       "fulfilled_count": "Fulfilled",
-      "not_fulfilled_count": "Not fulfilled"
+      "not_fulfilled_count": "Not fulfilled",
+      "minted_count": "Minted",
+      "fulfilled_count_short": "Fulfilled",
+      "minted_count_short": "Minted",
+      "not_fulfilled_count_short": "Not fulfilled"
     },
     "history_title": "Merit history (all periods)",
     "error_prefix": "Error:",
     "empty_history": "No merits recorded.",
     "item": {
-      "fallback_rule_name": "Rule"
+      "fallback_rule_name": "Rule",
+      "unknown_segment": "Unknown segment",
+      "scope": "Scope",
+      "scope_type": {
+        "empresa": "Company",
+        "local": "Local"
+      },
+      "position": "Position",
+      "position_type": {
+        "exact": "Exact position",
+        "top_n": "Top range"
+      },
+      "metric": "Metric",
+      "metric_type": {
+        "total_sales": "Total sales",
+        "amount": "Amount"
+      },
+      "min_days": "Min. days worked",
+      "company_rank": "Company rank",
+      "local_rank": "Local rank",
+      "status": "Status",
+      "status_type": {
+        "fulfilled": "Fulfilled",
+        "not_fulfilled": "Not fulfilled"
+      }
     },
     "badges": {
       "minted": "Minted",
       "pending": "Pending",
       "not": "Not met"
+    },
+    "tabs": {
+      "profile": "Profile",
+      "history": "History"
     },
     "close_button": "Close"
   }

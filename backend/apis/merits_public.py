@@ -71,17 +71,120 @@ def _last_n_months(n: int) -> List[str]:
         months.append(dt.strftime("%Y-%m"))
     return list(reversed(months))  # asc
 
-def _get_workers_filtered(sucursal: Optional[str], cargo: Optional[str]) -> List[Dict[str, Any]]:
+# --------------------------- Fast filters API ---------------------------
+def _available_filters() -> Dict[str, List[str]]:
+    # locales (siglas sucursal)
+    locs = list(WORKERS.aggregate([
+        {"$match": {"activo": 1, "sucursal": {"$ne": None}}},
+        {"$group": {"_id": "$sucursal"}},
+        {"$sort": {"_id": 1}}
+    ]))
+    locales = [str(x.get("_id")) for x in locs if x.get("_id") not in (None, "")]
+
+    # cargos
+    cars = list(WORKERS.aggregate([
+        {"$match": {"activo": 1, "cargo": {"$ne": None}}},
+        {"$group": {"_id": "$cargo"}},
+        {"$sort": {"_id": 1}}
+    ]))
+    cargos = [str(x.get("_id")) for x in cars if x.get("_id") not in (None, "")]
+
+    # secciones: union de trabajadores.seccion y cargos_intranet.seccion
+    secs_workers = list(WORKERS.aggregate([
+        {"$match": {"activo": 1, "seccion": {"$ne": None}}},
+        {"$group": {"_id": "$seccion"}}
+    ]))
+    secs_cargos = list(CARGOS.aggregate([
+        {"$match": {"seccion": {"$ne": None}}},
+        {"$group": {"_id": "$seccion"}}
+    ]))
+    secciones_set = (
+        {str(x.get("_id")) for x in secs_workers if x.get("_id") not in (None, "")} |
+        {str(x.get("_id")) for x in secs_cargos if x.get("_id") not in (None, "")}
+    )
+    secciones = sorted(list(secciones_set))
+
+    return {
+        "locales": ["all", *locales],
+        "cargos": ["all", *cargos],
+        "secciones": ["all", *secciones],
+    }
+
+@router.get("/public/merits/filters", summary="Opciones de filtros (locales, cargos, secciones)")
+async def public_merit_filters(user: dict = Depends(verify_session)):
+    return _available_filters()
+
+def _get_workers_filtered(sucursal: Optional[str], cargo: Optional[str], seccion: Optional[str] = None) -> List[Dict[str, Any]]:
     normalized = normalize_sucursal_to_sigla(sucursal) if sucursal else None
     match_q: Dict[str, Any] = {"activo": 1}
     if normalized:
         match_q["sucursal"] = normalized
     if cargo:
         match_q["cargo"] = cargo
-    return list(WORKERS.find(match_q, {
-        "rut":1,"nombres":1,"apellidopaterno":1,"cargo":1,"sucursal":1,
-        "profile_image_url":1,"profile_image_hash":1,"activo":1
+
+    # Do NOT filter by seccion at query time because many workers have null seccion;
+    # we enrich it from cargos afterwards, then filter in-memory.
+    workers = list(WORKERS.find(match_q, {
+        "rut":1,
+        "nombres":1,
+        "apellidopaterno":1,
+        "cargo":1,
+        "sucursal":1,
+        "seccion":1,
+        "id":1,
+        "id_cargo":1,
+        "id_cargo_historico":1,
+        "profile_image_url":1,
+        "profile_image_hash":1,
+        "activo":1,
     }))
+
+    # Enriquecer 'seccion' usando CARGOS cuando no venga en el documento del trabajador.
+    cargos_docs = list(CARGOS.find({}, {"id":1, "id_cargo":1, "cargo":1, "seccion":1}))
+    by_id = {}
+    by_cargo = {}
+    for d in cargos_docs:
+        sec = d.get("seccion")
+        if d.get("id") is not None:
+            try:
+                by_id[int(d.get("id"))] = sec
+            except Exception:
+                pass
+        if d.get("id_cargo") is not None:
+            try:
+                by_id[int(d.get("id_cargo"))] = sec
+            except Exception:
+                pass
+        name = d.get("cargo")
+        if name:
+            by_cargo[str(name)] = sec
+
+    for w in workers:
+        if w.get("seccion"):
+            continue
+        # Prioridad: id_cargo, id_cargo_historico, id (ficha), luego nombre de cargo
+        for key in ("id_cargo", "id_cargo_historico", "id"):
+            val = w.get(key)
+            if isinstance(val, str) and val.isdigit():
+                val = int(val)
+            if isinstance(val, (int,)) and val in by_id:
+                w["seccion"] = by_id.get(val)
+                break
+        if not w.get("seccion"):
+            w["seccion"] = by_cargo.get(str(w.get("cargo")))
+
+    # Apply seccion filter AFTER enrichment, with normalization.
+    if seccion:
+        def _norm(v: Any) -> str:
+            return str(v or "").strip().lower()
+
+        target = _norm(seccion)
+        workers = [
+            w for w in workers
+            if _norm(w.get("seccion")) == target or _norm(w.get("cargo")) == target
+        ]
+
+    return workers
 
 def _monthly_points(periods: List[str]) -> List[Dict[str, Any]]:
     pipe = [
@@ -168,6 +271,7 @@ async def public_merit_rankings(
     months: int = Query(3, ge=1, le=12),
     sucursal: Optional[str] = None,
     cargo: Optional[str] = None,
+    seccion: Optional[str] = None,
     rank_mode: str = Query("simulated", regex="^(wallet|simulated)$"),
     limit: int = Query(200000, ge=1, le=200000),
     skip: int = 0,
@@ -177,7 +281,7 @@ async def public_merit_rankings(
     seg_catalog = _get_allowed_segments_cached()  # ← usa list_permitted_segments_for_company()
 
     # base empleados
-    workers = _get_workers_filtered(sucursal, cargo)
+    workers = _get_workers_filtered(sucursal, cargo, seccion)
     emp_map: Dict[str, Dict[str, Any]] = {}
     for w in workers:
         rut = str(w.get("rut")) if w.get("rut") else None
@@ -189,6 +293,7 @@ async def public_merit_rankings(
             "apellido": w.get("apellidopaterno"),
             "local": w.get("sucursal"),
             "cargo": w.get("cargo"),
+            "seccion": w.get("seccion"),
             "profile_image_url": w.get("profile_image_url"),
             "profile_image_hash": w.get("profile_image_hash"),
             "activo": w.get("activo"),
@@ -206,7 +311,7 @@ async def public_merit_rankings(
         return {
             "count": 0,
             "total_count": 0,
-            "filters": {"months": months, "sucursal": sucursal, "cargo": cargo, "periodos": periods, "rank_mode": rank_mode},
+            "filters": {"months": months, "sucursal": sucursal, "cargo": cargo, "seccion": seccion, "periodos": periods, "rank_mode": rank_mode},
             "segments_catalog": [],
             "ranking": [],
         }
@@ -329,7 +434,7 @@ async def public_merit_rankings(
     return {
         "count": len(paginated),
         "total_count": total,
-        "filters": {"months": months, "sucursal": sucursal, "cargo": cargo, "periodos": periods, "rank_mode": rank_mode},
+        "filters": {"months": months, "sucursal": sucursal, "cargo": cargo, "seccion": seccion, "periodos": periods, "rank_mode": rank_mode},
         "segments_catalog": [
             {"token_id": tid, "name": meta["name"], "symbol": meta["symbol"]}
             for tid, meta in sorted(seg_catalog.items(), key=lambda x: x[0])
@@ -358,8 +463,72 @@ async def public_merit_history(
         return {"ok": False, "error": "Empleado no encontrado"}
 
     seg_catalog = _get_allowed_segments_cached()  # ← usa list_permitted_segments_for_company()
+    # Cargar mapa de reglas para adjuntar parámetros/scope a cada item del historial
+    rules_map_hist = {str(r.get("_id")): r for r in RULES.find({}, {"params": 1, "scope": 1, "merit_points": 1, "template_key": 1, "rule_name": 1})}
 
     results = list(RESULTS.find({"rut": target_rut}).sort([("periodo", -1)]))
+    # Cache de rankings por (periodo, rule_id) para no recalcular
+    _rule_rank_cache: Dict[str, Dict[str, Any]] = {}
+
+    def _compute_rule_ranks(periodo: str, rule_id: Any) -> Dict[str, Any]:
+        """
+        Retorna {
+          'company_ranks': {rut: rank},
+          'local_ranks': {localSigla: {rut: rank}},
+          'locals': {rut: localSigla},
+          'total_company': N, 'total_by_local': {local: N}
+        }
+        Ranking por suma de merit_points (desc) con empates.
+        """
+        cache_key = f"{periodo}:{rule_id}"
+        if cache_key in _rule_rank_cache:
+            return _rule_rank_cache[cache_key]
+
+        # Traer todos los resultados de esa regla en el período
+        q = {"periodo": periodo, "rule_id": rule_id}
+        all_rule = list(RESULTS.find(q, {"rut": 1, "merit_points": 1}))
+        # Sumar puntos por rut
+        by_rut: Dict[str, float] = {}
+        for r in all_rule:
+            rr = str(r.get("rut"))
+            pts = float(r.get("merit_points") or 0)
+            by_rut[rr] = by_rut.get(rr, 0.0) + pts
+
+        # Obtener locales de estos ruts
+        ruts = list(by_rut.keys())
+        locals_map: Dict[str, str] = {}
+        if ruts:
+            emp_locals = list(WORKERS.find({"rut": {"$in": [int(x) if x.isdigit() else x for x in ruts]}}, {"rut": 1, "sucursal": 1}))
+            for e in emp_locals:
+                locals_map[str(e.get("rut"))] = str(e.get("sucursal") or "—")
+
+        # Construir filas para ranking empresa
+        items = [{"rut": rr, "val": v} for rr, v in by_rut.items()]
+        items.sort(key=lambda x: float(x["val"] or 0), reverse=True)
+        company_ranks = _rank_with_ties(items, key="val")
+
+        # Por local
+        by_local: Dict[str, Dict[str, float]] = {}
+        for rr, v in by_rut.items():
+            loc = locals_map.get(rr, "—")
+            by_local.setdefault(loc, {})[rr] = v
+        local_ranks: Dict[str, Dict[str, int]] = {}
+        total_by_local: Dict[str, int] = {}
+        for loc, m in by_local.items():
+            arr = [{"rut": rr, "val": val} for rr, val in m.items()]
+            arr.sort(key=lambda x: float(x["val"] or 0), reverse=True)
+            local_ranks[loc] = _rank_with_ties(arr, key="val")
+            total_by_local[loc] = len(arr)
+
+        payload = {
+            "company_ranks": company_ranks,
+            "local_ranks": local_ranks,
+            "locals": locals_map,
+            "total_company": len(items),
+            "total_by_local": total_by_local,
+        }
+        _rule_rank_cache[cache_key] = payload
+        return payload
     by_period: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     totals = {"total_points": 0, "fulfilled_count": 0, "not_fulfilled_count": 0, "minted_count": 0}
 
@@ -385,6 +554,30 @@ async def public_merit_history(
             "segment_token_id": seg_id,
             "segment": seg_obj,
         }
+        # Adjuntar datos estáticos de la regla (requerimientos/alcance) para mostrar qué se pedía
+        try:
+            rid = str(d.get("rule_id")) if d.get("rule_id") is not None else None
+            if rid and rid in rules_map_hist:
+                rdoc = rules_map_hist[rid]
+                item["rule_params"] = rdoc.get("params")
+                item["rule_scope"] = rdoc.get("scope")
+                item["rule_merit_points"] = rdoc.get("merit_points")
+        except Exception:
+            pass
+
+        # Calcular placement por regla (empresa/local) para este resultado
+        try:
+            ranks_data = _compute_rule_ranks(d.get("periodo"), d.get("rule_id"))
+            comp_rank = ranks_data["company_ranks"].get(target_rut)
+            loc = ranks_data["locals"].get(target_rut, "—")
+            loc_rank = (ranks_data["local_ranks"].get(loc, {}) or {}).get(target_rut)
+            item["placement"] = {
+                "company": {"rank": comp_rank, "total": ranks_data.get("total_company", 0)},
+                "local": {"local": loc, "rank": loc_rank, "total": ranks_data.get("total_by_local", {}).get(loc, 0)},
+            }
+        except Exception:
+            # placement opcional; fallar en silencio
+            pass
         by_period[d.get("periodo")].append(item)
 
         totals["total_points"] += pts

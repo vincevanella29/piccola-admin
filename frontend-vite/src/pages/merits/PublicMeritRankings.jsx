@@ -1,5 +1,5 @@
 // src/pages/PublicMeritRankings.jsx
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import useMeritRankings from '../../hooks/useMeritRankings.jsx';
 import PublicToolbar from './components/publicDash/PublicToolbar.jsx';
@@ -16,6 +16,7 @@ const PublicMeritRankings = ({ appState }) => {
     filters: backendFilters,
     handleFilterChange,
     applyFilters,
+    clientFilterOptions,
 
     // historial (modal)
     historyOpen,
@@ -29,31 +30,28 @@ const PublicMeritRankings = ({ appState }) => {
 
   const [allEmployees, setAllEmployees] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [clientFilters, setClientFilters] = useState({ local: 'all', cargo: 'all' });
+  const [clientFilters, setClientFilters] = useState({ local: 'all', cargo: 'all', seccion: 'all' });
 
   // Toggle: Wallet vs Simulado (wallet + pending)
-  const [mode, setMode] = useState('wallet'); // 'wallet' | 'simulated'
+  const [mode, setMode] = useState('simulated'); // 'wallet' | 'simulated'
+  const didSyncModeOnce = useRef(false);
 
   useEffect(() => {
     if (data) setAllEmployees(data);
   }, [data]);
 
-  // Sync backend ranking mode with page toggle
+  // Sync backend ranking mode with page toggle (skip first run to avoid duplicate initial fetch)
   useEffect(() => {
+    if (!didSyncModeOnce.current) {
+      didSyncModeOnce.current = true;
+      return;
+    }
     handleFilterChange({ rank_mode: mode });
     applyFilters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  const clientFilterOptions = useMemo(() => {
-    const siglas = new Set();
-    allEmployees.forEach((e) => e?.local && siglas.add(String(e.local)));
-    const cargos = new Set(allEmployees.map((e) => e.cargo).filter(Boolean));
-    return {
-      locales: ['all', ...Array.from(siglas).sort()],
-      cargos: ['all', ...Array.from(cargos).sort()],
-    };
-  }, [allEmployees]);
+  
 
   const filtered = useMemo(() => {
     let result = [...allEmployees];
@@ -67,13 +65,9 @@ const PublicMeritRankings = ({ appState }) => {
     }
     if (clientFilters.local !== 'all') result = result.filter((e) => e.local === clientFilters.local);
     if (clientFilters.cargo !== 'all') result = result.filter((e) => e.cargo === clientFilters.cargo);
+    if (clientFilters.seccion !== 'all') result = result.filter((e) => e.seccion === clientFilters.seccion);
     return result;
   }, [allEmployees, searchTerm, clientFilters]);
-
-  useEffect(() => {
-    applyFilters();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div className="w-full max-w-full mx-auto p-4 md:p-6 space-y-6 bg-dark-background text-dark-text">
@@ -93,14 +87,10 @@ const PublicMeritRankings = ({ appState }) => {
       )}
 
       <PublicToolbar
+        isLoading={loading}
         backendFilters={backendFilters}
         onBackendFilterChange={handleFilterChange}
         onApplyBackendFilters={applyFilters}
-        isLoading={loading}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        clientFilters={clientFilters}
-        setClientFilters={setClientFilters}
         clientFilterOptions={clientFilterOptions}
       />
 

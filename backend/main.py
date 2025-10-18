@@ -11,6 +11,7 @@ from fastapi_cache.backends.inmemory import InMemoryBackend
 from fastapi.exceptions import RequestValidationError  # en vez de fastapi.exception_handler
 from redis import asyncio as aioredis
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from utils.web3mongo import w3, sessions_collection
 import jwt as pyjwt
 import glob
@@ -195,6 +196,22 @@ for file_path in api_files:
 
 # Ensure default API access rules exist for all prefixes
 ensure_api_rules_for_app(app)
+
+# Serve HLS streams directory for camera playback
+try:
+    static_streams_dir = os.path.join(os.path.dirname(__file__), 'static', 'streams')
+    os.makedirs(static_streams_dir, exist_ok=True)
+    app.mount("/streams", StaticFiles(directory=static_streams_dir), name="streams")
+except Exception as e:
+    logger.warning(f"Could not mount /streams: {e}")
+
+# Serve /static for recordings and other assets (e.g., /static/recordings/<cid>/<file>.mp4)
+try:
+    static_dir = os.path.join(os.path.dirname(__file__), 'static')
+    os.makedirs(static_dir, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+except Exception as e:
+    logger.warning(f"Could not mount /static: {e}")
 
 # Debug routes
 @app.get("/debug/routes")

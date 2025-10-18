@@ -13,6 +13,7 @@
     "cargo_label": "Cargo",
     "backend_sucursal": "Sucursal (backend)",
     "backend_cargo": "Cargo (backend)",
+    "backend_seccion": "Sección (backend)",
     "apply_backend": "Aplicar filtros backend",
     "clear_filters": "Limpiar filtros",
     "clear_backend": "Limpiar"
@@ -20,7 +21,11 @@
   "filters": {
     "all": "Todos",
     "all_branches": "Todas las sucursales",
-    "all_roles": "Todos los cargos"
+    "all_roles": "Todos los cargos",
+    "all_sections": "Todas las secciones",
+    "local": "Local",
+    "cargo": "Cargo",
+    "seccion": "Sección"
   },
   "table": {
     "columns": {
@@ -59,18 +64,50 @@
     "totals": {
       "total_points": "Total puntos",
       "fulfilled_count": "Cumplidos",
-      "not_fulfilled_count": "No cumplidos"
+      "not_fulfilled_count": "No cumplidos",
+      "minted_count": "Minteados",
+      "fulfilled_count_short": "Cumplidos",
+      "minted_count_short": "Minteados",
+      "not_fulfilled_count_short": "No cumplidos"
     },
     "history_title": "Historial de méritos (todos los períodos)",
     "error_prefix": "Error:",
     "empty_history": "Sin méritos registrados.",
     "item": {
-      "fallback_rule_name": "Regla"
+      "fallback_rule_name": "Regla",
+      "unknown_segment": "Segmento desconocido",
+      "scope": "Ámbito",
+      "scope_type": {
+        "empresa": "Empresa",
+        "local": "Local"
+      },
+      "position": "Posición",
+      "position_type": {
+        "exact": "Posición exacta",
+        "top_n": "Top"
+      },
+      "metric": "Métrica",
+      "metric_type": {
+        "total_sales": "Ventas totales",
+        "amount": "Monto"
+      },
+      "min_days": "Días mínimos",
+      "company_rank": "Ranking empresa",
+      "local_rank": "Ranking local",
+      "status": "Estado",
+      "status_type": {
+        "fulfilled": "Cumplido",
+        "not_fulfilled": "No cumplido"
+      }
     },
     "badges": {
       "minted": "Minted",
       "pending": "Pending",
       "not": "No cumple"
+    },
+    "tabs": {
+      "profile": "Perfil",
+      "history": "Historial"
     },
     "close_button": "Cerrar"
   }
