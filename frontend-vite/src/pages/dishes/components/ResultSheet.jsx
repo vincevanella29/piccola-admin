@@ -6,7 +6,7 @@ const ResultSheet = ({ result, classifying, t }) => {
   const hasResult = result && result.topk && result.topk.length > 0;
   const best = hasResult ? result.topk[0] : null;
   const confidence = best ? Math.max(0, Math.min(1, Number(best.score) || 0)) : 0;
-  const MIN_CONF = 0.75;
+  const MIN_CONF = 0.70;
   const isVisible = hasResult || classifying;
   const [sheetOpen, setSheetOpen] = useState(false);
   // Reopen when a new classification cycle starts
