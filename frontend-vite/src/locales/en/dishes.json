@@ -1,6 +1,7 @@
 {
-  "label": "Dishes",
-  "title": "Dish Recognition",
+  "label": "Product recognition",
+  "title": "Product Recognition",
+  "description": "Product recognition by camera",
   "subtitle": "iPhone-ready · CLIP embeddings + NN",
   "details": "Details",
   "unknown": "unknown",
@@ -19,7 +20,7 @@
   "cooldown": "Cooldown: {{s}}s",
   "result": {
     "title": "Result",
-    "dish": "Dish",
+    "dish": "Product",
     "confidence": "Estimated confidence",
     "topk": "Top-K",
     "threshold_note": "Backend threshold: {{thr}}. If the best score falls below this value, it is reported as ‘unknown’.",
@@ -60,6 +61,5 @@
     "health_prefix": "Health",
     "classify_prefix": "Classify",
     "sync_prefix": "Sync"
-  },
-  "description": "Dish recognition by camera"
+  }
 }

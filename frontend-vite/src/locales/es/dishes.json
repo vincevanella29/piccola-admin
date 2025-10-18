@@ -1,6 +1,7 @@
 {
-  "label": "Platos",
-  "title": "Reconocimiento de Platos",
+  "label": "Reconocimiento de Productos",
+  "title": "Reconocimiento de Productos",
+  "description": "Reconocimiento de productos por cámara",
   "subtitle": "iPhone-ready · CLIP embeddings + NN",
   "details": "Detalles",
   "unknown": "desconocido",
@@ -60,6 +61,5 @@
     "health_prefix": "Health",
     "classify_prefix": "Clasificar",
     "sync_prefix": "Sync"
-  },
-  "description": "Reconocimiento de platos por cámara"
+  }
 }
