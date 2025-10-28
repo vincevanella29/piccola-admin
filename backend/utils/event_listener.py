@@ -31,6 +31,47 @@ class EventListenerConfig:
         self.collection_name = collection_name
         self.contract_name = contract_name
 
+def _build_event_topic_map(contract_name: str, event_names: List[str]):
+    """Return a dict of topic0 -> (event_name, event_abi) for the given events of a contract."""
+    topic_map = {}
+    try:
+        abi = load_contract_abi(contract_name)
+    except Exception as e:
+        logger.error(f"Failed to load ABI for {contract_name}: {e}")
+        return topic_map
+
+    def get_canonical_type(abi_input_component):
+        if abi_input_component['type'].startswith('tuple'):
+            component_types = ','.join([get_canonical_type(comp) for comp in abi_input_component['components']])
+            return f"({component_types})"
+        return abi_input_component['type']
+
+    for event_name in event_names:
+        event_abi = next(
+            (item for item in abi if item.get("type") == "event" and item.get("name") == event_name),
+            None
+        )
+        if not event_abi:
+            logger.error(f"Event '{event_name}' not found in ABI for {contract_name}")
+            continue
+        input_types_str = ','.join([get_canonical_type(inp) for inp in event_abi['inputs']])
+        event_signature_text = f"{event_name}({input_types_str})"
+        topic_hash = w3.keccak(text=event_signature_text)
+        topic = topic_hash.hex()
+        if topic.startswith('0x') and len(topic) == 66:
+            pass
+        elif not topic.startswith('0x') and len(topic) == 64:
+            topic = "0x" + topic
+        else:
+            logger.error(f"Unexpected topic format for {event_name}: '{topic}' (length {len(topic)})")
+            continue
+        if len(topic[2:]) != 64:
+            logger.error(f"Invalid topic length for {event_name}: {len(topic[2:])} chars, expected 64")
+            continue
+        topic_map[topic] = (event_name, event_abi)
+
+    return topic_map
+
 def log_abi_structure(configs: List[EventListenerConfig]):
     """Log the ABI structure for the specified events of each contract."""
     for config in configs:
@@ -250,6 +291,117 @@ def fetch_and_store_events(config: EventListenerConfig, event_name: str, from_bl
     except Exception as e:
         logger.error(f"Failed to process {event_name} in {contract_address}: {e}")
 
+def fetch_and_store_events_combined(config: EventListenerConfig, from_block: int, to_block: int):
+    """
+    Fetch events for all event_names in config in a single getLogs call per block chunk (OR topics),
+    store them in MongoDB/Redis, and update checkpoints for each event.
+    """
+    contract_address = config.contract.address
+    collection_name = config.collection_name
+    target_collection = db[collection_name]
+
+    topic_map = _build_event_topic_map(config.contract_name, config.event_names)
+    if not topic_map:
+        return
+
+    topics_or = list(topic_map.keys())
+
+    try:
+        current_from_block = from_block
+        while current_from_block <= to_block:
+            current_to_block = min(current_from_block + BLOCK_CHUNK_SIZE - 1, to_block)
+
+            for attempt in range(MAX_RETRIES):
+                try:
+                    log_filter = {
+                        "fromBlock": current_from_block,
+                        "toBlock": current_to_block,
+                        "address": w3.to_checksum_address(contract_address),
+                        "topics": [topics_or]
+                    }
+                    try:
+                        logs = w3.eth.get_logs(log_filter)
+                    except Exception as e:
+                        if hasattr(e, 'args') and any('invalid block range params' in str(arg) for arg in e.args):
+                            logger.error(f"invalid block range params: from_block={current_from_block}, to_block={current_to_block}, chunk_size={BLOCK_CHUNK_SIZE}. Error: {e}")
+                        else:
+                            logger.error(f"Error fetching logs (combined): from_block={current_from_block}, to_block={current_to_block}, Error: {e}")
+                        raise
+
+                    for log in logs:
+                        try:
+                            raw_topics = log.get('topics') or []
+                            if not raw_topics:
+                                continue
+                            topic0 = raw_topics[0].hex() if hasattr(raw_topics[0], 'hex') else str(raw_topics[0])
+                            mapped = topic_map.get(topic0)
+                            if not mapped:
+                                # Not one of the requested topics (shouldn't happen)
+                                continue
+                            event_name, event_abi = mapped
+                            event = get_event_data(w3.codec, event_abi, log)
+                            tx_hash = event["transactionHash"].hex()
+                            log_index = event["logIndex"]
+                            block_number = event["blockNumber"]
+
+                            event_doc_id = {"transactionHash": tx_hash, "logIndex": log_index, "contract": contract_address}
+                            if target_collection.count_documents(event_doc_id, limit=1) > 0:
+                                continue
+
+                            event_data = {
+                                "_id": f"{tx_hash}-{log_index}-{contract_address}",
+                                "event": event_name,
+                                "contract": contract_address,
+                                "transactionHash": tx_hash,
+                                "args": _convert_to_plain_dict(event["args"]),
+                                "blockNumber": block_number,
+                                "logIndex": log_index,
+                                "raw_log": dict(log)
+                            }
+                            try:
+                                block_info = w3.eth.get_block(block_number)
+                                event_data["timestamp"] = block_info.get("timestamp", int(time.time()))
+                            except Exception as e:
+                                logger.warning(f"Failed to fetch timestamp for block {block_number}: {e}")
+                            event_data = _convert_to_plain_dict(event_data)
+                            event_data = convert_big_ints_to_str(event_data)
+                            event_data = convert_hexbytes(event_data)
+                            event_data['collection'] = collection_name
+                            try:
+                                redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", 6379)), db=int(os.getenv("REDIS_DB", 0)) )
+                                redis_client.rpush(os.getenv("REDIS_QUEUE", "blockchain_events"), json.dumps(event_data))
+                                logger.info(f"[LISTENER] Pushed event {event_name} (Tx: {tx_hash}, LogIndex: {log_index}) to Redis queue")
+                            except Exception as e:
+                                logger.error(f"[LISTENER] Failed to push event {event_name} (Tx: {tx_hash}, LogIndex: {log_index}) to Redis: {e}\nEvent data: {event_data}")
+
+                            logger.info(f"\n=== Event Captured: {event_name} ===")
+                            logger.info(f"Contract: {contract_address}")
+                            logger.info(f"Transaction Hash: {tx_hash}")
+                            logger.info(f"Block Number: {block_number}")
+                            logger.info(f"Log Index: {log_index}")
+                            logger.info(f"Arguments: {event_data['args']}")
+                            logger.info(f"====================\n")
+
+                        except Exception as e:
+                            logger.error(f"Failed to process combined log: {e}")
+
+                    # Update checkpoints for all events in this config
+                    for ev_name in config.event_names:
+                        update_last_processed_block(contract_address, ev_name, current_to_block)
+                    break
+
+                except Exception as e:
+                    logger.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed for combined events in {contract_address} ({current_from_block}-{current_to_block}): {e}")
+                    if attempt < MAX_RETRIES - 1:
+                        time.sleep(RETRY_DELAY)
+                    else:
+                        logger.error(f"All retries failed for combined events in {contract_address} ({current_from_block}-{current_to_block}): {e}")
+                        break
+
+            current_from_block = current_to_block + 1
+    except Exception as e:
+        logger.error(f"Failed to process combined events in {contract_address}: {e}")
+
 def listen_events(configs: List[EventListenerConfig]):
     """Main loop to log ABI structures, create collections, and listen for events."""
     # Log ABI structures at startup
@@ -270,12 +422,14 @@ def listen_events(configs: List[EventListenerConfig]):
 
             for config in configs:
                 contract_address = config.contract.address
-                for event_name in config.event_names:
-                    from_block = get_last_processed_block(contract_address, event_name, INITIAL_BLOCK)
-                    if from_block <= current_block:
-                        fetch_and_store_events(config, event_name, from_block, current_block)
-                    else:
-                        pass
+                # Use the minimum last-processed block across this contract's events and fetch all at once
+                from_blocks = [
+                    get_last_processed_block(contract_address, ev_name, INITIAL_BLOCK)
+                    for ev_name in config.event_names
+                ]
+                min_from_block = min(from_blocks) if from_blocks else INITIAL_BLOCK
+                if min_from_block <= current_block:
+                    fetch_and_store_events_combined(config, min_from_block, current_block)
         except Exception as e:
             logger.error(f"Main loop error: {e}")
             time.sleep(POLL_INTERVAL * 2)  # Backoff on main loop errors
