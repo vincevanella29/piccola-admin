@@ -18,11 +18,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-POLL_INTERVAL = 2  # Poll every 10 seconds
+POLL_INTERVAL = 3  # Poll every 10 seconds
 INITIAL_BLOCK = 26419000  # As per your FastAPI startup
 BLOCK_CHUNK_SIZE = 10  # Process 200 blocks at a time (reduce for RPC compatibility)
 MAX_RETRIES = 3  # Retry failed RPC calls
-RETRY_DELAY = 5  # Seconds between retries
+RETRY_DELAY = 2  # Seconds between retries
 
 class EventListenerConfig:
     def __init__(self, contract: Contract, event_names: List[str], collection_name: str, contract_name: str):
