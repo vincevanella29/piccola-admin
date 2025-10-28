@@ -9,6 +9,7 @@ import os
 import redis
 import json
 from hexbytes import HexBytes
+import random
 
 # Logging setup
 logging.basicConfig(
@@ -18,11 +19,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-POLL_INTERVAL = 3  # Poll every 10 seconds
-INITIAL_BLOCK = 26419000  # As per your FastAPI startup
-BLOCK_CHUNK_SIZE = 10  # Process 200 blocks at a time (reduce for RPC compatibility)
-MAX_RETRIES = 3  # Retry failed RPC calls
-RETRY_DELAY = 2  # Seconds between retries
+POLL_INTERVAL = 10
+INITIAL_BLOCK = 26419000
+BLOCK_CHUNK_SIZE = 10
+MAX_RETRIES = 3
+RETRY_DELAY = 2
+MAX_BLOCKS_PER_CYCLE = 100
+
+# Simple per-process RPC rate limiter
+MIN_REQUEST_INTERVAL = float(os.getenv("MIN_REQUEST_INTERVAL", "1.0"))  # seconds between RPC calls
+_last_rpc_call_ts = 0.0
+
+def _rate_limit_sleep():
+    global _last_rpc_call_ts
+    now = time.time()
+    elapsed = now - _last_rpc_call_ts
+    if elapsed < MIN_REQUEST_INTERVAL:
+        time.sleep(MIN_REQUEST_INTERVAL - elapsed)
+    _last_rpc_call_ts = time.time()
 
 class EventListenerConfig:
     def __init__(self, contract: Contract, event_names: List[str], collection_name: str, contract_name: str):
@@ -211,6 +225,7 @@ def fetch_and_store_events(config: EventListenerConfig, event_name: str, from_bl
                         "topics": [topic]
                     }
                     try:
+                        _rate_limit_sleep()
                         logs = w3.eth.get_logs(log_filter)
                     except Exception as e:
                         if hasattr(e, 'args') and any('invalid block range params' in str(arg) for arg in e.args):
@@ -310,6 +325,8 @@ def fetch_and_store_events_combined(config: EventListenerConfig, from_block: int
         current_from_block = from_block
         while current_from_block <= to_block:
             current_to_block = min(current_from_block + BLOCK_CHUNK_SIZE - 1, to_block)
+            success_chunk = False
+            saw_429 = False
 
             for attempt in range(MAX_RETRIES):
                 try:
@@ -322,11 +339,20 @@ def fetch_and_store_events_combined(config: EventListenerConfig, from_block: int
                     try:
                         logs = w3.eth.get_logs(log_filter)
                     except Exception as e:
-                        if hasattr(e, 'args') and any('invalid block range params' in str(arg) for arg in e.args):
+                        msg = str(e)
+                        if (
+                            ('invalid block range params' in msg)
+                            or (hasattr(e, 'args') and any('invalid block range params' in str(arg) for arg in e.args))
+                        ):
                             logger.error(f"invalid block range params: from_block={current_from_block}, to_block={current_to_block}, chunk_size={BLOCK_CHUNK_SIZE}. Error: {e}")
                         else:
                             logger.error(f"Error fetching logs (combined): from_block={current_from_block}, to_block={current_to_block}, Error: {e}")
+                        if '429' in msg:
+                            saw_429 = True
                         raise
+
+                    # Cache timestamps per block to avoid extra RPCs
+                    block_ts_cache = {}
 
                     for log in logs:
                         try:
@@ -336,7 +362,6 @@ def fetch_and_store_events_combined(config: EventListenerConfig, from_block: int
                             topic0 = raw_topics[0].hex() if hasattr(raw_topics[0], 'hex') else str(raw_topics[0])
                             mapped = topic_map.get(topic0)
                             if not mapped:
-                                # Not one of the requested topics (shouldn't happen)
                                 continue
                             event_name, event_abi = mapped
                             event = get_event_data(w3.codec, event_abi, log)
@@ -359,8 +384,16 @@ def fetch_and_store_events_combined(config: EventListenerConfig, from_block: int
                                 "raw_log": dict(log)
                             }
                             try:
-                                block_info = w3.eth.get_block(block_number)
-                                event_data["timestamp"] = block_info.get("timestamp", int(time.time()))
+                                fetch_ts = os.getenv("FETCH_BLOCK_TIMESTAMP", "0") == "1"
+                                if fetch_ts:
+                                    if block_number in block_ts_cache:
+                                        event_data["timestamp"] = block_ts_cache[block_number]
+                                    else:
+                                        _rate_limit_sleep()
+                                        block_info = w3.eth.get_block(block_number)
+                                        ts = block_info.get("timestamp", int(time.time()))
+                                        block_ts_cache[block_number] = ts
+                                        event_data["timestamp"] = ts
                             except Exception as e:
                                 logger.warning(f"Failed to fetch timestamp for block {block_number}: {e}")
                             event_data = _convert_to_plain_dict(event_data)
@@ -388,17 +421,31 @@ def fetch_and_store_events_combined(config: EventListenerConfig, from_block: int
                     # Update checkpoints for all events in this config
                     for ev_name in config.event_names:
                         update_last_processed_block(contract_address, ev_name, current_to_block)
+                    success_chunk = True
                     break
 
                 except Exception as e:
                     logger.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed for combined events in {contract_address} ({current_from_block}-{current_to_block}): {e}")
                     if attempt < MAX_RETRIES - 1:
-                        time.sleep(RETRY_DELAY)
+                        # Exponential backoff with jitter; longer if 429
+                        base = 5 if saw_429 else RETRY_DELAY
+                        sleep_s = min(45, base * (2 ** attempt)) + random.uniform(0, 0.75)
+                        time.sleep(sleep_s)
                     else:
                         logger.error(f"All retries failed for combined events in {contract_address} ({current_from_block}-{current_to_block}): {e}")
+                        # Do not advance the window; try again next loop
+                        success_chunk = False
                         break
 
-            current_from_block = current_to_block + 1
+            if success_chunk:
+                # Gentle throttle between chunks
+                time.sleep(0.25)
+                current_from_block = current_to_block + 1
+            else:
+                # On failure, back off before retrying the same chunk in next outer loop iteration
+                time.sleep(20)
+                # Do not advance current_from_block
+                return
     except Exception as e:
         logger.error(f"Failed to process combined events in {contract_address}: {e}")
 
@@ -429,7 +476,8 @@ def listen_events(configs: List[EventListenerConfig]):
                 ]
                 min_from_block = min(from_blocks) if from_blocks else INITIAL_BLOCK
                 if min_from_block <= current_block:
-                    fetch_and_store_events_combined(config, min_from_block, current_block)
+                    cap_to = min(current_block, min_from_block + MAX_BLOCKS_PER_CYCLE - 1)
+                    fetch_and_store_events_combined(config, min_from_block, cap_to)
         except Exception as e:
             logger.error(f"Main loop error: {e}")
             time.sleep(POLL_INTERVAL * 2)  # Backoff on main loop errors
