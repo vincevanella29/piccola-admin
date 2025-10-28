@@ -39,7 +39,7 @@ async def dishes_catalog_sync(user: dict = Depends(verify_session)):
         flt = {"$or": [{"ai_synced": {"$exists": False}}, {"ai_synced": False}]}
         cur = db.menus.find(
             flt,
-            {"_id": 1, "nombre": 1, "descripcion": 1, "media_r2": 1, "media_url": 1, "media_local": 1},
+            {"_id": 1, "nombre": 1, "descripcion": 1, "media_r2": 1, "media_url": 1, "media_local": 1, "category_ids": 1},
         )
         logger.info(f"Syncing catalog for company {company_id}")
         docs = list(cur)
@@ -47,6 +47,9 @@ async def dishes_catalog_sync(user: dict = Depends(verify_session)):
         if not docs:
             logger.info(f"No docs to sync for company {company_id}")
             return {"ok": True, "company": company_id, "count": 0, "sec": 0.0, "index": None}
+        # Preload categories map to resolve category/subcategory per product
+        cat_docs = list(db.categories.find({}, {"_id": 1, "nombre": 1, "alias": 1}))
+        cats_by_id = {str(c.get("_id")): {"nombre": c.get("nombre"), "alias": c.get("alias")} for c in cat_docs}
         products = []
         ids = []
         for d in docs:
@@ -56,6 +59,17 @@ async def dishes_catalog_sync(user: dict = Depends(verify_session)):
                 "nombre": d.get("nombre"),
                 "descripcion": d.get("descripcion"),
             }
+            # Resolve category and subcategory from linked category_ids
+            category_ids = [str(cid) for cid in (d.get("category_ids") or [])]
+            primary_cat = cats_by_id.get(category_ids[0]) if category_ids else None
+            if primary_cat:
+                cat_name = primary_cat.get("nombre") or primary_cat.get("alias") or None
+                subcat = None
+                alias = primary_cat.get("alias")
+                if alias and alias != cat_name:
+                    subcat = alias
+                item["category"] = cat_name
+                item["subcategory"] = subcat
             imgs = _resolve_image_urls_from_doc(d)
             # si no hay imágenes válidas, NO enviar este producto
             if not imgs:
