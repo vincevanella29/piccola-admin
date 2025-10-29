@@ -15,6 +15,7 @@ load_dotenv()
 
 MONGODB_URI = os.getenv("MONGODB_URI")
 WEB3_PROVIDER_URL = os.getenv("WEB3_PROVIDER_URL", "https://rpc-amoy.polygon.technology")
+WEB3_PROVIDER_URL2 = os.getenv("WEB3_PROVIDER_URL2")
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -169,9 +170,34 @@ def setup_event_collections_indexes(event_listener_configs: List['EventListenerC
 # Contract ABIs
 CONTRACTS_DIR = "contracts/"
 
-# Web3 setup
+# Web3 setup with dual-provider support
 w3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
 w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+
+# Provider rotation state
+_provider_urls = [u for u in [WEB3_PROVIDER_URL, WEB3_PROVIDER_URL2] if u]
+_current_provider_index = 0
+
+def get_current_provider_url() -> str:
+    try:
+        return _provider_urls[_current_provider_index]
+    except Exception:
+        return WEB3_PROVIDER_URL
+
+def switch_to_alternate_provider() -> str:
+    """Switch w3.provider to the next configured provider URL (if available) and return it."""
+    global _current_provider_index
+    if not _provider_urls or len(_provider_urls) == 1:
+        # Nothing to switch to
+        return get_current_provider_url()
+    _current_provider_index = (_current_provider_index + 1) % len(_provider_urls)
+    new_url = _provider_urls[_current_provider_index]
+    try:
+        w3.provider = Web3.HTTPProvider(new_url)
+        logger.info(f"Switched Web3 provider to {new_url}")
+    except Exception as e:
+        logger.error(f"Failed to switch Web3 provider to {new_url}: {e}")
+    return new_url
 
 def load_contract_abi(contract_name: str) -> dict:
     search_path = CONTRACTS_DIR

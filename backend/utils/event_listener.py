@@ -4,7 +4,14 @@ from typing import List
 from web3.contract import Contract
 from web3._utils.events import get_event_data
 from web3.datastructures import AttributeDict
-from utils.web3mongo import w3, db, load_contract_abi, setup_event_collections_indexes
+from utils.web3mongo import (
+    w3,
+    db,
+    load_contract_abi,
+    setup_event_collections_indexes,
+    switch_to_alternate_provider,
+    get_current_provider_url,
+)
 import os
 import redis
 import json
@@ -21,10 +28,11 @@ logger = logging.getLogger(__name__)
 # Configuration
 POLL_INTERVAL = 10
 INITIAL_BLOCK = 26419000
-BLOCK_CHUNK_SIZE = 10
+BLOCK_CHUNK_SIZE = 8
 MAX_RETRIES = 3
 RETRY_DELAY = 2
 MAX_BLOCKS_PER_CYCLE = 100
+CONTRACTS_PER_CYCLE = int(os.getenv("CONTRACTS_PER_CYCLE", "2"))
 
 # Simple per-process RPC rate limiter
 MIN_REQUEST_INTERVAL = float(os.getenv("MIN_REQUEST_INTERVAL", "1.0"))  # seconds between RPC calls
@@ -37,6 +45,25 @@ def _rate_limit_sleep():
     if elapsed < MIN_REQUEST_INTERVAL:
         time.sleep(MIN_REQUEST_INTERVAL - elapsed)
     _last_rpc_call_ts = time.time()
+
+def _get_block_number_with_retries(max_retries: int = 3):
+    saw_429 = False
+    for attempt in range(max_retries):
+        try:
+            _rate_limit_sleep()
+            return w3.eth.block_number
+        except Exception as e:
+            msg = str(e)
+            if '429' in msg:
+                saw_429 = True
+                # Switch provider immediately on 429 before backoff
+                new_url = switch_to_alternate_provider()
+                logger.warning(f"Switched provider due to 429 while fetching block_number. Now using: {new_url}")
+            backoff_base = 5 if saw_429 else RETRY_DELAY
+            sleep_s = min(45, backoff_base * (2 ** attempt)) + random.uniform(0, 0.75)
+            logger.warning(f"block_number attempt {attempt+1}/{max_retries} failed: {e}. Sleeping {sleep_s:.2f}s")
+            time.sleep(sleep_s)
+    raise RuntimeError("Failed to get block_number after retries")
 
 class EventListenerConfig:
     def __init__(self, contract: Contract, event_names: List[str], collection_name: str, contract_name: str):
@@ -349,6 +376,9 @@ def fetch_and_store_events_combined(config: EventListenerConfig, from_block: int
                             logger.error(f"Error fetching logs (combined): from_block={current_from_block}, to_block={current_to_block}, Error: {e}")
                         if '429' in msg:
                             saw_429 = True
+                            # Switch provider immediately to distribute pressure
+                            new_url = switch_to_alternate_provider()
+                            logger.warning(f"Switched provider due to 429 on getLogs. Now using: {new_url}")
                         raise
 
                     # Cache timestamps per block to avoid extra RPCs
@@ -463,11 +493,29 @@ def listen_events(configs: List[EventListenerConfig]):
     # Setup indexes for all collections
     setup_event_collections_indexes(configs)
 
+    # Round-robin pointer across cycles
+    global _rr_index
+    try:
+        _rr_index
+    except NameError:
+        _rr_index = 0
+
     while True:
         try:
-            current_block = w3.eth.block_number
+            current_block = _get_block_number_with_retries()
 
-            for config in configs:
+            if not configs:
+                time.sleep(POLL_INTERVAL)
+                continue
+
+            # Select up to CONTRACTS_PER_CYCLE configs in round-robin order
+            total = len(configs)
+            start = _rr_index % total
+            selected = []
+            for i in range(min(CONTRACTS_PER_CYCLE, total)):
+                selected.append(configs[(start + i) % total])
+
+            for config in selected:
                 contract_address = config.contract.address
                 # Use the minimum last-processed block across this contract's events and fetch all at once
                 from_blocks = [
@@ -478,6 +526,11 @@ def listen_events(configs: List[EventListenerConfig]):
                 if min_from_block <= current_block:
                     cap_to = min(current_block, min_from_block + MAX_BLOCKS_PER_CYCLE - 1)
                     fetch_and_store_events_combined(config, min_from_block, cap_to)
+                    # small pause between contracts to avoid burst
+                    time.sleep(0.5)
+
+            # Advance round-robin pointer
+            _rr_index = (_rr_index + CONTRACTS_PER_CYCLE) % total
         except Exception as e:
             logger.error(f"Main loop error: {e}")
             time.sleep(POLL_INTERVAL * 2)  # Backoff on main loop errors
