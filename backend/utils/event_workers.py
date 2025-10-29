@@ -21,7 +21,7 @@ from pymongo.errors import DuplicateKeyError
 
 import redis
 from utils.web3_utils import sync_company_data
-from utils.web3mongo import db, setup_event_collections_indexes
+from utils.web3mongo import db
 from utils.companies_tokens import sync_token_pairs, update_pair_reserves
 from utils.payment_token import sync_payment_tokens
 # from utils.event_config import CONFIGS  # <-- (1) ELIMINADO. Ya no usamos configs estáticas.
@@ -227,10 +227,10 @@ async def mtz_group_task():
 # (3) REEMPLAZAMOS LA FUNCIÓN 'event_listener_persistent'
 def event_listener_persistent():
     """
-    Inicia el listener inteligente en un solo thread.
+    Inicia el listener inteligente V4 en un solo thread.
     El propio listen_events() maneja el loop infinito y el lock de Redis.
     """
-    logger.info("Iniciando worker persistente: event_listener (Modo Inteligente V2)...")
+    logger.info("Iniciando worker persistente: event_listener (Modo Fino V4)...")
     # Ya no necesitamos setup_event_collections_indexes(CONFIGS)
     # ni crear múltiples threads.
     # El nuevo listen_events() carga TODOS los contratos de web3mongo.py
@@ -239,10 +239,9 @@ def event_listener_persistent():
 
 def event_processor_consumer_persistent():
     """
-    Este worker ahora es un 'fallback'.
-    El nuevo listener (V2) guarda directo en MongoDB.
-    Este consumer solo procesará eventos que lleguen a Redis
-    por algún otro sistema (si es que existe).
+    (Fallback) Lee de Redis por si acaso.
+    El listener V4 guarda directo en MongoDB.
+    Este consumer solo procesará eventos que lleguen a Redis por otro sistema.
     """
     logger.info("Iniciando worker persistente: event_processor_consumer (Modo Fallback)...")
     while True:

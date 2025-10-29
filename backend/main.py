@@ -5,6 +5,7 @@ import time
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Depends
+from contextlib import asynccontextmanager
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_cache.backends.inmemory import InMemoryBackend
@@ -41,12 +42,9 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# FastAPI app
-app = FastAPI(title="Api Club Della Nonna")
-
-@app.on_event("startup")
-async def startup():
-    # Prefer full REDIS_URL. Otherwise, build from host/port/db and ensure scheme.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- startup ---
     redis_url = os.getenv("REDIS_URL")
     if not redis_url:
         host = os.getenv("REDIS_HOST", "localhost")
@@ -65,6 +63,11 @@ async def startup():
         logger.error(f"Failed to connect to Redis at {redis_url}: {e}")
         logger.warning("Falling back to in-memory cache. API performance will be degraded.")
         FastAPICache.init(InMemoryBackend(), prefix="fastapi-cache")
+    yield
+    # --- shutdown ---
+
+# FastAPI app
+app = FastAPI(title="Api Club Della Nonna", lifespan=lifespan)
 
 from fastapi.exception_handlers import RequestValidationError
 from fastapi.responses import JSONResponse
