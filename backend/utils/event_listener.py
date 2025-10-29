@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import List
+from typing import List, Dict, Any
 from web3.contract import Contract
 from web3._utils.events import get_event_data
 from web3.datastructures import AttributeDict
@@ -11,12 +11,14 @@ from utils.web3mongo import (
     setup_event_collections_indexes,
     switch_to_alternate_provider,
     get_current_provider_url,
+    contracts  # <-- ¡IMPORTANTE! Usamos los contratos de web3mongo
 )
 import os
 import redis
 import json
 from hexbytes import HexBytes
 import random
+from pymongo.errors import DuplicateKeyError
 
 # Logging setup
 logging.basicConfig(
@@ -25,131 +27,31 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configuration
-POLL_INTERVAL = 10
-INITIAL_BLOCK = 26419000
-BLOCK_CHUNK_SIZE = 8
+# --- CONFIGURACIÓN DEL LISTENER INTELIGENTE ---
+POLL_INTERVAL = 15  # Segundos entre cada ciclo de escaneo
+INITIAL_BLOCK = 26419000 # El bloque inicial que definiste
+BLOCK_CHUNK_SIZE = 2000 # <-- ¡EL CAMBIO CLAVE! (antes era 8)
 MAX_RETRIES = 3
-RETRY_DELAY = 2
-MAX_BLOCKS_PER_CYCLE = 100
-CONTRACTS_PER_CYCLE = int(os.getenv("CONTRACTS_PER_CYCLE", "2"))
+RETRY_DELAY = 5
+REDIS_LOCK_KEY = "vanellix_listener_lock_v3"
+REDIS_LOCK_TIMEOUT = 120 # 2 minutos
 
-# Simple per-process RPC rate limiter
-MIN_REQUEST_INTERVAL = float(os.getenv("MIN_REQUEST_INTERVAL", "1.0"))  # seconds between RPC calls
-_last_rpc_call_ts = 0.0
+# Mapeo de Nombres de Contrato a Colecciones de MongoDB
+# (Esto lo sacamos de tu web3mongo.py y roles.py)
+CONTRACT_TO_COLLECTION_MAP = {
+    "VanellixCompanyMultiToken": "company_events",
+    "VanellixTokenFactory": "token_factory_events",
+    "VanellixStakingMultiToken": "staking_events",
+    "VanellixLaunchpad": "launchpad_events",
+    "VanellixTokenSale": "token_sale_events",
+    "GlobalMeritocracy": "global_meritocracy_events",
+    "CompanyStaking": "staking_events", # Apunta a la misma
+    
+    # --- Default ---
+    # (El resto se irá a 'company_events' por defecto si no se especifica)
+}
 
-def _rate_limit_sleep():
-    global _last_rpc_call_ts
-    now = time.time()
-    elapsed = now - _last_rpc_call_ts
-    if elapsed < MIN_REQUEST_INTERVAL:
-        time.sleep(MIN_REQUEST_INTERVAL - elapsed)
-    _last_rpc_call_ts = time.time()
-
-def _get_block_number_with_retries(max_retries: int = 3):
-    saw_429 = False
-    for attempt in range(max_retries):
-        try:
-            _rate_limit_sleep()
-            return w3.eth.block_number
-        except Exception as e:
-            msg = str(e)
-            if '429' in msg:
-                saw_429 = True
-                # Switch provider immediately on 429 before backoff
-                new_url = switch_to_alternate_provider()
-                logger.warning(f"Switched provider due to 429 while fetching block_number. Now using: {new_url}")
-            backoff_base = 5 if saw_429 else RETRY_DELAY
-            sleep_s = min(45, backoff_base * (2 ** attempt)) + random.uniform(0, 0.75)
-            logger.warning(f"block_number attempt {attempt+1}/{max_retries} failed: {e}. Sleeping {sleep_s:.2f}s")
-            time.sleep(sleep_s)
-    raise RuntimeError("Failed to get block_number after retries")
-
-class EventListenerConfig:
-    def __init__(self, contract: Contract, event_names: List[str], collection_name: str, contract_name: str):
-        self.contract = contract
-        self.event_names = event_names
-        self.collection_name = collection_name
-        self.contract_name = contract_name
-
-def _build_event_topic_map(contract_name: str, event_names: List[str]):
-    """Return a dict of topic0 -> (event_name, event_abi) for the given events of a contract."""
-    topic_map = {}
-    try:
-        abi = load_contract_abi(contract_name)
-    except Exception as e:
-        logger.error(f"Failed to load ABI for {contract_name}: {e}")
-        return topic_map
-
-    def get_canonical_type(abi_input_component):
-        if abi_input_component['type'].startswith('tuple'):
-            component_types = ','.join([get_canonical_type(comp) for comp in abi_input_component['components']])
-            return f"({component_types})"
-        return abi_input_component['type']
-
-    for event_name in event_names:
-        event_abi = next(
-            (item for item in abi if item.get("type") == "event" and item.get("name") == event_name),
-            None
-        )
-        if not event_abi:
-            logger.error(f"Event '{event_name}' not found in ABI for {contract_name}")
-            continue
-        input_types_str = ','.join([get_canonical_type(inp) for inp in event_abi['inputs']])
-        event_signature_text = f"{event_name}({input_types_str})"
-        topic_hash = w3.keccak(text=event_signature_text)
-        topic = topic_hash.hex()
-        if topic.startswith('0x') and len(topic) == 66:
-            pass
-        elif not topic.startswith('0x') and len(topic) == 64:
-            topic = "0x" + topic
-        else:
-            logger.error(f"Unexpected topic format for {event_name}: '{topic}' (length {len(topic)})")
-            continue
-        if len(topic[2:]) != 64:
-            logger.error(f"Invalid topic length for {event_name}: {len(topic[2:])} chars, expected 64")
-            continue
-        topic_map[topic] = (event_name, event_abi)
-
-    return topic_map
-
-def log_abi_structure(configs: List[EventListenerConfig]):
-    """Log the ABI structure for the specified events of each contract."""
-    for config in configs:
-        contract_name = config.contract_name
-        event_names = config.event_names
-        
-        try:
-            abi = load_contract_abi(contract_name)
-            for event_name in event_names:
-                event_abi = next(
-                    (item for item in abi if item.get("type") == "event" and item.get("name") == event_name),
-                    None
-                )
-                if not event_abi:
-                    logger.error(f"Event '{event_name}' not found in ABI for {contract_name}")
-                    continue
-                
-        except Exception as e:
-            logger.error(f"Failed to load ABI for {contract_name}: {e}")
-
-def get_last_processed_block(contract_address: str, event_name: str, default_initial_block: int) -> int:
-    """Retrieve the last processed block for a contract-event pair from MongoDB."""
-    state = db.event_listener_state.find_one({"_id": f"{contract_address}:{event_name}"})
-    if state and "last_processed_block" in state:
-        return state["last_processed_block"] + 1
-    return default_initial_block
-
-def update_last_processed_block(contract_address: str, event_name: str, block_number: int):
-    """Update the last processed block for a contract-event pair in MongoDB."""
-    try:
-        db.event_listener_state.update_one(
-            {"_id": f"{contract_address}:{event_name}"},
-            {"$set": {"last_processed_block": block_number}},
-            upsert=True
-        )
-    except Exception as e:
-        logger.error(f"Failed to update last processed block for {contract_address}:{event_name}: {e}")
+# --- Helpers de Conversión (los mismos que tenías) ---
 
 def _convert_to_plain_dict(item):
     if isinstance(item, AttributeDict):
@@ -161,378 +63,243 @@ def _convert_to_plain_dict(item):
     return item
 
 def convert_big_ints_to_str(obj):
-    """
-    Recursively convert all ints > 2**63-1 to string for MongoDB compatibility.
-    """
-    if isinstance(obj, dict):
-        return {k: convert_big_ints_to_str(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_big_ints_to_str(i) for i in obj]
-    elif isinstance(obj, int):
-        # MongoDB max int64: 9223372036854775807
-        if abs(obj) > 2**63 - 1:
-            return str(obj)
-        else:
-            return obj
-    else:
-        return obj
+    if isinstance(obj, dict): return {k: convert_big_ints_to_str(v) for k, v in obj.items()}
+    if isinstance(obj, list): return [convert_big_ints_to_str(i) for i in obj]
+    if isinstance(obj, int) and abs(obj) > 2**63 - 1: return str(obj)
+    return obj
 
 def convert_hexbytes(obj):
-    if isinstance(obj, dict):
-        return {k: convert_hexbytes(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_hexbytes(i) for i in obj]
-    elif isinstance(obj, (HexBytes, bytes)):
-        # Convert HexBytes or raw bytes to hex string
-        return obj.hex()
-    else:
-        return obj  
+    if isinstance(obj, dict): return {k: convert_hexbytes(v) for k, v in obj.items()}
+    if isinstance(obj, list): return [convert_hexbytes(i) for i in obj]
+    if isinstance(obj, (HexBytes, bytes)): return obj.hex()
+    return obj
+# --- Fin de helpers ---
 
-def fetch_and_store_events(config: EventListenerConfig, event_name: str, from_block: int, to_block: int):
-    """Fetch events, store them in MongoDB, and update the checkpoint."""
-    contract_address = config.contract.address
-    collection_name = config.collection_name
-    target_collection = db[collection_name]
-    
+
+def get_last_processed_block(listener_id: str, default_initial_block: int) -> int:
+    """Obtiene el último bloque procesado para este listener."""
+    state = db.event_listener_state.find_one({"_id": listener_id})
+    if state and "last_processed_block" in state:
+        return state["last_processed_block"] + 1
+    return default_initial_block
+
+def update_last_processed_block(listener_id: str, block_number: int):
+    """Actualiza el último bloque procesado para este listener."""
     try:
-        # Load event ABI
-        event_abi = next(
-            (item for item in load_contract_abi(config.contract_name)
-             if item.get("type") == "event" and item.get("name") == event_name),
-            None
+        db.event_listener_state.update_one(
+            {"_id": listener_id},
+            {"$set": {"last_processed_block": block_number}},
+            upsert=True
         )
-        if not event_abi:
-            logger.error(f"ABI not found for {event_name} in {config.contract_name}")
-            return
-
-        # Helper function to get canonical type string for an ABI input
-        def get_canonical_type(abi_input_component):
-            if abi_input_component['type'].startswith('tuple'):
-                # Recursively get types for components of the tuple
-                component_types = ','.join([get_canonical_type(comp) for comp in abi_input_component['components']])
-                # For a top-level tuple in the signature, it's just (type1,type2)
-                # If it's a nested tuple, the 'tuple' keyword itself is omitted in favor of just the parentheses
-                # However, the abi_to_signature from web3 usually produces `tuple(type1,type2)` for non-anonymous tuples
-                # and `(type1,type2)` for anonymous ones or when they are part of a larger signature.
-                # For event signatures, the common practice is (type1,type2,...).
-                return f"({component_types})"
-            return abi_input_component['type']
-
-        # Generate event topic
-        input_types_str = ','.join([get_canonical_type(inp) for inp in event_abi['inputs']])
-        event_signature_text = f"{event_name}({input_types_str})"
-        topic_hash = w3.keccak(text=event_signature_text)
-        topic = topic_hash.hex()
-        
-        if topic.startswith('0x') and len(topic) == 66:
-            pass
-        elif not topic.startswith('0x') and len(topic) == 64:
-            topic = "0x" + topic
-        else:
-            logger.error(f"Unexpected topic format for {event_name}: '{topic}' (length {len(topic)}), expected 66 chars")
-            return
-        
-
-        if len(topic[2:]) != 64:
-            logger.error(f"Invalid topic length for {event_name}: {len(topic[2:])} chars, expected 64")
-            return
-
-        # Process blocks in chunks
-        current_from_block = from_block
-        while current_from_block <= to_block:
-            current_to_block = min(current_from_block + BLOCK_CHUNK_SIZE - 1, to_block)
-
-            for attempt in range(MAX_RETRIES):
-                try:
-                    # Fetch logs
-                    log_filter = {
-                        "fromBlock": current_from_block,
-                        "toBlock": current_to_block,
-                        "address": w3.to_checksum_address(contract_address),
-                        "topics": [topic]
-                    }
-                    try:
-                        _rate_limit_sleep()
-                        logs = w3.eth.get_logs(log_filter)
-                    except Exception as e:
-                        if hasattr(e, 'args') and any('invalid block range params' in str(arg) for arg in e.args):
-                            logger.error(f"invalid block range params: from_block={current_from_block}, to_block={current_to_block}, chunk_size={BLOCK_CHUNK_SIZE}. Reduce BLOCK_CHUNK_SIZE if this persists. Error: {e}")
-                        else:
-                            logger.error(f"Error fetching logs: from_block={current_from_block}, to_block={current_to_block}, Error: {e}")
-                        raise
-
-                    # Process and store events
-                    for log in logs:
-                        try:
-                            event = get_event_data(w3.codec, event_abi, log)
-                            tx_hash = event["transactionHash"].hex()
-                            log_index = event["logIndex"]
-                            block_number = event["blockNumber"]
-                            
-                            # Check for duplicates
-                            event_doc_id = {"transactionHash": tx_hash, "logIndex": log_index, "contract": contract_address}
-                            if target_collection.count_documents(event_doc_id, limit=1) > 0:
-                                continue
-
-                            # Prepare event data
-                            event_data = {
-                                "_id": f"{tx_hash}-{log_index}-{contract_address}",
-                                "event": event_name,
-                                "contract": contract_address,
-                                "transactionHash": tx_hash,
-                                "args": _convert_to_plain_dict(event["args"]),
-                                "blockNumber": block_number,
-                                "logIndex": log_index,
-                                "raw_log": dict(log)
-                            }
-                            try:
-                                block_info = w3.eth.get_block(block_number)
-                                event_data["timestamp"] = block_info.get("timestamp", int(time.time()))
-                            except Exception as e:
-                                logger.warning(f"Failed to fetch timestamp for block {block_number}: {e}")
-                                # Push event to Redis queue for async processing
-                            event_data = _convert_to_plain_dict(event_data)
-                            event_data = convert_big_ints_to_str(event_data)
-                            event_data = convert_hexbytes(event_data)
-                            event_data['collection'] = collection_name  # Pass collection info to worker
-                            try:
-                                redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", 6379)), db=int(os.getenv("REDIS_DB", 0)) )
-                                redis_client.rpush(os.getenv("REDIS_QUEUE", "blockchain_events"), json.dumps(event_data))
-                                logger.info(f"[LISTENER] Pushed event {event_name} (Tx: {tx_hash}, LogIndex: {log_index}) to Redis queue")
-                            except Exception as e:
-                                logger.error(f"[LISTENER] Failed to push event {event_name} (Tx: {tx_hash}, LogIndex: {log_index}) to Redis: {e}\nEvent data: {event_data}")
-
-                            # Log event details
-                            logger.info(f"\n=== Event Captured: {event_name} ===")
-                            logger.info(f"Contract: {contract_address}")
-                            logger.info(f"Transaction Hash: {tx_hash}")
-                            logger.info(f"Block Number: {block_number}")
-                            logger.info(f"Log Index: {log_index}")
-                            logger.info(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(event_data['timestamp']))}")
-                            logger.info(f"Arguments: {event_data['args']}")
-                            logger.info(f"Raw Log: {event_data['raw_log']}")
-                            logger.info(f"====================\n")
-
-                        except Exception as e:
-                            logger.error(f"Failed to process log for {event_name}: {e}")
-
-                    # Siempre actualiza el checkpoint al terminar el rango, aunque no haya logs
-                    update_last_processed_block(contract_address, event_name, current_to_block)
-                    break  # Success, exit retry loop
-
-                except Exception as e:
-                    logger.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed for {event_name} ({current_from_block}-{current_to_block}): {e}")
-                    if attempt < MAX_RETRIES - 1:
-                        time.sleep(RETRY_DELAY)
-                    else:
-                        logger.error(f"All retries failed for {event_name} in {contract_address} ({current_from_block}-{current_to_block}): {e}")
-                        break  # Move to next chunk
-
-            current_from_block = current_to_block + 1
-
     except Exception as e:
-        logger.error(f"Failed to process {event_name} in {contract_address}: {e}")
+        logger.error(f"Failed to update last processed block for {listener_id}: {e}")
 
-def fetch_and_store_events_combined(config: EventListenerConfig, from_block: int, to_block: int):
-    """
-    Fetch events for all event_names in config in a single getLogs call per block chunk (OR topics),
-    store them in MongoDB/Redis, and update checkpoints for each event.
-    """
-    contract_address = config.contract.address
-    collection_name = config.collection_name
-    target_collection = db[collection_name]
+def _get_block_number_with_retries(max_retries: int = 3):
+    """Obtiene el número de bloque actual con reintentos."""
+    for attempt in range(max_retries):
+        try:
+            return w3.eth.block_number
+        except Exception as e:
+            msg = str(e)
+            if '429' in msg:
+                new_url = switch_to_alternate_provider()
+                logger.warning(f"Switched provider due to 429. Now using: {new_url}")
+            sleep_s = min(30, RETRY_DELAY * (2 ** attempt)) + random.uniform(0, 1)
+            logger.warning(f"block_number attempt {attempt+1}/{max_retries} failed: {e}. Sleeping {sleep_s:.2f}s")
+            time.sleep(sleep_s)
+    raise RuntimeError("Failed to get block_number after retries")
 
-    topic_map = _build_event_topic_map(config.contract_name, config.event_names)
-    if not topic_map:
+def build_global_maps() -> (Dict[str, Any], Dict[str, Any]):
+    """
+    Construye dos mapeos globales para todos los contratos en web3mongo.py:
+    1. address_map: "0xAddress" -> (contract_name, collection_name, contract_instance)
+    2. topic_map: "0xTopicHash" -> (event_name, event_abi)
+    """
+    address_map = {}
+    topic_map = {}
+    
+    logger.info("Building global address and topic maps...")
+    
+    # Usamos los contratos ya cargados de web3mongo
+    for contract_name, contract_instance in contracts.items():
+        address = contract_instance.address
+        # Usamos el mapeo o un default
+        collection_name = CONTRACT_TO_COLLECTION_MAP.get(contract_name, "company_events") 
+        
+        address_map[w3.to_checksum_address(address)] = (contract_name, collection_name, contract_instance)
+        
+        # Iteramos el ABI para construir el topic_map
+        for item in contract_instance.abi:
+            if item.get('type') == 'event':
+                event_name = item['name']
+                event_abi = item
+                
+                # Función para generar la firma canónica
+                def get_canonical_type(abi_input_component):
+                    if abi_input_component['type'].startswith('tuple'):
+                        component_types = ','.join([get_canonical_type(comp) for comp in abi_input_component['components']])
+                        return f"({component_types})"
+                    return abi_input_component['type']
+                
+                try:
+                    input_types_str = ','.join([get_canonical_type(inp) for inp in event_abi['inputs']])
+                    event_signature_text = f"{event_name}({input_types_str})"
+                    topic_hash = w3.keccak(text=event_signature_text).hex()
+                    
+                    if topic_hash not in topic_map:
+                        topic_map[topic_hash] = (event_name, event_abi)
+                    else:
+                        pass # Evento con misma firma en otro contrato (ej. Transfer), está bien
+                except Exception as e:
+                    logger.error(f"Could not generate topic hash for {contract_name}.{event_name}: {e}")
+
+    logger.info(f"Maps built. {len(address_map)} contracts, {len(topic_map)} unique event topics.")
+    return address_map, topic_map
+
+def listen_events(configs: List[Any] = None):
+    """
+    Loop principal del listener.
+    Ignora 'configs' y corre un solo scanner global.
+    Usa un lock de Redis para asegurar que solo un worker corra.
+    """
+    try:
+        redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", 6379)), db=int(os.getenv("REDIS_DB", 0)))
+        redis_client.ping()
+    except Exception as e:
+        logger.error(f"Could not connect to Redis for listener lock: {e}. Listener exiting.")
         return
 
-    topics_or = list(topic_map.keys())
-
+    # --- Construimos los mapas una sola vez ---
     try:
-        current_from_block = from_block
-        while current_from_block <= to_block:
-            current_to_block = min(current_from_block + BLOCK_CHUNK_SIZE - 1, to_block)
-            success_chunk = False
-            saw_429 = False
-
-            for attempt in range(MAX_RETRIES):
-                try:
-                    log_filter = {
-                        "fromBlock": current_from_block,
-                        "toBlock": current_to_block,
-                        "address": w3.to_checksum_address(contract_address),
-                        "topics": [topics_or]
-                    }
-                    try:
-                        logs = w3.eth.get_logs(log_filter)
-                    except Exception as e:
-                        msg = str(e)
-                        if (
-                            ('invalid block range params' in msg)
-                            or (hasattr(e, 'args') and any('invalid block range params' in str(arg) for arg in e.args))
-                        ):
-                            logger.error(f"invalid block range params: from_block={current_from_block}, to_block={current_to_block}, chunk_size={BLOCK_CHUNK_SIZE}. Error: {e}")
-                        else:
-                            logger.error(f"Error fetching logs (combined): from_block={current_from_block}, to_block={current_to_block}, Error: {e}")
-                        if '429' in msg:
-                            saw_429 = True
-                            # Switch provider immediately to distribute pressure
-                            new_url = switch_to_alternate_provider()
-                            logger.warning(f"Switched provider due to 429 on getLogs. Now using: {new_url}")
-                        raise
-
-                    # Cache timestamps per block to avoid extra RPCs
-                    block_ts_cache = {}
-
-                    for log in logs:
-                        try:
-                            raw_topics = log.get('topics') or []
-                            if not raw_topics:
-                                continue
-                            topic0 = raw_topics[0].hex() if hasattr(raw_topics[0], 'hex') else str(raw_topics[0])
-                            mapped = topic_map.get(topic0)
-                            if not mapped:
-                                continue
-                            event_name, event_abi = mapped
-                            event = get_event_data(w3.codec, event_abi, log)
-                            tx_hash = event["transactionHash"].hex()
-                            log_index = event["logIndex"]
-                            block_number = event["blockNumber"]
-
-                            event_doc_id = {"transactionHash": tx_hash, "logIndex": log_index, "contract": contract_address}
-                            if target_collection.count_documents(event_doc_id, limit=1) > 0:
-                                continue
-
-                            event_data = {
-                                "_id": f"{tx_hash}-{log_index}-{contract_address}",
-                                "event": event_name,
-                                "contract": contract_address,
-                                "transactionHash": tx_hash,
-                                "args": _convert_to_plain_dict(event["args"]),
-                                "blockNumber": block_number,
-                                "logIndex": log_index,
-                                "raw_log": dict(log)
-                            }
-                            try:
-                                fetch_ts = os.getenv("FETCH_BLOCK_TIMESTAMP", "0") == "1"
-                                if fetch_ts:
-                                    if block_number in block_ts_cache:
-                                        event_data["timestamp"] = block_ts_cache[block_number]
-                                    else:
-                                        _rate_limit_sleep()
-                                        block_info = w3.eth.get_block(block_number)
-                                        ts = block_info.get("timestamp", int(time.time()))
-                                        block_ts_cache[block_number] = ts
-                                        event_data["timestamp"] = ts
-                            except Exception as e:
-                                logger.warning(f"Failed to fetch timestamp for block {block_number}: {e}")
-                            event_data = _convert_to_plain_dict(event_data)
-                            event_data = convert_big_ints_to_str(event_data)
-                            event_data = convert_hexbytes(event_data)
-                            event_data['collection'] = collection_name
-                            try:
-                                redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", 6379)), db=int(os.getenv("REDIS_DB", 0)) )
-                                redis_client.rpush(os.getenv("REDIS_QUEUE", "blockchain_events"), json.dumps(event_data))
-                                logger.info(f"[LISTENER] Pushed event {event_name} (Tx: {tx_hash}, LogIndex: {log_index}) to Redis queue")
-                            except Exception as e:
-                                logger.error(f"[LISTENER] Failed to push event {event_name} (Tx: {tx_hash}, LogIndex: {log_index}) to Redis: {e}\nEvent data: {event_data}")
-
-                            logger.info(f"\n=== Event Captured: {event_name} ===")
-                            logger.info(f"Contract: {contract_address}")
-                            logger.info(f"Transaction Hash: {tx_hash}")
-                            logger.info(f"Block Number: {block_number}")
-                            logger.info(f"Log Index: {log_index}")
-                            logger.info(f"Arguments: {event_data['args']}")
-                            logger.info(f"====================\n")
-
-                        except Exception as e:
-                            logger.error(f"Failed to process combined log: {e}")
-
-                    # Update checkpoints for all events in this config
-                    for ev_name in config.event_names:
-                        update_last_processed_block(contract_address, ev_name, current_to_block)
-                    success_chunk = True
-                    break
-
-                except Exception as e:
-                    logger.warning(f"Attempt {attempt + 1}/{MAX_RETRIES} failed for combined events in {contract_address} ({current_from_block}-{current_to_block}): {e}")
-                    if attempt < MAX_RETRIES - 1:
-                        # Exponential backoff with jitter; longer if 429
-                        base = 5 if saw_429 else RETRY_DELAY
-                        sleep_s = min(45, base * (2 ** attempt)) + random.uniform(0, 0.75)
-                        time.sleep(sleep_s)
-                    else:
-                        logger.error(f"All retries failed for combined events in {contract_address} ({current_from_block}-{current_to_block}): {e}")
-                        # Do not advance the window; try again next loop
-                        success_chunk = False
-                        break
-
-            if success_chunk:
-                # Gentle throttle between chunks
-                time.sleep(0.25)
-                current_from_block = current_to_block + 1
-            else:
-                # On failure, back off before retrying the same chunk in next outer loop iteration
-                time.sleep(20)
-                # Do not advance current_from_block
-                return
+        address_map, topic_map = build_global_maps()
+        all_addresses = list(address_map.keys())
+        if not all_addresses:
+            logger.error("No contracts found in web3mongo.py. Listener exiting.")
+            return
     except Exception as e:
-        logger.error(f"Failed to process combined events in {contract_address}: {e}")
+        logger.error(f"Failed to build contract maps: {e}. Listener exiting.")
+        return
 
-def listen_events(configs: List[EventListenerConfig]):
-    """Main loop to log ABI structures, create collections, and listen for events."""
-    # Log ABI structures at startup
-    log_abi_structure(configs)
+    LISTENER_ID = "global_listener_v2" # ID para guardar el checkpoint en Mongo
 
-    # Create collections and setup indexes
-    for config in configs:
-        collection_name = config.collection_name
-        if collection_name not in db.list_collection_names():
-            db.create_collection(collection_name)
-    
-    # Setup indexes for all collections
-    setup_event_collections_indexes(configs)
-
-    # Round-robin pointer across cycles
-    global _rr_index
-    try:
-        _rr_index
-    except NameError:
-        _rr_index = 0
+    logger.info(f"--- 🚀 Event Listener Inteligente V2 Iniciado ---")
+    logger.info(f"Escuchando {len(all_addresses)} contratos.")
+    logger.info(f"Chunk size: {BLOCK_CHUNK_SIZE} bloques.")
 
     while True:
+        # --- 1. Intentar tomar el Lock ---
         try:
-            current_block = _get_block_number_with_retries()
-
-            if not configs:
+            if not redis_client.set(REDIS_LOCK_KEY, "1", nx=True, ex=REDIS_LOCK_TIMEOUT):
+                # Otro worker (otro thread) tiene el lock. Dormimos.
+                logger.debug("Another listener thread has the lock. Sleeping.")
                 time.sleep(POLL_INTERVAL)
                 continue
-
-            # Select up to CONTRACTS_PER_CYCLE configs in round-robin order
-            total = len(configs)
-            start = _rr_index % total
-            selected = []
-            for i in range(min(CONTRACTS_PER_CYCLE, total)):
-                selected.append(configs[(start + i) % total])
-
-            for config in selected:
-                contract_address = config.contract.address
-                # Use the minimum last-processed block across this contract's events and fetch all at once
-                from_blocks = [
-                    get_last_processed_block(contract_address, ev_name, INITIAL_BLOCK)
-                    for ev_name in config.event_names
-                ]
-                min_from_block = min(from_blocks) if from_blocks else INITIAL_BLOCK
-                if min_from_block <= current_block:
-                    cap_to = min(current_block, min_from_block + MAX_BLOCKS_PER_CYCLE - 1)
-                    fetch_and_store_events_combined(config, min_from_block, cap_to)
-                    # small pause between contracts to avoid burst
-                    time.sleep(0.5)
-
-            # Advance round-robin pointer
-            _rr_index = (_rr_index + CONTRACTS_PER_CYCLE) % total
         except Exception as e:
-            logger.error(f"Main loop error: {e}")
-            time.sleep(POLL_INTERVAL * 2)  # Backoff on main loop errors
+            logger.error(f"Redis lock failed: {e}. Sleeping.")
+            time.sleep(POLL_INTERVAL * 2)
+            continue
+            
+        logger.info("Lock acquired. Running scan cycle.")
 
+        try:
+            # --- 2. Definir el Rango de Bloques ---
+            current_block = _get_block_number_with_retries()
+            from_block = get_last_processed_block(LISTENER_ID, INITIAL_BLOCK)
+            
+            if from_block > current_block:
+                logger.info(f"Already synced up to block {current_block}. Sleeping.")
+                redis_client.delete(REDIS_LOCK_KEY) # Soltar el lock
+                time.sleep(POLL_INTERVAL)
+                continue
+                
+            # Escaneamos un chunk, o hasta el bloque actual
+            to_block = min(from_block + BLOCK_CHUNK_SIZE - 1, current_block)
+
+            # --- 3. ¡UN SOLO LLAMADO A LA API! ---
+            log_filter = {
+                "fromBlock": from_block,
+                "toBlock": to_block,
+                "address": all_addresses # <-- ¡La magia! Un array de todas tus direcciones
+            }
+            
+            logger.info(f"Fetching logs from {from_block} to {to_block}...")
+            logs = w3.eth.get_logs(log_filter)
+            logger.info(f"Found {len(logs)} logs in range.")
+
+            # --- 4. Procesar los Logs ---
+            for log in logs:
+                try:
+                    log_address_checksum = w3.to_checksum_address(log.get('address'))
+                    log_topic0 = log.get('topics', [None])[0]
+                    
+                    if not log_address_checksum or not log_topic0:
+                        continue
+                        
+                    # Mapear el log al contrato y evento
+                    contract_info = address_map.get(log_address_checksum)
+                    event_info = topic_map.get(log_topic0.hex())
+                    
+                    if not contract_info or not event_info:
+                        # Log de un contrato o evento que no nos interesa
+                        continue
+                        
+                    contract_name, collection_name, _ = contract_info
+                    event_name, event_abi = event_info
+                    
+                    # Decodificar el evento
+                    event = get_event_data(w3.codec, event_abi, log)
+                    
+                    tx_hash = event["transactionHash"].hex()
+                    log_index = event["logIndex"]
+                    block_number = event["blockNumber"]
+                    
+                    # Preparar data (formato compatible con tu apis/roles.py)
+                    event_data = {
+                        "_id": f"{tx_hash}-{log_index}-{log_address_checksum}",
+                        "event": event_name,
+                        "contract": log_address_checksum, # Guardamos checksummed
+                        "contractName": contract_name, 
+                        "transactionHash": tx_hash,
+                        "args": _convert_to_plain_dict(event["args"]),
+                        "blockNumber": block_number,
+                        "logIndex": log_index,
+                        "raw_log": dict(log) # Guardamos el log crudo por si acaso
+                    }
+                    
+                    # Limpiar data para Mongo
+                    event_data = _convert_to_plain_dict(event_data)
+                    event_data = convert_big_ints_to_str(event_data)
+                    event_data = convert_hexbytes(event_data)
+                    
+                    # --- 5. Guardar en la Colección Correcta (Directo a Mongo) ---
+                    target_collection = db[collection_name]
+                    try:
+                        target_collection.insert_one(event_data)
+                        logger.info(f"[LISTENER] Saved event {contract_name}.{event_name} (Tx: {tx_hash[:10]}...) to collection '{collection_name}'")
+                    except DuplicateKeyError:
+                        logger.warning(f"Duplicate event {contract_name}.{event_name} (Tx: {tx_hash[:10]}...)")
+                    except Exception as e:
+                         logger.error(f"Failed to insert event {contract_name}.{event_name} to Mongo: {e}")
+
+                except Exception as e:
+                    logger.error(f"Failed to process log: {e}. Log: {log}")
+
+            # --- 6. Actualizar Checkpoint ---
+            # Siempre actualizamos al 'to_block', incluso si no hubo logs
+            update_last_processed_block(LISTENER_ID, to_block)
+            logger.info(f"Cycle complete. Checkpoint updated to block {to_block}.")
+
+        except Exception as e:
+            logger.error(f"Main listener loop error: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        finally:
+            # --- 7. Soltar el Lock ---
+            try:
+                redis_client.delete(REDIS_LOCK_KEY)
+            except Exception as e:
+                logger.error(f"Failed to release Redis lock: {e}")
+
+        # Dormir antes del próximo ciclo
         time.sleep(POLL_INTERVAL)

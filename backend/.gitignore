@@ -60,6 +60,9 @@ node_modules/
 # Documentación generada
 docs/_build/
 
+# Subgraph
+subgraph_vanellix/
+
 #no obviar esto
 !.env.example
 !Dockerfile

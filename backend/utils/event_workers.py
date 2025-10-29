@@ -24,8 +24,8 @@ from utils.web3_utils import sync_company_data
 from utils.web3mongo import db, setup_event_collections_indexes
 from utils.companies_tokens import sync_token_pairs, update_pair_reserves
 from utils.payment_token import sync_payment_tokens
-from utils.event_config import CONFIGS
-from utils.event_listener import listen_events
+# from utils.event_config import CONFIGS  # <-- (1) ELIMINADO. Ya no usamos configs estáticas.
+from utils.event_listener import listen_events # <-- (2) MANTENIDO. Usamos el listener inteligente.
 
 # --- Configuración del Logger con Zona Horaria de Chile ---
 class ChileTimeFormatter(logging.Formatter):
@@ -59,8 +59,13 @@ def convert_big_ints_to_str(obj):
     return obj
 
 def process_event(event_data: dict):
+    """
+    Esta función ahora es un 'fallback'.
+    El nuevo listener guarda directo en Mongo, no en Redis.
+    Pero la dejamos por si otro servicio quiere pushear eventos a Redis.
+    """
     event_data = convert_big_ints_to_str(event_data)
-    collection_name = event_data.get('collection', 'default_events')
+    collection_name = event_data.get('collection', 'company_events') # Default a company_events
     try:
         db[collection_name].insert_one(event_data)
         logger.info(f"[EVENT WORKER] Inserted {event_data.get('event')} into {collection_name}")
@@ -70,6 +75,7 @@ def process_event(event_data: dict):
         logger.error(f"[EVENT WORKER] Mongo insert failed: {e}\n{traceback.format_exc()}")
 
 # --- Tareas Periódicas (Single-shot) ---
+# (Todas estas funciones quedan 100% igual)
 
 async def sync_companies_task():
     logger.info("Iniciando tarea: sync_companies_task")
@@ -94,6 +100,7 @@ async def sync_payment_tokens_task():
     return {"status": "completed"}
 
 # --- Tareas de Grupo (ejecutadas por schedule y/o al arranque) ---
+# (Todas estas funciones quedan 100% igual)
 
 async def menu_data_task():
     logger.info("Iniciando tarea de grupo: menu_data_task")
@@ -217,25 +224,33 @@ async def mtz_group_task():
 
 # --- Workers Persistentes ---
 
+# (3) REEMPLAZAMOS LA FUNCIÓN 'event_listener_persistent'
 def event_listener_persistent():
-    logger.info("Iniciando worker persistente: event_listener...")
-    setup_event_collections_indexes(CONFIGS)
-    threads = []
-    for config in CONFIGS:
-        target_func = lambda c=config: listen_events([c])
-        t = threading.Thread(target=target_func, name=f"Listener-{config.contract_name}", daemon=True)
-        t.start()
-        threads.append(t)
-    for t in threads:
-        t.join()
+    """
+    Inicia el listener inteligente en un solo thread.
+    El propio listen_events() maneja el loop infinito y el lock de Redis.
+    """
+    logger.info("Iniciando worker persistente: event_listener (Modo Inteligente V2)...")
+    # Ya no necesitamos setup_event_collections_indexes(CONFIGS)
+    # ni crear múltiples threads.
+    # El nuevo listen_events() carga TODOS los contratos de web3mongo.py
+    # y corre en un solo ciclo controlado por Redis.
+    listen_events() 
 
 def event_processor_consumer_persistent():
-    logger.info("Iniciando worker persistente: event_processor_consumer...")
+    """
+    Este worker ahora es un 'fallback'.
+    El nuevo listener (V2) guarda directo en MongoDB.
+    Este consumer solo procesará eventos que lleguen a Redis
+    por algún otro sistema (si es que existe).
+    """
+    logger.info("Iniciando worker persistente: event_processor_consumer (Modo Fallback)...")
     while True:
         try:
             result = redis_client_blocking.blpop(REDIS_QUEUE_BLOCKCHAIN, timeout=30)
             if result:
                 _, event_json = result
+                logger.info(f"Evento recibido en Redis (fallback): {event_json[:100]}...")
                 process_event(json.loads(event_json))
         except Exception as e:
             logger.error(f"Error en event_processor_consumer: {e}")
