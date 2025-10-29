@@ -95,7 +95,7 @@ def _get_block_number_with_retries(max_retries: int = 3):
             return w3.eth.block_number
         except Exception as e:
             msg = str(e); sleep_s = 0
-            if '429' in msg:
+            if ('429' in msg) or ('403' in msg) or ('401' in msg) or ('Forbidden' in msg):
                 new_url = switch_to_alternate_provider()
                 logger.warning(f"Switched provider due to 429. Now using: {new_url}")
                 sleep_s = min(30, RETRY_DELAY * (2 ** attempt)) + random.uniform(0, 1)
@@ -230,8 +230,20 @@ def listen_events(configs: List[Any] = None):
                 try:
                     logs = w3.eth.get_logs(log_filter)
                 except Exception as e:
+                    msg = str(e)
                     logger.error(f"Error en eth_get_logs para {contract_name}: {e}")
-                    continue # Saltamos al siguiente contrato
+                    # Si es rate limit o forbidden, intentamos un switch y un retry único
+                    if ('429' in msg) or ('403' in msg) or ('401' in msg) or ('Forbidden' in msg):
+                        new_url = switch_to_alternate_provider()
+                        logger.warning(f"eth_get_logs retry tras switch de provider -> {new_url}")
+                        try:
+                            time.sleep(0.2)
+                            logs = w3.eth.get_logs(log_filter)
+                        except Exception as e2:
+                            logger.error(f"Retry get_logs falló para {contract_name}: {e2}")
+                            continue
+                    else:
+                        continue # Saltamos al siguiente contrato
                 
                 logger.info(f"Found {len(logs)} logs for {contract_name}.")
                 

@@ -67,10 +67,15 @@ _address_to_contract = {}
 _topic0_to_eventname = {}
 
 # Providers para el Worker (Listener)
-_event_providers = []  
-for url in [WEB3_POLYGON, WEB3_ALCHEMY]:
+_event_providers = []
+for url in [WEB3_POLYGON, WEB3_ALCHEMY, WEB3_INFURA]:
     if url:
-        _event_providers.append(Web3.HTTPProvider(url))
+        try:
+            resolved = _resolve_url(url)
+            if resolved:
+                _event_providers.append(Web3.HTTPProvider(resolved))
+        except Exception:
+            pass
 
 # Provider para la API (Infura)
 def _build_api_provider():
