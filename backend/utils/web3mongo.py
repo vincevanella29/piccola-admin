@@ -19,9 +19,10 @@ from datetime import datetime
 load_dotenv()
 
 MONGODB_URI = os.getenv("MONGODB_URI")
-WEB3_PROVIDER_URL = os.getenv("WEB3_PROVIDER_URL", "https://rpc-amoy.polygon.technology")
-WEB3_PROVIDER_URL2 = os.getenv("WEB3_PROVIDER_URL2")
-WEB3_PROVIDER_URL3 = os.getenv("WEB3_PROVIDER_URL3")
+WEB3_POLYGON = os.getenv("WEB3_POLYGON")
+WEB3_ALCHEMY = os.getenv("WEB3_ALCHEMY")
+WEB3_INFURA = os.getenv("WEB3_INFURA")
+WEB3_INFURA_TOKEN = os.getenv("WEB3_INFURA_TOKEN")
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -176,12 +177,21 @@ def setup_event_collections_indexes(event_listener_configs: List['EventListenerC
 # Contract ABIs
 CONTRACTS_DIR = "contracts/"
 
-# Web3 setup with dual-provider support
-w3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
+# Web3 setup with provider support: prefer POLYGON/ALCHEMY, then INFURA
+def _resolve_url(url_template: str) -> str:
+    if not url_template:
+        return None
+    if WEB3_INFURA_TOKEN and "{TOKEN}" in url_template:
+        return url_template.replace("{TOKEN}", WEB3_INFURA_TOKEN)
+    return url_template
+
+_initial_url = _resolve_url(WEB3_POLYGON) or _resolve_url(WEB3_ALCHEMY) or _resolve_url(WEB3_INFURA)
+if not _initial_url:
+    raise RuntimeError("No Web3 RPC URL configured. Set WEB3_POLYGON or WEB3_ALCHEMY or WEB3_INFURA.")
+w3 = Web3(Web3.HTTPProvider(_initial_url))
 w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
-# Provider rotation state
-_provider_urls = [u for u in [WEB3_PROVIDER_URL, WEB3_PROVIDER_URL2, WEB3_PROVIDER_URL3] if u]
+# Provider rotation state: rotate only event providers
 _current_provider_index = 0
 
 _req_lock = threading.Lock()
@@ -197,6 +207,7 @@ _daily_total = Counter()                   # key: yyyy-mm-dd
 _daily_method = {}                         # key: date -> Counter
 _daily_contract = {}                       # key: date -> Counter
 _daily_event = {}                          # key: date -> Counter ("Contract:Event")
+_daily_provider = {}                       # key: date -> Counter (endpoint_uri)
 
 # Mappings to resolve addresses and topic0 -> names
 _address_to_contract = {}
@@ -206,12 +217,25 @@ def _today_key():
     return datetime.utcnow().date().isoformat()
 
 # Build dedicated providers for routing
-_event_providers = []  # providers for workers (URLs 1 & 2)
-if WEB3_PROVIDER_URL:
-    _event_providers.append(Web3.HTTPProvider(WEB3_PROVIDER_URL))
-if WEB3_PROVIDER_URL2:
-    _event_providers.append(Web3.HTTPProvider(WEB3_PROVIDER_URL2))
-_api_provider = Web3.HTTPProvider(WEB3_PROVIDER_URL3) if WEB3_PROVIDER_URL3 else (_event_providers[0] if _event_providers else w3.provider)
+_event_providers = []  # providers for workers (events)
+# Prefer new vars for events
+for url in [WEB3_POLYGON, WEB3_ALCHEMY]:
+    if url:
+        _event_providers.append(Web3.HTTPProvider(url))
+
+# API provider: prefer INFURA (with optional token templating), fallback to first event
+def _build_api_provider():
+    try:
+        if WEB3_INFURA:
+            url = _resolve_url(WEB3_INFURA)
+            return Web3.HTTPProvider(url)
+        if _event_providers:
+            return _event_providers[0]
+    except Exception:
+        pass
+    return w3.provider
+
+_api_provider = _build_api_provider()
 
 def _detect_source():
     try:
@@ -239,7 +263,8 @@ def _wrap_provider(provider):
         try:
             for fr in inspect.stack()[2:]:
                 mod = fr.frame.f_globals.get("__name__", "")
-                if mod.startswith("apis"):
+                fname = fr.filename.replace('\\\\', '/').lower()
+                if mod.startswith("apis") or mod.startswith("config") or "/apis/" in fname or "/config/" in fname:
                     is_api = True
                     break
         except Exception:
@@ -290,14 +315,36 @@ def _wrap_provider(provider):
                 pass
         try:
             # Choose provider based on context
-            if is_api and _api_provider is not None:
-                return _api_provider.make_request(method, params)
-            else:
-                # Use current events provider (1 & 2 rotation)
-                if _event_providers:
-                    return _event_providers[_current_provider_index % len(_event_providers)].make_request(method, params)
+            target_provider = _api_provider if (is_api and _api_provider is not None) else (
+                _event_providers[_current_provider_index % len(_event_providers)] if _event_providers else provider
+            )
+
+            # cache eth_chainId to avoid spam
+            uri = getattr(target_provider, "endpoint_uri", "unknown")
+            if method == "eth_chainId":
+                if not hasattr(target_provider, "_cached_chain_id"):
+                    resp = target_provider.make_request(method, params)
+                    target_provider._cached_chain_id = resp
                 else:
-                    return provider.make_request(method, params)
+                    resp = target_provider._cached_chain_id
+            elif method == "eth_blockNumber":
+                # short TTL cache (2s) to smooth concurrent polls
+                now = time.time()
+                ttl = 2.0
+                last = getattr(target_provider, "_cached_block_number", None)
+                if last and (now - last.get("ts", 0)) < ttl:
+                    resp = last["resp"]
+                else:
+                    resp = target_provider.make_request(method, params)
+                    setattr(target_provider, "_cached_block_number", {"resp": resp, "ts": now})
+            else:
+                resp = target_provider.make_request(method, params)
+
+            # record per-provider usage after successful call
+            with _req_lock:
+                day = _today_key()
+                _daily_provider.setdefault(day, Counter())[str(uri)] += 1
+            return resp
         except Exception:
             raise
 
@@ -344,20 +391,22 @@ _t.start()
 
 def get_current_provider_url() -> str:
     try:
-        return _provider_urls[_current_provider_index]
+        if _event_providers:
+            return getattr(_event_providers[_current_provider_index % len(_event_providers)], "endpoint_uri", "unknown")
+        return getattr(w3.provider, "endpoint_uri", "unknown")
     except Exception:
-        return WEB3_PROVIDER_URL
+        return "unknown"
 
 def switch_to_alternate_provider() -> str:
     """Switch w3.provider to the next configured provider URL (if available) and return it."""
     global _current_provider_index
-    if not _provider_urls or len(_provider_urls) == 1:
+    if not _event_providers or len(_event_providers) == 1:
         # Nothing to switch to
         return get_current_provider_url()
-    _current_provider_index = (_current_provider_index + 1) % len(_provider_urls)
-    new_url = _provider_urls[_current_provider_index]
+    _current_provider_index = (_current_provider_index + 1) % len(_event_providers)
+    new_url = getattr(_event_providers[_current_provider_index], "endpoint_uri", "unknown")
     try:
-        w3.provider = Web3.HTTPProvider(new_url)
+        w3.provider = _event_providers[_current_provider_index]
         _wrap_provider(w3.provider)
         logger.info(f"Switched Web3 provider to {new_url}")
     except Exception as e:
