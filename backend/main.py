@@ -117,8 +117,6 @@ app.add_middleware(
 )
 
 # Environment variables
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-WEB3_PROVIDER_URL = os.getenv("WEB3_PROVIDER_URL", "https://rpc-amoy.polygon.technology")
 PRIVY_JWT_PUBLIC_KEY = os.getenv("PRIVY_JWT_PUBLIC_KEY")
 # If the key is provided with literal \n characters (e.g. from Docker env var), convert them to real newlines
 if PRIVY_JWT_PUBLIC_KEY:

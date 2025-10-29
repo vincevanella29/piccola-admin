@@ -13,6 +13,7 @@ import threading
 import time
 from collections import Counter
 import inspect
+from datetime import datetime
 
 # Load .env here as a safeguard in case the app didn't load it yet
 load_dotenv()
@@ -20,6 +21,7 @@ load_dotenv()
 MONGODB_URI = os.getenv("MONGODB_URI")
 WEB3_PROVIDER_URL = os.getenv("WEB3_PROVIDER_URL", "https://rpc-amoy.polygon.technology")
 WEB3_PROVIDER_URL2 = os.getenv("WEB3_PROVIDER_URL2")
+WEB3_PROVIDER_URL3 = os.getenv("WEB3_PROVIDER_URL3")
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -179,7 +181,7 @@ w3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
 w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
 # Provider rotation state
-_provider_urls = [u for u in [WEB3_PROVIDER_URL, WEB3_PROVIDER_URL2] if u]
+_provider_urls = [u for u in [WEB3_PROVIDER_URL, WEB3_PROVIDER_URL2, WEB3_PROVIDER_URL3] if u]
 _current_provider_index = 0
 
 _req_lock = threading.Lock()
@@ -189,6 +191,27 @@ _source_counts = Counter()
 _prev_total = 0
 _prev_method_counts = Counter()
 _prev_source_counts = Counter()
+
+# Daily aggregates (UTC day)
+_daily_total = Counter()                   # key: yyyy-mm-dd
+_daily_method = {}                         # key: date -> Counter
+_daily_contract = {}                       # key: date -> Counter
+_daily_event = {}                          # key: date -> Counter ("Contract:Event")
+
+# Mappings to resolve addresses and topic0 -> names
+_address_to_contract = {}
+_topic0_to_eventname = {}                  # key: topic0 -> (contract_name, event_name)
+
+def _today_key():
+    return datetime.utcnow().date().isoformat()
+
+# Build dedicated providers for routing
+_event_providers = []  # providers for workers (URLs 1 & 2)
+if WEB3_PROVIDER_URL:
+    _event_providers.append(Web3.HTTPProvider(WEB3_PROVIDER_URL))
+if WEB3_PROVIDER_URL2:
+    _event_providers.append(Web3.HTTPProvider(WEB3_PROVIDER_URL2))
+_api_provider = Web3.HTTPProvider(WEB3_PROVIDER_URL3) if WEB3_PROVIDER_URL3 else (_event_providers[0] if _event_providers else w3.provider)
 
 def _detect_source():
     try:
@@ -207,17 +230,74 @@ def _detect_source():
 def _wrap_provider(provider):
     if getattr(provider, "_is_wrapped", False):
         return provider
-    original_make_request = provider.make_request
+    # original_make_request is not used; we route to the chosen provider per call
 
     def wrapped(method, params):
         src = _detect_source()
+        # detect if call originates from APIs
+        is_api = False
+        try:
+            for fr in inspect.stack()[2:]:
+                mod = fr.frame.f_globals.get("__name__", "")
+                if mod.startswith("apis"):
+                    is_api = True
+                    break
+        except Exception:
+            pass
         with _req_lock:
             global _total_reqs
             _total_reqs += 1
             _method_counts[method] += 1
             _source_counts[src] += 1
+            # Daily base
+            day = _today_key()
+            _daily_total[day] += 1
+            _daily_method.setdefault(day, Counter())[method] += 1
+
+            # Contract/Event attribution
+            try:
+                if method == "eth_getLogs" and params:
+                    flt = params[0] or {}
+                    addrs = flt.get("address")
+                    topics = flt.get("topics") or []
+                    topic0s = []
+                    if topics and topics[0] is not None:
+                        t0 = topics[0]
+                        topic0s = t0 if isinstance(t0, list) else [t0]
+                    addr_list = []
+                    if addrs is not None:
+                        addr_list = addrs if isinstance(addrs, list) else [addrs]
+                    # Attribute per address if present
+                    for a in addr_list:
+                        name = _address_to_contract.get(a.lower()) or _address_to_contract.get(a)
+                        if name:
+                            _daily_contract.setdefault(day, Counter())[name] += 1
+                    # Attribute per topic0
+                    for t in topic0s:
+                        ce = _topic0_to_eventname.get(t)
+                        if ce:
+                            c, e = ce
+                            _daily_event.setdefault(day, Counter())[f"{c}:{e}"] += 1
+                elif method == "eth_call" and params:
+                    call = params[0] or {}
+                    to = call.get("to")
+                    if to:
+                        name = _address_to_contract.get(to.lower()) or _address_to_contract.get(to)
+                        if name:
+                            _daily_contract.setdefault(day, Counter())[name] += 1
+            except Exception:
+                # Never break RPCs due to metrics
+                pass
         try:
-            return original_make_request(method, params)
+            # Choose provider based on context
+            if is_api and _api_provider is not None:
+                return _api_provider.make_request(method, params)
+            else:
+                # Use current events provider (1 & 2 rotation)
+                if _event_providers:
+                    return _event_providers[_current_provider_index % len(_event_providers)].make_request(method, params)
+                else:
+                    return provider.make_request(method, params)
         except Exception:
             raise
 
@@ -235,6 +315,10 @@ def _log_stats_loop():
             total = _total_reqs
             by_method = _method_counts.copy()
             by_source = _source_counts.copy()
+            day = _today_key()
+            today_total = _daily_total.get(day, 0)
+            today_contracts = _daily_contract.get(day, Counter()).copy()
+            today_events = _daily_event.get(day, Counter()).copy()
         delta_total = total - _prev_total
         delta_methods = by_method - _prev_method_counts
         delta_sources = by_source - _prev_source_counts
@@ -244,7 +328,13 @@ def _log_stats_loop():
             provider_uri = getattr(getattr(w3, "provider", None), "endpoint_uri", "unknown")
         except Exception:
             provider_uri = "unknown"
-        logger.info(f"RPC 10s window -> total:{delta_total} | provider:{provider_uri} | methods:[{top_methods}] | sources:[{top_sources}]")
+        top_contracts = ", ".join(f"{k}:{v}" for k, v in today_contracts.most_common(5)) or "-"
+        top_events = ", ".join(f"{k}:{v}" for k, v in today_events.most_common(5)) or "-"
+        logger.info(
+            f"RPC 10s window -> total:{delta_total} | provider:{provider_uri} | "
+            f"methods:[{top_methods}] | sources:[{top_sources}] | "
+            f"today_total:{today_total} | today_contracts:[{top_contracts}] | today_events:[{top_events}]"
+        )
         _prev_total = total
         _prev_method_counts = by_method
         _prev_source_counts = by_source
@@ -351,3 +441,26 @@ uniswap_factory_contract = contracts["UniswapV2Factory"]
 uniswap_router_contract = contracts["UniswapV2Router02"]
 redemption_contract = contracts["VanellixRedemption"]
 global_meritocracy_contract = contracts["GlobalMeritocracy"]
+
+# Build mappings for attribution
+try:
+    for cname, c in contracts.items():
+        try:
+            addr = c.address
+            if addr:
+                _address_to_contract[addr.lower()] = cname
+        except Exception:
+            pass
+        try:
+            for item in c.abi:
+                if item.get('type') == 'event':
+                    ename = item.get('name')
+                    types = [inp.get('type') for inp in item.get('inputs', [])]
+                    sig = f"{ename}({','.join(types)})"
+                    topic0 = Web3.keccak(text=sig).hex()
+                    _topic0_to_eventname[topic0] = (cname, ename)
+        except Exception:
+            pass
+    logger.info("Web3 attribution mappings ready: %d addresses, %d events", len(_address_to_contract), len(_topic0_to_eventname))
+except Exception as _e:
+    logger.warning(f"Failed to build attribution mappings: {_e}")

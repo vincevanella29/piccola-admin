@@ -251,10 +251,10 @@ ALL_WORKERS = {
     
     # Tareas de Grupo Diarias (con ejecución opcional al arranque)
     "menu_data":            {"func": menu_data_task,            "type": "cpu", "schedule": "daily@08:00"},
-    "tiempo_group":         {"func": tiempo_group_task,         "type": "cpu", "schedule": "daily@08:00", "run_on_start": True},
-    "mtz_group":            {"func": mtz_group_task,            "type": "cpu", "schedule": "daily@08:00", "run_on_start": True},
-    "intranet_group":       {"func": intranet_group_task,       "type": "cpu", "schedule": "daily@08:00", "run_on_start": True},
-    "sales_kpis_cache":     {"func": sales_kpis_cache_task,     "type": "cpu", "schedule": "daily@08:00", "run_on_start": True},
+    "tiempo_group":         {"func": tiempo_group_task,         "type": "cpu", "schedule": "daily@08:00"},
+    "mtz_group":            {"func": mtz_group_task,            "type": "cpu", "schedule": "daily@08:00"},
+    "intranet_group":       {"func": intranet_group_task,       "type": "cpu", "schedule": "daily@08:00"},
+    "sales_kpis_cache":     {"func": sales_kpis_cache_task,     "type": "cpu", "schedule": "daily@08:00"},
 
     # Workers Persistentes (corren constantemente)
     "event_listener":           {"func": event_listener_persistent,           "type": "persistent", "schedule": None},
