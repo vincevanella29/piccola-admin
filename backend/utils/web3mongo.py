@@ -9,6 +9,10 @@ from web3.middleware.proof_of_authority import ExtraDataToPOAMiddleware
 import glob
 import os
 from dotenv import load_dotenv
+import threading
+import time
+from collections import Counter
+import inspect
 
 # Load .env here as a safeguard in case the app didn't load it yet
 load_dotenv()
@@ -178,6 +182,76 @@ w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 _provider_urls = [u for u in [WEB3_PROVIDER_URL, WEB3_PROVIDER_URL2] if u]
 _current_provider_index = 0
 
+_req_lock = threading.Lock()
+_total_reqs = 0
+_method_counts = Counter()
+_source_counts = Counter()
+_prev_total = 0
+_prev_method_counts = Counter()
+_prev_source_counts = Counter()
+
+def _detect_source():
+    try:
+        stack = inspect.stack()
+        for fr in stack[2:]:
+            mod = fr.frame.f_globals.get("__name__", "")
+            if not mod.startswith("web3"):  # skip internal web3 frames
+                fname = fr.filename.rsplit("/", 2)[-1]
+                return f"{fname}:{fr.function}"
+        fr = stack[2]
+        fname = fr.filename.rsplit("/", 2)[-1]
+        return f"{fname}:{fr.function}"
+    except Exception:
+        return "unknown"
+
+def _wrap_provider(provider):
+    if getattr(provider, "_is_wrapped", False):
+        return provider
+    original_make_request = provider.make_request
+
+    def wrapped(method, params):
+        src = _detect_source()
+        with _req_lock:
+            global _total_reqs
+            _total_reqs += 1
+            _method_counts[method] += 1
+            _source_counts[src] += 1
+        try:
+            return original_make_request(method, params)
+        except Exception:
+            raise
+
+    provider.make_request = wrapped
+    provider._is_wrapped = True
+    return provider
+
+_wrap_provider(w3.provider)
+
+def _log_stats_loop():
+    global _prev_total, _prev_method_counts, _prev_source_counts
+    while True:
+        time.sleep(10)
+        with _req_lock:
+            total = _total_reqs
+            by_method = _method_counts.copy()
+            by_source = _source_counts.copy()
+        delta_total = total - _prev_total
+        delta_methods = by_method - _prev_method_counts
+        delta_sources = by_source - _prev_source_counts
+        top_methods = ", ".join(f"{k}:{v}" for k, v in delta_methods.most_common(5)) or "-"
+        top_sources = ", ".join(f"{k}:{v}" for k, v in delta_sources.most_common(5)) or "-"
+        try:
+            provider_uri = getattr(getattr(w3, "provider", None), "endpoint_uri", "unknown")
+        except Exception:
+            provider_uri = "unknown"
+        logger.info(f"RPC 10s window -> total:{delta_total} | provider:{provider_uri} | methods:[{top_methods}] | sources:[{top_sources}]")
+        _prev_total = total
+        _prev_method_counts = by_method
+        _prev_source_counts = by_source
+
+_t = threading.Thread(target=_log_stats_loop, daemon=True)
+_t.start()
+
 def get_current_provider_url() -> str:
     try:
         return _provider_urls[_current_provider_index]
@@ -194,6 +268,7 @@ def switch_to_alternate_provider() -> str:
     new_url = _provider_urls[_current_provider_index]
     try:
         w3.provider = Web3.HTTPProvider(new_url)
+        _wrap_provider(w3.provider)
         logger.info(f"Switched Web3 provider to {new_url}")
     except Exception as e:
         logger.error(f"Failed to switch Web3 provider to {new_url}: {e}")
