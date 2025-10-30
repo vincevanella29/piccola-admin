@@ -66,9 +66,9 @@ _current_provider_index = 0
 _address_to_contract = {}
 _topic0_to_eventname = {}
 
-# Providers para el Worker (Listener)
+# Providers para el Worker (Listener) — PRIORIDAD: Polygon -> Alchemy (NO Infura)
 _event_providers = []
-for url in [WEB3_POLYGON, WEB3_ALCHEMY, WEB3_INFURA]:
+for url in [WEB3_POLYGON, WEB3_ALCHEMY]:
     if url:
         try:
             resolved = _resolve_url(url)
