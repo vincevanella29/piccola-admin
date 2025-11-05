@@ -209,7 +209,7 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
               {account && (
                 <div className="mb-3 px-3 py-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 flex items-center gap-3">
                   <div className="shrink-0 rounded-xl overflow-hidden border border-light-border dark:border-dark-border bg-white p-2">
-                    <QRCode value={account} size={120} includeMargin={false} level="M" />
+                    <QRCode value={account} size={120} level="M" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t('header.wallet_address') || 'Wallet address'}</div>

@@ -6,5 +6,6 @@
     "disconnect": "Cerrar sesión",
     "view_wallet": "Ver Billetera",
     "create_wallet": "Crear Billetera",
-    "no_wallet": "No tienes una billetera"
+    "no_wallet": "No tienes una billetera",
+    "wallet_address": "Dirección de Billetera"
 }

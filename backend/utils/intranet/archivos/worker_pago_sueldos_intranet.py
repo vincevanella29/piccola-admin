@@ -52,6 +52,12 @@ def main():
             if resp.status_code != 200:
                 print("Error en request:", resp.status_code)
                 return []
+            # Asegurar encoding correcto (algunos endpoints envían ISO-8859-1)
+            try:
+                if not resp.encoding:
+                    resp.encoding = resp.apparent_encoding or 'utf-8'
+            except Exception:
+                resp.encoding = 'utf-8'
             text = resp.text or ""
             data = None
             try:
@@ -60,9 +66,12 @@ def main():
                 else:
                     data = resp.json()
             except Exception as je:
-                print("Error parseando JSON:", je)
-                snippet = text[:500].replace("\n", " ")
-                print("Respuesta (primeros 500 chars):", snippet)
+                # No hacer ruido si luego podemos parsear como PHP Array
+                debug = os.getenv('DEBUG_INTRANET_PARSER') == '1'
+                if debug:
+                    print("Aviso: respuesta no JSON, intentando parseo PHP. Detalle:", je)
+                    snippet = text[:500].replace("\n", " ")
+                    print("Respuesta (primeros 500 chars):", snippet)
                 data = None
 
             if data is None:
@@ -88,14 +97,19 @@ def main():
                             item[k] = v
                         if item:
                             result.append(item)
+                    # Si es "Array ( )" vacío, regresar lista vacía
+                    if not result and 'Array ( )' in s:
+                        return []
                     return result if result else []
                 parsed = _php_array_to_list(text)
                 if parsed:
                     data = parsed
                 else:
-                    print("La respuesta no es JSON ni array PHP. Mostrando fragmento:")
-                    snippet = text[:500].replace("\n", " ")
-                    print(snippet)
+                    # Sólo mostrar fragmento en modo DEBUG para evitar ruido en logs
+                    if os.getenv('DEBUG_INTRANET_PARSER') == '1':
+                        print("La respuesta no es JSON ni array PHP. Mostrando fragmento:")
+                        snippet = text[:500].replace("\n", " ")
+                        print(snippet)
                     data = []
 
             # Estandariza a lista

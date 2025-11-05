@@ -74,13 +74,13 @@ export const DashboardToolbar = ({
           <Select
             label="Filtrar por Local"
             value={clientFilters.local}
-            onChange={(e) => handleClientFilterChange('local', e.target.value)}
+            onChange={(v) => handleClientFilterChange('local', v)}
             options={clientFilterOptions.locales.map(l => ({ value: l, label: l === 'all' ? 'Todos los Locales' : l }))}
           />
           <Select
             label="Filtrar por Cargo"
             value={clientFilters.cargo}
-            onChange={(e) => handleClientFilterChange('cargo', e.target.value)}
+            onChange={(v) => handleClientFilterChange('cargo', v)}
             options={clientFilterOptions.cargos.map(c => ({ value: c, label: c === 'all' ? 'Todos los Cargos' : c }))}
           />
         </div>

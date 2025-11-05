@@ -161,6 +161,7 @@ const MeritsDashboardPage = ({ appState }) => {
           <EmployeeDetailPanel
             employee={selectedEmployee}
             allEmployees={filteredAndSortedEmployees} // <-- AÑADIR ESTA LÍNEA
+            appState={appState}
             onClose={() => setSelectedEmployee(null)}
           />
         )}

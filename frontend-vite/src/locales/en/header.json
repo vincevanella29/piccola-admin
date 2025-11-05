@@ -6,5 +6,6 @@
     "disconnect": "Disconnect",
     "view_wallet": "View Wallet",
     "create_wallet": "Create Wallet",
-    "no_wallet": "No wallet"
+    "no_wallet": "No wallet",
+    "wallet_address": "Wallet address"
 }

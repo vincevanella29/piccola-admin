@@ -10,8 +10,7 @@ import { KpiTab } from './KpiTab';
 import { MeritsTab } from './MeritsTab';
 import { HistoryTab } from './HistoryTab';
 
-export const EmployeeDetailPanel = ({ employee, allEmployees, onClose }) => {
-    console.log("allEmployees", allEmployees);
+export const EmployeeDetailPanel = ({ employee, allEmployees, appState, onClose }) => {
   const [activeTab, setActiveTab] = useState('kpis');
   
   // Usamos el hook para enriquecer el objeto del empleado con datos de méritos calculados
@@ -23,7 +22,7 @@ export const EmployeeDetailPanel = ({ employee, allEmployees, onClose }) => {
       case 'merits':
         return <MeritsTab employee={enrichedEmployee} />;
       case 'history':
-        return <HistoryTab employee={enrichedEmployee} />;
+        return <HistoryTab employee={enrichedEmployee} appState={appState} />;
       case 'kpis':
       default:
         return <KpiTab employee={enrichedEmployee} allEmployees={allEmployees} />;

@@ -98,3 +98,4 @@ websockets==15.0.1
 pytz==2025.2
 psutil==6.0.0
 onvif-zeep==0.2.12
+websocket-client==1.9.0
