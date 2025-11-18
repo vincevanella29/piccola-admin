@@ -11,7 +11,7 @@ from config.roles.service import (
     verify_signature,
     validate_hierarchy,
 )
-from config.roles.access import compute_user_permissions
+from config.roles.access import compute_user_permissions, compute_user_permissions_by_sub
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -87,19 +87,23 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
             # Calcular siempre permisos efectivos desde cargo_access_policies + on-chain
             perms = compute_user_permissions(target_address)
             role_level = perms.get("role_level", -1)
+        elif sub:
+            # Empleado autenticado solo por Privy (sin wallet): usar políticas por cargo/sección
+            perms = compute_user_permissions_by_sub(sub)
+            role_level = perms.get("role_level", -1)
 
-            # --- OFFCHAIN MEMBER (level 6) ---
-            # Si no tiene rol on-chain (role_level -1/None) pero SÍ tiene acceso backend a empresas/sucursales,
-            # lo marcamos como 6.
-            if perms and (role_level is None or role_level == -1):
-                has_backend_access = (
-                    bool(perms.get("can_view_all_companies")) or
-                    bool(perms.get("can_view_all_sucursales")) or
-                    (isinstance(perms.get("empresa_ids"), list) and len(perms.get("empresa_ids")) > 0) or
-                    (isinstance(perms.get("sucursal_ids"), list) and len(perms.get("sucursal_ids")) > 0)
-                )
-                if has_backend_access:
-                    role_level = 6  # OFFCHAIN_MEMBER
+        # --- OFFCHAIN MEMBER (level 6) ---
+        # Si no tiene rol on-chain (role_level -1/None) pero SÍ tiene acceso backend a empresas/sucursales,
+        # lo marcamos como 6 (aplica tanto para wallet como para sub).
+        if perms and (role_level is None or role_level == -1):
+            has_backend_access = (
+                bool(perms.get("can_view_all_companies")) or
+                bool(perms.get("can_view_all_sucursales")) or
+                (isinstance(perms.get("empresa_ids"), list) and len(perms.get("empresa_ids")) > 0) or
+                (isinstance(perms.get("sucursal_ids"), list) and len(perms.get("sucursal_ids")) > 0)
+            )
+            if has_backend_access:
+                role_level = 6  # OFFCHAIN_MEMBER
 
         # Datos auxiliares (perfil)
         if target_address:

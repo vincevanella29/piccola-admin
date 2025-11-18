@@ -275,6 +275,124 @@ def compute_user_permissions(wallet: str) -> Dict[str, Any]:
     return perms
 
 
+def compute_user_permissions_by_sub(sub: str) -> Dict[str, Any]:
+    """Permisos para empleados autenticados por sub (sin wallet obligatorio).
+
+    Si el link tiene wallet, delega en compute_user_permissions(wallet).
+    Si no tiene wallet, replica la rama de policies de compute_user_permissions
+    asumiendo role_level = -1 (sin rol on-chain) pero con cargo/sección.
+    """
+    if not sub:
+        return {
+            "company_id": COMPANY_ID,
+            "role_level": -1,
+            "is_member": False,
+            "is_active_worker": False,
+            "cargo": None,
+            "seccion": None,
+            "own_id_sucursal": None,
+            "can_view_all_companies": False,
+            "can_view_all_sucursales": False,
+            "empresa_ids": [],
+            "sucursal_ids": [],
+            "updated_at": _now_iso(),
+        }
+
+    link = COL_LINKS.find_one({"sub": sub}) or {}
+    wallet = (link or {}).get("wallet")
+    if wallet:
+        # Si eventualmente se le asocia wallet, reutilizar lógica estándar
+        return compute_user_permissions(wallet)
+
+    # Sin wallet: usar rut/cargo/sección igual que la rama de policies
+    rut = (link or {}).get("rut")
+    active_worker = _is_active_worker(link)
+    trab = _get_trab_by_rut(rut) if rut is not None else None
+    cargo, seccion = _get_cargo_seccion(trab)
+    sucursal_sigla = (trab or {}).get("sucursal") or None
+    own_id_sucursal = _sigla_to_id_sucursal(sucursal_sigla) if sucursal_sigla else None
+
+    role_level = -1
+    is_member = False
+
+    can_view_all_companies = False
+    can_view_all_sucursales = False
+    empresa_ids: set[str] = set()
+    sucursal_ids: set[int] = set()
+
+    # Igual que rama "else" (rol 5 o -1) de compute_user_permissions
+    policies = _policies_for(cargo, seccion)
+
+    pol_all_emp = any(bool(p.get("allow_all_companies")) for p in policies)
+    pol_all_suc = any(bool(p.get("allow_all_sucursales")) for p in policies)
+    pol_own_suc = any(bool(p.get("allow_own_sucursal")) for p in policies)
+
+    # Si la sucursal propia otorga "ALL"
+    own_grants_all = False
+    for p in policies:
+        if not p.get("own_sucursal_grants_all"):
+            continue
+        ids = p.get("own_sucursal_ids_grant_all") or []
+        if own_id_sucursal is None:
+            continue
+        if not ids or int(own_id_sucursal) in [int(x) for x in ids]:
+            own_grants_all = True
+            break
+
+    if pol_all_emp:
+        can_view_all_companies = True
+    if pol_all_suc or own_grants_all:
+        can_view_all_sucursales = True
+
+    # allows directos
+    for p in policies:
+        for sid in (p.get("sucursal_ids_allow") or []):
+            sucursal_ids.add(int(sid))
+        for eid in (p.get("empresa_ids_allow") or []):
+            empresa_ids.add(str(eid))
+
+    # propia sucursal (si aplica)
+    if pol_own_suc and own_id_sucursal is not None:
+        sucursal_ids.add(int(own_id_sucursal))
+
+    # expandir ALL por políticas
+    if can_view_all_sucursales:
+        sucursal_ids = set(_list_all_sucursal_ids())
+    if can_view_all_companies:
+        empresa_ids = set(_list_all_empresa_ids())
+
+    # blocks por políticas
+    if not can_view_all_sucursales or not can_view_all_companies:
+        block_suc = set()
+        block_emp = set()
+        for p in policies:
+            for sid in (p.get("sucursal_ids_block") or []):
+                block_suc.add(int(sid))
+            for eid in (p.get("empresa_ids_block") or []):
+                block_emp.add(str(eid))
+        sucursal_ids -= block_suc
+        empresa_ids -= block_emp
+
+    # derivar empresas desde sucursales
+    empresa_ids |= set(_empresas_for_sucursales(list(sucursal_ids)))
+
+    perms = {
+        "company_id": COMPANY_ID,
+        "role_level": role_level,
+        "is_member": bool(is_member),
+        "is_active_worker": bool(active_worker),
+        "cargo": cargo,
+        "seccion": seccion,
+        "own_id_sucursal": own_id_sucursal,
+        "can_view_all_companies": can_view_all_companies,
+        "can_view_all_sucursales": can_view_all_sucursales,
+        "empresa_ids": sorted(list(empresa_ids)),
+        "sucursal_ids": sorted(list(sucursal_ids)),
+        "updated_at": _now_iso(),
+    }
+    return perms
+
+
 # ---- Helpers de autorización por nivel de rol ----
 def require_admin_level(user: Dict[str, Any], role: str):
     from fastapi import HTTPException
