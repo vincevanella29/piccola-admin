@@ -283,6 +283,12 @@ async def validar_registro(request: Request, user: dict = Depends(verify_session
         logger.warning("Trabajador no encontrado: rut=%s", rut)
         raise HTTPException(status_code=404, detail="Trabajador no encontrado")
 
+    # Asegurar solo 1 usuario por ficha/RUT: si ya hay un vínculo activo, no permitir otro registro
+    existing_link = LINKS.find_one({"rut": rut, "status": "active"})
+    if existing_link:
+        logger.info("Intento de registro duplicado para rut=%s", rut)
+        raise HTTPException(status_code=409, detail="Este RUT ya tiene un usuario activo vinculado")
+
     # Determinar descriptor de referencia (obligatorio si hay foto en la BD)
     ref_desc = reference_descriptor
 

@@ -66,43 +66,59 @@ async def options_contract_company_users():
 # ---------------------------
 @router.get("/user/role")
 def get_user_role(account: str = Query(None), user: dict = Depends(verify_session)):
-    wallet_address = user.get("wallet")
-    if not wallet_address:
-        raise HTTPException(status_code=400, detail="No wallet address in session")
-
-    # target = account pedido o el de sesión
-    target_address = account or wallet_address
-    if not w3.is_address(target_address):
-        raise HTTPException(status_code=400, detail="Invalid target address")
-    target_address = w3.to_checksum_address(target_address)
-
     try:
-        # Permisos solo si consulta su propio usuario
-        perms = user.get("permissions") if target_address.lower() == wallet_address.lower() else None
+        wallet_address = user.get("wallet")
+        sub = user.get("sub")
+        if not wallet_address and not sub:
+            raise HTTPException(status_code=400, detail="No identity in session")
 
-        # Nivel on-chain preferente; si no viene en perms, se consulta
-        role_level = (perms or {}).get("role_level")
-        if role_level is None:
-            role_level = get_company_role_level(target_address)
+        target_address = None
+        perms = None
+        role_level = -1
 
-        # --- OFFCHAIN MEMBER (level 6) ---
-        # Si no tiene rol on-chain (role_level -1/None) pero SÍ tiene acceso backend a empresas/sucursales,
-        # lo marcamos como 6.
-        if perms and (role_level is None or role_level == -1):
-            has_backend_access = (
-                bool(perms.get("can_view_all_companies")) or
-                bool(perms.get("can_view_all_sucursales")) or
-                (isinstance(perms.get("empresa_ids"), list) and len(perms.get("empresa_ids")) > 0) or
-                (isinstance(perms.get("sucursal_ids"), list) and len(perms.get("sucursal_ids")) > 0)
-            )
-            if has_backend_access:
-                role_level = 6  # OFFCHAIN_MEMBER
+        if wallet_address:
+            # target = account pedido o el de sesión
+            target_address = account or wallet_address
+            if not w3.is_address(target_address):
+                raise HTTPException(status_code=400, detail="Invalid target address")
+            target_address = w3.to_checksum_address(target_address)
+
+            # Permisos solo si consulta su propio usuario
+            perms = user.get("permissions") if target_address.lower() == wallet_address.lower() else None
+
+            # Nivel on-chain preferente; si no viene en perms, se consulta
+            role_level = (perms or {}).get("role_level")
+            if role_level is None:
+                role_level = get_company_role_level(target_address)
+
+            # --- OFFCHAIN MEMBER (level 6) ---
+            # Si no tiene rol on-chain (role_level -1/None) pero SÍ tiene acceso backend a empresas/sucursales,
+            # lo marcamos como 6.
+            if perms and (role_level is None or role_level == -1):
+                has_backend_access = (
+                    bool(perms.get("can_view_all_companies")) or
+                    bool(perms.get("can_view_all_sucursales")) or
+                    (isinstance(perms.get("empresa_ids"), list) and len(perms.get("empresa_ids")) > 0) or
+                    (isinstance(perms.get("sucursal_ids"), list) and len(perms.get("sucursal_ids")) > 0)
+                )
+                if has_backend_access:
+                    role_level = 6  # OFFCHAIN_MEMBER
 
         # Datos auxiliares (perfil)
-        user_data = db.users.find_one({"wallet": target_address.lower(), "company_id": COMPANY_ID}) or {}
+        if target_address:
+            user_data = db.users.find_one({"wallet": target_address.lower(), "company_id": COMPANY_ID}) or {}
+        elif sub:
+            user_data = db.users.find_one({"sub": sub, "company_id": COMPANY_ID}) or {}
+        else:
+            user_data = {}
         role_name = user_data.get("role_name", "")
 
-        empleado = db.empleados_usuarios.find_one({"wallet": target_address.lower()})
+        empleado = None
+        if target_address:
+            empleado = db.empleados_usuarios.find_one({"wallet": target_address.lower()})
+        elif sub:
+            empleado = db.empleados_usuarios.find_one({"sub": sub})
+
         rut_value = empleado.get("rut") if empleado else None
 
         vpn_doc = None
@@ -236,7 +252,7 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
 
         return {
             "company_id": COMPANY_ID,
-            "role_level": role_level,  # incluye 6 si es OFFCHAIN_MEMBER
+            "role_level": role_level,  # incluye 6 si es OFFCHAIN_MEMBER y 7 si es empleado sin rol on-chain
             "role_name": role_name,
             "address": target_address,
             "profile": profile_data,
