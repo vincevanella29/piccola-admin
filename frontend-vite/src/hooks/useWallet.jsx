@@ -229,14 +229,18 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           setIsWalletDataReady(true);
           return;
         }
-        // Autenticado pero sin wallet
+        // Autenticado pero sin wallet: consultar rol/perfil usando solo el token (empleados sin wallet)
         if (!walletAddress) {
-          setIsAuthenticated(true);
+          const res = await appData.fetchUserRole({ accessToken, walletAddress: null });
+          console.log('res (no wallet)', res);
+          setProfile(res.profile);
+          setPermission(res.permissions);
+          setAllowed(res.allowed);
+          setRoleLevel(res.role_level ?? -1);
           setAccount(null);
-          setProfile(null);
-          setRoleLevel(-1);
-          setIsWalletDataReady(true);
+          setIsAuthenticated(true);
           hasAuthenticatedRef.current = true;
+          setIsWalletDataReady(true);
           return;
         }
 

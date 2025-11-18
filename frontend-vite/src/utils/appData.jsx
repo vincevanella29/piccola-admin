@@ -58,7 +58,7 @@ const appData = {
         endpoint: '/user/role',
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'X-Wallet-Address': walletAddress,
+          ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
         },
         withCredentials: true,
       });
