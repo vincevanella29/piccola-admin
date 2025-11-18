@@ -11,7 +11,7 @@ from config.roles.service import (
     verify_signature,
     validate_hierarchy,
 )
-from config.roles.access import compute_user_permissions, compute_user_permissions_by_sub
+from config.roles.access import compute_permissions_for_identity
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -68,29 +68,20 @@ async def options_contract_company_users():
 @router.get("/user/role")
 def get_user_role(account: str = Query(None), user: dict = Depends(verify_session)):
     try:
-        wallet_address = user.get("wallet")
+        wallet_from_session = user.get("wallet")
         sub = user.get("sub")
-        if not wallet_address and not sub:
+
+        # identity genérica: lo que venga del front (account), o la wallet real de sesión, o el sub
+        identity = account or wallet_from_session or sub
+        if not identity:
             raise HTTPException(status_code=400, detail="No identity in session")
 
-        target_address = None
         perms = None
         role_level = -1
 
-        if wallet_address:
-            # target = account pedido o el de sesión
-            target_address = account or wallet_address
-            if not w3.is_address(target_address):
-                raise HTTPException(status_code=400, detail="Invalid target address")
-            target_address = w3.to_checksum_address(target_address)
-
-            # Calcular siempre permisos efectivos desde cargo_access_policies + on-chain
-            perms = compute_user_permissions(target_address)
-            role_level = perms.get("role_level", -1)
-        elif sub:
-            # Empleado autenticado solo por Privy (sin wallet): usar políticas por cargo/sección
-            perms = compute_user_permissions_by_sub(sub)
-            role_level = perms.get("role_level", -1)
+        # Calcular siempre permisos efectivos desde una sola función (wallet o sub)
+        perms = compute_permissions_for_identity(identity)
+        role_level = perms.get("role_level", -1)
 
         # --- OFFCHAIN MEMBER (level 6) ---
         # Si no tiene rol on-chain (role_level -1/None) pero SÍ tiene acceso backend a empresas/sucursales,
@@ -106,6 +97,14 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
                 role_level = 6  # OFFCHAIN_MEMBER
 
         # Datos auxiliares (perfil)
+        # address solo si identity es una wallet válida
+        target_address = None
+        try:
+            if identity and w3.is_address(identity):
+                target_address = w3.to_checksum_address(identity)
+        except Exception:
+            target_address = None
+
         if target_address:
             user_data = db.users.find_one({"wallet": target_address.lower(), "company_id": COMPANY_ID}) or {}
         elif sub:

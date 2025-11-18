@@ -237,7 +237,9 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           setPermission(res.permissions);
           setAllowed(res.allowed);
           setRoleLevel(res.role_level ?? -1);
-          setAccount(null);
+          // Identificador lógico: usar sub/id de Privy cuando no hay wallet
+          const logicalId = user?.id || user?.userId || null;
+          setAccount(logicalId);
           setIsAuthenticated(true);
           hasAuthenticatedRef.current = true;
           setIsWalletDataReady(true);
@@ -298,7 +300,8 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
       if (authenticated && user && !user.wallet) {
         setIsWalletDataReady(true);
         setIsAuthenticated(true);
-        setAccount(null);
+        const logicalId = user?.id || user?.userId || null;
+        setAccount(logicalId);
         return;
       }
 

@@ -393,6 +393,44 @@ def compute_user_permissions_by_sub(sub: str) -> Dict[str, Any]:
     return perms
 
 
+def compute_permissions_for_identity(identity: str) -> Dict[str, Any]:
+    """Dada una identidad genérica (wallet o sub), escoge la estrategia correcta.
+
+    - Si es una dirección válida de Ethereum -> compute_user_permissions(wallet)
+    - Si parece un did de Privy (did:privy:...) -> compute_user_permissions_by_sub(sub)
+    - En otros casos intenta primero como wallet y si falla, como sub.
+    """
+    if not identity:
+        return {
+            "company_id": COMPANY_ID,
+            "role_level": -1,
+            "is_member": False,
+            "is_active_worker": False,
+            "cargo": None,
+            "seccion": None,
+            "own_id_sucursal": None,
+            "can_view_all_companies": False,
+            "can_view_all_sucursales": False,
+            "empresa_ids": [],
+            "sucursal_ids": [],
+            "updated_at": _now_iso(),
+        }
+
+    # Heurística simple: si es did:privy, tratar como sub
+    if isinstance(identity, str) and identity.startswith("did:privy:"):
+        return compute_user_permissions_by_sub(identity)
+
+    # Intentar como dirección Ethereum
+    try:
+        if w3.is_address(identity):
+            return compute_user_permissions(identity)
+    except Exception:
+        pass
+
+    # Fallback: tratar como sub
+    return compute_user_permissions_by_sub(identity)
+
+
 # ---- Helpers de autorización por nivel de rol ----
 def require_admin_level(user: Dict[str, Any], role: str):
     from fastapi import HTTPException
