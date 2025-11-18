@@ -196,7 +196,8 @@ def compute_user_permissions(wallet: str) -> Dict[str, Any]:
 
         pol_all_emp = any(bool(p.get("allow_all_companies")) for p in policies)
         pol_all_suc = any(bool(p.get("allow_all_sucursales")) for p in policies)
-        pol_own_suc = any(bool(p.get("allow_own_sucursal")) for p in policies)
+        # Considerar tanto allow_own_sucursal como own_sucursal_grants_all para marcar la sucursal propia
+        pol_own_suc = any(bool(p.get("allow_own_sucursal") or p.get("own_sucursal_grants_all")) for p in policies)
 
         # Si la sucursal propia otorga "ALL"
         own_grants_all = False
@@ -325,7 +326,8 @@ def compute_user_permissions_by_sub(sub: str) -> Dict[str, Any]:
 
     pol_all_emp = any(bool(p.get("allow_all_companies")) for p in policies)
     pol_all_suc = any(bool(p.get("allow_all_sucursales")) for p in policies)
-    pol_own_suc = any(bool(p.get("allow_own_sucursal")) for p in policies)
+    # Considerar tanto allow_own_sucursal como own_sucursal_grants_all para marcar la sucursal propia
+    pol_own_suc = any(bool(p.get("allow_own_sucursal") or p.get("own_sucursal_grants_all")) for p in policies)
 
     # Si la sucursal propia otorga "ALL"
     own_grants_all = False
