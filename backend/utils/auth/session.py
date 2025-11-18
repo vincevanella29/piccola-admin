@@ -4,7 +4,7 @@ from fastapi import HTTPException, Request
 import jwt as pyjwt
 
 from utils.web3mongo import w3, sessions_collection
-from config.roles.access import compute_user_permissions
+from config.roles.access import compute_permissions_for_identity
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ async def verify_session(request: Request) -> dict:
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    # Wallet (opcional)
-    wallet = request.headers.get("X-Wallet-Address")
+    # Identidad opcional desde header: puede ser wallet o sub (según cómo venga del front)
+    identity_header = request.headers.get("X-Wallet-Address")
 
     try:
         if token.count('.') != 2:
@@ -52,29 +52,42 @@ async def verify_session(request: Request) -> dict:
             audience=PRIVY_APP_ID,
         )
 
-        if wallet:
+        # Si el header contiene una dirección Ethereum válida, tratamos como sesión con wallet
+        if identity_header:
             try:
-                checksum_wallet = w3.to_checksum_address(wallet)
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=f"Invalid wallet address format: {str(e)}")
+                if w3.is_address(identity_header):
+                    checksum_wallet = w3.to_checksum_address(identity_header)
+                else:
+                    checksum_wallet = None
+            except Exception:
+                checksum_wallet = None
 
-            session = sessions_collection.find_one({"token": token, "wallet": wallet.lower()})
-            if not session:
-                raise HTTPException(status_code=401, detail="No valid session")
-            if session.get("exp", 0) < int(time.time()):
-                sessions_collection.delete_one({"token": token})
-                raise HTTPException(status_code=401, detail="Session expired")
+            if checksum_wallet is not None:
+                wallet = checksum_wallet.lower()
+                session = sessions_collection.find_one({"token": token, "wallet": wallet})
+                if not session:
+                    raise HTTPException(status_code=401, detail="No valid session")
+                if session.get("exp", 0) < int(time.time()):
+                    sessions_collection.delete_one({"token": token})
+                    raise HTTPException(status_code=401, detail="Session expired")
 
-            result = {"id": wallet.lower(), "wallet": wallet.lower(), "sub": payload.get("sub")}
-            try:
-                result["permissions"] = compute_user_permissions(wallet)
-            except Exception as e:
-                logger.error(f"permissions compute failed: {e}")
-                result["permissions"] = None
-            return result
+                result = {"id": wallet, "wallet": wallet, "sub": payload.get("sub")}
+                try:
+                    result["permissions"] = compute_permissions_for_identity(wallet)
+                except Exception as e:
+                    logger.error(f"permissions compute failed: {e}")
+                    result["permissions"] = None
+                return result
 
-        # token-only
-        return {"id": payload.get("sub"), "wallet": None, "sub": payload.get("sub")}
+        # token-only (sin wallet válida): identidad basada en sub
+        sub = payload.get("sub")
+        result = {"id": sub, "wallet": None, "sub": sub}
+        try:
+            result["permissions"] = compute_permissions_for_identity(sub)
+        except Exception as e:
+            logger.error(f"permissions compute failed (sub): {e}")
+            result["permissions"] = None
+        return result
 
     except pyjwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid Privy JWT")
