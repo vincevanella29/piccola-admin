@@ -136,37 +136,6 @@ services:
     devices:
       - /dev/net/tun:/dev/net/tun
 
-  telegram-bot:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: vanellix-telegram-bot
-    command: python bots/telegram_bot.py
-    working_dir: /backend
-    env_file:
-      - ./backend/.env
-    environment:
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/backend
-      - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=${REDIS_DB:-0}
-      - REDIS_QUEUE=${REDIS_QUEUE:-blockchain_events}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - XAI_API_KEY=${XAI_API_KEY}
-      - XAI_API_URL=${XAI_API_URL}
-      - XAI_MODEL=${XAI_MODEL}
-      # Vanellix AI
-      - VANELLIX_AI_BASE_URL=${VANELLIX_AI_BASE_URL}
-      - VANELLIX_AI_API_KEY=${VANELLIX_AI_API_KEY}
-      - TELEGRAM_LINK_URL_BASE=${TELEGRAM_LINK_URL_BASE}
-      # Add any other required env vars for the bot here
-    restart: unless-stopped
-    depends_on:
-      - mongo
-      - redis
-
   frontend:
     build:
       context: ./frontend-vite

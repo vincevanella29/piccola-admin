@@ -463,3 +463,4 @@ def require_admin_level(user: Dict[str, Any], role: str):
 
     if level not in allowed:
         raise HTTPException(status_code=403, detail=deny_msg)
+    return level

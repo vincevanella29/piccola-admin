@@ -109,7 +109,7 @@ def _admin_guard(user: dict):
     wallet = user.get("wallet")
     if not wallet:
         raise HTTPException(status_code=403, detail="Admin endpoints require wallet session")
-    require_admin_level(user, "admin")
+    level = require_admin_level(user, "admin")
     return wallet.lower(), level
 
 
