@@ -11,6 +11,7 @@ from config.roles.service import (
     verify_signature,
     validate_hierarchy,
 )
+from config.roles.access import compute_user_permissions
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -83,13 +84,9 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
                 raise HTTPException(status_code=400, detail="Invalid target address")
             target_address = w3.to_checksum_address(target_address)
 
-            # Permisos solo si consulta su propio usuario
-            perms = user.get("permissions") if target_address.lower() == wallet_address.lower() else None
-
-            # Nivel on-chain preferente; si no viene en perms, se consulta
-            role_level = (perms or {}).get("role_level")
-            if role_level is None:
-                role_level = get_company_role_level(target_address)
+            # Calcular siempre permisos efectivos desde cargo_access_policies + on-chain
+            perms = compute_user_permissions(target_address)
+            role_level = perms.get("role_level", -1)
 
             # --- OFFCHAIN MEMBER (level 6) ---
             # Si no tiene rol on-chain (role_level -1/None) pero SÍ tiene acceso backend a empresas/sucursales,

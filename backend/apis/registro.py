@@ -55,6 +55,10 @@ async def consulta_registro(rut: str, user: dict = Depends(verify_session)):
     emp = get_employee_profile(rut)
     if not emp:
         return {"exists": False, "rut": rut}
+
+    # Si ya existe una sesión completada o un vínculo activo, marcar como ya registrado
+    existing_session = REG_SESSIONS.find_one({"rut": rut, "status": "completed"})
+    existing_link = LINKS.find_one({"rut": rut, "status": "active"})
     # Detectar foto
     foto_url = None
     for k in ["foto_url", "foto", "image_url", "profile_image", "profile_image_url"]:
@@ -86,6 +90,7 @@ async def consulta_registro(rut: str, user: dict = Depends(verify_session)):
         "apellidomaterno": am,
         "cargo": cargo,
         "seccion": seccion,
+        "already_registered": bool(existing_session or existing_link),
     }
 
 @router.post("/registro/solicitar", summary="Iniciar registro de empleado por RUT (gratis, con verificación facial)")
@@ -102,6 +107,14 @@ async def solicitar_registro(request: Request, user: dict = Depends(verify_sessi
     emp = get_employee_profile(rut)
     if not emp:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+
+    # No permitir nueva solicitud si ya hay sesión completada o vínculo activo
+    existing_session = REG_SESSIONS.find_one({"rut": rut, "status": "completed"})
+    if existing_session:
+        raise HTTPException(status_code=409, detail="Este RUT ya completó su registro de empleado")
+    existing_link = LINKS.find_one({"rut": rut, "status": "active"})
+    if existing_link:
+        raise HTTPException(status_code=409, detail="Este RUT ya tiene un usuario activo vinculado")
 
     # Generar sesión de registro con un pequeño challenge de liveness (para el front)
     session_id = secrets.token_urlsafe(24)
