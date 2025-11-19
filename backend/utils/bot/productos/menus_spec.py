@@ -112,53 +112,9 @@ def _postprocess_menus(obj: dict) -> dict:
         f["dow_in"] = [int(x) for x in (f.get("dow_in") or []) if isinstance(x, (int, float)) and 0 <= int(x) <= 6][:7]
     except Exception:
         f["dow_in"] = []
-    # Derivar códigos desde la consulta de producto/texto para filtrar el dataset horario
-    q = obj.get("q") or ""
-    if q:
-        # si by='producto' y parece código exacto, úsalo directo
-        if obj.get("by") == "producto" and len(q) >= 4 and q.isdigit():
-            if q.upper() not in f["include_codigos"]:
-                f["include_codigos"].append(q.upper())
-        else:
-            # buscar por nombre/descripcion contiene q
-            try:
-                # case-insensitive, sin acentos, y con singularización básica; limitar a 300 códigos
-                q_norm = _no_accents(q).lower()
-                needles = set(_singularize_es(q_norm))
-                codes: list[str] = []
-                # 1) Match por nombre/descripcion
-                for m in db.menus.find({}, {"codigo":1, "nombre":1, "descripcion":1}).limit(10000):
-                    name = _no_accents(_norm(m.get("nombre")) or "").lower()
-                    descr = _no_accents(_norm(m.get("descripcion")) or "").lower()
-                    if any(n in name or n in descr for n in needles):
-                        c = _norm(m.get("codigo"))
-                        if c and c.upper() not in codes:
-                            codes.append(c.upper())
-                    if len(codes) >= 300:
-                        break
-                # 2) Match por categorías
-                if len(codes) <= 1:
-                    cat_ids = []
-                    for cdoc in db.categories.find({}, {"id":1, "nombre":1, "name":1}).limit(4000):
-                        nm = _no_accents(_norm(cdoc.get("nombre") or cdoc.get("name") or "")).lower()
-                        if any(n in nm for n in needles):
-                            cid = _norm(cdoc.get("id") or cdoc.get("_id"))
-                            if cid:
-                                cat_ids.append(cid)
-                    if cat_ids:
-                        for m in db.menus.find({"category_ids": {"$in": cat_ids}}, {"codigo":1}).limit(10000):
-                            c = _norm(m.get("codigo"))
-                            if c and c.upper() not in codes:
-                                codes.append(c.upper())
-                            if len(codes) >= 300:
-                                break
-                # unir con existente
-                for c in codes:
-                    if c not in f["include_codigos"]:
-                        f["include_codigos"].append(c)
-                f["include_codigos"] = f["include_codigos"][:300]
-            except Exception:
-                pass
+    # A partir de aquí, confiamos en que Grok ya decidió exactamente qué filtrar
+    # (familias, subfamilias, códigos, locales, etc.) según el schema_text y
+    # los catálogos MENUS/CATEGORIAS. Solo normalizamos tipos y mayúsculas.
     obj["filters"] = f
 
     # Vista
@@ -207,6 +163,19 @@ SPEC = FilterSpec(
     postprocess=_postprocess_menus,
 )
 register_filter_spec(SPEC)
+
+
+# Metadata declarativa de la intent 'menus' para el router de intents (common.grok_route_intent)
+INTENT_META = {
+    "key": "menus",
+    "desc": "Menú y productos: carta, detalle de platos/bebidas, fotos, recetas y ventas totales de un producto específico por fecha.",
+    "classification_hints": [
+        "- Usa 'menus' cuando el usuario pregunte por productos de la carta (platos, bebidas, menús), quiera ver detalle, fotos, descripción o recetas.",
+        "- También usa 'menus' cuando pidan cuántas unidades de un producto específico se vendieron en un periodo/local, SIN hablar de margen/rentabilidad ni de 'por hora'.",
+        "- Ejemplos: 'cuántos jugos de frambuesa vendió RAN', 'muéstrame la lasagna boloñesa', 'receta de los aros milan'.",
+        "- Si mencionan margen, rentabilidad o margen %, clasifica como 'productos' en vez de 'menus'. Si preguntan ventas por hora/día de semana/garzón, clasifica como 'ventas_hora'.",
+    ],
+}
 
 
 ENGINE_ROUTES = {

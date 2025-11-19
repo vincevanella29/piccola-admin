@@ -142,6 +142,19 @@ SPEC = FilterSpec(
 register_filter_spec(SPEC)
 
 
+# Metadata declarativa de la intent 'productos' para el router de intents (common.grok_route_intent)
+INTENT_META = {
+    "key": "productos",
+    "desc": "Rentabilidad y márgenes por producto (por período mensual), top más vendidos/rentables y comparativos.",
+    "classification_hints": [
+        "- Usa 'productos' cuando la pregunta hable de rentabilidad, margen, margen %, costo o ranking de productos más/menos rentables.",
+        "- Preguntas típicas: 'productos más rentables este mes', 'peor margen % en carnes', 'top 10 productos por margen en Alameda'.",
+        "- Si el foco es sólo ver la carta, detalle del producto, fotos o recetas (sin hablar de rentabilidad/margen), usa 'menus' en vez de 'productos'.",
+        "- 'productos' trabaja con periodos tipo YYYYMM y filtros por categoría/familia/subfamilia/local, y muestra métricas como venta, cantidad, margen, costo y margen_pct.",
+    ],
+}
+
+
 ENGINE_ROUTES = {
     "productos": {
         "intent": "productos",

@@ -218,6 +218,19 @@ SPEC = FilterSpec(
 register_filter_spec(SPEC)
 
 
+# Metadata declarativa de la intent 'gastos' para el router de intents (common.grok_route_intent)
+INTENT_META = {
+    "key": "gastos",
+    "desc": "Consultas de egresos/costos/boletas/facturas, por cuenta, sucursal o periodo.",
+    "classification_hints": [
+        "- Usa 'gastos' cuando el usuario pregunte por gastos/egresos/costos, boletas, facturas o cuentas contables.",
+        "- Preguntas típicas: 'gastos de proveedores este mes', 'cuánto se ha gastado en la cuenta 5101 en Providencia', 'detalle de boletas de gas'.",
+        "- 'gastos' trabaja con periodos start/end (fechas), group_by por mes/sigla/cuenta y filtros como include_siglas, include_cuentas y rut.",
+        "- No uses 'gastos' para ventas, sueldos ni consumos de artículos; sólo para egresos contables.",
+    ],
+}
+
+
 ENGINE_ROUTES = {
     "gastos": {
         "intent": "gastos",

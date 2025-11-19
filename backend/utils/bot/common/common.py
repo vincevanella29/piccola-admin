@@ -4,6 +4,8 @@ import logging
 import re
 from datetime import datetime, timedelta, date
 from typing import Optional, Tuple
+from pathlib import Path
+import importlib
 
 
 import httpx
@@ -26,27 +28,80 @@ XAI_MODEL = os.getenv("XAI_MODEL", "grok-2-latest")
 XAI_API_KEY = os.getenv("XAI_API_KEY")
 
 
-
 def get_env_xai():
     return XAI_API_URL, XAI_MODEL, XAI_API_KEY
 
 
 # Centralized intent spec for the chatbot
-INTENT_PRIORITY = [
+_INTENT_PRIORITY_BASE = [
     "gastos", "ventas_hora", "menus", "productos", "consumos", "ventas", "sueldos", "locations", "chat", "history"
 ]
-INTENTS = [
-    {"key": "gastos", "desc": "Consultas de egresos/costos/boletas/facturas, por cuenta/sucursal/mes/RUT."},
-    {"key": "menus", "desc": "Menú y productos: detalle, fotos, recetas y (opcionalmente) ventas totales por fecha de un producto específico."},
-    {"key": "productos", "desc": "Rentabilidad/márgenes por producto (por período mensual), top más vendidos/rentables, comparativos."},
-    {"key": "consumos", "desc": "Consultas de consumo de artículos de productos, por producto/familia/subfamilia (top/más consumidos, cantidades, por período), consumo segun venta."},
-    {"key": "ventas_hora", "desc": "Ventas por hora: por producto, local, garzón/RUT, día de semana/semana del mes, con clima o anulaciones."},
-    {"key": "ventas", "desc": "Ventas generales por fecha/rango (totales, tendencias, sin granularidad horaria por defecto)."},
-    {"key": "sueldos", "desc": "Remuneraciones/pagos de sueldos por período y opcionalmente por RUT."},
-    {"key": "locations", "desc": "Ubicación/tiendas/sucursales (búsqueda por nombre/ciudad/barrio)."},
-    {"key": "chat", "desc": "Cualquier otra conversación general."},
-    {"key": "history", "desc": "Historia/valores de la marca, institucional."},
-]
+
+# Descripciones base (fallback si un spec no define INTENT_META)
+_INTENT_BASE_DESCS = {
+    "consumos": "Consultas de consumo de artículos de productos, por producto/familia/subfamilia (top/más consumidos, cantidades, por período), consumo segun venta.",
+    "chat": "Cualquier otra conversación general.",
+    "history": "Historia/valores de la marca, institucional.",
+}
+
+
+INTENT_META_REGISTRY: dict[str, dict] = {}
+
+
+def _load_intent_meta_from_specs() -> None:
+    """Carga INTENT_META desde todos los módulos *_spec.py bajo utils.bot.
+
+    Esto sigue el mismo patrón que engine._load_bot_specs_and_routes, pero sólo
+    se fija en INTENT_META declarados por cada spec.
+    """
+    base_pkg = "utils.bot"
+    # common.py vive en utils/bot/common, así que el root de bots es su padre.
+    bot_root = Path(__file__).resolve().parent.parent
+
+    for path in bot_root.rglob("*spec.py"):
+        rel = path.relative_to(bot_root)
+        mod_name = f"{base_pkg}." + rel.with_suffix("").as_posix().replace("/", ".")
+        try:
+            mod = importlib.import_module(mod_name)
+        except Exception:
+            # No rompemos la carga global si un spec falla; sólo lo saltamos.
+            continue
+
+        meta = getattr(mod, "INTENT_META", None)
+        if not isinstance(meta, dict):
+            continue
+        key = (meta or {}).get("key")
+        if not key:
+            continue
+        # Último que se registre para una key gana (no debería haber duplicados).
+        INTENT_META_REGISTRY[str(key)] = meta
+
+
+_load_intent_meta_from_specs()
+
+
+# Construir INTENT_PRIORITY final: base conocida + extras desde specs.
+INTENT_PRIORITY: list[str] = []
+seen_keys: set[str] = set()
+for k in _INTENT_PRIORITY_BASE:
+    if k not in seen_keys:
+        INTENT_PRIORITY.append(k)
+        seen_keys.add(k)
+
+for k in INTENT_META_REGISTRY.keys():
+    if k not in seen_keys:
+        INTENT_PRIORITY.append(k)
+        seen_keys.add(k)
+
+
+INTENTS = []
+for key in INTENT_PRIORITY:
+    meta = INTENT_META_REGISTRY.get(key) or {}
+    desc = meta.get("desc") or _INTENT_BASE_DESCS.get(key) or ""
+    INTENTS.append({"key": key, "desc": desc})
+
+ACCEPTED_INTENT_KEYS = {i["key"] for i in INTENTS}
+
 
 def _parse_iso_date(value: Optional[str]) -> Optional[date]:
     """Parsea fechas en formato común (YYYY-MM-DD / YYYY/MM/DD) a date segura."""
@@ -215,11 +270,21 @@ async def grok_route_intent(user_text: str) -> Optional[dict]:
     today = datetime.now().strftime('%Y-%m-%d')
     intents_text = "\n".join([f"- {i['key']}: {i['desc']}" for i in INTENTS])
     priority_text = " > ".join(INTENT_PRIORITY)
+    allowed_intents_schema = "|".join(sorted(ACCEPTED_INTENT_KEYS))
 
+
+    # Hints adicionales de intents declaradas en specs (INTENT_META.classification_hints)
+    extra_rules = []
+    for meta in INTENT_META_REGISTRY.values():
+        try:
+            for line in meta.get("classification_hints", []) or []:
+                extra_rules.append(str(line))
+        except Exception:
+            continue
 
     system = (
         "Estás dentro de un chatbot de negocio. Tu tarea es CLASIFICAR la intención del usuario.\n"
-        "Devuelve SOLO JSON exacto con este esquema: {\"intent\":\"sueldos|ventas_hora|ventas|menus|locations|productos|consumos|gastos|chat\"}.\n"
+        f"Devuelve SOLO JSON exacto con este esquema: {{\"intent\":\"{allowed_intents_schema}\"}}.\n"
         "Ningún otro campo.\n\n"
         "Intenciones disponibles:\n" + intents_text + "\n\n"
         "Reglas:\n"
@@ -229,12 +294,14 @@ async def grok_route_intent(user_text: str) -> Optional[dict]:
         "- Si piden sueldos/remuneraciones por período/RUT => 'sueldos'.\n"
         "- Ventas por producto con énfasis en rentabilidad/margen (por período mensual) (SI INCLUYE RENTA/MARGEN) => 'productos'.\n"
         "- Consultas de menú/productos (ver carta, fotos, detalle, recetas, ventas totales de un producto por fecha/día/mes) SIN hablar de 'por hora' ==> 'menus'.\n"
+        "- Si el usuario pregunta 'cuántos [producto/bebida/plato] se vendieron' o 'ventas de [producto]' (p.ej. 'cuántos jugos de frambuesa vendió RAN'), y NO menciona horas/días de semana/semana del mes, NI palabras como 'margen', 'rentabilidad' o 'ticket', CLASIFICA como 'menus', NO como 'ventas'.\n"
         "- Si mencionan frases como 'consumo según venta', 'cuánto se consumió de X según ventas', 'consumo de X según ventas', o similares => 'consumos'.\n"
         "- CUALQUIER pedido que mencione horas específicas (ej. 'a las 4 pm'), 'por hora', día de semana ('lunes','sábado'), 'por garzón/RUT', 'semana del mes' o combinaciones tipo 'ventas por hora de la lasagna' => 'ventas_hora'.\n"
         "- Ventas generales por fecha/rango sin granularidad horaria ('ventas totales de este mes', 'ventas de la semana pasada') => 'ventas'.\n"
         "- 'menus' para detalle/listado de productos y recetas. 'productos' para márgenes/rentabilidad mensual.\n"
         "- Historia/valores de la marca, institucional => 'history'.\n"
-        f"Hoy es {today}."
+        + ("\n" + "\n".join(extra_rules) if extra_rules else "")
+        + f"\nHoy es {today}."
     )
 
 
@@ -257,7 +324,7 @@ async def grok_route_intent(user_text: str) -> Optional[dict]:
             data = r.json()
             content = (data.get("choices", [{}])[0].get("message", {}) or {}).get("content") or ""
             obj = json.loads(content)
-            if not (isinstance(obj, dict) and obj.get("intent") in {"sueldos","ventas_hora","ventas","menus","locations","productos","consumos","gastos","chat","history"}):
+            if not (isinstance(obj, dict) and obj.get("intent") in ACCEPTED_INTENT_KEYS):
                 return None
             # Return ONLY the intent field
             return {"intent": obj.get("intent")}

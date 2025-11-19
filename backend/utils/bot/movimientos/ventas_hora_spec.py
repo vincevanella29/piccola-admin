@@ -229,6 +229,19 @@ SPEC = FilterSpec(
 register_filter_spec(SPEC)
 
 
+# Metadata declarativa de la intent 'ventas_hora' para el router de intents (common.grok_route_intent)
+INTENT_META = {
+    "key": "ventas_hora",
+    "desc": "Ventas por hora/día de semana/garzón/producto, con posibilidad de filtrar por clima y anulaciones.",
+    "classification_hints": [
+        "- Usa 'ventas_hora' cuando el usuario mencione explícitamente horas, 'por hora', días de semana, semanas del mes, garzones/RUT o anulaciones.",
+        "- Preguntas típicas: 'ventas por hora de la lasagna en Providencia', 'qué garzón vendió más ayer', 'ventas de platos calientes los sábados a las 8 pm'.",
+        "- 'ventas_hora' agrupa por hora/dow/dia/semana_mes/mes/local/rut/producto/familia/subfamilia y usa filters como include_ruts, include_codigos, hour_in, dow_in, semana_mes_in, weather_in.",
+        "- Si sólo piden ventas totales por mes/día/local sin hablar de horas ni garzones, clasifica como 'ventas' y no como 'ventas_hora'.",
+    ],
+}
+
+
 ENGINE_ROUTES = {
     "ventas_hora": {
         "intent": "ventas_hora",

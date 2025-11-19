@@ -17,14 +17,31 @@ def _postprocess_locations(obj: dict) -> dict:
     return obj
 
 
+SCHEMA = '{"q":""}'
+RULES = "- Devuelve 'q' con texto para filtrar por nombre/ciudad/barrio."
+
+
 SPEC = FilterSpec(
     key="locations",
-    schema_text='{"q":""}',
-    rules_text="- Devuelve 'q' con texto para filtrar por nombre/ciudad/barrio.",
+    schema_text=SCHEMA,
+    rules_text=RULES,
     catalogs=[("LOCALES(slug|nombre)", _catalog_locations)],
     postprocess=_postprocess_locations,
 )
 register_filter_spec(SPEC)
+
+
+# Metadata declarativa de la intent 'locations' para el router de intents (common.grok_route_intent)
+INTENT_META = {
+    "key": "locations",
+    "desc": "Ubicación/tiendas/sucursales (búsqueda por nombre/ciudad/barrio, direcciones y horarios).",
+    # Texto que se puede inyectar en el prompt de clasificación para ayudar a Grok
+    "classification_hints": [
+        "- Usa 'locations' cuando el usuario pregunte por sucursales/locales/tiendas, direcciones, mapa, cómo llegar, horarios o qué locales hay en una ciudad/barrio.",
+        "- Preguntas típicas: 'dónde queda Providencia', 'qué locales hay en Rancagua', 'horario del local de Alameda', 'dirección del local de Ñuñoa'.",
+        "- No uses 'locations' para ventas, consumos ni sueldos; solo para información de ubicación y metadata de sucursales.",
+    ],
+}
 
 
 ENGINE_ROUTES = {

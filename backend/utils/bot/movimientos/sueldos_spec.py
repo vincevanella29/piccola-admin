@@ -197,6 +197,19 @@ SPEC = FilterSpec(
 register_filter_spec(SPEC)
 
 
+# Metadata declarativa de la intent 'sueldos' para el router de intents (common.grok_route_intent)
+INTENT_META = {
+    "key": "sueldos",
+    "desc": "Remuneraciones/pagos de sueldos por período (mes/año), sucursal, cargo, sección o RUT.",
+    "classification_hints": [
+        "- Usa 'sueldos' cuando el usuario pregunte por sueldos, remuneraciones, liquidaciones, montos líquidos o imponibles de trabajadores.",
+        "- Preguntas típicas: 'sueldos del personal de cocina este año', 'cuánto se ha pagado en sueldos en Rancagua', 'detalle de sueldo del RUT 12.345.678'.",
+        "- 'sueldos' trabaja con periodos YYYYMM/year/months y filtros por sigla, seccion, cargo, rut, sexo, AFP, isapre y name_text.",
+        "- No uses 'sueldos' para consultas de ventas ni gastos contables; sólo para remuneraciones de trabajadores.",
+    ],
+}
+
+
 ENGINE_ROUTES = {
     "sueldos": {
         "intent": "sueldos",

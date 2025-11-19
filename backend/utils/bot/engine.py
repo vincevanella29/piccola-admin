@@ -22,9 +22,6 @@ XAI_API_KEY = os.getenv("XAI_API_KEY")
 from utils.bot.common.common import ask_grok, grok_route_intent, INTENTS
 from config.roles.access import compute_permissions_for_identity
 from utils.bot.common.filters import grok_filters
-from utils.bot.sucursales.locations import find_location_by_query
-from utils.bot.clubnonna.club import handle_club
-from utils.bot.historynonna.history import handle_history
 
 # Dynamic registration of FilterSpecs and engine routes from all *_spec.py modules
 ENGINE_ROUTES: dict[str, dict] = {}
@@ -164,22 +161,13 @@ async def _attach_summary(intent: str, payload, text: str, context) -> dict:
         compact = json.dumps(summary_dict, ensure_ascii=False)
     except Exception:
         compact = ""
-    if intent == "history":
-        prompt = (
-            "El usuario preguntó lo siguiente (texto libre): "
-            f"{text}\n\n"
-            "Este es el contexto estructurado (JSON resumido) que verás en pantalla: "
-            f"{compact}\n\n"
-            "Resume en 2-3 líneas, en español chileno"
-        )
-    else:
-        prompt = (
-            "El usuario preguntó lo siguiente (texto libre): "
-            f"{text}\n\n"
-            "Esta es la respuesta de datos que le vamos a mostrar (JSON resumido del payload): "
-            f"{compact}\n\n"
-            "En base a eso, resume en 2-3 líneas"
-        )
+    prompt = (
+        "El usuario preguntó lo siguiente (texto libre): "
+        f"{text}\n\n"
+        "Esta es la respuesta de datos que le vamos a mostrar (JSON resumido del payload): "
+        f"{compact}\n\n"
+        "En base a eso, resume en 2-3 líneas"
+    )
 
     perms = getattr(context, "user_data", {}).get("permissions") or {}
     rut = perms.get("rut") or None
@@ -198,7 +186,7 @@ async def _attach_summary(intent: str, payload, text: str, context) -> dict:
         s = summary.strip()
         if s:
             payload.setdefault("assistant_text", s)
-            if intent == "history" and "text" not in payload:
+            if "text" not in payload:
                 payload["text"] = s
     return payload
 
@@ -376,36 +364,6 @@ async def chat_complete(messages: list[dict]) -> str:
                         return payload
         except Exception:
             logger.exception(f"Error processing intent {itype} via ENGINE_ROUTES")
-
-    if itype == "club":
-        section = "help"
-        spec = await _with_timeout(grok_filters("club", text), timeout=2.0, default={})
-        if isinstance(spec, dict) and spec.get("section"):
-            section = spec.get("section")
-            logger.info(f"Club section: {section}")
-        _, payload = await _with_timeout(handle_club(update, section), timeout=4.0, default=(None, {"type": "text", "text": "No disponible por ahora."}))
-        # If complaints funnel, enrich with location quick action
-        if section == "polls":
-            try:
-                lf = await _with_timeout(grok_filters("locations", text), timeout=1.5, default={}) or {}
-                q = (lf.get("q") or "").strip()
-                loc = find_location_by_query(q) if q else None
-                if loc:
-                    payload["related_location"] = loc
-                    phone = (loc.get("phone") or "").strip()
-                    if phone:
-                        actions = payload.get("actions") or []
-                        actions.append({"label": "Llamar sucursal", "url": f"tel:{phone}", "variant": "secondary"})
-                        payload["actions"] = actions
-            except Exception:
-                pass
-        return payload
-
-    if itype == "history":
-        _ = await _with_timeout(grok_filters("history", text), timeout=1.5, default={})
-        _, payload = await _with_timeout(handle_history(update, section="timeline"), timeout=4.0, default=(None, {"type": "timeline", "items": []}))
-        payload = await _attach_summary("history", payload, text, context)
-        return payload
 
     # Fallback/general chat
     perms = context.user_data.get("permissions") or {}

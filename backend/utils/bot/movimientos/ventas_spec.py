@@ -172,6 +172,19 @@ SPEC = FilterSpec(
 register_filter_spec(SPEC)
 
 
+# Metadata declarativa de la intent 'ventas' para el router de intents (common.grok_route_intent)
+INTENT_META = {
+    "key": "ventas",
+    "desc": "Ventas generales por fecha/rango (totales, personas, mesas, ticket promedio), sin granularidad horaria.",
+    "classification_hints": [
+        "- Usa 'ventas' cuando pregunten por ventas totales de un periodo (día/mes/año/semana) o por local, sin énfasis en 'por hora'.",
+        "- Preguntas típicas: 'ventas totales de este mes', 'cuántas personas atendimos la semana pasada', 'ticket promedio por local en octubre'.",
+        "- 'ventas' usa period.preset/start/end, group_by dia/mes/local/weather y measures total/personas/mesas/ticket_persona/ticket_mesa.",
+        "- Si piden ventas por hora, por garzón, por día de semana u hora específica, clasifica como 'ventas_hora'.",
+    ],
+}
+
+
 ENGINE_ROUTES = {
     "ventas": {
         "intent": "ventas",

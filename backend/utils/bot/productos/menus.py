@@ -133,7 +133,23 @@ async def handle_menus_intent(update, context):
     # El engine ya puede haber parseado el SPEC de 'menus' y dejado el resultado
     # completo en context.user_data["menus_filters"]. Si no está, hacemos fallback
     # a grok_filters aquí para mantener compatibilidad.
-    mf = getattr(context, "user_data", {}).get("menus_filters") or (await grok_filters("menus", text) or {})
+    #
+    # Para ayudar al resolutor de filtros, le pasamos un pequeño contexto extra
+    # embebido en el texto, explicando que cuando el usuario nombra un grupo
+    # genérico (ej: "jugos", "pastas", "postres") debe tratar de seleccionar
+    # todos los productos relacionados usando el catálogo MENUS, y cuando el
+    # usuario menciona algo muy específico o códigos, puede acotar más.
+    filters_hint = (
+        "\n\n[INSTRUCCIONES PARA FILTROS MENUS: "
+        "si el usuario pide por nombre de producto o grupo genérico (por ejemplo 'jugos', 'jugo de frambuesa', 'celestinos'), "
+        "usa el catálogo de MENUS(codigo|nombre|descripcion) para elegir los productos que contengan o sean muy parecidos a ese texto. "
+        "Cuando el usuario no entrega códigos numéricos, prioriza usar el texto en 'q' y deja que el sistema derive todos los códigos "
+        "relacionados en filters.include_codigos. Solo uses filters.include_codigos directo cuando el usuario da códigos explícitos.]"
+    )
+    mf = getattr(context, "user_data", {}).get("menus_filters") or (
+        await grok_filters("menus", text + filters_hint) or {}
+    )
+    logger.info(f"menus_filters: {mf}")
 
     # Guardamos el spec completo en el contexto para que handle_menus pueda
     # reutilizarlo (filtros de acceso, periodos, etc.).
@@ -152,11 +168,21 @@ async def handle_menus_intent(update, context):
 
     # Delegar SIEMPRE en handle_menus (descriptivo / recetas / listados)
     _, payload = await handle_menus(update, context)
-    payload_out = payload if isinstance(payload, (dict, list)) else {
-        "type": "text_block_list",
-        "intent": "menus",
-        "lines": payload,
-    }
+    # Normalizar siempre a un payload estructurado para el engine/frontend
+    if isinstance(payload, dict):
+        payload_out = payload
+    elif isinstance(payload, list):
+        payload_out = {
+            "type": "text_block_list",
+            "intent": "menus",
+            "lines": payload,
+        }
+    else:
+        payload_out = {
+            "type": "text_block_list",
+            "intent": "menus",
+            "lines": [str(payload)] if payload is not None else [],
+        }
     return update, payload_out
 
 
@@ -417,55 +443,59 @@ async def handle_menus(update, context):
     ff_filters = (f or {}).get("filters") or mf_all.get("filters") or {}
     include_codigos_filter = [str(x).upper() for x in (ff_filters.get("include_codigos") or [])]
     seed_codes = set(include_codigos_filter)
+
     if seed_codes:
+        # Si Grok/spec ya determinó códigos concretos, confiamos 100% en ellos
+        # y NO agregamos más matches por texto/categoría.
         set_codes = seed_codes
         for m in menus:
             code = _norm_str(m.get("codigo")).upper()
             if code and code in set_codes:
                 matched.append(m)
+    else:
+        # Sin códigos predefinidos: usamos heurísticas por categoría/producto/texto
+        if by == "categoria":
+            cat_ids = []
+            for c in categories:
+                cid = _norm_str(c.get("id") or c.get("_id"))
+                nombre = _norm_str(c.get("nombre") or c.get("name"))
+                if not ql or _contains(nombre, ql) or (ql and cid == q):
+                    cat_ids.append(cid)
+            cat_ids_set = set(cat_ids)
+            for m in menus:
+                mids = [_norm_str(x) for x in (m.get("category_ids") or [])]
+                if any(mid in cat_ids_set for mid in mids):
+                    matched.append(m)
 
-    if by == "categoria":
-        cat_ids = []
-        for c in categories:
-            cid = _norm_str(c.get("id") or c.get("_id"))
-            nombre = _norm_str(c.get("nombre") or c.get("name"))
-            if not ql or _contains(nombre, ql) or (ql and cid == q):
-                cat_ids.append(cid)
-        cat_ids_set = set(cat_ids)
-        for m in menus:
-            mids = [_norm_str(x) for x in (m.get("category_ids") or [])]
-            if any(mid in cat_ids_set for mid in mids):
-                matched.append(m)
+        elif by == "producto":
+            # Matching por código exacto o por tokens (sin acentos, singularizado)
+            needles = set(_singularize_tokens_es(q)) if q else set()
+            for m in menus:
+                nombre = _norm_str(m.get("nombre"))
+                codigo = _norm_str(m.get("codigo"))
+                if not ql:
+                    matched.append(m)
+                    continue
+                if codigo == q:
+                    matched.append(m)
+                    continue
+                # nombre sin acentos/lower
+                name_na = _no_accents(nombre).lower()
+                if any(n in name_na for n in needles):
+                    matched.append(m)
 
-    elif by == "producto":
-        # Matching por código exacto o por tokens (sin acentos, singularizado)
-        needles = set(_singularize_tokens_es(q)) if q else set()
-        for m in menus:
-            nombre = _norm_str(m.get("nombre"))
-            codigo = _norm_str(m.get("codigo"))
-            if not ql:
-                matched.append(m)
-                continue
-            if codigo == q:
-                matched.append(m)
-                continue
-            # nombre sin acentos/lower
-            name_na = _no_accents(nombre).lower()
-            if any(n in name_na for n in needles):
-                matched.append(m)
-
-    else:  # texto -> nombre o descripción con tokens (sin acentos)
-        needles = set(_singularize_tokens_es(q)) if q else set()
-        for m in menus:
-            nombre = _norm_str(m.get("nombre"))
-            descr = _norm_str(m.get("descripcion") or m.get("description"))
-            if not ql:
-                matched.append(m)
-                continue
-            name_na = _no_accents(nombre).lower()
-            descr_na = _no_accents(descr).lower()
-            if any(n in name_na or n in descr_na for n in needles):
-                matched.append(m)
+        else:  # texto -> nombre o descripción con tokens (sin acentos)
+            needles = set(_singularize_tokens_es(q)) if q else set()
+            for m in menus:
+                nombre = _norm_str(m.get("nombre"))
+                descr = _norm_str(m.get("descripcion") or m.get("description"))
+                if not ql:
+                    matched.append(m)
+                    continue
+                name_na = _no_accents(nombre).lower()
+                descr_na = _no_accents(descr).lower()
+                if any(n in name_na or n in descr_na for n in needles):
+                    matched.append(m)
 
     # Deduplicar por código, por si hubo seed + matching adicional
     if matched:
@@ -477,6 +507,12 @@ async def handle_menus(update, context):
                 seen_codes.add(c)
                 uniq.append(m)
         matched = uniq
+
+    # Si el SPEC/NLP ya determinó códigos concretos (filters.include_codigos)
+    # y la consulta es de receta, limitamos los matches solo a esos códigos
+    # para evitar tablas enormes con productos que el usuario no pidió.
+    if recipe and seed_codes:
+        matched = [m for m in matched if _norm_str(m.get("codigo")).upper() in seed_codes]
 
     # Para nivel 7 cocina (no garzón), reforzar el scope por centros:
     # solo se permiten productos cuyo código esté en filters.include_codigos.
@@ -777,44 +813,44 @@ async def handle_menus(update, context):
             return update, [{"type": "photo", "url": img, "caption": caption}]
         return update, [_menu_detail_block(m, cat_by_id)]
 
-    # ---- Listado corto (máx 20) con UI linda ----
-    MAX_ITEMS = 20
-    lines: List[str] = []
-    header = "**Menús encontrados**" if not q else f"**Menús encontrados** para `'{q}'`"
-    lines.append(header)
+    # ---- Listado corto como data_table (para que el frontend lo trate como tabla estándar) ----
+    MAX_ITEMS = 50
+    rows: List[dict] = []
+    for m in matched[:MAX_ITEMS]:
+        nombre_i = _norm_str(m.get("nombre"))
+        codigo_i = _norm_str(m.get("codigo"))
+        precio_i = m.get("precio")
+        currency_i = _norm_str(m.get("currency") or "$")
+        img_i = _resolve_menu_image_url(m)
+        rows.append({
+            "group": f"{nombre_i} ({codigo_i})" if (nombre_i and codigo_i) else (nombre_i or codigo_i),
+            "code": codigo_i,
+            "name": nombre_i,
+            "price": precio_i,
+            "currency": currency_i,
+            "image_url": img_i,
+        })
 
-    for i, m in enumerate(matched[:MAX_ITEMS], start=1):
-        nombre = _norm_str(m.get("nombre"))
-        codigo = _norm_str(m.get("codigo"))
-        precio = m.get("precio")
-        currency = _norm_str(m.get("currency") or "$")
-        # categories names
-        cat_ids = [_norm_str(x) for x in (m.get("category_ids") or [])]
-        cat_names = [
-            _norm_str(cat_by_id[cid].get("nombre") or cat_by_id[cid].get("name"))
-            for cid in cat_ids if cid in cat_by_id
-        ]
-        # options
-        opt_names = join_options(m)
+    columns = [
+        {"key":"image_url","label":"","type":"text","align":"left","format":"image"},
+        {"key":"group","label":"producto","type":"text","align":"left"},
+        {"key":"price","label":"Precio","type":"number","align":"right","format":"money"},
+    ]
 
-        meta_bits: List[str] = []
-        # el código va en el título, mantenemos precio en meta
-        if precio is not None:
-            meta_bits.append(_fmt_money(precio, currency))
-        meta = (" · ".join(meta_bits)) if meta_bits else ""
+    text_hdr = f"{len(rows)}/{len(matched)} menús" + (f" para '{q}'" if q else "")
+    payload = {
+        "type": "data_table",
+        "title": text_hdr,
+        "text": text_hdr,
+        "subtitle": None,
+        "kpis": [],
+        "columns": columns,
+        "rows": rows,
+        "totals": None,
+        "charts": None,
+    }
 
-        cat_str = f"  —  *{', '.join(cat_names)}*" if cat_names else ""
-        opt_str = (
-            f"  —  _opc: {', '.join(opt_names[:3])}{'…' if len(opt_names) > 3 else ''}_"
-            if opt_names else ""
-        )
-        title = f"**{nombre}**" if not codigo else f"**{nombre}** (\`{codigo}\`)"
-        lines.append(f"{i}. {title}{(' — ' + meta) if meta else ''}{cat_str}{opt_str}")
-
-    if len(matched) > MAX_ITEMS:
-        lines.append(f"… y **{len(matched) - MAX_ITEMS}** más")
-
-    return update, lines
+    return update, payload
 
 # ===============================
 # Ventas por hora de productos
