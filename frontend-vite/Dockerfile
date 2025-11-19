@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY . .
 
 # Instala dependencias y construye el proyecto
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 RUN npm run build
 
 # Etapa de producción: sirve archivos estáticos con Nginx
