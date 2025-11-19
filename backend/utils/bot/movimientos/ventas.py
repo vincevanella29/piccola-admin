@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from typing import Dict, List, Optional, Tuple
 
 from utils.web3mongo import db
-from ..common.filters import grok_filters
+from ..common.filters import grok_filters, _apply_sucursal_scope
 
 logger = logging.getLogger(__name__)
 
@@ -212,8 +212,14 @@ async def handle_ventas(update, context):
     tg_id = getattr(tg_user, 'id', None) if tg_user else None
     logger.info(f"[ventas_handler] incoming tg_id={tg_id}, text='{text}'")
 
-    # 1) SPEC
-    vf = await grok_filters("ventas", text) or {}
+    # 1) SPEC: reutilizar el resultado del engine si viene en el contexto
+    vf = None
+    try:
+        vf = getattr(context, "user_data", {}).get("ventas_spec")
+    except Exception:
+        vf = None
+    if not isinstance(vf, dict) or not vf:
+        vf = await grok_filters("ventas", text) or {}
     logger.info(f"[ventas] spec_raw => {vf}")
 
     per = vf.get("period") or {}
@@ -236,6 +242,16 @@ async def handle_ventas(update, context):
     include_fields = [str(x).lower() for x in (view.get("include_fields") or [])]
 
     f = vf.get("filters") or {}
+
+    # 1.1) Scope de sucursales según permisos para niveles 6+ (1-5 sin cambios)
+    perms = getattr(context, "user_data", {}).get("permissions") or {}
+    try:
+        role_level = int(getattr(context, "user_data", {}).get("role_level"))
+    except Exception:
+        role_level = None
+    f = _apply_sucursal_scope(f, perms or {}, role_level)
+    vf["filters"] = f
+
     include_locals = [str(x) for x in (f.get("include_locals") or [])]
     include_siglas = [str(x).upper() for x in (f.get("include_siglas") or [])]
     weather_in     = [str(x).lower() for x in (f.get("weather_in") or [])]
@@ -442,32 +458,92 @@ async def handle_ventas(update, context):
             return f"${v:,.0f}"
         yoy_line = f" | {tag}: {fmt(prev_total)} → {fmt(cur_total)} (Δ {fmt(delta)})"
 
+    # Construir payload estructurado tipo data_table para el frontend
     label_by = group_by.replace("_"," y ")
     nice_meas = {"total":"ventas","personas":"personas","mesas":"mesas","ticket_persona":"ticket promedio (persona)","ticket_mesa":"ticket promedio (mesa)"}[measure]
-    lines = [f"Nonna Marriana dice: {nice_meas.capitalize()} {pretty_range} agrupado por {label_by}{yoy_line}."]
-    for g in grouped:
-        v = g.get("value", 0)
-        extra = []
-        if "mesas" in include_fields: extra.append(f"mesas {int(g.get('sum_mesas',0))}")
-        if "personas" in include_fields: extra.append(f"pers {int(g.get('sum_personas',0))}")
-        if "ticket_persona" in include_fields: extra.append(f"tck/pers ${g.get('ticket_persona',0):,.0f}")
-        if "ticket_mesa" in include_fields: extra.append(f"tck/mesa ${g.get('ticket_mesa',0):,.0f}")
-        if "weather" in include_fields and g.get("weather_first"):
-            extra.append(f"clima {g['weather_first']}")
-        extr = (" | " + " · ".join(extra)) if extra else ""
-        if measure.startswith("ticket"):
-            main = f"${v:,.0f}"
-        elif measure in {"personas","mesas"} and metric != "count":
-            main = f"{int(v):,}"
-        else:
-            main = f"${v:,.0f}" if measure=="total" or metric=="count" else f"{v:,.0f}"
-        gid = g.get('_id')
-        # Si el grupo empieza con fecha YYYY-MM-DD, añade día de semana.
-        dow_sfx = ""
-        if isinstance(gid, str) and re.match(r"^\d{4}-\d{2}-\d{2}", gid):
-            ds = gid.split(" | ")[0]
-            dwn = _weekday_short_es(ds)
-            dow_sfx = f" ({dwn})" if dwn else ""
-        lines.append(f"- {gid}{dow_sfx}: {main}{extr} ({g.get('count',0)} días)")
 
-    return update, lines
+    # Columnas base
+    # value es monto en CLP cuando medimos ventas o tickets promedio -> marcar como money
+    is_money_value = measure in {"total", "ticket_persona", "ticket_mesa"} and metric != "count"
+    columns: List[Dict] = [
+        {"key": "group", "label": label_by, "type": "text", "align": "left"},
+        {
+            "key": "value",
+            "label": nice_meas.capitalize(),
+            "type": "number",
+            "align": "right",
+            "format": "money" if is_money_value else "number",
+        },
+    ]
+    if "mesas" in include_fields:
+        columns.append({"key": "sum_mesas", "label": "Mesas", "type": "number", "align": "right", "format": "number"})
+    if "personas" in include_fields:
+        columns.append({"key": "sum_personas", "label": "Personas", "type": "number", "align": "right", "format": "number"})
+    if "ticket_persona" in include_fields:
+        columns.append({"key": "ticket_persona", "label": "Tck/pers", "type": "number", "align": "right", "format": "money"})
+    if "ticket_mesa" in include_fields:
+        columns.append({"key": "ticket_mesa", "label": "Tck/mesa", "type": "number", "align": "right", "format": "money"})
+    if "weather" in include_fields:
+        columns.append({"key": "weather_first", "label": "Clima", "type": "text", "align": "left"})
+
+    # Filas y totales
+    rows_out: List[Dict] = []
+    total_value = 0.0
+    total_mesas = 0.0
+    total_personas = 0.0
+    for g in grouped:
+        v = float(g.get("value", 0) or 0)
+        total_value += v
+        total_mesas += float(g.get("sum_mesas", 0) or 0)
+        total_personas += float(g.get("sum_personas", 0) or 0)
+        row = {
+            "group": g.get("_id"),
+            "value": v,
+        }
+        if "mesas" in include_fields:
+            row["sum_mesas"] = int(g.get("sum_mesas", 0) or 0)
+        if "personas" in include_fields:
+            row["sum_personas"] = int(g.get("sum_personas", 0) or 0)
+        if "ticket_persona" in include_fields:
+            row["ticket_persona"] = float(g.get("ticket_persona", 0) or 0)
+        if "ticket_mesa" in include_fields:
+            row["ticket_mesa"] = float(g.get("ticket_mesa", 0) or 0)
+        if "weather" in include_fields and g.get("weather_first"):
+            row["weather_first"] = g.get("weather_first")
+        rows_out.append(row)
+
+    # KPIs sencillos + comparativo
+    kpis: List[Dict] = []
+    if measure == "total":
+        kpis.append({"label": "Total venta", "value": int(total_value), "isMoney": True})
+    elif measure in {"personas", "mesas"}:
+        kpis.append({"label": f"Total {nice_meas}", "value": int(total_value)})
+    else:
+        # ticket_persona / ticket_mesa son promedios de venta en CLP
+        kpis.append({"label": nice_meas.capitalize(), "value": int(total_value), "isMoney": True})
+    kpis.append({"label": "Sucursales", "value": len(rows_out)})
+    if total_personas:
+        kpis.append({"label": "Personas", "value": int(total_personas)})
+    if total_mesas:
+        kpis.append({"label": "Mesas", "value": int(total_mesas)})
+
+    if yoy_line:
+        kpis.append({"label": "Comparativo", "value": yoy_line.lstrip(" | ")})
+
+    title = f"{nice_meas.capitalize()} {pretty_range} agrupado por {label_by}{yoy_line}."
+
+    payload = {
+        "type": "data_table",
+        "intent": "ventas",
+        "title": title,
+        "columns": columns,
+        "rows": rows_out,
+        "kpis": kpis,
+        "totals": {
+            "value": int(total_value),
+            "personas": int(total_personas),
+            "mesas": int(total_mesas),
+        },
+    }
+
+    return update, payload

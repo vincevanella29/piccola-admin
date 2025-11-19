@@ -1,23 +1,9 @@
-// src/pages/chat/components/common/ChatHeader.jsx
 import React from 'react';
+import { Menu, Inbox, Wifi, WifiOff } from 'lucide-react';
 
-/**
- * Common sticky ChatHeader used by both client and admin chat views.
- * Ultra-compact, single-line bar with icon buttons.
- *
- * Props:
- * - variant: 'client' | 'admin'
- * - t: i18n function (optional)
- * - connected: boolean (optional)
- * - status: string (optional)
- * - title: string/node (optional)
- * - rightContent: node (optional)
- * - sticky: boolean (default true)
- * - topClass: string (default 'top-0')
- * - onOpenConversations: function (client) optional
- * - onOpenInbox: function (admin) optional
- * - unreadInboxCount: number (admin) optional
- */
+// Estilo Glass interno
+const HEADER_GLASS = "backdrop-blur-md bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 border-b border-light-border/50 dark:border-dark-border/50";
+
 const ChatHeader = ({
   variant = 'client',
   t,
@@ -28,8 +14,6 @@ const ChatHeader = ({
   unreadInboxCount = 0,
   title,
   rightContent,
-  sticky = true,
-  topClass = 'top-0',
 }) => {
   const isAdmin = variant === 'admin';
   const label = (t && t('chat.conversations')) || 'Conversations';
@@ -37,55 +21,68 @@ const ChatHeader = ({
   const offline = (t && t('chat.offline')) || 'Offline';
 
   return (
-    <div className={`${sticky ? `sticky ${topClass} z-20` : ''}`}>
-      <div className="flex items-center justify-between h-10 px-3 sm:px-4 rounded-md bg-light-surface dark:bg-dark-surface border border-light-border/60 dark:border-dark-border/60 shadow-lg">
-        <div className="flex items-center gap-2 min-w-0">
+    <div className={`w-full z-20 ${HEADER_GLASS}`}>
+      <div className="flex items-center justify-between h-14 px-4">
+        
+        {/* Left: Controls & Title */}
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Admin Inbox Button */}
           {isAdmin && onOpenInbox && (
             <button
               type="button"
               onClick={onOpenInbox}
-              className="inline-flex items-center gap-1 px-2 h-7 rounded bg-light-surface-secondary dark:bg-dark-surface-secondary hover:bg-light-accent-hover/40 dark:hover:bg-dark-accent-hover/30 border border-light-border/60 dark:border-dark-border/60 text-xs text-light-text-primary dark:text-dark-text-primary"
+              className="relative p-2 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 transition-colors group"
               title={(t && t('chat.inbox')) || 'Inbox'}
             >
-              {/* Inbox Icon */}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M3 13h4l2 3h6l2-3h4v7H3v-7z" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M7 13V6h10v7" stroke="currentColor" strokeWidth="1.5"/>
-              </svg>
-              <span className="hidden sm:inline">{(t && t('chat.inbox')) || 'Inbox'}</span>
+              <Inbox size={16} className="text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-accent dark:group-hover:text-dark-accent" />
               {unreadInboxCount > 0 && (
-                <span className="ml-1 px-1.5 rounded-full bg-red-500/80 text-white text-[10px] leading-4">
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white font-bold shadow-sm">
                   {unreadInboxCount}
                 </span>
               )}
             </button>
           )}
+
+          {/* Client Conversations Button */}
           {onOpenConversations && (
             <button
               type="button"
-              className="inline-flex items-center gap-1 px-2 h-7 rounded bg-light-surface-secondary dark:bg-dark-surface-secondary hover:bg-light-accent-hover/40 dark:hover:bg-dark-accent-hover/30 border border-light-border/60 dark:border-dark-border/60 text-xs text-light-text-primary dark:text-dark-text-primary"
+              className="p-2 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 transition-colors group"
               onClick={onOpenConversations}
               title={label}
             >
-              {/* Conversations Icon */}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a 4 4 0 0 1 4 4v8z" stroke="currentColor" strokeWidth="1.5"/>
-              </svg>
-              <span className="hidden sm:inline">{label}</span>
+              <Menu size={16} className="text-light-text-secondary dark:text-dark-text-secondary group-hover:text-light-accent dark:group-hover:text-dark-accent" />
             </button>
           )}
-          <div className="truncate text-[13px] font-medium text-light-text-primary dark:text-dark-text-primary opacity-90">
-            {title || (isAdmin ? 'Admin' : 'Chat')}
+
+          {/* Title & Status Text */}
+          <div className="flex flex-col justify-center">
+             <div className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary leading-tight">
+               {title || (isAdmin ? 'Centro de Comando' : 'Chat de Soporte')}
+             </div>
+             {status && (
+               <span className="text-[10px] font-mono text-light-text-tertiary dark:text-dark-text-tertiary uppercase tracking-wider">
+                 {status}
+               </span>
+             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 text-[12px] text-light-text-secondary dark:text-dark-text-secondary">
+
+        {/* Right: Connection & Actions */}
+        <div className="flex items-center gap-3">
+          {/* Connection Indicator */}
           {typeof connected === 'boolean' && (
-            <span className="inline-flex items-center gap-1">
-              <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-matrix-green' : 'bg-zinc-500'}`} />
-              <span className="hidden sm:inline">{connected ? online : offline}</span>
-            </span>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full border ${connected 
+               ? 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400' 
+               : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
+            }`}>
+               {connected ? <Wifi size={12} /> : <WifiOff size={12} />}
+               <span className="text-[10px] font-bold uppercase hidden sm:inline">
+                 {connected ? online : offline}
+               </span>
+            </div>
           )}
-          {status && <span className="opacity-80 text-light-text-primary/80 dark:text-dark-text-primary/80">{status}</span>}
+          
           {rightContent}
         </div>
       </div>

@@ -1,47 +1,23 @@
-// src/pages/chat/components/common/ChatFooter.jsx
 import React, { useCallback, useState } from 'react';
+import { Send, Plus, ArrowDown, UserCheck, UserX, XCircle } from 'lucide-react';
 
-/**
- * ChatFooter: unified composer with a single design.
- * - Lives inside its parent's layout (not window-sticky), but visually sticky at bottom by container placement.
- * - Keeps the same compact footprint while switching only the action buttons for admin vs client.
- *
- * Props (client):
- * - variant: 'client' | 'admin'
- * - t
- * - clientDisabled
- * - onClientSend(text)
- * - onClientTyping(state)
- * - clientProfileReady
- * - onClientNew()
- *
- * Props (admin):
- * - adminConvId
- * - adminDisabled
- * - onAdminReply(text)
- * - onAdminTake()
- * - onAdminRelease()
- * - onAdminClose()
- * - onAdminTyping(state)
- */
+// Estilo Glass interno
+const FOOTER_GLASS = "backdrop-blur-md bg-light-surface/80 dark:bg-dark-surface/80 border-t border-light-border/50 dark:border-dark-border/50";
+
 const ChatFooter = ({
   variant = 'client',
-  // client props
   t,
   clientDisabled,
   onClientSend,
   onClientTyping,
   clientProfileReady,
   onClientNew,
-  // admin props
-  adminConvId,
   adminDisabled,
   onAdminReply,
   onAdminTake,
   onAdminRelease,
   onAdminClose,
   onAdminTyping,
-  // common extras
   showJump,
   onJump,
 }) => {
@@ -49,33 +25,23 @@ const ChatFooter = ({
   const [text, setText] = useState('');
 
   const disabled = isAdmin ? adminDisabled : clientDisabled;
-  // New button should still work when there's no convId; require profile readiness for client
   const newDisabled = isAdmin ? disabled : !clientProfileReady;
 
   const handleChange = useCallback((e) => {
     const v = e.target.value;
     setText(v);
-    if (isAdmin) {
-      onAdminTyping && onAdminTyping(v.length > 0);
-    } else {
-      onClientTyping && onClientTyping(v.length > 0);
-    }
+    if (isAdmin) onAdminTyping?.(v.length > 0);
+    else onClientTyping?.(v.length > 0);
   }, [isAdmin, onAdminTyping, onClientTyping]);
 
   const doSend = useCallback(() => {
     const trimmed = (text || '').trim();
     if (!trimmed || disabled) return;
-    if (isAdmin) {
-      onAdminReply && onAdminReply(trimmed);
-    } else {
-      onClientSend && onClientSend(trimmed);
-    }
+    if (isAdmin) onAdminReply?.(trimmed);
+    else onClientSend?.(trimmed);
     setText('');
-    if (isAdmin) {
-      onAdminTyping && onAdminTyping(false);
-    } else {
-      onClientTyping && onClientTyping(false);
-    }
+    if (isAdmin) onAdminTyping?.(false);
+    else onClientTyping?.(false);
   }, [text, disabled, isAdmin, onAdminReply, onClientSend, onAdminTyping, onClientTyping]);
 
   const onKeyDown = useCallback((e) => {
@@ -86,69 +52,78 @@ const ChatFooter = ({
   }, [doSend]);
 
   return (
-    <div className="rounded-lg border bg-light-surface-secondary/60 border-light-border/60 dark:bg-dark-surface-secondary/60 dark:border-dark-border/60 p-2 sm:p-3">
-      {/* Top controls row: sticky inside this footer container if it grows */}
-      <div className="flex items-center justify-between gap-2 mb-2">
-        {!isAdmin && (
-          <button
-            type="button"
-            className="px-2 py-1 text-xs rounded bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary border border-light-border/60 dark:border-dark-border/60 hover:opacity-90"
-            onClick={onClientNew}
-            disabled={newDisabled}
-          >
-            {(t && t('chat.new')) || 'New'}
-          </button>
-        )}
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="px-2 py-1 text-xs rounded bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary border border-light-border/60 dark:border-dark-border/60 hover:opacity-90 disabled:opacity-50"
-              onClick={onAdminTake}
-              disabled={disabled}
-            >Take</button>
-            <button
-              type="button"
-              className="px-2 py-1 text-xs rounded bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary border border-light-border/60 dark:border-dark-border/60 hover:opacity-90 disabled:opacity-50"
-              onClick={onAdminRelease}
-              disabled={disabled}
-            >Release</button>
-            <button
-              type="button"
-              className="px-2 py-1 text-xs rounded bg-vanellix-purple/15 hover:bg-vanellix-purple/25 border border-vanellix-purple/30 text-vanellix-purple disabled:opacity-50"
-              onClick={onAdminClose}
-              disabled={disabled}
-            >Close</button>
-          </div>
-        )}
-        <div className="flex-1" />
-        {showJump && (
-          <button
-            type="button"
-            onClick={onJump}
-            className="px-3 py-1.5 text-xs rounded-full bg-matrix-green text-dark-background shadow hover:bg-matrix-green/90"
-          >{(t && t('chat.jump_to_latest')) || 'Jump to latest'}</button>
-        )}
-      </div>
+    <div className={`w-full px-4 py-3 ${FOOTER_GLASS}`}>
+      
+      {/* Top Row: Actions & Jump Button (Absolute positioned for overlay effect if needed, or stacked) */}
+      {(showJump || isAdmin || (!isAdmin && !newDisabled)) && (
+         <div className="flex items-center justify-between gap-2 mb-2">
+            
+            {/* Left Actions */}
+            <div className="flex items-center gap-2">
+               {!isAdmin && (
+                 <button
+                   type="button"
+                   onClick={onClientNew}
+                   disabled={newDisabled}
+                   className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-primary dark:text-dark-text-primary border border-light-border dark:border-dark-border hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 transition-colors disabled:opacity-50"
+                 >
+                   <Plus size={12} /> {(t && t('chat.new')) || 'Nuevo'}
+                 </button>
+               )}
 
-      {/* Input row */}
-      <div className="flex items-end gap-2">
+               {isAdmin && (
+                 <>
+                   <button
+                     onClick={onAdminTake} disabled={disabled}
+                     className="p-1.5 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 hover:bg-green-500/20"
+                     title="Take Ticket"
+                   ><UserCheck size={14} /></button>
+                   <button
+                     onClick={onAdminRelease} disabled={disabled}
+                     className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20"
+                     title="Release Ticket"
+                   ><UserX size={14} /></button>
+                   <button
+                     onClick={onAdminClose} disabled={disabled}
+                     className="p-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                     title="Close Ticket"
+                   ><XCircle size={14} /></button>
+                 </>
+               )}
+            </div>
+
+            {/* Right Actions (Jump) */}
+            {showJump && (
+              <button
+                type="button"
+                onClick={onJump}
+                className="flex items-center gap-1 px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-light-accent dark:bg-dark-accent text-white shadow-neon animate-bounce-small"
+              >
+                 {(t && t('chat.latest')) || 'Abajo'} <ArrowDown size={10} />
+              </button>
+            )}
+         </div>
+      )}
+
+      {/* Input Capsule */}
+      <div className="relative flex items-end gap-2 p-1.5 rounded-2xl bg-light-surface-tertiary/50 dark:bg-black/20 border border-light-border dark:border-dark-border focus-within:border-light-accent dark:focus-within:border-dark-accent focus-within:ring-1 focus-within:ring-light-accent/50 dark:focus-within:ring-dark-accent/50 transition-all duration-300">
         <textarea
           rows={1}
           value={text}
           onChange={handleChange}
           onKeyDown={onKeyDown}
           disabled={disabled || (isAdmin ? false : !clientProfileReady)}
-          placeholder={(t && t('chat.type_message')) || 'Type a message...'}
-          className="flex-1 resize-none rounded-md border border-light-border/60 dark:border-dark-border/60 bg-light-surface/70 dark:bg-dark-surface/50 text-light-text-primary dark:text-dark-text-primary placeholder:text-light-text-secondary dark:placeholder:text-dark-text-secondary p-2 focus:outline-none focus:ring-1 focus:ring-matrix-green/60"
+          placeholder={(t && t('chat.type_message')) || 'Escribe un mensaje a la Nonna...'}
+          className="flex-1 resize-none bg-transparent border-none text-sm text-light-text-primary dark:text-dark-text-primary placeholder:text-light-text-tertiary dark:placeholder:text-dark-text-tertiary px-3 py-2 focus:ring-0 max-h-24 scrollbar-none"
+          style={{ minHeight: '40px' }}
         />
         <button
           type="button"
           onClick={doSend}
           disabled={disabled || !text.trim()}
-          className="px-3 py-2 rounded-md bg-matrix-green text-dark-background hover:bg-matrix-green/90 disabled:opacity-50"
+          className="h-10 w-10 flex items-center justify-center rounded-xl bg-light-accent dark:bg-dark-accent text-white shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:shadow-none"
         >
-          {(t && t('chat.send')) || 'Send'}
+          <Send size={18} className={text.trim() ? "ml-0.5" : ""} />
         </button>
       </div>
     </div>

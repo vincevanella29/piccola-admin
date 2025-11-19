@@ -3,7 +3,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 
 from utils.web3mongo import db
-from ..common.filters import grok_filters
+from ..common.filters import grok_filters, apply_access_filters_for_product_like_intent, is_worker_in_sales_kpis
 import unicodedata
 
 logger = logging.getLogger(__name__)
@@ -116,6 +116,48 @@ def _wants_detail_menus(text: str) -> bool:
     return any(k in t for k in [
         "detalle", "detall", "¿cuál es", "cual es", "muéstrame", "muestrame", "foto", "imagen"
     ])
+
+
+async def handle_menus_intent(update, context):
+    """Router lógico para el intent 'menus'.
+
+    Desde ahora, TODO lo que sea intent 'menus' se resuelve con handle_menus:
+    - Detalle/recetas/ficha de producto.
+    - Listados de menús por texto/categoría.
+
+    Las ventas por hora (por producto, local, garzón, etc.) quedan a cargo
+    exclusivamente del intent 'ventas_hora' y su handler dedicatedo
+    utils.bot.movimientos.ventas_hora:handle_ventas_hora.
+    """
+    text = update.message.text or ""
+    # El engine ya puede haber parseado el SPEC de 'menus' y dejado el resultado
+    # completo en context.user_data["menus_filters"]. Si no está, hacemos fallback
+    # a grok_filters aquí para mantener compatibilidad.
+    mf = getattr(context, "user_data", {}).get("menus_filters") or (await grok_filters("menus", text) or {})
+
+    # Guardamos el spec completo en el contexto para que handle_menus pueda
+    # reutilizarlo (filtros de acceso, periodos, etc.).
+    if hasattr(context, "user_data"):
+        context.user_data["menus_filters"] = mf
+
+    # Extra para detalle/recetas: estos flags ya eran usados por handle_menus.
+    _tlow = (text or "").lower()
+    nl_wants_recipe = ("receta" in _tlow)
+    if nl_wants_recipe:
+        context.user_data["menus_recipe"] = True
+    context.user_data["menus_by"] = (mf.get("by") or "").lower()
+    context.user_data["menus_q"] = (mf.get("q") or "")
+    context.user_data["menus_detail"] = bool(mf.get("detail", False))
+    context.user_data["menus_mesanos"] = mf.get("mesanos") or []
+
+    # Delegar SIEMPRE en handle_menus (descriptivo / recetas / listados)
+    _, payload = await handle_menus(update, context)
+    payload_out = payload if isinstance(payload, (dict, list)) else {
+        "type": "text_block_list",
+        "intent": "menus",
+        "lines": payload,
+    }
+    return update, payload_out
 
 
 # ====================
@@ -312,6 +354,56 @@ async def handle_menus(update, context):
     cat_by_id = _index_by_id(categories)
     opt_by_id = _index_by_id(menu_options)
 
+    # Permisos / acceso
+    perms = getattr(context, "user_data", {}).get("permissions") or {}
+    try:
+        role_level = int(getattr(context, "user_data", {}).get("role_level"))
+    except Exception:
+        role_level = None
+
+    # Período actual YYYYMM para KPIs (garzón/cocina y centros de producción)
+    period_ym = None
+    try:
+        tz = ZoneInfo("America/Santiago")
+        now = datetime.now(tz)
+        period_ym = now.strftime("%Y%m")
+    except Exception:
+        period_ym = None
+
+    # Detectar si nivel 7 es garzón (es_competidor=True en kpis_empleado_mensual)
+    is_lvl7_garzon = False
+    if role_level == 7 and perms.get("rut") and period_ym:
+        try:
+            is_lvl7_garzon = is_worker_in_sales_kpis(period_ym, perms)
+        except Exception:
+            is_lvl7_garzon = False
+
+    # Aplicar scoping global de acceso (sucursal + centros para lvl 7 cocina)
+    base_filters_obj = (context.user_data.get("menus_filters") or f or {}) if hasattr(context, "user_data") else (f or {})
+    filters_before = (base_filters_obj.get("filters") or {}) if isinstance(base_filters_obj, dict) else {}
+    scoped_obj = apply_access_filters_for_product_like_intent(
+        "menus",
+        base_filters_obj if isinstance(base_filters_obj, dict) else {},
+        perms or {},
+        role_level,
+        None if is_lvl7_garzon else period_ym,
+    )
+    filters_after = (scoped_obj.get("filters") or {}) if isinstance(scoped_obj, dict) else {}
+    if hasattr(context, "user_data"):
+        context.user_data["menus_filters"] = scoped_obj
+    f = scoped_obj
+    logger.info(
+        "[menus.handle_menus] role_level=%s rut=%s cargo=%s seccion=%s period_ym=%s is_lvl7_garzon=%s filters_before=%s filters_after=%s",
+        role_level,
+        perms.get("rut"),
+        perms.get("cargo"),
+        perms.get("seccion"),
+        period_ym,
+        is_lvl7_garzon,
+        filters_before,
+        filters_after,
+    )
+
     # Filtrado
     matched: List[dict] = []
     ql = (q or "").lower()
@@ -385,6 +477,32 @@ async def handle_menus(update, context):
                 seen_codes.add(c)
                 uniq.append(m)
         matched = uniq
+
+    # Para nivel 7 cocina (no garzón), reforzar el scope por centros:
+    # solo se permiten productos cuyo código esté en filters.include_codigos.
+    # Si apply_access_filters marcó _lvl7_denied=True, bloqueamos aunque no haya allowed_codes.
+    if role_level == 7 and not is_lvl7_garzon:
+        ff_filters_effective = (f or {}).get("filters") or {}
+        allowed_codes = {str(x).upper() for x in (ff_filters_effective.get("include_codigos") or [])}
+        lvl7_denied = bool(ff_filters_effective.get("_lvl7_denied"))
+        before_codes = [(_norm_str(m.get("codigo")).upper() or "") for m in matched]
+        if allowed_codes:
+            matched = [m for m in matched if _norm_str(m.get("codigo")).upper() in allowed_codes]
+        elif lvl7_denied:
+            # No hay códigos permitidos para este centro/cargo en el período: bloquea recetas.
+            matched = []
+        after_codes = [(_norm_str(m.get("codigo")).upper() or "") for m in matched]
+        logger.info(
+            "[menus.handle_menus] lvl7 cocina scope by centers codes_before=%s codes_after=%s allowed_codes=%s lvl7_denied=%s",
+            before_codes,
+            after_codes,
+            sorted(list(allowed_codes)),
+            lvl7_denied,
+        )
+        if not matched:
+            return update, [
+                "No tienes acceso a recetas para ese producto en tu centro de costos.",
+            ]
 
     # Join options (para listado)
     def join_options(m: dict) -> List[str]:
@@ -544,6 +662,110 @@ async def handle_menus(update, context):
         if recipe_block:
             payload_pc["recipe"] = recipe_block
 
+        # 3) Ventas por producto (sales_by_waiter_hour) para el período pedido o mes actual
+        try:
+            # Determinar período desde el SPEC de menus (si viene), si no mes actual
+            vf_all = (context.user_data.get("menus_filters") or {}) if hasattr(context, "user_data") else {}
+            per = (vf_all.get("period") or {}) if isinstance(vf_all, dict) else {}
+            # Reutilizar helper de ventas_hora para rango de fechas
+            start_dt, end_excl, s_str, e_str, tz = _vh_resolve_period(per)
+
+            # Normaliza UTC naive para consultas
+            from zoneinfo import ZoneInfo as _ZI
+            _UTC = _ZI("UTC")
+            match_start = start_dt.astimezone(_UTC).replace(tzinfo=None)
+            match_end = end_excl.astimezone(_UTC).replace(tzinfo=None)
+
+            # Filtros efectivos (sucursales/códigos) ya aplicados por access
+            f_eff = (f or {}).get("filters") or {}
+            include_locals   = [str(x) for x in (f_eff.get("include_locals") or [])]
+            include_siglas   = [str(x).upper() for x in (f_eff.get("include_siglas") or [])]
+            include_codigos  = [str(x).upper() for x in (f_eff.get("include_codigos") or [])]
+
+            # Si estamos en receta de un producto específico, asegurar que su código está incluido
+            if codigo:
+                cu = codigo.upper()
+                if cu not in include_codigos:
+                    include_codigos.append(cu)
+
+            tz_name = str(tz)
+            stages_s = [
+                {"$addFields": {"_ts": {"$cond": [{"$eq": [{"$type": "$FECHA"}, "date"]}, "$FECHA", {"$toDate": "$FECHA"}]}}},
+                {"$match": {"_ts": {"$gte": match_start, "$lt": match_end}}},
+                {"$addFields": {
+                    "H": {"$ifNull": ["$HORA", {"$hour": {"date": "$_ts", "timezone": tz_name}}]},
+                    "DATE_STR": {"$dateToString":{"format":"%Y-%m-%d","date":"$_ts","timezone":tz_name}},
+                    "_SIGLA": {"$toUpper": {"$substrCP":[{"$ifNull":["$LOCAL",""]},0,3]}},
+                }},
+                {"$project": {
+                    "_id":0, "LOCAL":1, "CODIGO_PRODUCTO":1,
+                    "TOTAL": {"$ifNull":["$TOTAL",0]},
+                    "CANTIDAD": {"$ifNull":["$CANTIDAD",0]},
+                    "_SIGLA":1,
+                }}
+            ]
+            if include_locals:
+                real_loc_codes = [x for x in include_locals if isinstance(x, str) and x.upper().endswith("LOC")]
+                if real_loc_codes:
+                    stages_s += [{"$match":{"LOCAL":{"$in": real_loc_codes}}}]
+            if include_siglas:
+                stages_s += [{"$match":{"_SIGLA":{"$in": include_siglas}}}]
+            if include_codigos:
+                stages_s += [{"$match":{"CODIGO_PRODUCTO":{"$in": include_codigos}}}]
+
+            stages_s += [
+                {"$group": {
+                    "_id": "$CODIGO_PRODUCTO",
+                    "total": {"$sum": "$TOTAL"},
+                    "cantidad": {"$sum": "$CANTIDAD"},
+                }},
+                {"$sort": {"_id": 1}},
+            ]
+
+            sales_rows_raw = list(db[COLL_SALES_HOURLY].aggregate(stages_s))
+
+            # Mapear nombres de producto para la tabla de ventas
+            codes_for_sales = [str(r.get("_id") or "") for r in sales_rows_raw]
+            menus_map_sales = {str(m.get("codigo")): m for m in db.menus.find({"codigo": {"$in": codes_for_sales}}, {"codigo":1,"nombre":1})}
+
+            sales_rows = []
+            for r in sales_rows_raw:
+                code_s = str(r.get("_id") or "")
+                if not code_s:
+                    continue
+                t = float(r.get("total",0) or 0)
+                c = float(r.get("cantidad",0) or 0)
+                name_s = (menus_map_sales.get(code_s) or {}).get("nombre") or code_s
+                # Para nivel 7 (cocina/garzón) ocultar montos: solo cantidades
+                if role_level is not None and int(role_level) >= 7:
+                    t_display = 0.0
+                else:
+                    t_display = t
+                sales_rows.append({
+                    "code": code_s,
+                    "name": name_s,
+                    "cantidad": int(c),
+                    "total": round(t_display, 2),
+                })
+
+            if sales_rows:
+                sales_table = {
+                    "type": "data_table",
+                    "key": "sales",
+                    "title": f"Ventas por producto — {s_str} a {e_str}",
+                    "columns": [
+                        {"key":"code","label":"Código","type":"text","align":"left"},
+                        {"key":"name","label":"Producto","type":"text","align":"left"},
+                        {"key":"cantidad","label":"Unidades","type":"number","align":"right"},
+                        {"key":"total","label":"Venta","type":"number","align":"right"},
+                    ],
+                    "rows": sales_rows,
+                }
+                payload_pc["related_tables"] = payload_pc.get("related_tables") or []
+                payload_pc["related_tables"].append(sales_table)
+        except Exception:
+            pass
+
         return update, payload_pc
 
     # ---- Detalle único ----
@@ -603,6 +825,7 @@ from datetime import datetime, timedelta
 
 
 COLL_SALES_HOURLY = "sales_by_waiter_hour"
+RENTAB_COLL = "rentabilidad_producto_locales"
 
 
 def _vh_resolve_period(per: dict) -> tuple[datetime, datetime, str, str, ZoneInfo]:
@@ -646,348 +869,3 @@ def _vh_group_expr(gb: str):
     if gb == "local_dia": return {"$concat":[{"$ifNull":["$LOCAL","-"]}," | ",{"$ifNull":["$DATE_STR","-"]}]}
     if gb == "producto": return {"$ifNull":["$CODIGO_PRODUCTO","-"]}
     return {"$literal":"-"}
-
-
-async def handle_productos_hora(update, context):
-    """Ventas por hora de productos, con grouping flexible y payload estructurado (data_table)."""
-    text = update.message.text or ""
-    vf = await grok_filters("menus", text) or {}
-    per = vf.get("period") or {}
-    start_dt, end_excl, s_str, e_str, tz = _vh_resolve_period(per)
-    # cap por carga (como ventas_hora)
-    now = datetime.now(tz)
-    loaded_until = now.date() - timedelta(days=(1 if now.hour>=4 else 2))
-    cap_end = datetime.combine(loaded_until, datetime.min.time()).replace(tzinfo=tz) + timedelta(days=1)
-    end_excl = min(end_excl, cap_end)
-    if end_excl <= start_dt: start_dt = end_excl - timedelta(days=1)
-
-    # Normaliza UTC naive para consultas
-    from zoneinfo import ZoneInfo as _ZI
-    _UTC = _ZI("UTC")
-    match_start = start_dt.astimezone(_UTC).replace(tzinfo=None)
-    match_end   = end_excl.astimezone(_UTC).replace(tzinfo=None)
-
-    group_by = (vf.get("group_by") or "producto").lower()
-    measure  = (vf.get("measure") or "total").lower()  # total|cantidad|avg_precio
-    order_by = (vf.get("order_by") or "value_desc").lower()
-    view     = vf.get("view") or {}
-    limit_groups = int(view.get("limit_groups", 200))
-
-    f = vf.get("filters") or {}
-    include_locals   = [str(x) for x in (f.get("include_locals") or [])]
-    include_siglas   = [str(x).upper() for x in (f.get("include_siglas") or [])]
-    include_codigos  = [str(x).upper() for x in (f.get("include_codigos") or [])]
-    hour_in          = f.get("hour_in") or []
-    dow_in           = f.get("dow_in") or []
-
-    # Si el query textual sugiere familia (p.ej., "lasagnas") y venimos con 0/1 código, amplía derivando desde menus/categories
-    q_text = (vf.get("q") or "").strip() or (text or "").strip()
-    by = (vf.get("by") or "texto").lower()
-    if q_text:
-        try:
-            needles = set(_singularize_tokens_es(q_text))
-            # nombres/descr
-            extra_codes = set()
-            for m in db.menus.find({}, {"codigo":1, "nombre":1, "descripcion":1, "category_ids":1}).limit(6000):
-                name = _no_accents(str(m.get("nombre") or "").lower())
-                descr = _no_accents(str(m.get("descripcion") or "").lower())
-                if any(n in name or n in descr for n in needles):
-                    c = str(m.get("codigo") or "").upper()
-                    if c:
-                        extra_codes.add(c)
-            # categorías por nombre también
-            cat_needles = set(list(needles))
-            cat_ids = set()
-            for cdoc in db.categories.find({}, {"id":1, "nombre":1, "name":1}).limit(4000):
-                nm = _no_accents(str(cdoc.get("nombre") or cdoc.get("name") or "").lower())
-                if any(n in nm for n in cat_needles):
-                    cid = str(cdoc.get("id") or cdoc.get("_id") or "").strip()
-                    if cid:
-                        cat_ids.add(cid)
-            if cat_ids:
-                for m in db.menus.find({"category_ids": {"$in": list(cat_ids)}}, {"codigo":1}).limit(10000):
-                    c = str(m.get("codigo") or "").upper()
-                    if c:
-                        extra_codes.add(c)
-            # Si ya hay include_codigos, únelo; si había 0 o 1, expándelo
-            if extra_codes:
-                merged = list({*include_codigos, *extra_codes})[:500]
-                include_codigos = merged
-        except Exception:
-            pass
-
-    tz_name = str(tz)
-    stages = [
-        {"$addFields": {"_ts": {"$cond": [{"$eq": [{"$type": "$FECHA"}, "date"]}, "$FECHA", {"$toDate": "$FECHA"}]}}},
-        {"$match": {"_ts": {"$gte": match_start, "$lt": match_end}}},
-        {"$addFields": {
-            "H": {"$ifNull": ["$HORA", {"$hour": {"date": "$_ts", "timezone": tz_name}}]},
-            "DATE_STR": {"$dateToString":{"format":"%Y-%m-%d","date":"$_ts","timezone":tz_name}},
-            "MONTH_STR": {"$dateToString":{"format":"%Y-%m","date":"$_ts","timezone":tz_name}},
-            "_SIGLA": {"$toUpper": {"$substrCP":[{"$ifNull":["$LOCAL",""]},0,3]}},
-        }},
-        {"$project": {
-            "_id":0, "LOCAL":1, "CODIGO_PRODUCTO":1,
-            "TOTAL": {"$ifNull":["$TOTAL",0]},
-            "CANTIDAD": {"$ifNull":["$CANTIDAD",0]},
-            "H":1, "DATE_STR":1, "MONTH_STR":1, "_SIGLA":1,
-        }}
-    ]
-    if include_locals:
-        real_loc_codes = [x for x in include_locals if isinstance(x, str) and x.upper().endswith("LOC")]
-        if real_loc_codes: stages += [{"$match":{"LOCAL":{"$in": real_loc_codes}}}]
-    if include_siglas: stages += [{"$match":{"_SIGLA":{"$in": include_siglas}}}]
-    if include_codigos: stages += [{"$match":{"CODIGO_PRODUCTO":{"$in": include_codigos}}}]
-    if hour_in: stages += [{"$match":{"H":{"$in": hour_in}}}]
-
-    gid = _vh_group_expr(group_by)
-    stages += [
-        {"$addFields":{"_g": gid}},
-        {"$group":{
-            "_id":"$_g",
-            "total":{"$sum":"$TOTAL"},
-            "cantidad":{"$sum":"$CANTIDAD"},
-        }}
-    ]
-    if measure == "total":
-        stages += [{"$addFields":{"value":"$total"}}]
-    elif measure == "cantidad":
-        stages += [{"$addFields":{"value":"$cantidad"}}]
-    else:
-        stages += [{"$addFields":{"value":{"$cond":[{"$gt":["$cantidad",0]}, {"$divide":["$total","$cantidad"]}, 0]}}}]
-
-    if order_by == "group_asc": stages += [{"$sort":{"_id":1}}]
-    elif order_by == "value_asc": stages += [{"$sort":{"value":1}}]
-    else: stages += [{"$sort":{"value":-1}}]
-    stages += [{"$limit": int(max(5, min(limit_groups, 500)))}]
-
-    rows = list(db[COLL_SALES_HOURLY].aggregate(stages))
-
-    # Enriquecer con metadata de producto y recetas (si corresponde)
-    role_level = None
-    try:
-        role_level = int(getattr(context, "user_data", {}).get("role_level"))
-    except Exception:
-        role_level = None
-    authorized = role_level in {3,4}
-    detail = bool((vf.get("view") or {}).get("detail", False))
-    menus_map = {}
-    if group_by == "producto":
-        # Minimapa de menus por código
-        menus_map = {str(m.get("codigo")): m for m in db.menus.find({}, {"codigo":1,"nombre":1,"precio":1,"currency":1,"media_r2":1,"media_url":1,"media_local":1})}
-
-    # Build data_table payload
-    nice_measure = {"total":"Venta","cantidad":"Unidades","avg_precio":"Precio prom."}[measure if measure in {"total","cantidad","avg_precio"} else "total"]
-    title = f"Ventas por hora — {nice_measure} — {s_str} a {e_str} — agrupado por {group_by}"
-    columns = [
-        {"key":"group","label":group_by,"type":"text","align":"left"},
-        {"key":"total","label":"Venta","type":"number","align":"right"},
-        {"key":"cantidad","label":"Unidades","type":"number","align":"right"},
-        {"key":"avg_precio","label":"Precio prom.","type":"number","align":"right"},
-    ]
-    out_rows = []
-    for r in rows:
-        t = float(r.get("total",0) or 0)
-        c = float(r.get("cantidad",0) or 0)
-        ap = (t/c) if c else 0.0
-        row = {
-            "group": str(r.get("_id")),
-            "total": round(t,2),
-            "cantidad": int(c),
-            "avg_precio": round(ap,2),
-        }
-        # Si agrupo por producto, adjunto nombre/imágen, y receta si autorizado+detail
-        if group_by == "producto":
-            code = str(r.get("_id") or "")
-            m = menus_map.get(code) or {}
-            name = (m.get("nombre") or code)
-            row["code"] = code
-            row["name"] = name
-            # Mostrar nombre + código en la columna principal también (como en 'productos')
-            row["group"] = f"{name} ({code})" if name and code else (name or code)
-            # simple image URL chooser
-            img = m.get("media_r2") or m.get("media_url")
-            row["image_url"] = img
-            if authorized and detail and s_str and e_str and s_str[:7] == e_str[:7]:
-                mesano = s_str.replace("-","")[:6]
-                try:
-                    recs = list(db.recetas_productos.find({"producto_codigo": code, "mesano": mesano}).sort("linea", 1))
-                    lines = []
-                    for rr in recs[:50]:
-                        ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
-                        qty = rr.get("cantidad_ingrediente")
-                        unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
-                        qty_s = (f"{qty:.3f}" if isinstance(qty,(int,float)) else str(qty))
-                        lines.append(f"- {ing} — {qty_s} {unit}".strip())
-                    if lines:
-                        row["recipe"] = {"mesano": mesano, "lines": lines}
-                except Exception:
-                    pass
-        out_rows.append(row)
-
-    totals = {
-        "total": sum(float(r.get("total",0) or 0) for r in rows),
-        "cantidad": int(sum(float(r.get("cantidad",0) or 0) for r in rows)),
-    }
-    csum = totals["cantidad"] or 1
-    totals["avg_precio"] = round((totals["total"]/csum), 2)
-
-    payload = {
-        "type": "data_table",
-        "title": title,
-        "text": title,
-        "subtitle": None,
-        "kpis": [
-            {"label":"Venta", "value": _fmt_money(totals["total"], "$")},
-            {"label":"Unidades", "value": f"{totals['cantidad']:,} uds".replace(",",".")},
-            {"label":"Precio prom.", "value": _fmt_money(totals["avg_precio"], "$")},
-        ],
-        "columns": columns,
-        "rows": out_rows,
-        "totals": totals,
-        "charts": None,
-    }
-
-    # Tabla separada de recetas (fuente para el front): por producto listado
-    if group_by == "producto":
-        codes = [r.get("code") or str(r.get("group")) for r in out_rows]
-        codes = [str(c) for c in codes if c]
-        # Si viene un filtro include_codigos desde el SPEC/NLP, intersectamos para enviar SOLO los activos
-        try:
-            filt_codes = [str(x).upper() for x in (f.get("include_codigos") or [])]
-        except Exception:
-            filt_codes = []
-        if filt_codes:
-            s = set(codes)
-            codes = [c for c in codes if c in s and c in filt_codes]
-        recipes_rows = []
-        if codes:
-            try:
-                same_month = bool(s_str and e_str and s_str[:7] == e_str[:7])
-                mesano_fixed = s_str.replace("-", "")[:6] if same_month else None
-                for code in codes:
-                    # Determinar mesano a usar: el del período si es único, si no, el último disponible por código
-                    use_mesano = mesano_fixed
-                    if not use_mesano:
-                        _latest = db.recetas_productos.find({"producto_codigo": code}, {"mesano":1}).sort("mesano", -1).limit(1)
-                        latest_doc = next(iter(_latest), None)
-                        use_mesano = str(latest_doc.get("mesano")) if latest_doc and latest_doc.get("mesano") else None
-                    if not use_mesano:
-                        continue
-                    cur = db.recetas_productos.find({"producto_codigo": code, "mesano": use_mesano}).sort([("producto_codigo",1),("linea",1)])
-                    for rr in cur:
-                        ing = str(rr.get("ingrediente_nombre") or rr.get("ingrediente_codigo") or "").strip()
-                        qty = rr.get("cantidad_ingrediente")
-                        unit = str(rr.get("u_medida_compra") or rr.get("u_medida_base") or "").strip()
-                        recipes_rows.append({
-                            "code": code,
-                            "ingredient": ing,
-                            "qty": float(qty) if isinstance(qty,(int,float)) else None,
-                            "qty_text": (f"{qty:.3f}" if isinstance(qty,(int,float)) else (str(qty) if qty is not None else "")),
-                            "unit": unit,
-                            "mesano": use_mesano,
-                        })
-            except Exception:
-                recipes_rows = []
-        if recipes_rows:
-            payload["related_tables"] = payload.get("related_tables") or []
-            payload["related_tables"].append({
-                "type":"data_table",
-                "key":"recipes",
-                "title": "Recetas",
-                "columns":[
-                    {"key":"code","label":"Código","type":"text","align":"left"},
-                    {"key":"ingredient","label":"Ingrediente","type":"text","align":"left"},
-                    {"key":"qty_text","label":"Cantidad","type":"text","align":"right"},
-                    {"key":"unit","label":"Unidad","type":"text","align":"left"},
-                ],
-                "rows": recipes_rows,
-            })
-
-    # Drilldown por día: lista de productos por fecha con cantidades/totales para abrir modal en el front
-    if group_by == "dia":
-        stages2 = [
-            {"$addFields": {"_ts": {"$cond": [{"$eq": [{"$type": "$FECHA"}, "date"]}, "$FECHA", {"$toDate": "$FECHA"}]}}},
-            {"$match": {"_ts": {"$gte": match_start, "$lt": match_end}}},
-            {"$addFields": {
-                "H": {"$ifNull": ["$HORA", {"$hour": {"date": "$_ts", "timezone": tz_name}}]},
-                "DATE_STR": {"$dateToString": {"format": "%Y-%m-%d", "date": "$_ts", "timezone": tz_name}},
-                "_SIGLA": {"$toUpper": {"$substrCP": [{"$ifNull": ["$LOCAL", ""]}, 0, 3]}}
-            }},
-            {"$project": {"_id":0, "DATE_STR":1, "CODIGO_PRODUCTO":1, "TOTAL": {"$ifNull":["$TOTAL",0]}, "CANTIDAD": {"$ifNull":["$CANTIDAD",0]}, "LOCAL":1, "_SIGLA":1}},
-        ]
-        if include_locals:
-            real_loc_codes = [x for x in include_locals if isinstance(x, str) and x.upper().endswith("LOC")]
-            if real_loc_codes: stages2 += [{"$match":{"LOCAL":{"$in": real_loc_codes}}}]
-        if include_siglas: stages2 += [{"$match":{"_SIGLA":{"$in": include_siglas}}}]
-        if include_codigos: stages2 += [{"$match":{"CODIGO_PRODUCTO":{"$in": include_codigos}}}]
-        if dow_in:
-            # Si envían dow_in, filtramos por el día de semana equivalente
-            stages2.insert(2, {"$addFields": {"_DOW": {"$isoDayOfWeek": {"date": "$_ts", "timezone": tz_name}}}})
-            stages2.append({"$match": {"_DOW": {"$in": [((d % 7) or 7) for d in dow_in]}}})
-        # Agrupar por día y producto
-        stages2 += [
-            {"$group": {"_id": {"day": "$DATE_STR", "code": "$CODIGO_PRODUCTO"}, "total": {"$sum": "$TOTAL"}, "cantidad": {"$sum": "$CANTIDAD"}}},
-            {"$sort": {"_id.day": 1, "cantidad": -1}},
-            {"$limit": 20000}
-        ]
-        rows2 = list(db[COLL_SALES_HOURLY].aggregate(stages2))
-        # join nombres
-        menus_map2 = {str(m.get("codigo")): m for m in db.menus.find({}, {"codigo":1,"nombre":1,"media_r2":1,"media_url":1})}
-        drill_rows = []
-        seen = set()
-        days_present = set()
-        for r in rows2:
-            code = str((r.get("_id") or {}).get("code") or "")
-            day = str((r.get("_id") or {}).get("day") or "")
-            days_present.add(day)
-            m = menus_map2.get(code) or {}
-            name = (m.get("nombre") or code)
-            t = float(r.get("total") or 0.0)
-            c = int(r.get("cantidad") or 0)
-            ap = (t/c) if c else 0.0
-            drill_rows.append({
-                "day": day,
-                "code": code,
-                "name": name,
-                "total": round(t,2),
-                "cantidad": c,
-                "avg_precio": round(ap,2),
-                "image_url": (m.get("media_r2") or m.get("media_url") or None),
-            })
-            seen.add((day, code))
-        # Completar con 0 para todos los códigos solicitados en cada día detectado
-        if include_codigos and days_present:
-            for day in sorted(days_present):
-                for code in include_codigos:
-                    key = (day, code)
-                    if key in seen:
-                        continue
-                    m = menus_map2.get(code) or {}
-                    name = (m.get("nombre") or code)
-                    drill_rows.append({
-                        "day": day,
-                        "code": code,
-                        "name": name,
-                        "total": 0,
-                        "cantidad": 0,
-                        "avg_precio": 0,
-                        "image_url": (m.get("media_r2") or m.get("media_url") or None),
-                    })
-        if drill_rows:
-            payload["related_tables"] = payload.get("related_tables") or []
-            payload["related_tables"].append({
-                "type": "data_table",
-                "key": "products_by_day",
-                "title": "Productos por día (detalle)",
-                "columns": [
-                    {"key":"day","label":"Día","type":"text","align":"left"},
-                    {"key":"code","label":"Código","type":"text","align":"left"},
-                    {"key":"name","label":"Producto","type":"text","align":"left"},
-                    {"key":"total","label":"Venta","type":"number","align":"right"},
-                    {"key":"cantidad","label":"Unidades","type":"number","align":"right"},
-                    {"key":"avg_precio","label":"Precio prom.","type":"number","align":"right"},
-                ],
-                "rows": drill_rows,
-            })
-    return update, payload

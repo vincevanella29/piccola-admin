@@ -258,12 +258,28 @@ def compute_user_permissions(wallet: str) -> Dict[str, Any]:
         else:
             empresa_ids |= set(scopes["empresa_ids"])
 
+    # Determinar role_level OFFCHAIN sólo si NO es miembro on-chain (3/4/5):
+    # - 6: tiene acceso backend efectivo (empresas/sucursales/can_view_all_*).
+    # - 7: trabajador activo sin acceso backend (sin policies/resolución de acceso).
+    if not is_member:
+        has_backend_access = (
+            bool(can_view_all_companies) or
+            bool(can_view_all_sucursales) or
+            bool(empresa_ids) or
+            bool(sucursal_ids)
+        )
+        if has_backend_access:
+            role_level = 6
+        elif active_worker and rut is not None:
+            role_level = 7
+
     # Resultado normalizado
     perms = {
         "company_id": COMPANY_ID,
         "role_level": role_level,
         "is_member": bool(is_member),
         "is_active_worker": bool(active_worker),
+        "rut": rut,
         "cargo": cargo,
         "seccion": seccion,
         "own_id_sucursal": own_id_sucursal,
@@ -289,6 +305,7 @@ def compute_user_permissions_by_sub(sub: str) -> Dict[str, Any]:
             "role_level": -1,
             "is_member": False,
             "is_active_worker": False,
+            "rut": None,
             "cargo": None,
             "seccion": None,
             "own_id_sucursal": None,
@@ -378,11 +395,35 @@ def compute_user_permissions_by_sub(sub: str) -> Dict[str, Any]:
     # derivar empresas desde sucursales
     empresa_ids |= set(_empresas_for_sucursales(list(sucursal_ids)))
 
+    # Determinar role_level solo desde access/policies:
+    # - 6: tiene acceso backend efectivo (empresas/sucursales/can_view_all_*).
+    # - 7: trabajador activo sin acceso backend (sin policies).
+    has_backend_access = (
+        bool(can_view_all_companies) or
+        bool(can_view_all_sucursales) or
+        bool(empresa_ids) or
+        bool(sucursal_ids)
+    )
+    if has_backend_access:
+        role_level = 6
+    elif active_worker and rut is not None:
+        role_level = 7
+
+    logger.info(
+        "[access.compute_user_permissions_by_sub] sub=%s rut=%s active_worker=%s has_backend_access=%s role_level=%s",
+        sub,
+        rut,
+        active_worker,
+        has_backend_access,
+        role_level,
+    )
+
     perms = {
         "company_id": COMPANY_ID,
         "role_level": role_level,
         "is_member": bool(is_member),
         "is_active_worker": bool(active_worker),
+        "rut": rut,
         "cargo": cargo,
         "seccion": seccion,
         "own_id_sucursal": own_id_sucursal,
@@ -408,6 +449,7 @@ def compute_permissions_for_identity(identity: str) -> Dict[str, Any]:
             "role_level": -1,
             "is_member": False,
             "is_active_worker": False,
+            "rut": None,
             "cargo": None,
             "seccion": None,
             "own_id_sucursal": None,

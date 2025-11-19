@@ -1,5 +1,5 @@
-// src/pages/chat/components/common/ChatMessage.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { UserCircle2 } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import MessageText from './MessageText';
 import ProductCard from '../common/ProductCard';
@@ -15,6 +15,38 @@ import SalaryDetailModal from '../modals/SalaryDetailModal';
 import ConsumoDetailModal from '../modals/ConsumoDetailModal';
 import SueldosDetailModal from '../modals/SueldosDetailModal';
 
+// --- COMPONENTE AVATAR REUTILIZABLE ---
+const ChatAvatar = ({ url, name, isAssistant, onClick }) => {
+  if (isAssistant) {
+    return (
+      <button onClick={onClick} className="shrink-0 mt-1 group" title="La Nonna">
+        <div className="w-8 h-8 rounded-full flex items-center justify-center shadow-sm bg-pink-500/10 text-pink-500 border border-pink-200 dark:border-pink-900 group-hover:scale-105 transition-transform">
+          <span className="text-lg" role="img" aria-label="La Nonna">👵</span>
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <button onClick={onClick} className="shrink-0 mt-1 group" title={name}>
+      {url ? (
+        <img 
+          src={url} 
+          alt={name} 
+          className="w-8 h-8 rounded-full object-cover border border-light-border/50 dark:border-dark-border/50 shadow-sm group-hover:border-light-accent dark:group-hover:border-dark-accent transition-colors" 
+          onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }} 
+        />
+      ) : null}
+      <div 
+        className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 border border-light-border dark:border-dark-border flex items-center justify-center shadow-sm group-hover:border-light-accent dark:group-hover:border-dark-accent transition-colors"
+        style={{ display: url ? 'none' : 'flex' }}
+      >
+        <UserCircle2 className="text-light-text-tertiary dark:text-dark-text-tertiary w-5 h-5" />
+      </div>
+    </button>
+  );
+};
+
 const ChatMessage = ({
   variant = 'client',
   appState,
@@ -25,13 +57,14 @@ const ChatMessage = ({
   mediaMap = {},
   allProducts = [],
   locations = [],
-  // new optional callbacks to integrate footer jump button
   onShowJumpChange,
   onScrollToBottomReady,
 }) => {
   const isAdmin = variant === 'admin';
   const listRef = useRef(null);
   const [showJump, setShowJump] = useState(false);
+  
+  // Modals State
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [salaryOpen, setSalaryOpen] = useState(false);
@@ -43,10 +76,12 @@ const ChatMessage = ({
   const [productPayload, setProductPayload] = useState(null);
   const [sueldosOpen, setSueldosOpen] = useState(false);
   const [sueldosPayload, setSueldosPayload] = useState(null);
+  
   const prevLenRef = useRef(0);
 
   const client = !isAdmin ? (clientProps || {}) : {};
   const admin = isAdmin ? (adminProps || {}) : {};
+  const myProfile = appState?.profile;
 
   const isNearBottom = useCallback(() => {
     const el = listRef.current;
@@ -67,30 +102,18 @@ const ChatMessage = ({
   const adminTyping = isAdmin ? Boolean(admin?.typingClient) : Boolean(client?.adminTyping);
   const participants = isAdmin ? (admin?.participants || []) : [];
 
-  // Scroll to bottom on first mount (e.g., after F5)
   useEffect(() => {
-    // Defer to ensure DOM has laid out
-    const id = requestAnimationFrame(() => {
-      scrollToBottom();
-    });
+    const id = requestAnimationFrame(() => scrollToBottom());
     return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); 
 
   useEffect(() => {
     const len = messages?.length || 0;
     const grew = len > prevLenRef.current;
-
-    // Always go to bottom when a new message arrives
-    if (grew) {
-      scrollToBottom();
-    } else if (!isNearBottom()) {
-      // No new messages but user scrolled up => keep button state true
-      setShowJump(true);
-    }
+    if (grew) scrollToBottom();
+    else if (!isNearBottom()) setShowJump(true);
     prevLenRef.current = len;
   }, [messages, isNearBottom, scrollToBottom]);
-  console.log('messages', messages);
 
   const onListScroll = useCallback(() => {
     setShowJump(!isNearBottom());
@@ -102,53 +125,52 @@ const ChatMessage = ({
     setProfileOpen(true);
   }, []);
 
-  // Notify parent of jump visibility changes
-  useEffect(() => {
-    onShowJumpChange && onShowJumpChange(Boolean(showJump));
-  }, [showJump, onShowJumpChange]);
-
-  // Provide parent with the scrollToBottom function
-  useEffect(() => {
-    onScrollToBottomReady && onScrollToBottomReady(scrollToBottom);
-  }, [scrollToBottom, onScrollToBottomReady]);
+  useEffect(() => { onShowJumpChange && onShowJumpChange(Boolean(showJump)); }, [showJump, onShowJumpChange]);
+  useEffect(() => { onScrollToBottomReady && onScrollToBottomReady(scrollToBottom); }, [scrollToBottom, onScrollToBottomReady]);
 
   const modalUser = useMemo(() => {
     if (!profileData) return null;
-    const maybeEnriched = profileData.profile && typeof profileData.profile === 'object' && 'profile' in profileData.profile ? profileData.profile : null;
-    const nestedProfile = maybeEnriched ? (maybeEnriched.profile || {}) : (profileData.profile || {});
-    const displayName = nestedProfile.name || profileData.display_name || profileData.name || profileData.role || 'User';
-    const avatar = nestedProfile.profile_image_url || profileData.avatar_url || '';
-    const balances = (maybeEnriched && maybeEnriched.balances) || profileData.balances || {};
-    const burns = (maybeEnriched && maybeEnriched.burns) || profileData.burns || {};
-    const completion = (maybeEnriched && maybeEnriched.completion_percentage) || profileData.completion_percentage || 0;
-    const wallet = profileData.wallet || (maybeEnriched && maybeEnriched.wallet) || nestedProfile.wallet || '';
+    const p = profileData.profile || profileData; 
     return {
-      wallet, balances, burns, completion_percentage: completion,
-      profile: { ...nestedProfile, name: displayName, profile_image_url: avatar, public_profile: nestedProfile.public_profile ?? true, public_name: nestedProfile.public_name ?? true, public_birthdate: nestedProfile.public_birthdate ?? false },
+      wallet: profileData.wallet || p.wallet,
+      balances: profileData.balances || p.balances,
+      burns: profileData.burns || p.burns,
+      completion_percentage: profileData.completion_percentage || p.completion_percentage,
+      profile: {
+        ...p,
+        name: p.name || profileData.name || profileData.display_name || 'Usuario',
+        profile_image_url: p.profile_image_url || profileData.avatar_url,
+      }
     };
   }, [profileData]);
 
   return (
-    // CAMBIO CLAVE: Se elimina el div exterior.
-    // Este div ahora es el contenedor principal Y el área de scroll.
-    // - h-full y min-h-0 vienen de su padre en chat.jsx, que le da un tamaño fijo.
-    // - overflow-auto activa el scrollbar cuando el contenido es más alto que el div.
-    // - p-3 y pr-* le dan el espaciado interno a los mensajes.
     <div
       ref={listRef}
       onScroll={onListScroll}
-      className={`h-full min-h-0 w-full max-w-full relative overflow-y-auto overflow-x-hidden p-3 pr-1 md:pr-2 space-y-3 rounded-lg break-words ${className || ''}`}
+      className={`h-full min-h-0 w-full max-w-full relative overflow-y-auto overflow-x-hidden p-3 pr-1 md:pr-2 space-y-5 rounded-lg break-words ${className || ''}`}
     >
-      {/* El contenido de los mensajes va directamente aquí */}
       {isLoading && (messages?.length || 0) === 0 ? (
-        <p className="text-center text-light-text/60">{(t && t('chat.loading')) || 'Loading...'}</p>
+        <p className="text-center text-light-text/60 pt-10 text-sm animate-pulse">{(t && t('chat.loading')) || 'Conectando con la Matrix...'}</p>
       ) : (messages?.length || 0) === 0 ? (
-        <p className="text-center text-light-text/60">{(t && t('chat.no_messages')) || 'Start the conversation...'}</p>
+        <p className="text-center text-light-text/60 pt-10 text-sm">{(t && t('chat.no_messages')) || 'Todo tranquilo por aquí...'}</p>
       ) : (
         messages.map((m, idx) => {
           const type = m?.payload?.type;
-          const ts = (() => { try { return new Date(m?.created_at).toLocaleString(); } catch { return ''; } })();
+          const ts = (() => { try { return new Date(m?.created_at).toLocaleString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } })();
+          const isAssistant = (m?.role || '').toLowerCase() === 'assistant';
+          const isMe = (m?.role || '').toLowerCase() === 'user'; 
+
           const participant = (() => {
+            if (isAssistant) return { name: 'La Nonna', role: 'assistant' };
+            if (isMe && !isAdmin && myProfile) {
+               return {
+                 name: myProfile.profile?.name || myProfile.name || 'Tú',
+                 avatar_url: myProfile.profile?.profile_image_url || myProfile.profile_image_url,
+                 wallet: myProfile.wallet || myProfile.address,
+                 profile: myProfile.profile
+               };
+            }
             let found = null;
             if (participants && participants.length > 0) {
               const byWallet = m?.sender_wallet && participants.find(p => (p.wallet || '').toLowerCase() === (m.sender_wallet || '').toLowerCase());
@@ -157,56 +179,57 @@ const ChatMessage = ({
                 const byPrivy = m?.sender_privy_id && participants.find(p => (p.privy_id || '') === (m.sender_privy_id || ''));
                 if (byPrivy) found = byPrivy;
               }
-              if (!found) {
-                const byRole = participants.find(p => (p.role || '').toLowerCase() === (m.role || '').toLowerCase());
-                if (byRole) found = byRole;
-              }
             }
-            const isAssistantLocal = (m?.role || '').toLowerCase() === 'assistant';
-            const dn = m?.sender_name || (isAssistantLocal ? 'La Nonna' : (found?.name || found?.display_name || ''));
+            const dn = m?.sender_name || (found?.name || found?.display_name || 'Usuario');
             const av = m?.sender_avatar_url || found?.profile_image_url || found?.avatar_url || '';
-            if (found) return found;
-            return {
-              wallet: m?.sender_wallet || undefined, privy_id: m?.sender_privy_id || undefined, display_name: dn, name: m?.sender_name || dn, avatar_url: av, role: m?.role,
-              profile: { name: dn, profile_image_url: av, wallet: m?.sender_wallet || '', public_profile: true, public_name: true, public_birthdate: false },
-            };
+            return found || { wallet: m?.sender_wallet, display_name: dn, name: dn, avatar_url: av, role: m?.role };
           })();
-          const isAssistant = (m?.role || '').toLowerCase() === 'assistant';
-          const displayName = isAssistant ? 'La Nonna' : (m?.sender_name || participant?.name || participant?.display_name || '');
-          const avatarUrl = m?.sender_avatar_url || participant?.profile_image_url || participant?.avatar_url || '';
+
+          const displayName = participant.name || participant.display_name || 'Usuario';
+          const avatarUrl = participant.avatar_url || participant.profile_image_url;
+
           return (
             <MessageBubble key={idx} role={m.role || 'bot'}>
-              <div className="flex items-start gap-2 mb-1 w-full max-w-full">
-                <button className="shrink-0" onClick={() => handleShowProfile(participant)} title={displayName} aria-label={displayName}>
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt={displayName} className="w-7 h-7 rounded-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                  ) : (
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isAssistant ? 'bg-pink-500/20 text-pink-200' : 'bg-light-surface dark:bg-dark-surface'}`}>
-                      {isAssistant ? (
-                        <span className="text-base" role="img" aria-label="La Nonna">👵</span>
-                      ) : (
-                        <span className="text-[11px] text-light-text dark:text-dark-text">{(displayName || 'U').slice(0, 1).toUpperCase()}</span>
-                      )}
-                    </div>
-                  )}
-                </button>
+              <div className="flex items-start gap-3 mb-1 w-full max-w-full">
+                <ChatAvatar 
+                  url={avatarUrl} 
+                  name={displayName} 
+                  isAssistant={isAssistant} 
+                  onClick={() => !isAssistant && handleShowProfile(participant)} 
+                />
+                
                 <div className="flex-1 min-w-0 max-w-full overflow-x-hidden">
-                  <div className="flex items-center justify-between gap-2 text-[11px] opacity-70">
-                    <button className="truncate font-medium hover:underline text-left" onClick={() => participant && handleShowProfile(participant)} title={displayName}>{displayName}</button>
-                    <span className="shrink-0">{ts}</span>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <button className="truncate text-xs font-bold text-light-text-primary dark:text-dark-text-primary hover:underline" onClick={() => !isAssistant && handleShowProfile(participant)} title={displayName} disabled={isAssistant}>{displayName}</button>
+                    <span className="shrink-0 text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary opacity-70">{ts}</span>
                   </div>
-                  {type === 'product_card' && m?.payload?.product ? (<ProductCard product={m.payload.product} recipe={m?.payload?.recipe} />)
-                    : type === 'product_list' && Array.isArray(m?.payload?.items) ? (<ProductList query={m?.payload?.query} total={m?.payload?.total} shown={m?.payload?.shown} items={m?.payload?.items} />)
-                    : type === 'location_card' && m?.payload?.location ? (<LocationCard location={m.payload.location} />)
-                    : type === 'location_list' && Array.isArray(m?.payload?.items) ? (<LocationList query={m?.payload?.query} total={m?.payload?.total} shown={m?.payload?.shown} items={m?.payload?.items} />)
-                    : type === 'club_section' && m?.payload ? (<ClubSectionCard payload={m.payload} />)
-                    : type === 'history_timeline' && m?.payload ? (<HistoryTimeline payload={m.payload} />)
-                    : type === 'data_table' && m?.payload ? (() => {
+                  
+                  {/* --- CONTENT SWITCHER --- */}
+                  {/* 1. PRODUCT CARD (Con texto abajo si existe) */}
+                  {type === 'product_card' && m?.payload?.product ? (
+                    <div className="flex flex-col gap-3 w-full">
+                       <ProductCard product={m.payload.product} recipe={m?.payload?.recipe} />
+                       {m.payload.assistant_text && (
+                         <div className="px-1 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
+                            <MessageText role={m.role || 'bot'} text={m.payload.assistant_text} />
+                         </div>
+                       )}
+                    </div>
+                  )
+
+                  : type === 'product_list' && Array.isArray(m?.payload?.items) ? (<ProductList query={m?.payload?.query} total={m?.payload?.total} shown={m?.payload?.shown} items={m?.payload?.items} />)
+                  : type === 'location_card' && m?.payload?.location ? (<LocationCard location={m.payload.location} />)
+                  : type === 'location_list' && Array.isArray(m?.payload?.items) ? (<LocationList query={m?.payload?.query} total={m?.payload?.total} shown={m?.payload?.shown} items={m?.payload?.items} />)
+                  : type === 'club_section' && m?.payload ? (<ClubSectionCard payload={m.payload} />)
+                  : type === 'history_timeline' && m?.payload ? (<HistoryTimeline payload={m.payload} />)
+                  
+                  // 2. DATA TABLE (Con texto abajo si existe)
+                  : type === 'data_table' && m?.payload ? (() => {
                       const payload = m.payload || {};
                       const rows = payload.rows || [];
                       const intent = (payload.intent || '').toLowerCase();
                       const meta = payload.meta || {};
-                      // Auto-insert image thumbnail column if rows have image_url and no image column is defined
+                      
                       const hasImageInRows = Array.isArray(rows) && rows.some(r => typeof r?.image_url === 'string' && r.image_url);
                       const hasImageColumn = (payload.columns || []).some(c => c.key === 'image_url' || c.format === 'image');
                       const columns = hasImageInRows && !hasImageColumn
@@ -214,66 +237,34 @@ const ChatMessage = ({
                         : (payload.columns || []);
 
                       return (
-                        <DataTable
-                          title={payload.title}
-                          subtitle={payload.subtitle}
-                          kpis={payload.kpis}
-                          columns={columns}
-                          rows={rows}
-                          totals={payload.totals}
-                          charts={payload.charts}
-                          compact={true}
-                          onRowClick={(row) => {
-                            // Ventas por hora: abrir modal de salario (waiter focus)
-                            if (intent === 'ventas_hora') {
-                              setSalaryRow({ row, columns, kpis: payload.kpis, intent });
-                              setSalaryOpen(true);
-                              return;
-                            }
-                            // Sueldos: decidir modal segun agrupación
-                            if (intent === 'sueldos') {
-                              const groupBy = String(meta.group_by || '').toLowerCase();
-                              // Si es por local/sigla y tenemos detalle embebido en la fila, abrir modal de detalle tipo tabla
-                              if (groupBy === 'sigla' && row && Array.isArray(row.detail_rows) && Array.isArray(row.detail_columns)) {
-                                setSueldosPayload({
-                                  title: row.detail_title || `Detalle sueldos · ${row.group}`,
-                                  columns: row.detail_columns,
-                                  rows: row.detail_rows,
-                                  kpis: payload.kpis,
-                                  totals: null,
-                                });
-                                setSueldosOpen(true);
-                                return;
+                        <div className="flex flex-col gap-3 w-full">
+                          <DataTable
+                            title={payload.title}
+                            subtitle={payload.subtitle}
+                            kpis={payload.kpis}
+                            columns={columns}
+                            rows={rows}
+                            totals={payload.totals}
+                            charts={payload.charts}
+                            compact={true}
+                            onRowClick={(row) => {
+                              if (intent === 'ventas_hora') { setSalaryRow({ row, columns, kpis: payload.kpis, intent }); setSalaryOpen(true); return; }
+                              if (intent === 'sueldos') {
+                                const groupBy = String(meta.group_by || '').toLowerCase();
+                                if (groupBy === 'sigla' && row && Array.isArray(row.detail_rows)) { setSueldosPayload({ title: row.detail_title || `Detalle · ${row.group}`, columns: row.detail_columns, rows: row.detail_rows, kpis: payload.kpis }); setSueldosOpen(true); return; }
+                                if (groupBy.includes('rut') || row?.rut) { setSalaryRow({ row, columns, kpis: payload.kpis, intent, meta }); setSalaryOpen(true); return; }
                               }
-                              // Si incluye rut en la agrupación o es detalle, abrir modal de salario (trabajador)
-                              if (groupBy.includes('rut') || row?.rut || row?.worker || row?.profile_image_url) {
-                                setSalaryRow({ row, columns, kpis: payload.kpis, intent, meta });
-                                setSalaryOpen(true);
-                                return;
-                              }
-                              // Fallback: si no hay detalle embebido ni rut, no abrir modal especial
-                            }
-                            // Heurísticas por tipo
-                            const title = (payload.title || '').toLowerCase();
-                            if (title.includes('consumo')) {
-                              setConsumoRow({ row, columns, kpis: payload.kpis });
-                              setConsumoOpen(true);
-                              return;
-                            }
-                            // Abrir modal de producto si la fila aparenta ser de producto
-                            if (row && (row.code || row.image_url || row.name || title.includes('producto'))) {
-                              setProductRow(row);
-                              setProductPayload(payload);
-                              setProductOpen(true);
-                              return;
-                            }
-                            // Salaries: mantiene comportamiento previo
-                            if (row && (row.worker || row.profile_image_url)) {
-                              setSalaryRow(row);
-                              setSalaryOpen(true);
-                            }
-                          }}
-                        />
+                              if ((payload.title||'').toLowerCase().includes('consumo')) { setConsumoRow({ row, columns, kpis: payload.kpis }); setConsumoOpen(true); return; }
+                              if (row && (row.code || row.image_url || (payload.title||'').toLowerCase().includes('producto'))) { setProductRow(row); setProductPayload(payload); setProductOpen(true); return; }
+                              if (row && (row.worker || row.profile_image_url)) { setSalaryRow(row); setSalaryOpen(true); }
+                            }}
+                          />
+                          {payload.assistant_text && (
+                            <div className="px-1 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
+                               <MessageText role={m.role || 'bot'} text={payload.assistant_text} />
+                            </div>
+                          )}
+                        </div>
                       );
                     })()
                     
@@ -284,26 +275,20 @@ const ChatMessage = ({
           );
         })
       )}
+      
       {adminTyping && (
-        <div className="mt-2 text-sm italic text-matrix-green/90">{(t && t('chat.admin_typing')) || 'Admin is typing...'}</div>
+        <div className="mt-2 ml-14 text-xs italic text-matrix-green/80 animate-pulse flex items-center gap-2">
+           <span className="w-1.5 h-1.5 bg-matrix-green rounded-full animate-bounce" style={{animationDelay:'0ms'}}></span>
+           <span className="w-1.5 h-1.5 bg-matrix-green rounded-full animate-bounce" style={{animationDelay:'150ms'}}></span>
+           <span className="w-1.5 h-1.5 bg-matrix-green rounded-full animate-bounce" style={{animationDelay:'300ms'}}></span>
+        </div>
       )}
 
-      {/* El modal no se toca, sigue funcionando igual porque usa un portal y se renderiza fuera de este div */}
-      {profileOpen && modalUser && (
-        <UserModal user={modalUser} onClose={() => setProfileOpen(false)} t={t} appState={appState} mediaMap={mediaMap} allProducts={allProducts} locations={locations} />
-      )}
-      {salaryOpen && (
-        <SalaryDetailModal open={salaryOpen} row={salaryRow} onClose={() => { setSalaryOpen(false); setSalaryRow(null); }} />
-      )}
-      {consumoOpen && (
-        <ConsumoDetailModal open={consumoOpen} payloadRow={consumoRow} onClose={() => { setConsumoOpen(false); setConsumoRow(null); }} />
-      )}
-      {sueldosOpen && (
-        <SueldosDetailModal open={sueldosOpen} payload={sueldosPayload} onClose={() => { setSueldosOpen(false); setSueldosPayload(null); }} />
-      )}
-      {productOpen && (
-        <ProductDetailModal open={productOpen} row={productRow} payload={productPayload} onClose={() => { setProductOpen(false); setProductRow(null); setProductPayload(null); }} />
-      )}
+      {profileOpen && modalUser && <UserModal user={modalUser} onClose={() => setProfileOpen(false)} t={t} appState={appState} mediaMap={mediaMap} allProducts={allProducts} locations={locations} />}
+      {salaryOpen && <SalaryDetailModal open={salaryOpen} row={salaryRow} onClose={() => { setSalaryOpen(false); setSalaryRow(null); }} />}
+      {consumoOpen && <ConsumoDetailModal open={consumoOpen} payloadRow={consumoRow} onClose={() => { setConsumoOpen(false); setConsumoRow(null); }} />}
+      {sueldosOpen && <SueldosDetailModal open={sueldosOpen} payload={sueldosPayload} onClose={() => { setSueldosOpen(false); setSueldosPayload(null); }} />}
+      {productOpen && <ProductDetailModal open={productOpen} row={productRow} payload={productPayload} onClose={() => { setProductOpen(false); setProductRow(null); setProductPayload(null); }} />}
     </div>
   );
 };

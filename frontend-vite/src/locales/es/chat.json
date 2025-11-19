@@ -50,5 +50,6 @@
   "all": "Todos",
   "auth_required_title": "Solo usuarios registrados pueden hablar con la Nonna",
   "auth_required_desc": "Conéctate o crea tu billetera para empezar a chatear y recibir recomendaciones personalizadas.",
-  "auth_required_footer": "Conéctate o crea tu billetera para enviar mensajes."
+  "auth_required_footer": "Conéctate o crea tu billetera para enviar mensajes.",
+  "latest": "Últimos"
 }

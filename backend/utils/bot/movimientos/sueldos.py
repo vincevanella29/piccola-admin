@@ -1,81 +1,63 @@
-import logging, re
+import logging
+import re
 from datetime import datetime, date
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 
 from utils.web3mongo import db
-from ..common.filters import grok_filters
+from ..common.filters import grok_filters, _apply_sucursal_scope
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------
-# Helpers de fechas
+# Constantes y Configuraciones
 # ---------------------------
 
-def _yyyymm_last_month(now: Optional[datetime] = None) -> str:
-    now = now or datetime.now()
-    year = now.year
-    month = now.month - 1
-    if month == 0:
-        year -= 1
-        month = 12
-    return f"{year:04d}{month:02d}"
+PAYROLL_FIELDS = [
+    "remuneracion_imponible", "remuneracion_no_imponible", "remuneracion_total",
+    "sueldo_liquido_a_pago", "sueldo_liquido_mas_anticipo", "monto_total", "monto_neto"
+]
 
-def _parse_yyyymm(s: str) -> Tuple[int,int]:
-    s = s.replace("-", "")
-    return int(s[:4]), int(s[4:6])
+# Campos que, si se agrupan por ellos o se filtran, requieren hacer lookup a trabajadores_vpn
+ENRICH_FIELDS_TRIGGER = [
+    "seccion", "cargo", "sexo", "afp", "isapre", "rut", "rut_sigla",
+    "sigla_seccion", "sigla_afp", "sigla_cargo", "nombre_completo", "nombre"
+]
+
+WORKER_DB_FIELDS = [
+    "nombres", "apellidopaterno", "apellidomaterno", "sexo", "afp",
+    "isapre", "cargo", "direccion", "comuna", "ciudad", "fechanacimiento",
+    "profile_image_url"
+]
+
+# ---------------------------
+# Helpers de Fechas y Texto
+# ---------------------------
+
+def _get_pretty_period(months: List[str]) -> str:
+    if not months: return "Periodo Indefinido"
+    if len(months) == 1:
+        return f"{months[0][:4]}-{months[0][4:]}"
+    
+    # Ordenar para asegurar min/max correcto
+    sorted_m = sorted(months)
+    y1, y2 = sorted_m[0][:4], sorted_m[-1][:4]
+    m1, m2 = sorted_m[0][4:], sorted_m[-1][4:]
+    return f"{y1} ( {m1}–{m2} )" if y1 == y2 else f"{y1}-{m1}..{y2}-{m2}"
 
 def _yyyymm_prev_year(s: str) -> str:
-    y,m = _parse_yyyymm(s)
-    return f"{y-1:04d}{m:02d}"
-
-def _iter_months(start_yyyymm: str, end_yyyymm: str) -> List[str]:
-    y1,m1 = _parse_yyyymm(start_yyyymm)
-    y2,m2 = _parse_yyyymm(end_yyyymm)
-    out = []
-    y,m = y1, m1
-    while (y < y2) or (y == y2 and m <= m2):
-        out.append(f"{y:04d}{m:02d}")
-        m += 1
-        if m == 13:
-            m = 1
-            y += 1
-    return out
-
-def _months_for_year(year: int, up_to_current: bool = False) -> List[str]:
-    now = datetime.now()
-    last_m = now.month if (up_to_current and year == now.year) else 12
-    return [f"{year:04d}{m:02d}" for m in range(1, last_m + 1)]
-
-def _expand_period_to_months(period: Dict) -> List[str]:
-    # Prioridad: months[] > start/end > yyyymm > year(+preset) > fallback mes pasado
-    months = [str(x).replace("-", "") for x in (period.get("months") or []) if re.fullmatch(r"\d{6}", str(x).replace("-", ""))]
-    if months:
-        return sorted(set(months))
-    start = str(period.get("start") or "")
-    end   = str(period.get("end") or "")
-    if re.fullmatch(r"\d{6}", start.replace("-", "")) and re.fullmatch(r"\d{6}", end.replace("-", "")):
-        return _iter_months(start.replace("-", ""), end.replace("-", ""))
-    yyyymm = str(period.get("yyyymm") or "")
-    if re.fullmatch(r"\d{6}", yyyymm.replace("-", "")):
-        return [yyyymm.replace("-", "")]
-    year = period.get("year")
-    preset = (period.get("preset") or "").lower()
-    if isinstance(year, int) and year > 0:
-        if preset == "este_ano":
-            return _months_for_year(year, up_to_current=True)
-        elif preset == "ano_pasado":
-            return _months_for_year(year, up_to_current=False)
-        else:
-            # año completo por defecto
-            return _months_for_year(year, up_to_current=False)
-    # fallback
-    return [_yyyymm_last_month()]
+    try:
+        y = int(s[:4])
+        m = int(s[4:6])
+        return f"{y-1:04d}{m:02d}"
+    except:
+        return s
 
 # ---------------------------
-# Otros helpers
+# Helpers de Aggregation (Expresiones)
 # ---------------------------
 
 def _amount_expr():
+    """Calcula el monto priorizando líquido a pago > total > neto."""
     return {
         "$ifNull": ["$sueldo_liquido_a_pago",
         {"$ifNull": ["$sueldo_liquido_mas_anticipo",
@@ -85,6 +67,7 @@ def _amount_expr():
     }
 
 def _derive_sigla_expr():
+    """Normaliza la sigla a 3 caracteres mayúsculas."""
     return {
         "$toUpper": {
             "$cond": [
@@ -96,6 +79,7 @@ def _derive_sigla_expr():
     }
 
 def _name_concat_expr():
+    """Concatena nombres para búsqueda o visualización."""
     return {
         "$trim": {
             "input": {
@@ -108,114 +92,48 @@ def _name_concat_expr():
         }
     }
 
+def _rut_norm_expr():
+    """Normaliza el RUT a entero para cruces."""
+    return {"$toInt": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]}}
+
 # ---------------------------
-# Perfil trabajador (helpers)
+# Builders de Pipeline (Modularizados)
 # ---------------------------
-
-def _parse_date_ymd(s: str) -> Optional[date]:
-    try:
-        # acepta "YYYY-MM-DD" o "YYYY/MM/DD"
-        s = (s or "").strip().replace("/", "-")
-        y, m, d = [int(x) for x in s.split("-")]
-        return date(y, m, d)
-    except Exception:
-        return None
-
-def _calc_age(born_str: Optional[str]) -> Optional[int]:
-    born = _parse_date_ymd(born_str) if isinstance(born_str, str) else None
-    if not born:
-        return None
-    today = date.today()
-    age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
-    return age if 0 < age < 120 else None
-
-def _fetch_worker_profile(rut_int: int) -> Optional[dict]:
-    """
-    Trae ficha básica de trabajadores_vpn y mapea sección desde cargos_intranet.
-    Campos: nombres, apellidopaterno, apellidomaterno, sexo, afp, isapre,
-    cargo, direccion, comuna, ciudad, fechanacimiento.
-    """
-    doc = db.trabajadores_vpn.find_one(
-        {"rut": rut_int},
-        {
-            "_id": 0,
-            "nombres": 1, "apellidopaterno": 1, "apellidomaterno": 1,
-            "sexo": 1, "afp": 1, "isapre": 1,
-            "cargo": 1, "direccion": 1, "comuna": 1, "ciudad": 1,
-            "fechanacimiento": 1,
-            "profile_image_url": 1,
-        },
-    )
-    if not doc:
-        return None
-
-    nombre = " ".join([
-        str(doc.get("nombres") or "").strip(),
-        str(doc.get("apellidopaterno") or "").strip(),
-        str(doc.get("apellidomaterno") or "").strip(),
-    ]).strip()
-    sexo = (doc.get("sexo") or "").strip().lower()
-    if sexo in {"m", "f"}:
-        sexo = sexo.upper()
-
-    seccion = None
-    cargo = (doc.get("cargo") or "").strip()
-    if cargo:
-        cr = db.cargos_intranet.find_one({"cargo": cargo}, {"_id": 0, "seccion": 1})
-        seccion = (cr or {}).get("seccion")
-
-    edad = _calc_age(doc.get("fechanacimiento"))
-
-    direccion_bits = [
-        str(doc.get("direccion") or "").strip(),
-        str(doc.get("comuna") or "").strip(),
-        str(doc.get("ciudad") or "").strip(),
-    ]
-    direccion = ", ".join([x for x in direccion_bits if x])
-
-    return {
-        "nombre": nombre or None,
-        "sexo": sexo or None,
-        "edad": edad,
-        "afp": (doc.get("afp") or None),
-        "isapre": (doc.get("isapre") or None),
-        "cargo": cargo or None,
-        "seccion": seccion or None,
-        "direccion": direccion or None,
-        "profile_image_url": (doc.get("profile_image_url") or None),
-    }
 
 def _match_period_yyyymm(yyyymm: str) -> Dict:
+    """Genera match robusto para un mes específico en varios formatos de campo."""
+    s = str(yyyymm or "").replace("-", "")[:6]
+    if not s.isdigit() or len(s) != 6: return {"$or": []}
+    s_dash = f"{s[:4]}-{s[4:6]}"
     return {"$or": [
-        {"periodo": int(yyyymm)},
-        {"mesano": yyyymm},
-        {"mes_ano": yyyymm},
-        {"periodo_str": yyyymm},
-        {"periodo_str": f"{yyyymm[:4]}-{yyyymm[4:6]}"},
+        {"periodo": int(s)}, {"periodo": s},
+        {"mesano": s}, {"mes_ano": s},
+        {"periodo_str": s}, {"periodo_str": s_dash}
     ]}
 
 def _match_periods(months: List[str]) -> Dict:
+    """Genera match para una lista de meses."""
+    if not months: return {"$match": {"periodo": -1}} # Fallback que no retorna nada
     return {"$or": [_match_period_yyyymm(m) for m in months]}
 
-def _maybe_enrich_stages(need_fields: List[str]) -> List[Dict]:
-    want_wv = any(k in need_fields for k in ["sexo","afp","isapre","cargo","nombre","name","name_text","nombres","apellidopaterno","apellidomaterno"])
-    want_ci = any(k in need_fields for k in ["seccion"])
-    stages: List[Dict] = []
+def _text_match_name(name_text: str, fields: List[str]) -> Optional[Dict]:
+    """Match por regex insensible a mayúsculas en campos del trabajador."""
+    if not name_text: return None
+    rx = re.escape(name_text)
+    return {"$or": [{f"$expr": {"$regexMatch": {"input": {"$toString": {"$ifNull": [f"$wv.{f}", ""]}}, "regex": rx, "options": "i"}}} for f in fields]}
+
+def _maybe_enrich_stages(need_fields: List[str], force: bool = False) -> List[Dict]:
+    """Agrega $lookup a trabajadores_vpn y cargos_intranet solo si es necesario."""
+    # force=True se usa en vistas de detalle para asegurar que siempre tengamos la foto y datos
+    want_wv = force or any(k in need_fields for k in WORKER_DB_FIELDS + ["nombre", "name", "name_text", "rut", "rut_sigla", "nombre_completo"])
+    want_ci = force or any(k in need_fields for k in ["seccion", "sigla_seccion"])
+    
+    stages = []
+    
     if want_wv:
-        stages += [
-            {"$addFields": {
-                "rut_norm": {
-                    "$toInt": {
-                        "$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]
-                    }
-                }
-            }},
-            {"$lookup": {
-                "from": "trabajadores_vpn",
-                "localField": "rut_norm",
-                "foreignField": "rut",
-                "as": "wv",
-            }},
+        stages.extend([
+            {"$addFields": {"rut_norm": _rut_norm_expr()}},
+            {"$lookup": {"from": "trabajadores_vpn", "localField": "rut_norm", "foreignField": "rut", "as": "wv"}},
             {"$unwind": {"path": "$wv", "preserveNullAndEmptyArrays": True}},
             {"$addFields": {
                 "sexo": {"$ifNull": ["$wv.sexo", None]},
@@ -226,640 +144,536 @@ def _maybe_enrich_stages(need_fields: List[str]) -> List[Dict]:
                 "profile_image_url": {"$ifNull": ["$wv.profile_image_url", None]},
                 "worker": {
                     "rut": {"$ifNull": ["$rut_norm", None]},
-                    "nombres": {"$ifNull": ["$wv.nombres", None]},
-                    "apellidopaterno": {"$ifNull": ["$wv.apellidopaterno", None]},
-                    "apellidomaterno": {"$ifNull": ["$wv.apellidomaterno", None]},
-                    "sexo": {"$ifNull": ["$wv.sexo", None]},
-                    "afp": {"$ifNull": ["$wv.afp", None]},
-                    "isapre": {"$ifNull": ["$wv.isapre", None]},
-                    "cargo": {"$ifNull": ["$wv.cargo", None]},
-                    "direccion": {"$ifNull": ["$wv.direccion", None]},
-                    "comuna": {"$ifNull": ["$wv.comuna", None]},
-                    "ciudad": {"$ifNull": ["$wv.ciudad", None]},
-                    "fechanacimiento": {"$ifNull": ["$wv.fechanacimiento", None]},
-                    "profile_image_url": {"$ifNull": ["$wv.profile_image_url", None]},
+                    **{k: {"$ifNull": [f"$wv.{k}", None]} for k in WORKER_DB_FIELDS}
                 }
-            }},
-        ]
+            }}
+        ])
+    
     if want_ci:
-        stages += [
+        stages.extend([
             {"$lookup": {
                 "from": "cargos_intranet",
                 "let": {"carg": {"$ifNull": ["$cargo", None]}},
-                "pipeline": [
-                    {"$match": {"$expr": {"$eq": ["$cargo", "$$carg"]}}},
-                    {"$project": {"_id":0, "seccion":1}}
-                ],
+                "pipeline": [{"$match": {"$expr": {"$eq": ["$cargo", "$$carg"]}}}, {"$project": {"_id":0, "seccion":1}}],
                 "as": "ci"
             }},
             {"$addFields": {"seccion": {"$ifNull": [{"$arrayElemAt": ["$ci.seccion", 0]}, None]}}},
-            {"$project": {"ci":0}}
-        ]
+            {"$project": {"ci": 0}}
+        ])
     return stages
 
-def _text_match_name(name_text: str, fields: List[str]) -> Optional[Dict]:
-    if not name_text: return None
-    rx = re.escape(name_text)
-    ors = []
-    for f in fields:
-        ors.append({f"$expr": {"$regexMatch": {
-            "input": {"$toString": {"$ifNull": [f"$wv.{f}", ""]}},
-            "regex": rx,
-            "options": "i"
-        }}})
-    return {"$or": ors} if ors else None
-
 def _build_group_expr(group_by: str) -> Dict:
-    if group_by == "none": return {"$literal": "-"}
-    if group_by == "mes": return {"$toString": {"$ifNull": ["$periodo", ""]}}
-    if group_by == "ano": return {"$toString": {"$ifNull": [ {"$toInt": {"$substrCP": [{"$toString": {"$ifNull": ["$periodo", "0"]}}, 0, 4]}}, ""]}}
-    if group_by == "sigla": return _derive_sigla_expr()
-    if group_by == "seccion": return {"$ifNull": ["$seccion","-"]}
-    if group_by == "cargo": return {"$ifNull": ["$cargo","-"]}
-    if group_by == "sexo": return {"$toUpper": {"$ifNull": ["$sexo","-"]}}
-    if group_by == "afp": return {"$ifNull": ["$afp","-"]}
-    if group_by == "isapre": return {"$ifNull": ["$isapre","-"]}
-    if group_by == "rut": return {"$toString": {"$ifNull": ["$rut_norm","-"]}}
-    if group_by == "rut_sigla":
-        return {"$concat": [ {"$toString": {"$ifNull": ["$rut_norm","-"]}}, " | ", _derive_sigla_expr() ]}
-    if group_by == "mes_sigla":
-        return {"$concat": [{"$toString": {"$ifNull": ["$periodo",""]}}, " | ", _derive_sigla_expr()]}
-    if group_by == "sigla_seccion":
-        return {"$concat": [ _derive_sigla_expr(), " | ", {"$ifNull": ["$seccion","-"]}]}
-    if group_by == "sigla_afp":
-        return {"$concat": [ _derive_sigla_expr(), " | ", {"$ifNull": ["$afp","-"]}]}
-    if group_by == "sigla_cargo":
-        return {"$concat": [ _derive_sigla_expr(), " | ", {"$ifNull": ["$cargo","-"]}]}
+    """Construye la expresión para el _id del $group."""
+    exprs = {
+        "none": {"$literal": "-"},
+        "mes": {"$toString": {"$ifNull": ["$periodo", ""]}},
+        "ano": {"$toString": {"$ifNull": [{"$toInt": {"$substrCP": [{"$toString": {"$ifNull": ["$periodo", "0"]}}, 0, 4]}}, ""]}},
+        "sigla": _derive_sigla_expr(),
+        "seccion": {"$ifNull": ["$seccion", "-"]},
+        "cargo": {"$ifNull": ["$cargo", "-"]},
+        "sexo": {"$toUpper": {"$ifNull": ["$sexo", "-"]}},
+        "afp": {"$ifNull": ["$afp", "-"]},
+        "isapre": {"$ifNull": ["$isapre", "-"]},
+        "rut": {"$toString": {"$ifNull": ["$rut_norm", "-"]}}
+    }
+    
+    if group_by in exprs: return exprs[group_by]
+    
+    # Combinaciones compuestas
+    if "_" in group_by:
+        parts = group_by.split("_")
+        if len(parts) == 2:
+            k1, k2 = parts
+            e1 = exprs.get(k1, {"$literal": "-"})
+            e2 = exprs.get(k2, {"$literal": "-"})
+            if k1 == "rut": 
+                # Formato legacy rut | sigla
+                return {"$concat": [e1, " | ", _derive_sigla_expr()]}
+            return {"$concat": [e1, " | ", e2]}
+
     return {"$literal": "-"}
 
-async def _send_chunks(update, lines: List[str], max_len: int = 3500):
-    chunk, acc = [], 0
-    for ln in lines:
-        add = len(ln) + 1
-        if acc + add > max_len and chunk:
-            await update.message.reply_text("\n".join(chunk))
-            chunk, acc = [], 0
-        chunk.append(ln); acc += add
-    if chunk:
-        await update.message.reply_text("\n".join(chunk))
-
-# ---------------------------
-# Handler principal (SPEC-driven)
-# ---------------------------
-
-async def handle_sueldos(update, context):
-    text = (update.message.text or "").lower()
-
-    # 1) SPEC (todo dinámico)
-    try:
-        spec = (getattr(context, 'user_data', {}) or {}).get('sueldos_spec')
-    except Exception:
-        spec = None
-    if not isinstance(spec, dict) or not spec:
-        spec = await grok_filters("sueldos", text) or {}
-    logger.info(f"[sueldos] spec_raw => {spec}")
-
-    period  = spec.get("period") or {}
-    months  = _expand_period_to_months(period)
-    group_by  = (spec.get("group_by") or "auto").lower()
-    metric    = (spec.get("metric") or "sum").lower()
-    order_by  = (spec.get("order_by") or "value_desc").lower()
-    view      = spec.get("view") or {}
-    detail    = bool(view.get("detail", False))
-    limit_groups = int(view.get("limit_groups", 80))
-    limit_rows   = int(view.get("limit_rows", 200))
-    include_fields = view.get("include_fields") or []
-    yoy       = bool(view.get("yoy", False))
-
-    f = spec.get("filters") or {}
-    include_siglas    = [s.upper() for s in (f.get("include_siglas") or [])]
-    include_secciones = f.get("include_secciones") or []
-    include_cargos    = f.get("include_cargos") or []
-    include_ruts      = [int(x) for x in (f.get("include_ruts") or []) if isinstance(x, int)]
-    sexo_in           = [s.lower() for s in (f.get("sexo_in") or []) if s.lower() in {"m","f"}]
-    afp_in            = f.get("afp_in") or []
-    isapre_in         = f.get("isapre_in") or []
-    name_text         = f.get("name_text") or ""
-    name_fields       = f.get("name_fields") or ["nombres","apellidopaterno","apellidomaterno"]
-
-    # Fallback: si el texto trae "rut 12345678" y no vino include_ruts, lo agregamos
-    if not include_ruts:
-        m = re.search(r"\brut\s*([0-9\.\-kK]+)\b", text, flags=re.I)
-        if m:
-            rs = re.sub(r"[\.\-kK]", "", m.group(1))
-            if len(rs) > 8: rs = rs[:-1]
-            try:
-                v = int(rs)
-                if v > 0:
-                    include_ruts = [v]
-            except Exception:
-                pass
-        else:
-            # si solo hay un número de 7-8 dígitos en la frase, úsalo como RUT
-            m2 = re.search(r"\b(\d{7,8})\b", text)
-            if m2:
-                include_ruts = [int(m2.group(1))]
-
-    # Si hay un solo RUT, prepara bloque de perfil
-    single_rut = include_ruts[0] if len(include_ruts) == 1 else None
-    worker_profile = _fetch_worker_profile(single_rut) if single_rut else None
-
-    def _profile_lines() -> List[str]:
-        if not worker_profile:
-            return []
-        p = worker_profile
-        l1 = f"Trabajador: {p.get('nombre') or '(sin nombre)'} (RUT {single_rut})"
-        bits2 = []
-        if p.get("sexo"):   bits2.append(f"Sexo: {p['sexo']}")
-        if p.get("edad") is not None: bits2.append(f"Edad: {p['edad']}")
-        if p.get("afp"):    bits2.append(f"AFP: {p['afp']}")
-        if p.get("isapre"): bits2.append(f"Isapre: {p['isapre']}")
-        l2 = " | ".join(bits2) if bits2 else ""
-        bits3 = []
-        if p.get("cargo"):   bits3.append(f"Cargo: {p['cargo']}")
-        if p.get("seccion"): bits3.append(f"Sección: {p['seccion']}")
-        l3 = " | ".join(bits3) if bits3 else ""
-        l4 = f"Dirección: {p['direccion']}" if p.get("direccion") else ""
-        out = [l for l in [l1, l2, l3, l4] if l]
-        return out + [""] if out else []
-
-    def _profile_photo_item() -> Optional[dict]:
-        if not worker_profile:
-            return None
-        url = worker_profile.get("profile_image_url")
-        if not url:
-            return None
-        # Build a concise caption (keep under Telegram 1024 chars)
-        p = worker_profile
-        header = f"{p.get('nombre') or '(sin nombre)'} (RUT {single_rut})"
-        bits = []
-        if p.get("cargo"):   bits.append(p["cargo"])
-        if p.get("seccion"): bits.append(p["seccion"])
-        meta1 = " | ".join(bits)
-        bits2 = []
-        if p.get("sexo"):   bits2.append(f"Sexo {p['sexo']}")
-        if p.get("edad") is not None: bits2.append(f"Edad {p['edad']}")
-        if p.get("afp"):    bits2.append(f"AFP {p['afp']}")
-        if p.get("isapre"): bits2.append(f"Isapre {p['isapre']}")
-        meta2 = " | ".join(bits2)
-        parts = [header]
-        if meta1: parts.append(meta1)
-        if meta2: parts.append(meta2)
-        caption = "\n".join(parts)
-        if len(caption) > 1024:
-            caption = caption[:1023] + "…"
-        return {"type": "photo", "url": url, "caption": caption}
-
-    # Resolver 'auto'
-    if group_by == "auto":
-        group_by = "sigla" if not detail else "none"
-
-    # 2) Pipeline base (multi-mes)
-    stages: List[Dict] = [
-        {"$match": _match_periods(months)},
-        {"$addFields": {"amount": _amount_expr()}}
-    ]
-
-    # Enriquecimiento si se requieren campos derivados
+def _build_filter_stages(f: Dict, name_text: str, name_fields: List[str], group_by: str = "auto") -> List[Dict]:
+    """Construye las etapas de enriquecimiento y filtrado."""
+    stages = []
+    
+    # 1. Determinar necesidad de enriquecimiento (Joins)
     need_enrich = (
-        group_by in {"seccion","cargo","sexo","afp","isapre","rut","rut_sigla","sigla_seccion","sigla_afp","sigla_cargo"}
-        or any([include_secciones, include_cargos, sexo_in, afp_in, isapre_in, include_ruts, name_text])
+        any(x in group_by for x in ENRICH_FIELDS_TRIGGER) or
+        any([f.get("include_secciones"), f.get("include_cargos"), f.get("sexo_in"), 
+             f.get("afp_in"), f.get("isapre_in"), f.get("include_ruts"), name_text])
     )
+    
     if need_enrich:
-        stages += _maybe_enrich_stages(["sexo","afp","isapre","cargo","seccion","nombre","name_text"])
+        stages += _maybe_enrich_stages(ENRICH_FIELDS_TRIGGER)
 
-    # Filtros
-    if include_siglas:
+    # 2. Aplicar Filtros
+    if f.get("include_siglas"):
         stages += [{"$addFields": {"_sigla": _derive_sigla_expr()}},
-                   {"$match": {"_sigla": {"$in": include_siglas}}}]
-    if include_secciones:
-        stages += [{"$match": {"seccion": {"$in": include_secciones}}}]
-    if include_cargos:
-        stages += [{"$match": {"cargo": {"$in": include_cargos}}}]
-    if include_ruts:
-        stages += [{"$addFields": {"rut_norm": {"$toInt": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]}}}},
-                   {"$match": {"rut_norm": {"$in": include_ruts}}}]
-    if sexo_in:
-        stages += [{"$match": {"sexo": {"$in": sexo_in}}}]
-    if afp_in:
-        stages += [{"$match": {"afp": {"$in": afp_in}}}]
-    if isapre_in:
-        stages += [{"$match": {"isapre": {"$in": isapre_in}}}]
-    nm = _text_match_name(name_text, name_fields)
-    if nm:
-        stages += [{"$match": nm}]
+                   {"$match": {"_sigla": {"$in": [s.upper() for s in f["include_siglas"]]}}}]
+    
+    if f.get("include_secciones"): stages += [{"$match": {"seccion": {"$in": f["include_secciones"]}}}]
+    if f.get("include_cargos"): stages += [{"$match": {"cargo": {"$in": f["include_cargos"]}}}]
+    
+    if f.get("include_ruts"):
+        # Asegurar rut_norm si no se enriqueció antes
+        if not need_enrich: stages += [{"$addFields": {"rut_norm": _rut_norm_expr()}}]
+        stages += [{"$match": {"rut_norm": {"$in": f["include_ruts"]}}}]
+        
+    if f.get("sexo_in"): stages += [{"$match": {"sexo": {"$in": f["sexo_in"]}}}]
+    if f.get("afp_in"): stages += [{"$match": {"afp": {"$in": f["afp_in"]}}}]
+    if f.get("isapre_in"): stages += [{"$match": {"isapre": {"$in": f["isapre_in"]}}}]
+    
+    if name_text:
+        nm = _text_match_name(name_text, name_fields)
+        if nm: stages += [{"$match": nm}]
+        
+    return stages
 
-    # Etiqueta de periodo
-    if len(months) == 1:
-        pretty_period = f"{months[0][:4]}-{months[0][4:]}"
-    else:
-        y1, y2 = months[0][:4], months[-1][:4]
-        m1, m2 = months[0][4:], months[-1][4:]
-        pretty_period = f"{y1} ( {m1}–{m2} )" if y1 == y2 else f"{y1}-{m1}..{y2}-{m2}"
+# ---------------------------
+# Helpers de Perfil / Seguridad
+# ---------------------------
 
-    # 3) Modo duplicados rápido si lo piden explícitamente en el texto
-    if re.search(r"duplicad", text):
-        dup_stages: List[Dict] = [
-            {"$match": _match_periods(months)},
-            {"$addFields": {"amount": _amount_expr()}},
-            {"$addFields": {"_sigla": _derive_sigla_expr()}},
-            {"$addFields": {"rut_norm": {"$toInt": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]}}}},
-        ]
-        if include_siglas:
-            dup_stages += [{"$match": {"_sigla": {"$in": include_siglas}}}]
-        # Duplicados por periodo + rut (puede cruzar distintas siglas)
-        dup_stages += [
-            {"$group": {
-                "_id": {"periodo": "$periodo", "rut": "$rut_norm"},
-                "siglas": {"$addToSet": "$_sigla"},
-                "count": {"$sum": 1},
-                "total": {"$sum": "$amount"}
-            }},
-            {"$match": {"count": {"$gt": 1}}},
-            {"$sort": {"_id.periodo": 1, "count": -1}},
-            {"$limit": 200}
-        ]
-        dups = list(db.pago_sueldos_intranet.aggregate(dup_stages))
-        columns = [
+def _calc_age(born_str: Optional[str]) -> Optional[int]:
+    try:
+        s = (born_str or "").strip().replace("/", "-")
+        y, m, d = map(int, s.split("-"))
+        born = date(y, m, d)
+        today = date.today()
+        return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    except:
+        return None
+
+def _fetch_worker_profile(rut_int: int) -> Optional[dict]:
+    """Recupera perfil básico para mostrar en cabecera."""
+    doc = db.trabajadores_vpn.find_one({"rut": rut_int}, {"_id": 0})
+    if not doc: return None
+    
+    cargo = (doc.get("cargo") or "").strip()
+    seccion = None
+    if cargo:
+        cr = db.cargos_intranet.find_one({"cargo": cargo}, {"_id": 0, "seccion": 1})
+        seccion = (cr or {}).get("seccion")
+        
+    nombres_bits = [str(doc.get(k) or "").strip() for k in ["nombres", "apellidopaterno", "apellidomaterno"]]
+    nombre = " ".join(filter(None, nombres_bits))
+    sexo = (doc.get("sexo") or "").strip().upper()
+    
+    # Dirección
+    dir_bits = [str(doc.get(k) or "").strip() for k in ["direccion", "comuna", "ciudad"]]
+    
+    return {
+        "nombre": nombre or None, "sexo": sexo if len(sexo)==1 else None, 
+        "edad": _calc_age(doc.get("fechanacimiento")),
+        "afp": doc.get("afp"), "isapre": doc.get("isapre"),
+        "cargo": cargo, "seccion": seccion,
+        "direccion": ", ".join(filter(None, dir_bits)),
+        "profile_image_url": doc.get("profile_image_url")
+    }
+
+def _profile_photo_item(worker_profile: Optional[dict], single_rut: int) -> Optional[dict]:
+    if not worker_profile or not worker_profile.get("profile_image_url"): return None
+    p = worker_profile
+    header = f"{p.get('nombre') or 'Sin nombre'} (RUT {single_rut})"
+    meta1 = " | ".join(filter(None, [p.get("cargo"), p.get("seccion")]))
+    meta2 = " | ".join(filter(None, [
+        f"Sexo {p['sexo']}" if p.get("sexo") else None,
+        f"Edad {p['edad']}" if p.get("edad") else None,
+        f"AFP {p['afp']}" if p.get("afp") else None,
+        f"Isapre {p['isapre']}" if p.get("isapre") else None
+    ]))
+    caption = "\n".join(filter(None, [header, meta1, meta2]))
+    if len(caption) > 1024: caption = caption[:1023] + "…"
+    return {"type": "photo", "url": p["profile_image_url"], "caption": caption}
+
+def _apply_security_filter_to_rows(rows: List[Dict], role_level: int, perms: Dict) -> List[Dict]:
+    """
+    Filtra filas en memoria para nivel 7.
+    El nivel 7 solo puede ver filas donde el RUT coincida con su identidad.
+    """
+    if role_level != 7: return rows
+    
+    try:
+        my_rut = int(perms.get("rut"))
+    except:
+        return [] # Si es nivel 7 y no tiene RUT en permisos, no ve nada
+
+    def is_mine(r):
+        # Verifica campo rut directo o dentro del objeto worker
+        try:
+            if r.get("rut") and int(str(r["rut"])) == my_rut: return True
+            if r.get("worker") and r["worker"].get("rut") and int(str(r["worker"]["rut"])) == my_rut: return True
+        except: pass
+        return False
+        
+    return [r for r in rows if is_mine(r)]
+
+# ---------------------------
+# Sub-Handlers de Vistas
+# ---------------------------
+
+async def _handle_duplicates(update, months: List[str], f: Dict):
+    """Detecta duplicados (mismo rut, mismo periodo) en la nómina."""
+    # Pipeline específico para duplicados
+    pipeline = [
+        {"$match": _match_periods(months)},
+        {"$addFields": {"amount": _amount_expr(), "_sigla": _derive_sigla_expr(), "rut_norm": _rut_norm_expr()}}
+    ]
+    
+    if f.get("include_siglas"):
+        pipeline.append({"$match": {"_sigla": {"$in": f["include_siglas"]}}})
+        
+    pipeline.extend([
+        {"$group": {
+            "_id": {"periodo": "$periodo", "rut": "$rut_norm"},
+            "siglas": {"$addToSet": "$_sigla"},
+            "count": {"$sum": 1},
+            "total": {"$sum": "$amount"}
+        }},
+        {"$match": {"count": {"$gt": 1}}},
+        {"$sort": {"_id.periodo": 1, "count": -1}},
+        {"$limit": 200}
+    ])
+    
+    dups = list(db.pago_sueldos_intranet.aggregate(pipeline))
+    
+    rows_out = []
+    total_val, total_items = 0, 0
+    for d in dups:
+        cnt, tot = int(d.get("count", 0)), int(d.get("total", 0))
+        rows_out.append({
+            "periodo": d["_id"].get("periodo"),
+            "rut": d["_id"].get("rut"),
+            "siglas": ", ".join(sorted(filter(None, d.get("siglas", [])))) or "-",
+            "count": cnt, "total": tot
+        })
+        total_val += tot; total_items += cnt
+        
+    payload = {
+        "type": "data_table", "intent": "sueldos",
+        "title": f"Sueldos {_get_pretty_period(months)}",
+        "subtitle": "Duplicados por RUT en el mismo período",
+        "kpis": [
+            {"label": "Casos", "value": len(rows_out)},
+            {"label": "Ítems", "value": total_items},
+            {"label": "Total", "value": total_val, "isMoney": True},
+        ],
+        "columns": [
             {"key": "periodo", "label": "Periodo", "align": "left"},
             {"key": "rut", "label": "RUT", "align": "left"},
             {"key": "siglas", "label": "Siglas", "align": "left"},
             {"key": "count", "label": "Ítems", "align": "right", "format": "number"},
             {"key": "total", "label": "Total", "align": "right", "format": "money"},
-        ]
-        rows_out = []
-        total_total = 0
-        total_items = 0
-        for d in dups:
-            pid = d.get("_id") or {}
-            per = pid.get("periodo")
-            rutv = pid.get("rut")
-            cnt = int(d.get("count", 0) or 0)
-            tot = int(d.get("total", 0) or 0)
-            rows_out.append({
-                "periodo": per,
-                "rut": rutv,
-                "siglas": ", ".join(sorted([s for s in (d.get("siglas") or []) if s])) or "-",
-                "count": cnt,
-                "total": tot,
-            })
-            total_total += tot
-            total_items += cnt
-        payload = {
-            "type": "data_table",
-            "intent": "sueldos",
-            "title": f"Sueldos {pretty_period}",
-            "subtitle": "Duplicados por RUT en el mismo período",
-            "kpis": [
-                {"label": "Casos", "value": int(len(rows_out))},
-                {"label": "Ítems", "value": int(total_items)},
-                {"label": "Total", "value": int(total_total), "isMoney": True},
-            ],
-            "columns": columns,
-            "rows": rows_out,
-            "totals": {"count": int(total_items), "total": int(total_total)}
-        }
-        return update, payload
+        ],
+        "rows": rows_out,
+        "totals": {"count": total_items, "total": total_val}
+    }
+    return update, payload
 
-    # 4) Detalle o agrupado
-    if group_by in {"none"} or detail:
-        # Always enrich in detail view so we can show photo and worker info
-        enrich_detail = _maybe_enrich_stages(["sexo","afp","isapre","cargo","seccion","nombre","name_text"])  # ensures rut_norm + lookup trabajadores_vpn
-        stages_detail = stages + enrich_detail + [
-            {"$addFields": {"sigla": _derive_sigla_expr()}},
-            {"$project": {
-                "_id": {"$toString":"$_id"},
-                "periodo": 1, "sigla": 1, "centro_costo": 1,
-                "rut": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]},
-                "cargo": 1, "seccion": 1, "sexo": 1, "afp": 1, "isapre": 1,
-                "amount": 1,
-                # payroll key fields
-                "remuneracion_imponible": {"$ifNull": ["$remuneracion_imponible", None]},
-                "remuneracion_no_imponible": {"$ifNull": ["$remuneracion_no_imponible", None]},
-                "remuneracion_total": {"$ifNull": ["$remuneracion_total", None]},
-                "sueldo_liquido_a_pago": {"$ifNull": ["$sueldo_liquido_a_pago", None]},
-                "sueldo_liquido_mas_anticipo": {"$ifNull": ["$sueldo_liquido_mas_anticipo", None]},
-                # enriched fields preserved
-                "profile_image_url": 1,
-                "worker": 1,
-            }},
-            {"$limit": int(max(10, limit_rows))}
-        ]
-        rows = list(db.pago_sueldos_intranet.aggregate(stages_detail))
-        # Fallback: if user asked for a specific RUT and period yielded 0 rows, fetch all periods for that RUT
-        if (not rows) and include_ruts:
-            stages_fallback: List[Dict] = [
-                {"$addFields": {"amount": _amount_expr()}},
-            ]
-            # Always enrich to get rut_norm and worker/photo
-            stages_fallback += enrich_detail
-            # Apply filters (siglas/seccion/cargo/sexo/afp/isapre/rut/name)
-            if include_siglas:
-                stages_fallback += [{"$addFields": {"_sigla": _derive_sigla_expr()}}, {"$match": {"_sigla": {"$in": include_siglas}}}]
-            if include_secciones:
-                stages_fallback += [{"$match": {"seccion": {"$in": include_secciones}}}]
-            if include_cargos:
-                stages_fallback += [{"$match": {"cargo": {"$in": include_cargos}}}]
-            stages_fallback += [{"$match": {"rut_norm": {"$in": include_ruts}}}]
-            if sexo_in:
-                stages_fallback += [{"$match": {"sexo": {"$in": sexo_in}}}]
-            if afp_in:
-                stages_fallback += [{"$match": {"afp": {"$in": afp_in}}}]
-            if isapre_in:
-                stages_fallback += [{"$match": {"isapre": {"$in": isapre_in}}}]
-            if nm:
-                stages_fallback += [{"$match": nm}]
-            stages_fallback += [
-                {"$addFields": {"sigla": _derive_sigla_expr()}},
-                {"$project": {
-                    "_id": {"$toString":"$_id"},
-                    "periodo": 1, "sigla": 1, "centro_costo": 1,
-                    "rut": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]},
-                    "cargo": 1, "seccion": 1, "sexo": 1, "afp": 1, "isapre": 1,
-                    "amount": 1,
-                    "remuneracion_imponible": {"$ifNull": ["$remuneracion_imponible", None]},
-                    "remuneracion_no_imponible": {"$ifNull": ["$remuneracion_no_imponible", None]},
-                    "remuneracion_total": {"$ifNull": ["$remuneracion_total", None]},
-                    "sueldo_liquido_a_pago": {"$ifNull": ["$sueldo_liquido_a_pago", None]},
-                    "sueldo_liquido_mas_anticipo": {"$ifNull": ["$sueldo_liquido_mas_anticipo", None]},
-                    "profile_image_url": 1,
-                    "worker": 1,
-                }},
-                {"$sort": {"periodo": -1}},
-                {"$limit": int(max(10, limit_rows))},
-            ]
-            rows = list(db.pago_sueldos_intranet.aggregate(stages_fallback))
-            # Update pretty_period to reflect "todos los períodos" when falling back
-            pretty_period = "todos los períodos"
-        total = sum((r.get("amount") or 0) for r in rows)
-        count = len(rows)
-        avg = (total / count) if count > 0 else 0
-        # Build structured table payload
-        columns = [
-            {"key": "profile_image_url", "label": "Foto", "align": "center", "format": "image", "round": True},
-            {"key": "periodo", "label": "Periodo", "align": "left"},
-            {"key": "sigla", "label": "Sigla", "align": "left"},
-            {"key": "rut", "label": "RUT", "align": "left"},
-            {"key": "seccion", "label": "Sección", "align": "left"},
-            {"key": "cargo", "label": "Cargo", "align": "left"},
-            {"key": "sexo", "label": "Sexo", "align": "center"},
-            {"key": "afp", "label": "AFP", "align": "left"},
-            {"key": "isapre", "label": "Isapre", "align": "left"},
-            {"key": "remuneracion_imponible", "label": "Imponible", "align": "right", "format": "money"},
-            {"key": "remuneracion_no_imponible", "label": "No imponible", "align": "right", "format": "money"},
-            {"key": "remuneracion_total", "label": "Total Rem.", "align": "right", "format": "money"},
-            {"key": "sueldo_liquido_a_pago", "label": "Líquido", "align": "right", "format": "money"},
-            {"key": "amount", "label": "Monto", "align": "right", "format": "money"},
-        ]
-        rows_out = []
-        for r in rows:
-            rows_out.append({
-                "periodo": r.get("periodo"),
-                "sigla": r.get("sigla"),
-                "rut": r.get("rut"),
-                "seccion": r.get("seccion") or "",
-                "cargo": r.get("cargo") or "",
-                "sexo": (r.get("sexo") or "").upper() or "",
-                "afp": r.get("afp") or "",
-                "isapre": r.get("isapre") or "",
-                "amount": r.get("amount") or 0,
-                "remuneracion_imponible": r.get("remuneracion_imponible") or 0,
-                "remuneracion_no_imponible": r.get("remuneracion_no_imponible") or 0,
-                "remuneracion_total": r.get("remuneracion_total") or 0,
-                "sueldo_liquido_a_pago": r.get("sueldo_liquido_a_pago") or 0,
-                "profile_image_url": r.get("profile_image_url") or (r.get("worker") or {}).get("profile_image_url") or "",
-                "worker": r.get("worker") or None,
-            })
-        kpis = [
-            {"label": "Total", "value": int(total), "isMoney": True},
-            {"label": "Ítems", "value": int(count)},
-            {"label": "Promedio", "value": int(avg), "isMoney": True},
-        ]
-        if include_siglas:
-            kpis.append({"label": "Filtrado por", "value": ", ".join(include_siglas)})
-        photo_item = _profile_photo_item()
-        # Compose payload
-        payload = {
-            "type": "data_table",
-            "intent": "sueldos",
-            "title": f"Sueldos {pretty_period}",
-            "subtitle": f"Detalle (máx {limit_rows})",
-            "kpis": kpis,
-            "columns": columns,
-            "rows": rows_out,
-            "totals": {"amount": int(total)},
+async def _handle_detail_view(update, months: List[str], base_stages: List[Dict], limit_rows: int, role_level: int, perms: Dict, single_rut: Optional[int], include_ruts: List[int]):
+    """Vista detalle fila a fila."""
+    
+    # 1. Asegurar enriquecimiento completo para detalle
+    enrich_stages = _maybe_enrich_stages([], force=True)
+    
+    # 2. Proyección final
+    project_stage = {
+        "$project": {
+            "_id": {"$toString":"$_id"},
+            "periodo": 1, "sigla": 1, "centro_costo": 1,
+            "rut": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]},
+            "cargo": 1, "seccion": 1, "sexo": 1, "afp": 1, "isapre": 1, "amount": 1,
+            "profile_image_url": 1, "worker": 1,
+            **{k: {"$ifNull": [f"${k}", None]} for k in PAYROLL_FIELDS}
         }
-        return update, payload
+    }
+    
+    pipeline = base_stages + enrich_stages + [{"$addFields": {"sigla": _derive_sigla_expr()}}] + [project_stage] + [{"$limit": int(max(10, limit_rows))}]
+    
+    rows = list(db.pago_sueldos_intranet.aggregate(pipeline))
+    rows = _apply_security_filter_to_rows(rows, role_level, perms)
+    
+    pretty_period = _get_pretty_period(months)
+    
+    # Fallback: Si filtramos por RUT y no hay datos en el periodo, buscar histórico del RUT
+    if not rows and single_rut:
+        fallback_pipeline = [
+            # Sin filtro de periodo
+            {"$addFields": {"rut_norm": _rut_norm_expr(), "amount": _amount_expr()}},
+            {"$match": {"rut_norm": single_rut}}
+        ] + enrich_stages + [{"$addFields": {"sigla": _derive_sigla_expr()}}] + [project_stage] + [{"$sort": {"periodo": -1}}, {"$limit": limit_rows}]
+        
+        rows = list(db.pago_sueldos_intranet.aggregate(fallback_pipeline))
+        rows = _apply_security_filter_to_rows(rows, role_level, perms) # Re-aplicar seguridad
+        if rows:
+            pretty_period = "Histórico (Todos los periodos)"
 
-    # Agrupado
+    # Cálculos finales
+    total = sum((r.get("amount") or 0) for r in rows)
+    count = len(rows)
+    avg = (total / count) if count > 0 else 0
+    
+    kpis = [
+        {"label": "Total", "value": int(total), "isMoney": True},
+        {"label": "Ítems", "value": int(count)},
+        {"label": "Promedio", "value": int(avg), "isMoney": True},
+    ]
+    
+    columns = [
+        {"key": "profile_image_url", "label": "Foto", "align": "center", "format": "image", "round": True},
+        {"key": "periodo", "label": "Periodo", "align": "left"},
+        {"key": "sigla", "label": "Sigla", "align": "left"},
+        {"key": "rut", "label": "RUT", "align": "left"},
+        {"key": "cargo", "label": "Cargo", "align": "left"},
+        {"key": "seccion", "label": "Sección", "align": "left"},
+        {"key": "sueldo_liquido_a_pago", "label": "Líquido", "align": "right", "format": "money"},
+        {"key": "amount", "label": "Monto Calc.", "align": "right", "format": "money"},
+    ]
+    
+    # Limpieza final de rows para la tabla
+    rows_out = []
+    for r in rows:
+        r_out = r.copy()
+        r_out["sexo"] = (str(r.get("sexo") or "").upper())
+        if not r_out.get("profile_image_url") and r.get("worker"):
+            r_out["profile_image_url"] = r["worker"].get("profile_image_url")
+        rows_out.append(r_out)
+
+    payload = {
+        "type": "data_table", "intent": "sueldos",
+        "title": f"Sueldos {pretty_period}",
+        "subtitle": f"Detalle (máx {limit_rows})",
+        "kpis": kpis, "columns": columns, "rows": rows_out,
+        "totals": {"amount": int(total)},
+    }
+    return update, payload
+
+async def _handle_grouped_view(update, months: List[str], base_stages: List[Dict], group_by: str, metric: str, order_by: str, yoy: bool, limit_groups: int, limit_rows: int, role_level: int, perms: Dict):
+    """Vista agrupada (Pivot)."""
+    
     group_expr = _build_group_expr(group_by)
     acc = {"$sum": 1} if metric == "count" else ({"$avg": "$amount"} if metric == "avg" else {"$sum": "$amount"})
-    stages_group = stages + [
+    
+    # Pipeline de agrupación
+    pipeline = base_stages + [
         {"$addFields": {"group": group_expr, "_sigla": _derive_sigla_expr()}},
         {"$group": {
             "_id": "$group",
             "value": acc,
             "count": {"$sum": 1},
-            # sample fields to enrich rows for UI drilldowns
+            # Muestras para drilldown
             "sample_rut": {"$first": {"$ifNull": ["$rut_norm", None]}},
             "sample_sigla": {"$first": "$_sigla"},
             "sample_name": {"$first": {"$ifNull": ["$nombre_completo", None]}},
             "sample_photo": {"$first": {"$ifNull": ["$profile_image_url", None]}},
             "sample_cargo": {"$first": {"$ifNull": ["$cargo", None]}},
             "sample_seccion": {"$first": {"$ifNull": ["$seccion", None]}},
-            "sample_afp": {"$first": {"$ifNull": ["$afp", None]}},
-            "sample_isapre": {"$first": {"$ifNull": ["$isapre", None]}},
-            "sample_sexo": {"$first": {"$ifNull": ["$sexo", None]}},
-        }},
+        }}
     ]
-    if (order_by or "").lower() == "group_asc":
-        stages_group += [{"$sort": {"_id": 1}}]
-    elif (order_by or "").lower() == "value_asc":
-        stages_group += [{"$sort": {"value": 1}}]
-    else:
-        stages_group += [{"$sort": {"value": -1}}]
-    stages_group += [{"$limit": int(max(5, limit_groups))}]
-    grouped = list(db.pago_sueldos_intranet.aggregate(stages_group))
+    
+    sort_k = "_id" if order_by == "group_asc" else "value"
+    sort_d = 1 if order_by in ["group_asc", "value_asc"] else -1
+    pipeline += [{"$sort": {sort_k: sort_d}}, {"$limit": limit_groups}]
+    
+    grouped = list(db.pago_sueldos_intranet.aggregate(pipeline))
+    
+    # Lógica YoY (Año contra Año)
+    yoy_label = ""
+    if yoy and months:
+        prev_months = [_yyyymm_prev_year(m) for m in months]
+        # Reconstruir pipeline base para el año anterior (con mismos filtros)
+        # Nota: base_stages[0] es el match de periodo actual, lo reemplazamos
+        prev_filters = base_stages[1:] # Filtros y adds sin el match de fecha
+        prev_pipeline = [{"$match": _match_periods(prev_months)}] + prev_filters + [
+            {"$addFields": {"group": group_expr}},
+            {"$group": {"_id": "$group", "value": acc}}
+        ]
+        prev_data = {g["_id"]: g.get("value", 0) for g in db.pago_sueldos_intranet.aggregate(prev_pipeline)}
+        
+        curr_total = sum(g.get("value", 0) for g in grouped)
+        prev_total = sum(prev_data.values())
+        delta = curr_total - prev_total
+        yoy_label = f"YoY Δ {delta:,.0f}"
 
-    yoy_line = ""
-    if yoy:
-        prev_months = [ _yyyymm_prev_year(m) for m in months ]
-        stages_prev = [{"$match": _match_periods(prev_months)}, {"$addFields": {"amount": _amount_expr()}}]
-        if need_enrich:
-            stages_prev += _maybe_enrich_stages(["sexo","afp","isapre","cargo","seccion"])
-        if include_siglas:    stages_prev += [{"$addFields": {"_sigla": _derive_sigla_expr()}},{"$match": {"_sigla": {"$in": include_siglas}}}]
-        if include_secciones: stages_prev += [{"$match": {"seccion": {"$in": include_secciones}}}]
-        if include_cargos:    stages_prev += [{"$match": {"cargo": {"$in": include_cargos}}}]
-        if include_ruts:      stages_prev += [{"$addFields": {"rut_norm": {"$toInt": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]}}}}, {"$match": {"rut_norm": {"$in": include_ruts}}}]
-        if sexo_in:           stages_prev += [{"$match": {"sexo": {"$in": sexo_in}}}]
-        if afp_in:            stages_prev += [{"$match": {"afp": {"$in": afp_in}}}]
-        if isapre_in:         stages_prev += [{"$match": {"isapre": {"$in": isapre_in}}}]
-        if nm:                stages_prev += [{"$match": nm}]
-        stages_prev += [{"$addFields": {"group": group_expr}}, {"$group": {"_id": "$group", "value": acc, "count": {"$sum": 1}}}]
-        prev = {g["_id"]: g for g in db.pago_sueldos_intranet.aggregate(stages_prev)}
-        cur_total = sum((g.get("value") or 0) for g in grouped)
-        prev_total = sum((v.get("value") or 0) for v in prev.values())
-        delta = cur_total - prev_total
-        # toma año de la primera month
-        y0 = months[0][:4]; ypy = f"{int(y0)-1}"
-        m1, m2 = months[0][4:], months[-1][4:]
-        yoy_line = f" | YoY {ypy}({m1}–{m2}): {prev_total:,.0f} → {cur_total:,.0f} (Δ {delta:,.0f})"
-
-    label = {"sum":"suma", "avg":"promedio", "count":"cantidad"}[metric]
-    label_by = group_by.replace("_"," y ")
-    photo_item = _profile_photo_item()
-    # Build structured grouped table
+    # Construcción de tabla
+    label = {"sum":"Suma", "avg":"Promedio", "count":"Cant."}[metric]
+    label_by = group_by.replace("_", " y ").title()
+    
     columns = [
-        {"key": "group", "label": label_by.title(), "align": "left"},
-        {"key": "value", "label": label.title(), "align": "right", "format": "money" if metric in {"sum", "avg"} else "number"},
+        {"key": "group", "label": label_by, "align": "left"},
+        {"key": "value", "label": label, "align": "right", "format": "money" if metric != "count" else "number"},
         {"key": "count", "label": "Ítems", "align": "right", "format": "number"},
     ]
-    # If grouping contains RUT, add helpful columns for UI
-    include_worker_cols = ("rut" in group_by)
-    if include_worker_cols:
-        columns = (
-            [{"key": "profile_image_url", "label": "Foto", "align": "center", "format": "image", "round": True},
-             {"key": "rut", "label": "RUT", "align": "left"},
-             {"key": "worker", "label": "Trabajador", "align": "left"},
-             {"key": "sigla", "label": "Sigla", "align": "left"}] + columns
-        )
+    
+    # Si agrupa por RUT, agregamos columnas de trabajador
+    if "rut" in group_by:
+        columns = [{"key": "profile_image_url", "label": "Foto", "format": "image", "round": True}] + columns
+    
     rows_out = []
-    total_value = 0
-    total_count = 0
+    total_val, total_cnt = 0, 0
+    
     for g in grouped:
-        v = g.get("value", 0) or 0
-        c = g.get("count", 0) or 0
-        row = {
-            "group": g.get("_id") if g.get("_id") not in (None, "") else "-",
-            "value": v if metric != "count" else c,
-            "count": c,
-        }
-        if include_worker_cols:
-            # add worker-centric fields to empower drilldown modal
-            rutv = g.get("sample_rut")
-            row["rut"] = rutv
-            row["sigla"] = g.get("sample_sigla")
-            row["worker"] = g.get("sample_name") or ""
-            photo = g.get("sample_photo")
-            if photo:
-                row["profile_image_url"] = photo
-            # attach some extra enrich fields for modal context
-            row["cargo"] = g.get("sample_cargo") or ""
-            row["seccion"] = g.get("sample_seccion") or ""
-            row["afp"] = g.get("sample_afp") or ""
-            row["isapre"] = g.get("sample_isapre") or ""
-            sx = g.get("sample_sexo")
-            row["sexo"] = (str(sx).upper() if sx else "")
-            # nested compact worker object for UI drilldown
+        val = g.get("value", 0)
+        cnt = g.get("count", 0)
+        row = {"group": g.get("_id") or "-", "value": val, "count": cnt}
+        
+        # Enriquecer fila para UI
+        if "rut" in group_by:
+            row["profile_image_url"] = g.get("sample_photo")
             row["worker_obj"] = {
-                "rut": rutv,
-                "name": row["worker"],
-                "cargo": row["cargo"],
-                "seccion": row["seccion"],
-                "afp": row["afp"],
-                "isapre": row["isapre"],
-                "profile_image_url": row.get("profile_image_url") or None,
+                "rut": g.get("sample_rut"),
+                "name": g.get("sample_name"),
+                "cargo": g.get("sample_cargo"),
+                "seccion": g.get("sample_seccion")
             }
-        rows_out.append(row)
-        total_value += (c if metric == "count" else v)
-        total_count += c
-
-    # If grouping is by local (sigla), attach a detail preview per row for drilldown modal
-    if group_by == "sigla" and rows_out:
-        # columns to reuse in detail modal
-        detail_columns = [
-            {"key": "profile_image_url", "label": "Foto", "align": "center", "format": "image", "round": True},
-            {"key": "periodo", "label": "Periodo", "align": "left"},
-            {"key": "sigla", "label": "Sigla", "align": "left"},
-            {"key": "rut", "label": "RUT", "align": "left"},
-            {"key": "seccion", "label": "Sección", "align": "left"},
-            {"key": "cargo", "label": "Cargo", "align": "left"},
-            {"key": "sexo", "label": "Sexo", "align": "center"},
-            {"key": "afp", "label": "AFP", "align": "left"},
-            {"key": "isapre", "label": "Isapre", "align": "left"},
-            {"key": "remuneracion_imponible", "label": "Imponible", "align": "right", "format": "money"},
-            {"key": "remuneracion_no_imponible", "label": "No imponible", "align": "right", "format": "money"},
-            {"key": "remuneracion_total", "label": "Total Rem.", "align": "right", "format": "money"},
-            {"key": "sueldo_liquido_a_pago", "label": "Líquido", "align": "right", "format": "money"},
-            {"key": "amount", "label": "Monto", "align": "right", "format": "money"},
-        ]
-        # Precompute a base pipeline for detail that includes enrichment and period filter
-        base_detail = [
-            {"$match": _match_periods(months)},
-            {"$addFields": {"amount": _amount_expr()}},
-        ]
-        base_detail += _maybe_enrich_stages(["sexo","afp","isapre","cargo","seccion","nombre"])  # ensures rut_norm + worker/photo
-        for i, r in enumerate(rows_out):
-            try:
-                sig = str(r.get("group") or "").strip()
-                if not sig:
-                    continue
-                # Match documents whose derived sigla equals this group
-                detail_stages = base_detail + [
-                    {"$addFields": {"sigla": _derive_sigla_expr()}},
-                    {"$match": {"sigla": sig}},
-                    {"$project": {
-                        "_id": {"$toString": "$_id"},
-                        "periodo": 1, "sigla": 1, "centro_costo": 1,
-                        "rut": {"$ifNull": ["$rut_del_trabajador", {"$ifNull": ["$rut", "$rut_trabajador"]}]},
-                        "cargo": 1, "seccion": 1, "sexo": 1, "afp": 1, "isapre": 1,
-                        "amount": 1,
-                        "remuneracion_imponible": {"$ifNull": ["$remuneracion_imponible", None]},
-                        "remuneracion_no_imponible": {"$ifNull": ["$remuneracion_no_imponible", None]},
-                        "remuneracion_total": {"$ifNull": ["$remuneracion_total", None]},
-                        "sueldo_liquido_a_pago": {"$ifNull": ["$sueldo_liquido_a_pago", None]},
-                        "profile_image_url": 1,
-                        "worker": 1,
-                    }},
-                    {"$sort": {"amount": -1}},
-                    {"$limit": int(max(10, min(limit_rows, 200)))},
+        
+        # Drilldown modal si agrupa por Sigla
+        if group_by == "sigla" and row["group"] != "-":
+            # Reutilizar pipeline base para detalle de esta sigla
+            # Se clona base_stages y se añade match sigla
+            det_pipeline = base_stages + _maybe_enrich_stages([], force=True) + [
+                {"$addFields": {"sigla": _derive_sigla_expr()}},
+                {"$match": {"sigla": row["group"]}},
+                {"$project": {
+                    "_id": 0, "periodo": 1, "rut": {"$ifNull": ["$rut_norm", "$rut"]}, 
+                    "worker": 1, "amount": 1, "cargo": 1, "seccion": 1
+                }},
+                {"$sort": {"amount": -1}},
+                {"$limit": 20}
+            ]
+            det_rows = list(db.pago_sueldos_intranet.aggregate(det_pipeline))
+            det_rows = _apply_security_filter_to_rows(det_rows, role_level, perms)
+            
+            if det_rows:
+                row["detail_rows"] = det_rows
+                row["detail_title"] = f"Detalle {row['group']}"
+                row["detail_columns"] = [
+                    {"key": "rut", "label": "RUT"},
+                    {"key": "worker.nombres", "label": "Nombre"},
+                    {"key": "amount", "label": "Monto", "format": "money"}
                 ]
-                det_rows = list(db.pago_sueldos_intranet.aggregate(detail_stages))
-                # normalize some fields
-                for dr in det_rows:
-                    dr["sexo"] = (str(dr.get("sexo") or "").upper() or "")
-                    if not dr.get("profile_image_url") and isinstance(dr.get("worker"), dict):
-                        dr["profile_image_url"] = dr["worker"].get("profile_image_url") or ""
-                r["detail_columns"] = detail_columns
-                r["detail_rows"] = det_rows
-                r["detail_title"] = f"Detalle sueldos · {sig} · {pretty_period}"
-            except Exception:
-                # don’t break the whole payload on a single group failure
-                continue
+
+        rows_out.append(row)
+        total_val += val
+        total_cnt += cnt
 
     kpis = [
-        {"label": "Total", "value": int(total_value), "isMoney": metric in {"sum", "avg"}},
-        {"label": "Grupos", "value": int(len(rows_out))},
-        {"label": "Ítems", "value": int(total_count)},
+        {"label": "Total Global", "value": int(total_val), "isMoney": metric!="count"},
+        {"label": "Registros", "value": int(total_cnt)},
+        {"label": "Grupos", "value": len(rows_out)}
     ]
-    if yoy and yoy_line:
-        # Extract delta number if possible
-        try:
-            # crude parse of delta from yoy_line '... (Δ 123)'
-            import re as _re
-            m = _re.search(r"Δ\s+([\-\d,\.]+)", yoy_line)
-            if m:
-                delta_str = m.group(1).replace(".", "").replace(",", "")
-                kpis.append({"label": "YoY Δ", "value": int(float(delta_str)), "isMoney": True})
-        except Exception:
-            pass
-    if include_siglas:
-        kpis.append({"label": "Filtrado por", "value": ", ".join(include_siglas)})
+    if yoy_label:
+        kpis.append({"label": "YoY Diff", "value": yoy_label})
 
     payload = {
-        "type": "data_table",
-        "intent": "sueldos",
-        "title": f"Sueldos {pretty_period}",
-        "subtitle": f"Agrupado por {label_by} ({label})",
-        "kpis": kpis,
-        "columns": columns,
-        "rows": rows_out,
-        "totals": {"value": int(total_value), "count": int(total_count)},
-        "meta": {
-            "group_by": group_by,
-            "metric": metric,
-            "order_by": order_by,
-            "period_months": months,
-        }
+        "type": "data_table", "intent": "sueldos",
+        "title": f"Sueldos {_get_pretty_period(months)}",
+        "subtitle": f"Agrupado por {label_by}",
+        "kpis": kpis, "columns": columns, "rows": rows_out,
+        "totals": {"value": int(total_val), "count": int(total_cnt)},
+        "meta": {"group_by": group_by, "metric": metric}
     }
     return update, payload
+
+# ---------------------------
+# Handler Principal
+# ---------------------------
+
+async def handle_sueldos(update, context):
+    """
+    Handler principal de sueldos.
+    Recibe el spec ya procesado en context.user_data['sueldos_spec'] gracias al engine.
+    """
+    text = (update.message.text or "").lower()
+    
+    # 1. Recuperar Spec (Engine ya lo inyectó, pero tenemos fallback)
+    spec = context.user_data.get("sueldos_spec")
+    if not spec:
+        logger.warning("[handle_sueldos] Spec not in context, calling filter manually")
+        spec = await grok_filters("sueldos", text) or {}
+
+    logger.info(f"[sueldos] spec: {spec}")
+
+    # 2. Extraer parámetros normalizados por el Spec
+    period = spec.get("period") or {}
+    months = period.get("months") or []
+    
+    # Asegurar que tenemos meses. Si no, usar mes pasado.
+    if not months:
+        # El postprocess del spec debería haberlo hecho, pero por seguridad:
+        from utils.bot.common.filters import _norm # Importación lazy si necesaria
+        # Recalcular meses si faltan (lógica simple fallback)
+        if period.get("yyyymm"): months = [period["yyyymm"]]
+        else: 
+            now = datetime.now()
+            lm = now.month - 1 or 12
+            ly = now.year if now.month > 1 else now.year - 1
+            months = [f"{ly:04d}{lm:02d}"]
+
+    filters = spec.get("filters") or {}
+    view = spec.get("view") or {}
+    
+    group_by = spec.get("group_by", "auto")
+    metric = spec.get("metric", "sum")
+    order_by = spec.get("order_by", "value_desc")
+
+    # 3. Permisos y Scope (Sucursales y Nivel 7)
+    perms = context.user_data.get("permissions") or {}
+    role_level = context.user_data.get("role_level")
+    try:
+        role_level = int(role_level) if role_level is not None else 0
+    except: role_level = 0
+
+    # Aplicar scope de sucursal (inyecta 'include_siglas' si corresponde)
+    filters = _apply_sucursal_scope(filters, perms, role_level)
+
+    # Scope Nivel 7 (RUT): El engine ya valida acceso 1-7, pero aquí forzamos el filtro de datos
+    if role_level == 7 and perms.get("rut"):
+        try:
+            my_rut = int(perms["rut"])
+            # Forzamos el filtro include_ruts para que MongoDB traiga solo lo necesario
+            filters["include_ruts"] = [my_rut]
+        except: pass
+
+    # 4. Detectar modo de operación
+    
+    # A. Duplicados
+    if "duplicad" in text:
+        return await _handle_duplicates(update, months, filters)
+
+    # B. Construcción Pipeline Base
+    match_period = {"$match": _match_periods(months)}
+    add_amount = {"$addFields": {"amount": _amount_expr()}}
+    
+    # Construir etapas de filtro y enriquecimiento centralizadas
+    filter_stages = _build_filter_stages(
+        filters, 
+        name_text=filters.get("name_text"), 
+        name_fields=filters.get("name_fields"),
+        group_by=group_by
+    )
+    
+    base_pipeline = [match_period, add_amount] + filter_stages
+
+    # C. Determinar Vista (Detalle vs Agrupada)
+    is_detail = group_by == "none" or view.get("detail")
+    
+    # Si es "auto" y hay filtro de RUT único, mostrar detalle
+    single_rut = filters.get("include_ruts")[0] if len(filters.get("include_ruts") or []) == 1 else None
+    if group_by == "auto":
+        is_detail = True if (is_detail or single_rut) else False
+        if not is_detail: group_by = "sigla" # Default group
+
+    limit_rows = int(view.get("limit_rows", 200))
+    limit_groups = int(view.get("limit_groups", 80))
+
+    if is_detail:
+        return await _handle_detail_view(
+            update, months, base_pipeline, limit_rows, 
+            role_level, perms, single_rut, filters.get("include_ruts")
+        )
+    else:
+        return await _handle_grouped_view(
+            update, months, base_pipeline, group_by, metric, order_by, 
+            view.get("yoy"), limit_groups, limit_rows, role_level, perms
+        )

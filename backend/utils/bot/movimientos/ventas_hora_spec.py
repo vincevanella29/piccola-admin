@@ -198,13 +198,16 @@ SPEC = FilterSpec(
         '}'
     ),
     rules_text=(
+        "- Dimensiones principales de agrupación: 'familia', 'subfamilia', 'producto', 'local', 'rut', 'hora', 'dow', 'dia', 'semana_mes', 'mes'.\n"
+        "- Si el usuario dice explícitamente 'agrupadas por familia' o 'por familia', usa group_by='familia' incluso si también menciona 'por hora' en la frase.\n"
+        "- Si dice 'agrupadas por subfamilia' o menciona una subfamilia (p.ej. 'platos calientes/frías'), usa group_by='subfamilia'.\n"
         "- 'por hora' => group_by='hora'; 'por día de semana' => 'dow'; 'por día' => 'dia'; 'por semana del mes' => 'semana_mes'; 'por mes' => 'mes'.\n"
         "- 'agrupado por local' suma con 'hora_local'/'dow_local'/'dia_local' según corresponda.\n"
         "- 'por garzón' / 'por RUT 12345678' => group_by='rut' y filters.include_ruts=[...].\n"
         "- 'por RUT y local' / 'por garzón y local' => group_by='rut_local'.\n"
         "- 'por producto/código 0204047' => group_by='producto' y filters.include_codigos.\n"
         "- 'Alameda/Providencia/...' (nombres) => usar filters.include_siglas=['ALM','PRV'] cuando no entreguen códigos ALMLOC explícitos.\n"
-        "- 'platos calientes/frías' => usar include_subfamilias=['0102 CALIENTES'] etc; 'familia 01 ENTRADAS' => include_familias.\n"
+        "- 'platos calientes/frías' => usar include_subfamilias=['0102 CALIENTES'] etc; 'familia 01 ENTRADAS' => include_familias y group_by='familia' si dicen 'agrupado por familia'.\n"
         "- 'a las 4 pm' => filters.hour_in=[16]; 'entre 4 y 6 pm' => [16,17,18].\n"
         "- 'lunes'/'fin de semana' => filters.dow_in=['lunes'] o ['sábado','domingo'].\n"
         "- 'segunda semana' => filters.semana_mes_in=[2].\n"
@@ -224,3 +227,43 @@ SPEC = FilterSpec(
     postprocess=_postprocess,
 )
 register_filter_spec(SPEC)
+
+
+ENGINE_ROUTES = {
+    "ventas_hora": {
+        "intent": "ventas_hora",
+        "kind": "filter_handler",
+        "filter_key": "ventas_hora",
+        "filter_timeout": 2.5,
+        "handler": "utils.bot.movimientos.ventas_hora:handle_ventas_hora",
+        "handler_timeout": 6.0,
+        # Pasamos el spec completo al contexto para evitar reparsear dentro del handler.
+        "filter_to_context": {"__full__": "ventas_hora_filters"},
+        # Acceso: niveles 1-7. El handler interno aplica más restricciones (sucursal/RUT) según permisos.
+        "access": {
+            "min_role_level": 1,
+            "max_role_level": 7,
+        },
+        # Config declarativa de qué partes del payload son relevantes para el resumen con Grok.
+        # El engine sólo sigue estas secciones; no sabe nada de "ventas por hora".
+        "summary": {
+            "data_table": {
+                "include_generic": True,
+                "sections": {
+                    # Totales de la métrica principal (value) y cantidad de ítems agregados
+                    "totals": {
+                        "root_key": "totals",
+                        "fields": ["value", "count"],
+                    },
+                },
+            },
+        },
+        "default_payload": {
+            "type": "text_block_list",
+            "intent": "ventas_hora",
+            "lines": [
+                "No hay datos de ventas por hora ahora.",
+            ],
+        },
+    },
+}

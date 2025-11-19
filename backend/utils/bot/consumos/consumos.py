@@ -2,7 +2,7 @@ import re
 import logging
 from typing import List, Any
 from utils.web3mongo import db
-from ..common.filters import grok_filters
+from ..common.filters import grok_filters, _apply_sucursal_scope, resolve_allowed_codes_lvl7_from_centros
 
 logger = logging.getLogger(__name__)
 CONSUMO_COLL = "consumo_locales"
@@ -83,6 +83,46 @@ async def handle_consumos(update, context):
     subfamilies = m.get("subfamilies") or []
     art_regex   = m.get("article_regex") or []
 
+    # 1.1) Scope de acceso según permisos y nivel de rol
+    perms = getattr(context, "user_data", {}).get("permissions") or {}
+    try:
+        role_level = int(getattr(context, "user_data", {}).get("role_level"))
+    except Exception:
+        role_level = None
+
+    # Para niveles 6+ restringir locales a sus sucursales
+    # Usamos _apply_sucursal_scope sobre un filtro sintético de siglas y
+    # tratamos los "locals" como siglas para compatibilidad.
+    if role_level is not None and role_level >= 6:
+        tmp_filters = {"include_siglas": list(locals_)}
+        tmp_filters = _apply_sucursal_scope(tmp_filters, perms or {}, role_level)
+        locals_scoped = tmp_filters.get("include_siglas") or []
+        if locals_scoped:
+            locals_ = locals_scoped
+
+    # Para nivel 7 cocina: limitar productos al centro de costo asignado
+    # usando la misma resolución que en menus/productos: resolve_allowed_codes_lvl7_from_centros.
+    allowed_codes_lvl7: set[str] | None = None
+    if role_level == 7:
+        # Derivar periodo YYYYMM desde mesanos o dates
+        period_ym = None
+        if mesanos:
+            try:
+                period_ym = str(mesanos[0]).replace("-", "")[:6]
+            except Exception:
+                period_ym = None
+        elif dates:
+            try:
+                d = str(dates[0])  # "YYYY-MM-DD"
+                period_ym = d.replace("-", "")[:6]
+            except Exception:
+                period_ym = None
+        if period_ym:
+            try:
+                allowed_codes_lvl7 = resolve_allowed_codes_lvl7_from_centros(period_ym, perms or {})
+            except Exception:
+                allowed_codes_lvl7 = None
+
     group_by = plan.get("group_by") or "local"
     # Permitir lista de agrupaciones (e.g., ["local","dia"]) o string
     if isinstance(group_by, str):
@@ -143,6 +183,24 @@ async def handle_consumos(update, context):
     {"$addFields": {"weather_tag": _weather_tag_expr()}},
     {"$project": {"w":0}}
     ]
+
+    # Filtro extra para nivel 7 cocina: solo códigos de producto permitidos
+    # Los códigos se extraen como el primer token del campo "articulo".
+    if allowed_codes_lvl7:
+        codes_list = [str(c).upper() for c in allowed_codes_lvl7]
+        stages += [
+            {"$addFields": {
+                "_codigo": {
+                    "$toUpper": {
+                        "$arrayElemAt": [
+                            {"$split": [{"$ifNull": ["$articulo", ""]}, " "]},
+                            0
+                        ]
+                    }
+                }
+            }},
+            {"$match": {"_codigo": {"$in": codes_list}}},
+        ]
 
     match_and = []
 

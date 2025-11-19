@@ -4,96 +4,120 @@ import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as Icons from 'react-icons/fa';
 import {
-  Menu, X, Wallet, ChevronDown, Search, Eye, LogOut,
-  UserCircle2, Copy, Sparkles, Share2
+  Menu, X, Search, User, Wallet, LogOut, Copy, Share2, Eye, ChevronDown, Sparkles, UserCircle2
 } from 'lucide-react';
-
-import PiccolaIcon from './common/PiccolaIcon';
-import { getHeaderConfig, getWalletMenuConfig, getSearchConfig } from '../pages/pagesConfig';
 import QRCode from 'react-qr-code';
+
+// Importa tus componentes e íconos (ajusta las rutas si es necesario)
+import PiccolaIcon from './common/PiccolaIcon';
+// Si usas VanellixIcon, impórtalo, si no usa PiccolaIcon
+// import VanellixIcon from './common/VanellixIcon.jsx'; 
+import { getHeaderConfig, getWalletMenuConfig, getSearchConfig } from '../pages/pagesConfig';
 import { useWalletBalances } from '../hooks/useWalletBalances.jsx';
 
-// ---- Utils
-const haptics = (ms = 10) => { try { window?.navigator?.vibrate?.(ms); } catch(_) {} };
+// --- ESTILOS GLASSMORPHISM ---
+const DOCK_GLASS = "backdrop-blur-xl bg-light-surface/85 dark:bg-dark-surface/85 border border-light-border/50 dark:border-dark-border/50 shadow-modal";
+const DROPDOWN_GLASS = "backdrop-blur-xl bg-light-surface/95 dark:bg-dark-surface/95 border border-light-border dark:border-dark-border shadow-neon";
 
-const Avatar = ({ url, size = 32 }) => (
-  url ? (
-    <img src={url} alt="profile" className="rounded-full object-cover" style={{ width: size, height: size }} />
-  ) : (
-    <div className="rounded-full bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border flex items-center justify-center" style={{ width: size, height: size }}>
-      <UserCircle2 className="text-light-text-secondary dark:text-dark-text-secondary" size={Math.max(18, size - 12)} />
-    </div>
-  )
-);
+// --- UTILS ---
+const haptics = (ms = 10) => { try { window?.navigator?.vibrate?.(ms); } catch (_) {} };
 
 const Chip = ({ children }) => (
-  <span className="px-2 py-0.5 rounded-full text-[11px] border border-light-border dark:border-dark-border bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary">
+  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border border-light-border dark:border-dark-border bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
     {children}
   </span>
 );
 
-// ---- Toast minimal
+const Avatar = ({ url, size = 32 }) => (
+  url ? (
+    <img src={url} alt="profile" className="rounded-full object-cover border border-light-border/50 dark:border-dark-border/50" style={{ width: size, height: size }} />
+  ) : (
+    <div className="rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 border border-light-border dark:border-dark-border flex items-center justify-center" style={{ width: size, height: size }}>
+      <UserCircle2 className="text-light-text-tertiary dark:text-dark-text-tertiary" size={Math.max(14, size - 10)} />
+    </div>
+  )
+);
+
+// --- TOAST MINIMALISTA ---
 const Toast = ({ open, onClose, children }) => (
   <AnimatePresence>
     {open && (
       <motion.div
-        className="fixed top-3 inset-x-0 z-[95] flex justify-center px-3"
-        initial={{ y: -24, opacity: 0 }}
+        className="fixed top-24 inset-x-0 z-[95] flex justify-center px-3 pointer-events-none"
+        initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: -24, opacity: 0 }}
+        exit={{ y: -20, opacity: 0 }}
         transition={{ duration: 0.25 }}
       >
-        <div className="max-w-md w-full rounded-xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface shadow-xl px-4 py-3 flex items-center gap-2">
-          <Sparkles size={16} className="text-light-accent dark:text-dark-accent" />
-          <div className="text-sm text-light-text-primary dark:text-dark-text-primary">{children}</div>
-          <button onClick={onClose} className="ml-auto text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary">✕</button>
+        <div className="pointer-events-auto max-w-md w-full rounded-2xl border border-light-border dark:border-dark-border bg-light-surface/90 dark:bg-dark-surface/90 backdrop-blur-md shadow-2xl px-4 py-3 flex items-center gap-3">
+          <div className="p-2 rounded-full bg-light-accent/10 dark:bg-dark-accent/10 text-light-accent dark:text-dark-accent">
+             <Sparkles size={16} />
+          </div>
+          <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary flex-1">{children}</div>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-light-text-secondary">✕</button>
         </div>
       </motion.div>
     )}
   </AnimatePresence>
 );
 
-// ---- Command/Search Overlay (centrado en móvil)
+// --- COMMAND / SEARCH OVERLAY ---
 const CommandOverlay = ({ open, onClose, searchConfig, onNavigate }) => {
   const { t } = useTranslation();
   const [q, setQ] = useState('');
   const inputRef = useRef(null);
-  useEffect(() => { if (open) { setTimeout(() => inputRef.current?.focus(), 60); } }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      const id = setTimeout(() => inputRef.current?.focus(), 60);
+      return () => clearTimeout(id);
+    } else {
+      setQ(''); // Clear on close
+    }
+  }, [open]);
+
   const results = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return searchConfig.slice(0, 12);
-    return searchConfig.filter((it) => (it.label + ' ' + (it.description||'')).toLowerCase().includes(s)).slice(0, 24);
+    if (!s) return searchConfig.slice(0, 8);
+    return searchConfig
+      .filter((it) => (it.label + ' ' + (it.description || '')).toLowerCase().includes(s))
+      .slice(0, 12);
   }, [q, searchConfig]);
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          <motion.div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
           <motion.div
-            className="fixed top-[8vh] inset-x-3 z-[85] w-auto max-w-xl mx-auto rounded-2xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface shadow-2xl"
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[80] bg-black/20 backdrop-blur-[4px]"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+          />
+          <motion.div
+            className="fixed top-[15vh] inset-x-4 z-[85] w-full max-w-lg mx-auto rounded-3xl border border-light-border dark:border-dark-border bg-light-surface/80 dark:bg-dark-surface/80 backdrop-blur-xl shadow-2xl overflow-hidden"
+            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-light-border dark:border-dark-border">
-              <Search size={18} className="text-light-text-tertiary dark:text-dark-text-tertiary" />
+            <div className="flex items-center gap-3 px-4 py-4 border-b border-light-border/50 dark:border-dark-border/50">
+              <Search size={20} className="text-light-text-tertiary dark:text-dark-text-tertiary" />
               <input
                 ref={inputRef}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder={t('header.search_placeholder')}
-                className="flex-1 h-9 bg-transparent outline-none text-sm text-light-text-primary dark:text-dark-text-primary placeholder:text-light-text-tertiary dark:placeholder:text-dark-text-tertiary"
+                placeholder={t('header.search_placeholder', 'Buscar...')}
+                className="flex-1 bg-transparent outline-none text-base text-light-text-primary dark:text-dark-text-primary placeholder:text-light-text-tertiary font-medium"
               />
-              <Chip>{t('common.esc') || 'ESC'}</Chip>
+              <Chip>ESC</Chip>
             </div>
-            <div className="p-2 max-h-[60vh] overflow-auto">
+            <div className="p-2 max-h-[50vh] overflow-y-auto scrollbar-thin">
               {results.length === 0 ? (
-                <div className="p-6 text-center text-light-text-secondary dark:text-dark-text-secondary text-sm">{t('search.no_results') || 'No results'}</div>
+                <div className="p-8 text-center text-light-text-secondary dark:text-dark-text-secondary text-sm font-medium">
+                  {t('search.no_results', 'No hay resultados')}
+                </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-1">
                   {results.map((item) => {
                     const IconComponent = Icons[item.icon] || Icons.FaFileAlt;
                     const onClick = () => {
@@ -101,21 +125,25 @@ const CommandOverlay = ({ open, onClose, searchConfig, onNavigate }) => {
                       haptics(15);
                       if (item.isExternal) {
                         window.open(item.fullPath, item.newTab ? '_blank' : '_self');
-                      } else { onNavigate(item.fullPath); }
+                      } else {
+                        onNavigate(item.fullPath);
+                      }
                     };
                     return (
                       <button
                         key={item.fullPath}
                         onClick={onClick}
-                        className="flex items-center gap-2 p-2 rounded-xl border border-light-border dark:border-dark-border hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover text-left"
-                        title={item.description}
+                        className="group flex items-center gap-3 p-3 rounded-2xl hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 transition-colors text-left w-full"
                       >
-                        <div className="h-9 w-9 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border flex items-center justify-center">
-                          <IconComponent className="text-light-accent dark:text-dark-accent" size={14} />
+                        <div className="h-10 w-10 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary flex items-center justify-center group-hover:bg-light-accent group-hover:text-white dark:group-hover:bg-dark-accent dark:group-hover:text-white transition-colors text-light-text-secondary dark:text-dark-text-secondary">
+                          <IconComponent size={18} />
                         </div>
-                        <div className="min-w-0">
-                          <div className="text-sm text-light-text-primary dark:text-dark-text-primary truncate">{item.label}</div>
-                          <div className="text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary truncate">{item.description}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary truncate">{item.label}</div>
+                          <div className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary truncate">{item.description}</div>
+                        </div>
+                        <div className="opacity-0 group-hover:opacity-100 text-light-text-tertiary transition-opacity">
+                           <Icons.FaChevronRight size={12} />
                         </div>
                       </button>
                     );
@@ -130,136 +158,128 @@ const CommandOverlay = ({ open, onClose, searchConfig, onNavigate }) => {
   );
 };
 
-// ---- Wallet Bottom Sheet (pro)
-const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconnect, menuItems = [], t, chainId, isAuthenticated, isOpenBalances = true }) => {
-  // Reutiliza hooks reales: solo cuando hay wallet y el sheet está abierto
-  const { tokens = [], loading: balancesLoading } = useWalletBalances(account, open && isOpenBalances, chainId) || {};
+// --- WALLET SHEET (Estilo Glass) ---
+const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconnect, menuItems = [], t, chainId, isAuthenticated }) => {
+  // Hook de balances
+  const { tokens = [], loading: balancesLoading } = useWalletBalances(account, open, chainId) || {};
   const native = Array.isArray(tokens) ? tokens.find((t) => t?.isNative) : null;
   const nativeBalance = typeof native?.balance === 'number' ? native.balance : null;
-  const nativeSymbol = native?.symbol || (chainId ? 'NATIVE' : undefined);
+  const nativeSymbol = native?.symbol || (chainId ? 'ETH' : '');
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          <motion.div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+          <motion.div 
+             className="fixed inset-0 z-[80] bg-black/30 backdrop-blur-sm" 
+             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+             onClick={onClose} 
+          />
           <motion.div
-            className="fixed inset-x-0 bottom-[var(--app-footer-h,40px)] z-[90] rounded-t-2xl border-t border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface shadow-2xl"
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            className={`fixed inset-x-0 bottom-6 md:bottom-24 z-[90] w-[95vw] max-w-md mx-auto rounded-[32px] ${DROPDOWN_GLASS} overflow-hidden`}
+            initial={{ y: '120%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '120%', opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           >
-            <div className="flex items-center justify-center pt-2"><div className="h-1 w-12 rounded-full bg-light-border dark:bg-dark-border" /></div>
-            <div className="px-4 pb-[calc(env(safe-area-inset-bottom,12px)+8px+var(--app-footer-h,40px))]">
-              <div className="flex items-center gap-3 py-3">
-                <Avatar url={profile?.profile_image_url} size={44} />
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary truncate">{profile?.name || (account ? account : t('header.no_wallet'))}</div>
+            {/* Sheet Handle */}
+            <div className="flex justify-center pt-3 pb-1" onClick={onClose}>
+               <div className="w-12 h-1.5 rounded-full bg-light-border/50 dark:bg-dark-border/50" />
+            </div>
+
+            <div className="px-5 pb-6 pt-2">
+              {/* Header Profile */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-1 rounded-full border border-light-accent/30 dark:border-dark-accent/30">
+                   <Avatar url={profile?.profile_image_url} size={56} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary truncate">
+                    {profile?.name || (account ? 'Usuario' : t('header.no_wallet'))}
+                  </div>
                   {account && (
-                    <div className="flex items-center gap-2 text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
-                      <Chip>{account.slice(0,6)}…{account.slice(-4)}</Chip>
-                      <button onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover"><Copy size={12} />Copy</button>
-                    </div>
+                    <button onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent transition-colors">
+                      <span className="font-mono bg-light-surface-secondary dark:bg-dark-surface-secondary px-2 py-0.5 rounded-md">{account.slice(0,6)}...{account.slice(-4)}</span>
+                      <Copy size={12} />
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Acciones útiles solamente */}
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                <button onClick={() => { onViewWallet(); haptics(); }} className="p-3 rounded-xl border border-light-border dark:border-dark-border hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover flex flex-col items-center gap-2">
-                  <Eye size={18} className="text-light-accent dark:text-dark-accent" />
-                  <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{t('header.view_wallet')}</span>
+              {/* Action Grid */}
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                <button onClick={() => { onViewWallet(); haptics(); }} className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all">
+                  <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Eye size={20} /></div>
+                  <span className="text-[10px] font-bold uppercase tracking-wide">{t('header.view_wallet', 'Ver')}</span>
                 </button>
-                {account ? (
-                  <button onClick={() => { navigator.clipboard?.writeText(account); haptics(12); }} className="p-3 rounded-xl border border-light-border dark:border-dark-border hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover flex flex-col items-center gap-2">
-                    <Copy size={18} className="text-light-accent dark:text-dark-accent" />
-                    <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{t('wallet.copy_address') || 'Copy'}</span>
-                  </button>
-                ) : (
-                  <button disabled className="p-3 rounded-xl border border-light-border dark:border-dark-border opacity-50 cursor-not-allowed flex flex-col items-center gap-2">
-                    <Copy size={18} />
-                    <span className="text-[11px]">{t('wallet.copy_address') || 'Copy'}</span>
-                  </button>
-                )}
-                {account ? (
-                  <button
-                    onClick={() => {
-                      if (navigator.share) {
-                        navigator.share({ title: 'Wallet', text: account }).catch(() => {});
-                      } else {
-                        navigator.clipboard?.writeText(account);
-                      }
-                      haptics(12);
-                    }}
-                    className="p-3 rounded-xl border border-light-border dark:border-dark-border hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover flex flex-col items-center gap-2"
-                  >
-                    <Share2 size={18} className="text-light-accent dark:text-dark-accent" />
-                    <span className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{t('wallet.share') || 'Share'}</span>
-                  </button>
-                ) : (
-                  <button disabled className="p-3 rounded-xl border border-light-border dark:border-dark-border opacity-50 cursor-not-allowed flex flex-col items-center gap-2">
-                    <Share2 size={18} />
-                    <span className="text-[11px]">{t('wallet.share') || 'Share'}</span>
-                  </button>
-                )}
+                <button 
+                   disabled={!account}
+                   onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} 
+                   className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all disabled:opacity-50"
+                >
+                  <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Copy size={20} /></div>
+                  <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.copy_address', 'Copiar')}</span>
+                </button>
+                <button 
+                   disabled={!account}
+                   onClick={() => { if(navigator.share) navigator.share({text: account}); haptics(); }}
+                   className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all disabled:opacity-50"
+                >
+                  <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Share2 size={20} /></div>
+                  <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.share', 'Share')}</span>
+                </button>
               </div>
 
-              {/* QR Card (solo si hay wallet) */}
+              {/* QR Card */}
               {account && (
-                <div className="mb-3 px-3 py-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 flex items-center gap-3">
-                  <div className="shrink-0 rounded-xl overflow-hidden border border-light-border dark:border-dark-border bg-white p-2">
-                    <QRCode value={account} size={120} level="M" />
+                <div className="mb-5 p-4 rounded-3xl bg-light-surface-secondary/30 dark:bg-black/20 border border-light-border/50 dark:border-dark-border/50 flex items-center gap-4">
+                  <div className="bg-white p-2 rounded-xl shadow-sm shrink-0">
+                    <QRCode value={account} size={70} level="M" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t('header.wallet_address') || 'Wallet address'}</div>
-                    <div className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary truncate">{account}</div>
-                    {chainId && (
-                      <div className="text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary mt-0.5">Chain ID: {chainId}</div>
-                    )}
-                    {nativeSymbol && (
-                      <div className="text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary mt-0.5">
-                        {balancesLoading ? '—' : `${nativeBalance ?? 0} ${nativeSymbol}`}
-                      </div>
-                    )}
+                  <div className="flex-1 min-w-0">
+                     <div className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary font-medium uppercase tracking-wide mb-1">Balance</div>
+                     <div className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary truncate">
+                        {balancesLoading ? '...' : `${parseFloat(nativeBalance || 0).toFixed(4)} ${nativeSymbol}`}
+                     </div>
+                     <div className="text-[10px] text-light-text-secondary mt-1 flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> Chain ID: {chainId || 'N/A'}
+                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="divide-y divide-light-border dark:divide-dark-border rounded-xl border border-light-border dark:border-dark-border overflow-hidden">
-                {[...menuItems].map((item) => {
-                  const IconComponent = Icons[item.icon] || Icons.FaFileAlt;
-                  const click = () => {
-                    haptics(15);
-                    if (item.isExternal) {
-                      window.open(item.fullPath, item.newTab ? '_blank' : '_self');
-                    } else {
-                      onClose();
-                      item.__navigate?.(item.fullPath);
-                    }
-                  };
-                  return (
-                    <button key={item.fullPath} onClick={click} className="w-full flex items-center gap-2 px-4 py-3 text-sm text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover">
-                      <IconComponent className="text-light-accent dark:text-dark-accent" size={14} />
-                      <span className="truncate">{item.label}</span>
+              {/* Menu Items */}
+              <div className="space-y-1">
+                 {menuItems.map((item) => {
+                    const Icon = Icons[item.icon] || Icons.FaCircle;
+                    const click = () => {
+                       haptics();
+                       if (item.isExternal) window.open(item.fullPath, item.newTab ? '_blank' : '_self');
+                       else { onClose(); item.__navigate?.(item.fullPath); }
+                    };
+                    return (
+                       <button key={item.fullPath} onClick={click} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary transition-colors">
+                          <Icon size={16} />
+                          <span className="flex-1 text-left">{item.label}</span>
+                          <Icons.FaChevronRight size={10} className="opacity-50" />
+                       </button>
+                    )
+                 })}
+                 
+                 <div className="h-[1px] bg-light-border/50 dark:bg-dark-border/50 my-2 mx-2" />
+                 
+                 {isAuthenticated ? (
+                    <button onClick={() => { onDisconnect(); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-light-error dark:text-dark-error hover:bg-light-error/10 dark:hover:bg-dark-error/10 transition-colors">
+                       <LogOut size={18} />
+                       <span>{t('header.disconnect', 'Desconectar')}</span>
                     </button>
-                  );
-                })}
-                {isAuthenticated ? (
-                  <button onClick={() => { onDisconnect(); haptics(20); }} className="w-full flex items-center gap-2 px-4 py-3 text-sm text-light-error dark:text-dark-error hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover">
-                    <LogOut size={16} /> {t('header.disconnect')}
-                  </button>
-                ) : (
-                  <div className="flex items-center justify-between px-4 py-3 text-sm">
-                    <span className="text-light-text-secondary dark:text-dark-text-secondary">{t('header.no_wallet')}</span>
-                    <button onClick={() => { onViewWallet(); haptics(15); }} className="px-3 py-1 rounded-full border border-light-border dark:border-dark-border hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover text-light-text-primary dark:text-dark-text-primary">{t('header.create_wallet')}</button>
-                  </div>
-                )}
+                 ) : (
+                    <button onClick={() => { onViewWallet(); }} className="w-full py-3 rounded-xl bg-light-accent dark:bg-dark-accent text-white font-bold shadow-lg shadow-light-accent/30 dark:shadow-dark-accent/30">
+                       {t('header.create_wallet', 'Conectar Wallet')}
+                    </button>
+                 )}
               </div>
 
-              <div className="flex items-center justify-center py-3 text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary">
-                <Sparkles size={12} className="mr-1" /> PWA mobile ready
-              </div>
             </div>
           </motion.div>
         </>
@@ -268,7 +288,8 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
   );
 };
 
-// ---- Header (desktop + mobile pro)
+// --- COMPONENTE PRINCIPAL ---
+
 const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isConnecting, appState, openWalletModal }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -276,66 +297,53 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
   const [cmdOpen, setCmdOpen] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
 
-  const headerConfig = getHeaderConfig(appState.roleLevel, t);
-  const walletMenuConfig = getWalletMenuConfig(appState.roleLevel, t);
-  const searchConfig = getSearchConfig(appState.roleLevel, t);
+  // Configuración
+  const headerConfig = useMemo(() => getHeaderConfig(appState.roleLevel, t), [appState.roleLevel, t]);
+  const walletMenuConfig = useMemo(() => getWalletMenuConfig(appState.roleLevel, t), [appState.roleLevel, t]);
+  const searchConfig = useMemo(() => getSearchConfig(appState.roleLevel, t), [appState.roleLevel, t]);
   const profile = appState?.profile;
+  
+  // Kiosk Logic (para ocultar boton sidebar si es desktop)
+  const isHorizontal = appState?.media?.orientationLogical === 'horizontal';
+  const isKiosk = !!appState?.media?.isKiosk;
+  const forceDesktopSidebar = isKiosk && isHorizontal;
 
+  // Handlers
   const handleLogin = () => { appState?.connectWallet?.(appState); };
   const onViewWallet = async () => {
-    // cierra sheet antes de abrir modal de wallet
     setWalletOpen(false);
     if (!appState?.account) {
-      try {
-        await appState?.createWalletOnDemand?.();
-      } finally {
-        if (appState?.account) openWalletModal();
-      }
+      try { await appState?.createWalletOnDemand?.(); } 
+      finally { if (appState?.account) openWalletModal(); }
       return;
     }
     openWalletModal();
   };
 
-  // Helpers de cumpleaños
+  // Cumpleaños Logic
   const isBirthday = () => {
     if (!profile?.birthdate) return false;
     const today = new Date();
     const b = new Date(profile.birthdate);
     return today.getMonth() === b.getMonth() && today.getDate() === b.getDate();
   };
-  const daysUntilBirthday = () => {
-    if (!profile?.birthdate) return null;
-    const today = new Date();
-    const b = new Date(profile.birthdate);
-    const year = today.getFullYear();
-    const next = new Date(year, b.getMonth(), b.getDate());
-    if (next < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-      next.setFullYear(year + 1);
-    }
-    const ms = next - today;
-    return Math.ceil(ms / (1000 * 60 * 60 * 24));
-  };
-
-  // Toast de cumple (una vez al día)
+  
+  // Toast Birthday Effect
   useEffect(() => {
-    if (!profile?.birthdate) return;
-    if (!isBirthday()) return;
-    const todayISO = new Date().toISOString().slice(0, 10);
-    const key = `piccola:bday-toast:${todayISO}:${profile?.id || account || 'user'}`;
-    try {
-      const already = localStorage.getItem(key);
-      if (!already) {
+    if (isBirthday()) {
+      const key = `piccola:bday:${new Date().getFullYear()}`;
+      if (!localStorage.getItem(key)) {
         setToastOpen(true);
-        localStorage.setItem(key, '1');
+        localStorage.setItem(key, 'shown');
       }
-    } catch (_) {}
-  }, [profile?.birthdate, profile?.id, account]);
+    }
+  }, [profile]);
 
-  // Allow Cmd+K to open search
+  // Shortcuts
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdOpen((v) => !v); }
-      if (e.key === 'Escape') { setCmdOpen(false); setWalletOpen(false); setToastOpen(false); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdOpen(prev => !prev); }
+      if (e.key === 'Escape') { setCmdOpen(false); setWalletOpen(false); }
     };
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -344,88 +352,121 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
   const walletItemsWithNav = walletMenuConfig.map((it) => ({ ...it, __navigate: navigateTo }));
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-light-surface dark:bg-dark-surface border-b border-light-border dark:border-dark-border z-50 flex items-center">
-      {/* Toast cumple */}
-      <Toast open={toastOpen} onClose={() => setToastOpen(false)}>
-        {`🎉 ¡Feliz cumple${profile?.name ? ', ' + profile.name : ''}! Que sea un día filete.`}
-      </Toast>
+    <>
+      {/* --- HEADER FIXED CONTAINER (sin fondo propio, deja ver el del wrapper) --- */}
+      <header className="fixed top-0 left-0 right-0 h-24 z-[50] pointer-events-none flex justify-center px-4">
+        
+        <Toast open={toastOpen} onClose={() => setToastOpen(false)}>
+           🎉 ¡Feliz cumpleaños{profile?.name ? `, ${profile.name}` : ''}!
+        </Toast>
 
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3 w-full">
-        {/* Left */}
-        <div className="flex items-center gap-2">
-          <button onClick={() => { toggleSidebar(); haptics(10); }} className="lg:hidden text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary">
-            {isSidebarOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
-          <Link to="/" className="flex items-center gap-2">
-            <PiccolaIcon className="h-12" />
-          </Link>
-        </div>
-
-        {/* Center: desktop nav + mobile search button */}
-        <div className="flex-1 flex items-center justify-center">
-          <nav className="hidden lg:flex items-center gap-6">
-            {headerConfig.map((item) => {
-              const IconComponent = Icons[item.icon] || Icons.FaFileAlt;
-              return item.isExternal ? (
-                <a key={item.fullPath} href={item.fullPath} target={item.newTab ? '_blank' : '_self'} rel={item.newTab ? 'noopener noreferrer' : undefined} className="flex items-center gap-2 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary text-sm">
-                  <IconComponent className="text-light-accent dark:text-dark-accent" size={14} />{item.label}
-                </a>
-              ) : (
-                <NavLink key={item.fullPath} to={item.fullPath} className={({ isActive }) => `flex items-center gap-2 text-sm ${isActive ? 'text-light-text-primary dark:text-dark-text-primary font-semibold' : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}>
-                  <IconComponent className="text-light-accent dark:text-dark-accent" size={14} />{item.label}
-                </NavLink>
-              );
-            })}
-          </nav>
-          <button onClick={() => { setCmdOpen(true); haptics(10); }} className="lg:hidden inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary">
-            <Search size={16} /><span className="text-xs">Search</span>
-          </button>
-        </div>
-
-        {/* Right: wallet */}
-        <div className="flex items-center gap-2">
-          {!appState?.isWalletDataReady ? (
-            <div className="flex items-center gap-2 px-4 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-lg animate-pulse min-w-[120px] h-10">
-              <span className="w-5 h-5 rounded-full bg-light-border dark:bg-dark-border" />
-              <span className="w-20 h-4 rounded bg-light-border dark:bg-dark-border" />
-            </div>
-          ) : appState?.isAuthenticated ? (
-            account ? (
-              <button onClick={() => { setWalletOpen(true); haptics(10); }} className="flex items-center gap-2 px-3 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover">
-                <Avatar url={profile?.profile_image_url} size={28} />
-                <span className="hidden sm:block text-sm text-light-text-primary dark:text-dark-text-primary max-w-[220px] truncate flex items-center gap-1">
-                  {profile?.name || (account ? account.slice(0,6)+'…'+account.slice(-4) : t('header.no_wallet'))}
-                  {(() => {
-                    if (isBirthday()) return (
-                      <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border">🎂 {t('header.today') || 'hoy'}</span>
-                    );
-                    const d = daysUntilBirthday();
-                    return (typeof d === 'number' && d > 0 && d <= 30) ? (
-                      <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border">
-                        🎂 {t('header.in_days', { count: d }) || `en ${d} días`}
-                      </span>
-                    ) : null;
-                  })()}
-                </span>
-                <ChevronDown size={16} className="text-light-text-secondary dark:text-dark-text-secondary" />
-              </button>
-            ) : (
-              <button onClick={() => { setWalletOpen(true); haptics(10); }} className="flex items-center gap-2 px-3 py-2 bg-light-accent dark:bg-dark-accent text-light-text-primary dark:text-dark-text-primary rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover">
-                <Wallet size={16} />
-                <span className="text-sm">{t('header.create_wallet')}</span>
-              </button>
-            )
-          ) : (
-            <button onClick={() => { haptics(10); handleLogin(); }} disabled={isConnecting} className="flex items-center gap-2 px-3 py-2 bg-light-accent dark:bg-dark-accent text-light-text-primary dark:text-dark-text-primary rounded-lg hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover disabled:opacity-50">
-              <Wallet size={16} />
-              <span className="text-sm">{isConnecting ? t('header.connecting') : t('header.connect_wallet')}</span>
+        {/* --- DOCK FLOTANTE REAL --- */}
+        <motion.div 
+          initial={{ y: -100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 280, damping: 25 }}
+          className={`pointer-events-auto mt-4 w-full max-w-7xl h-16 rounded-2xl flex items-center justify-between px-4 sm:px-6 ${DOCK_GLASS}`}
+        >
+          
+          {/* LEFT: Menu & Brand */}
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => { toggleSidebar(); haptics(); }}
+              className={`${forceDesktopSidebar ? 'hidden' : 'lg:hidden'} p-2 rounded-xl text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-all active:scale-95`}
+            >
+              {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-          )}
-        </div>
-      </motion.div>
+            
+            <Link to="/" className="flex items-center gap-3 group" onClick={() => haptics()}>
+               {/* Reemplaza PiccolaIcon por tu SVG o componente */}
+               <PiccolaIcon className="h-8 w-auto drop-shadow-md group-hover:scale-105 transition-transform" />
+               <div className="hidden md:flex flex-col leading-none">
+                   {/* Opcional: Nombre de la app o versión */}
+               </div>
+            </Link>
+          </div>
+
+          {/* CENTER: Navigation Pills (Desktop) */}
+          <nav className="hidden lg:flex items-center gap-1">
+             {headerConfig.map((item) => {
+               const Icon = Icons[item.icon] || Icons.FaCircle;
+               return (
+                 <NavLink
+                   key={item.fullPath}
+                   to={item.fullPath}
+                   className={({ isActive }) => `
+                     relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide transition-all duration-300 flex items-center gap-2
+                     ${isActive 
+                       ? 'text-light-text-primary dark:text-dark-text-primary bg-light-surface-secondary dark:bg-white/10 shadow-sm scale-105' 
+                       : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary hover:bg-light-surface-secondary/50 dark:hover:bg-white/5'}
+                   `}
+                 >
+                   <Icon size={12} />
+                   {item.label}
+                 </NavLink>
+               );
+             })}
+          </nav>
+
+          {/* RIGHT: Search & Wallet/Profile */}
+          <div className="flex items-center gap-2 sm:gap-3">
+             
+             {/* Search Trigger */}
+             <button 
+                onClick={() => { setCmdOpen(true); haptics(); }}
+                className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-all hover:text-light-accent dark:hover:text-dark-accent"
+                title="Buscar (Ctrl+K)"
+             >
+                <Search size={20} />
+             </button>
+
+             <div className="w-[1px] h-6 bg-light-border dark:bg-dark-border mx-1 hidden sm:block opacity-50" />
+
+             {/* Wallet / Profile Button */}
+             {!appState?.isWalletDataReady ? (
+               <div className="h-9 w-24 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-full animate-pulse" />
+             ) : appState?.isAuthenticated ? (
+                <button 
+                  onClick={() => { setWalletOpen(true); haptics(); }}
+                  className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition-all duration-300 group
+                    ${walletOpen 
+                      ? 'bg-light-accent/10 border-light-accent dark:bg-dark-accent/10 dark:border-dark-accent' 
+                      : 'bg-transparent border-transparent hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary'}
+                  `}
+                >
+                   <Avatar url={profile?.profile_image_url} size={32} />
+                   <div className="hidden sm:block text-left">
+                      <div className="text-xs font-bold text-light-text-primary dark:text-dark-text-primary truncate max-w-[100px]">
+                         {profile?.name || account?.slice(0,8) || 'Usuario'}
+                      </div>
+                      {isBirthday() && <div className="text-[9px] text-light-accent dark:text-dark-accent leading-none">🎂 Cumpleaños</div>}
+                   </div>
+                   <ChevronDown size={14} className="text-light-text-tertiary group-hover:text-light-text-primary dark:group-hover:text-dark-text-primary transition-colors" />
+                </button>
+             ) : (
+                <button 
+                   onClick={() => { handleLogin(); haptics(); }} 
+                   disabled={isConnecting}
+                   className="flex items-center gap-2 px-4 py-2 rounded-full bg-light-accent dark:bg-dark-accent text-white font-bold text-xs shadow-lg shadow-light-accent/20 hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
+                >
+                   {isConnecting ? <Icons.FaSpinner className="animate-spin" /> : <Wallet size={16} />}
+                   <span>{isConnecting ? 'Conectando...' : t('header.connect_wallet', 'Wallet')}</span>
+                </button>
+             )}
+
+          </div>
+          
+        </motion.div>
+      </header>
 
       {/* Overlays */}
-      <CommandOverlay open={cmdOpen} onClose={() => setCmdOpen(false)} searchConfig={getSearchConfig(appState.roleLevel, t)} onNavigate={navigateTo} />
+      <CommandOverlay 
+        open={cmdOpen} 
+        onClose={() => setCmdOpen(false)} 
+        searchConfig={searchConfig} 
+        onNavigate={navigateTo} 
+      />
+      
       <WalletSheet
         open={walletOpen}
         onClose={() => setWalletOpen(false)}
@@ -438,7 +479,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
         chainId={appState?.chainId}
         isAuthenticated={appState?.isAuthenticated}
       />
-    </header>
+    </>
   );
 };
 

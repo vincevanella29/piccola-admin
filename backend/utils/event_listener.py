@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN DEL LISTENER V4 ---
-POLL_INTERVAL = 60
+POLL_INTERVAL = 120
 INITIAL_BLOCK = int(os.getenv("INITIAL_BLOCK", "26419000"))
 BLOCK_CHUNK_SIZE = 2000
 MAX_RETRIES = 3

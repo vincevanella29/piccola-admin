@@ -255,8 +255,13 @@ const MainContent = () => {
 
 
   const handleLogout = async () => {
-    await disconnectWallet();
-    navigate('/', { replace: true });
+    try {
+      await disconnectWallet();
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    }
   };
 
   const toggleSidebar = useCallback(() => {

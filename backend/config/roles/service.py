@@ -36,6 +36,11 @@ def is_member_level(level: int) -> bool:
     return level in (3, 4, 5)
 
 def get_company_role_level(wallet: str, company_id: Optional[int] = None) -> int:
+    # Si no es una dirección Ethereum válida (p.ej. did:privy:...), no intentamos
+    # llamar al contrato y devolvemos -1 silenciosamente.
+    if not isinstance(wallet, str) or not w3.is_address(wallet):
+        return -1
+
     try:
         checksum = normalize_address(wallet)
         cid = int(company_id if company_id is not None else COMPANY_ID)
@@ -44,9 +49,6 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None) -> int
             logger.info(f"[roles.service] Out-of-range role_level={role_level} for {checksum} cid={cid}; returning -1")
             return -1
         return role_level
-    except (ValueError, TypeError) as e:
-        logger.error(f"[roles.service] Invalid wallet/company_id: {e}")
-        return -1
     except ContractLogicError as e:
         logger.error(f"[roles.service] Contract error getCompanyLevel({wallet}): {e}")
         return -1

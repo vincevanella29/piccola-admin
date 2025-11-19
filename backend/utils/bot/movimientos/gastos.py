@@ -6,7 +6,7 @@ from typing import List, Dict, Tuple, Optional
 
 from utils.web3mongo import db
 from ..common.constants import EXCLUDED_CUENTAS
-from ..common.filters import grok_filters
+from ..common.filters import grok_filters, _apply_sucursal_scope
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +283,29 @@ async def handle_gastos(update, context):
     group_by = (gf.get("group_by") or "auto").lower().strip()
 
     f = gf.get("filters") or {}
+
+    # 2.1) Scope por permisos: sucursales (lvl 6+) y RUT (lvl 7)
+    perms = getattr(context, "user_data", {}).get("permissions") or {}
+    try:
+        role_level = int(getattr(context, "user_data", {}).get("role_level"))
+    except Exception:
+        role_level = None
+
+    # Aplicar scope de sucursales para niveles 6+ (1-5 sin cambios)
+    f = _apply_sucursal_scope(f, perms or {}, role_level)
+
+    # Para nivel 7, limitar siempre a su propio RUT
+    if role_level == 7 and perms.get("rut") is not None:
+        try:
+            rut_val_perm = perms.get("rut")
+            rut_int_perm = int(rut_val_perm)
+        except Exception:
+            rut_int_perm = None
+        if rut_int_perm is not None:
+            f["rut"] = rut_int_perm
+
+    gf["filters"] = f
+
     keyword = (f.get("text") or "").strip()
     search_in = f.get("search_in") or ["resumen2", "resumen", "tipo_gasto", "glosa", "detalle"]
     text_mode = (f.get("text_mode") or "contains").lower()
@@ -328,7 +351,7 @@ async def handle_gastos(update, context):
     # === 3) Respuesta ===
     start_s, end_s = start_iso, end_iso
 
-    # (A) Agrupado
+    # (A) Agrupado -> data_table
     if group_by in {"mes", "sigla", "cuenta", "mes_sigla"} and not want_detail:
         grouped = _query_gastos_grouped(
             start, end, siglas, cuentas,
@@ -338,7 +361,6 @@ async def handle_gastos(update, context):
             group_by=group_by, exclude_siglas=exclude_siglas, rut=rut
         )
 
-        # ⚠️ SIN fail-open: si no hay matches con texto, no devolvemos todo el mundo.
         label_by = _label_group(group_by)
         filt_bits = []
         if siglas:         filt_bits.append(f"siglas: {', '.join(siglas)}")
@@ -349,7 +371,17 @@ async def handle_gastos(update, context):
         filters_str = " | ".join(filt_bits) if filt_bits else "(sin filtros)"
 
         if not grouped:
-            return (update, [f"Nonna Marriana dice: Sin movimientos en {start_s} a {end_s} agrupado por {label_by} {filters_str}."])
+            payload_empty = {
+                "type": "data_table",
+                "intent": "gastos",
+                "title": f"Gastos {start_s} a {end_s}",
+                "subtitle": f"Sin movimientos agrupado por {label_by} {filters_str}",
+                "kpis": [],
+                "columns": [],
+                "rows": [],
+                "totals": {"cargo": 0, "abono": 0, "count": 0},
+            }
+            return update, payload_empty
 
         grouped = grouped[:limit_groups]
 
@@ -362,6 +394,15 @@ async def handle_gastos(update, context):
             arrow = "↑" if d > 0 else ("↓" if d < 0 else "→")
             return f"Δ {d:+.1f}% {arrow}"
 
+        columns = [
+            {"key": "group", "label": label_by.title(), "type": "text", "align": "left"},
+            {"key": "cargo", "label": "Cargo", "type": "number", "align": "right", "format": "money"},
+            {"key": "abono", "label": "Abono", "type": "number", "align": "right", "format": "money"},
+            {"key": "count", "label": "Ítems", "type": "number", "align": "right", "format": "number"},
+        ]
+
+        rows_out: List[Dict] = []
+
         if do_yoy:
             prev_grouped = _query_gastos_grouped(
                 start_prev, end_prev, siglas, cuentas,
@@ -370,52 +411,105 @@ async def handle_gastos(update, context):
                 case_insensitive=case_insensitive, is_regex=is_regex,
                 group_by=group_by, exclude_siglas=exclude_siglas, rut=rut
             )
-            # Normalizar claves para alinear YoY (mes y mes_sigla deben ignorar el año)
+
             def _yoy_key(gkey: str) -> str:
                 if group_by == "mes":
-                    # 'YYYY-MM' -> 'MM'
                     parts = (gkey or "").split("-")
                     return parts[1] if len(parts) >= 2 else gkey
                 if group_by == "mes_sigla":
-                    # 'YYYY-MM | SIGLA' -> 'MM|SIGLA'
                     try:
                         month_part, sigla_part = (gkey or "").split(" | ", 1)
                         mm = month_part.split("-")[1]
                         return f"{mm}|{sigla_part}"
                     except Exception:
                         return gkey
-                # sigla / cuenta: comparar tal cual
                 return gkey
 
             prev_map = { _yoy_key(g.get("group")): g for g in prev_grouped }
-            total_cur = sum((g.get("total_cargo") or 0) for g in grouped)
-            total_prev = sum((prev_map.get(_yoy_key(g.get("group")), {}).get("total_cargo") or 0) for g in grouped)
-            header = f"Nonna Marriana dice: Gastos {start_s} a {end_s} vs {start_prev.strftime('%Y-%m-%d')} a {end_prev.strftime('%Y-%m-%d')} agrupado por {label_by} {filters_str}."
-            lines = [header]
+            total_cur = 0.0
+            total_prev = 0.0
             for g in grouped:
-                grp = g.get('group')
-                cur_c = float(g.get('total_cargo', 0) or 0)
-                cur_a = float(g.get('total_abono', 0) or 0)
-                cur_n = int(g.get('count', 0) or 0)
+                grp = g.get("group")
+                cur_c = float(g.get("total_cargo", 0) or 0)
+                cur_a = float(g.get("total_abono", 0) or 0)
+                cur_n = int(g.get("count", 0) or 0)
                 pg = prev_map.get(_yoy_key(grp)) or {}
-                prev_c = float(pg.get('total_cargo', 0) or 0)
-                prev_a = float(pg.get('total_abono', 0) or 0)
-                prev_n = int(pg.get('count', 0) or 0)
-                lines.append(
-                    f"- {grp}: cargo ${cur_c:,.0f} vs ${prev_c:,.0f} ({_fmt_delta(cur_c, prev_c)}), "
-                    f"abono ${cur_a:,.0f} vs ${prev_a:,.0f}, items {cur_n} vs {prev_n}"
-                )
-            lines.append(f"= Total periodo: ${total_cur:,.0f} vs ${total_prev:,.0f} ({_fmt_delta(total_cur, total_prev)})")
-            return (update, lines)
-        else:
-            total = sum((g.get("total_cargo") or 0) for g in grouped)
-            lines = [f"Nonna Marriana dice: Gastos {start_s} a {end_s} agrupado por {label_by} {filters_str}."]
-            for g in grouped:
-                lines.append(f"- {g.get('group')}: cargo ${g.get('total_cargo', 0):,.0f}, abono ${g.get('total_abono', 0):,.0f}, items {g.get('count', 0)}")
-            lines.append(f"= Total periodo: ${total:,.0f}")
-            return (update, lines)
+                prev_c = float(pg.get("total_cargo", 0) or 0)
+                prev_n = int(pg.get("count", 0) or 0)
+                rows_out.append({
+                    "group": grp,
+                    "cargo": cur_c,
+                    "abono": cur_a,
+                    "count": cur_n,
+                    "prev_cargo": prev_c,
+                    "prev_count": prev_n,
+                    "delta": _fmt_delta(cur_c, prev_c),
+                })
+                total_cur += cur_c
+                total_prev += prev_c
 
-    # (B) Detalle
+            kpis = [
+                {"label": "Periodo actual", "value": f"{start_s} a {end_s}"},
+                {"label": "Periodo anterior", "value": f"{start_prev.strftime('%Y-%m-%d')} a {end_prev.strftime('%Y-%m-%d')}"},
+                {"label": "Cargo actual", "value": int(total_cur), "isMoney": True},
+                {"label": "Cargo anterior", "value": int(total_prev), "isMoney": True},
+            ]
+            totals = {
+                "cargo": int(total_cur),
+                "prev_cargo": int(total_prev),
+                "abono": int(sum((r.get("abono") or 0) for r in rows_out)),
+                "count": int(sum((r.get("count") or 0) for r in rows_out)),
+            }
+
+            payload = {
+                "type": "data_table",
+                "intent": "gastos",
+                "title": f"Gastos {start_s} a {end_s}",
+                "subtitle": f"YoY agrupado por {label_by} {filters_str}",
+                "kpis": kpis,
+                "columns": columns,
+                "rows": rows_out,
+                "totals": totals,
+            }
+            return update, payload
+        else:
+            total = 0.0
+            for g in grouped:
+                cur_c = float(g.get("total_cargo", 0) or 0)
+                cur_a = float(g.get("total_abono", 0) or 0)
+                cur_n = int(g.get("count", 0) or 0)
+                rows_out.append({
+                    "group": g.get("group"),
+                    "cargo": cur_c,
+                    "abono": cur_a,
+                    "count": cur_n,
+                })
+                total += cur_c
+
+            kpis = [
+                {"label": "Periodo", "value": f"{start_s} a {end_s}"},
+                {"label": "Cargo", "value": int(total), "isMoney": True},
+                {"label": "Grupos", "value": int(len(rows_out))},
+            ]
+            totals = {
+                "cargo": int(total),
+                "abono": int(sum((r.get("abono") or 0) for r in rows_out)),
+                "count": int(sum((r.get("count") or 0) for r in rows_out)),
+            }
+
+            payload = {
+                "type": "data_table",
+                "intent": "gastos",
+                "title": f"Gastos {start_s} a {end_s}",
+                "subtitle": f"Agrupado por {label_by} {filters_str}",
+                "kpis": kpis,
+                "columns": columns,
+                "rows": rows_out,
+                "totals": totals,
+            }
+            return update, payload
+
+    # (B) Detalle -> data_table
     cur_rows = _query_gastos_raw(
         start, end, siglas, cuentas,
         keyword=keyword, search_in=search_in,
@@ -423,7 +517,6 @@ async def handle_gastos(update, context):
         case_insensitive=case_insensitive, is_regex=is_regex,
         limit=max(20, limit_rows), exclude_siglas=exclude_siglas, rut=rut
     )
-    # SIN reintento sin keyword: si pediste texto, respetamos el filtro.
 
     if do_yoy:
         prev_rows = _query_gastos_raw(
@@ -455,34 +548,75 @@ async def handle_gastos(update, context):
     if keyword:        filt_bits.append(f"q: {keyword} (in {', '.join(search_in)}; mode={text_mode})")
     filters_str = " | ".join(filt_bits) if filt_bits else "(sin filtros)"
 
-    header = [f"Nonna Marriana dice: Gastos {start_s} a {end_s} {filters_str}."]
+    columns_detail = [
+        {"key": "fecha_pago", "label": "Fecha", "type": "text", "align": "left"},
+        {"key": "sigla", "label": "Sigla", "type": "text", "align": "left"},
+        {"key": "cuenta", "label": "Cuenta", "type": "text", "align": "left"},
+        {"key": "resumen2", "label": "Resumen2", "type": "text", "align": "left"},
+        {"key": "resumen", "label": "Resumen", "type": "text", "align": "left"},
+        {"key": "tipo_gasto", "label": "Tipo gasto", "type": "text", "align": "left"},
+        {"key": "cargo", "label": "Cargo", "type": "number", "align": "right", "format": "money"},
+        {"key": "abono", "label": "Abono", "type": "number", "align": "right", "format": "money"},
+    ]
+    for col in include_fields:
+        if col not in {"glosa", "detalle", "tipo_gasto", "resumen", "resumen2"}:
+            continue
+        if not any(c.get("key") == col for c in columns_detail):
+            columns_detail.append({"key": col, "label": col, "type": "text", "align": "left"})
+
+    rows_detail: List[Dict] = []
+    for r in cur_rows[:limit_rows]:
+        row = {
+            "fecha_pago": r.get("fecha_pago", ""),
+            "sigla": r.get("sigla") or "-",
+            "cuenta": r.get("cuenta"),
+            "resumen2": r.get("resumen2") or "",
+            "resumen": r.get("resumen") or "",
+            "tipo_gasto": r.get("tipo_gasto") or "",
+            "cargo": r.get("cargo") or 0,
+            "abono": r.get("abono") or 0,
+        }
+        for col in include_fields:
+            if col in {"glosa", "detalle", "tipo_gasto", "resumen", "resumen2"}:
+                row[col] = r.get(col) or ""
+        rows_detail.append(row)
+
     if do_yoy:
-        header[0] = f"Nonna Marriana dice: Gastos {start_s} a {end_s} vs {start_prev_s} a {end_prev_s} {filters_str}."
-        header += [
-            f"Actual: cargo ${cur_cargo:,.0f}, abono ${cur_abono:,.0f}, items {cur_count}.",
-            f"Año pasado: cargo ${prev_cargo:,.0f}, abono ${prev_abono:,.0f}, items {prev_count}.",
+        header_title = f"Gastos {start_s} a {end_s} vs {start_prev_s} a {end_prev_s}"
+        kpis = [
+            {"label": "Cargo actual", "value": int(cur_cargo), "isMoney": True},
+            {"label": "Abono actual", "value": int(cur_abono), "isMoney": True},
+            {"label": "Items actuales", "value": int(cur_count)},
+            {"label": "Cargo año pasado", "value": int(prev_cargo), "isMoney": True},
+            {"label": "Abono año pasado", "value": int(prev_abono), "isMoney": True},
+            {"label": "Items año pasado", "value": int(prev_count)},
         ]
     else:
-        header += [f"Total: cargo ${cur_cargo:,.0f}, abono ${cur_abono:,.0f}, items {cur_count}."]
+        header_title = f"Gastos {start_s} a {end_s}"
+        kpis = [
+            {"label": "Cargo", "value": int(cur_cargo), "isMoney": True},
+            {"label": "Abono", "value": int(cur_abono), "isMoney": True},
+            {"label": "Items", "value": int(cur_count)},
+        ]
 
-    lines = list(header)
+    if not cur_rows:
+        kpis.append({"label": "Detalle", "value": "Sin ítems para mostrar"})
 
-    if cur_rows:
-        lines += ["", "Detalle:"]
-        show_n = limit_rows
-        for r in cur_rows[:show_n]:
-            extra_cols = []
-            for col in include_fields:
-                val = r.get(col)
-                if val:
-                    extra_cols.append(f"{col}: {val}")
-            extra = (" | " + " · ".join(extra_cols)) if extra_cols else ""
-            lines.append(
-                f"- {r.get('fecha_pago','')} [{r.get('sigla') or '-'}] cta {r.get('cuenta')} "
-                f"{r.get('resumen2') or ''}/{r.get('resumen') or ''}/{r.get('tipo_gasto') or ''}: "
-                f"cargo ${ (r.get('cargo') or 0):,.0f}, abono ${ (r.get('abono') or 0):,.0f}{extra}"
-            )
-    else:
-        lines += ["", "No hay ítems para mostrar con los filtros actuales."]
+    totals = {
+        "cargo": int(cur_cargo),
+        "abono": int(cur_abono),
+        "count": int(cur_count),
+    }
 
-    return (update, lines)
+    payload_detail = {
+        "type": "data_table",
+        "intent": "gastos",
+        "title": header_title,
+        "subtitle": filters_str,
+        "kpis": kpis,
+        "columns": columns_detail,
+        "rows": rows_detail,
+        "totals": totals,
+    }
+
+    return update, payload_detail

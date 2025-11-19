@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import unicodedata
 from pymongo import UpdateOne
 
@@ -134,7 +134,7 @@ def ensure_centros_indexes(cp_coll):
 def upsert_centros_produccion(
     cp_coll,
     rows: List[Dict[str, Any]],
-    mesano: int | str
+    mesano: Union[int, str]
 ) -> None:
     """
     Extrae todos los CENTROPRODUCCION del payload y hace upsert en la colección

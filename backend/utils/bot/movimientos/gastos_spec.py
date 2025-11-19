@@ -216,3 +216,44 @@ SPEC = FilterSpec(
     postprocess=_postprocess,
 )
 register_filter_spec(SPEC)
+
+
+ENGINE_ROUTES = {
+    "gastos": {
+        "intent": "gastos",
+        "kind": "filter_handler",
+        "filter_key": "gastos",
+        "filter_timeout": 2.5,
+        "handler": "utils.bot.movimientos.gastos:handle_gastos",
+        "handler_timeout": 6.0,
+        # Pasamos el spec completo al contexto para evitar reparsear dentro del handler.
+        "filter_to_context": {"__full__": "gastos_spec"},
+        # Acceso: niveles 1-7. El handler interno restringe lvl6 por sucursal y lvl7 por RUT.
+        "access": {
+            "min_role_level": 1,
+            "max_role_level": 7,
+        },
+        # Config declarativa de qué partes del payload son relevantes para el resumen con Grok.
+        # El engine sólo sigue estas secciones; no sabe nada de "gastos".
+        "summary": {
+            "data_table": {
+                "include_generic": True,
+                "sections": {
+                    # Totales agregados en ambos modos (agrupado/detalle)
+                    "totals": {
+                        "root_key": "totals",
+                        # cargo/abono/count siempre existen; prev_cargo sólo en YoY.
+                        "fields": ["cargo", "abono", "count", "prev_cargo"],
+                    },
+                },
+            },
+        },
+        "default_payload": {
+            "type": "text_block_list",
+            "intent": "gastos",
+            "lines": [
+                "No hay datos de gastos ahora.",
+            ],
+        },
+    },
+}

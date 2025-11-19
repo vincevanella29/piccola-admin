@@ -170,3 +170,44 @@ SPEC = FilterSpec(
     postprocess=_postprocess,
 )
 register_filter_spec(SPEC)
+
+
+ENGINE_ROUTES = {
+    "ventas": {
+        "intent": "ventas",
+        "kind": "filter_handler",
+        "filter_key": "ventas",
+        "filter_timeout": 2.5,
+        "handler": "utils.bot.movimientos.ventas:handle_ventas",
+        "handler_timeout": 6.0,
+        # Pasamos el spec completo al contexto para evitar reparsear dentro del handler.
+        "filter_to_context": {"__full__": "ventas_spec"},
+        # Acceso: solo niveles 1-6. Nivel 6 verá solo sus sucursales permitidas (scope interno en handler).
+        "access": {
+            "min_role_level": 1,
+            "max_role_level": 6,
+        },
+        # Config declarativa de qué partes del payload son relevantes para el resumen con Grok.
+        # El engine sólo recorre estas secciones, sin conocer la semántica de "ventas".
+        "summary": {
+            # Payload principal de handle_ventas es un data_table agrupado
+            "data_table": {
+                "include_generic": True,
+                "sections": {
+                    # Totales agregados (para que Grok vea monto/personas/mesas globales)
+                    "totals": {
+                        "root_key": "totals",
+                        "fields": ["value", "personas", "mesas"],
+                    },
+                },
+            },
+        },
+        "default_payload": {
+            "type": "text_block_list",
+            "intent": "ventas",
+            "lines": [
+                "No hay datos de ventas ahora.",
+            ],
+        },
+    },
+}

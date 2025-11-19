@@ -10,6 +10,8 @@ import httpx
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
+from utils.web3mongo import db
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -181,4 +183,253 @@ async def grok_filters(spec_or_key, user_text: str) -> Optional[dict]:
         except Exception as e:
             logger.warning(f"[filters] postprocess error for '{spec.key}': {e}")
 
+    return obj
+
+
+# ---------------------
+# Global helpers de acceso / scope
+# ---------------------
+
+def _apply_sucursal_scope(filters: dict, perms: dict, role_level: Optional[int]) -> dict:
+    """Aplica scope de sucursales para niveles 6+.
+
+    - 1-5: no toca nada.
+    - 6+: si no tiene can_view_all_sucursales, limita include_siglas a las sucursales
+      permitidas por access (sucursal_ids / own_id_sucursal).
+    """
+    try:
+        if role_level is None or int(role_level) < 6:
+            return filters or {}
+    except Exception:
+        return filters or {}
+
+    f = dict(filters or {})
+    include_siglas = [str(s).upper() for s in (f.get("include_siglas") or [])]
+
+    sucursal_ids = perms.get("sucursal_ids") or []
+    own_id_sucursal = perms.get("own_id_sucursal")
+    can_view_all_sucursales = bool(perms.get("can_view_all_sucursales"))
+
+    allowed_siglas: list[str] = []
+    if not can_view_all_sucursales:
+        try:
+            suc_ids = [int(x) for x in (sucursal_ids or [])]
+        except Exception:
+            suc_ids = []
+        if suc_ids:
+            try:
+                refs = list(db.gastos_refs_sucursales.find({"id_sucursal": {"$in": suc_ids}}, {"sigla": 1}))
+                allowed_siglas = [str(r.get("sigla")).upper() for r in refs if r.get("sigla")]
+            except Exception:
+                allowed_siglas = []
+        if not allowed_siglas and own_id_sucursal is not None:
+            try:
+                ref = db.gastos_refs_sucursales.find_one({"id_sucursal": int(own_id_sucursal)}, {"sigla": 1})
+                sigla = (ref or {}).get("sigla")
+                if sigla:
+                    allowed_siglas = [str(sigla).upper()]
+            except Exception:
+                allowed_siglas = []
+
+        # Fallback: si access no trae sucursal_ids ni own_id_sucursal pero sí tenemos rut
+        # en trabajadores_vpn y está activo, usamos la sucursal de la ficha.
+        if not allowed_siglas and not suc_ids and own_id_sucursal is None:
+            try:
+                rut_val = perms.get("rut")
+                if rut_val:
+                    try:
+                        rut_int = int(rut_val)
+                    except Exception:
+                        rut_int = None
+                    q = {"activo": 1}
+                    if rut_int is not None:
+                        q["rut"] = rut_int
+                    else:
+                        q["rut"] = str(rut_val)
+                    trab = db.trabajadores_vpn.find_one(q, {"sucursal": 1}) or {}
+                    suc_sigla = trab.get("sucursal")
+                    if suc_sigla:
+                        allowed_siglas = [str(suc_sigla).upper()]
+            except Exception:
+                allowed_siglas = []
+
+    if allowed_siglas:
+        if include_siglas:
+            include_siglas = [s for s in include_siglas if s in allowed_siglas]
+        else:
+            include_siglas = allowed_siglas
+    f["include_siglas"] = include_siglas
+    return f
+
+
+def resolve_allowed_codes_lvl7_from_centros(period_ym: str, perms: dict) -> set[str]:
+    """Devuelve el set de códigos de producto permitidos para nivel 7,
+    usando KPIs de tiempos por centro + rentabilidad_producto_locales.
+
+    - period_ym: "YYYYMM" del período relevante.
+    - perms: dict de permisos que incluye rut.
+    """
+    rut = perms.get("rut")
+    if not rut or not period_ym:
+        return set()
+
+    # Normalizar período a YYYYMM para rentabilidad (mesano)
+    try:
+        ym_str = f"{period_ym[:4]}{period_ym[4:]}"
+    except Exception:
+        return set()
+
+    # 1) Resolver ficha del trabajador (trabajadores_vpn) para obtener el cargo
+    trab = None
+    try:
+        # Lookup robusto por rut (int o str) y activo=1
+        candidates = []
+        try:
+            rut_int = int(rut)
+            candidates.append({"rut": rut_int, "activo": 1})
+            candidates.append({"rut": str(rut_int), "activo": 1})
+        except Exception:
+            candidates.append({"rut": str(rut), "activo": 1})
+        for q in candidates:
+            doc = db.trabajadores_vpn.find_one(q, {"cargo": 1})
+            if doc:
+                trab = doc
+                break
+    except Exception:
+        trab = None
+
+    cargo = (trab or {}).get("cargo")
+    if not cargo:
+        return set()
+
+    # 2) cargo -> id_cargo en cargos_intranet
+    try:
+        cargo_doc = db.cargos_intranet.find_one(
+            {"cargo": cargo},
+            {"id_cargo": 1, "id": 1},
+        ) or {}
+    except Exception:
+        cargo_doc = {}
+
+    id_cargo = cargo_doc.get("id_cargo") or cargo_doc.get("id")
+    try:
+        id_cargo_int = int(id_cargo) if id_cargo is not None else None
+    except Exception:
+        id_cargo_int = None
+    if id_cargo_int is None:
+        return set()
+
+    # 3) id_cargo -> centros_produccion_config.cargo_ids (centros activos)
+    try:
+        cfg_docs = list(
+            db.centros_produccion_config.find(
+                {"cargo_ids": id_cargo_int, "active": True},
+                {"centro_nombre": 1},
+            )
+        )
+        centros_nombres = [
+            str(d.get("centro_nombre") or "").strip() for d in cfg_docs if d.get("centro_nombre")
+        ]
+    except Exception:
+        centros_nombres = []
+
+    if not centros_nombres:
+        return set()
+
+    # 4) Consultar rentabilidad_producto_locales por mesano y centroproduccion
+    #    Soportar mesano guardado como string o como int.
+    try:
+        ym_int = int(ym_str)
+    except Exception:
+        ym_int = None
+
+    mesano_filter = {"$in": [ym_str]} if ym_int is None else {"$in": [ym_str, ym_int]}
+
+    try:
+        q = {"mesano": mesano_filter, "centroproduccion": {"$in": centros_nombres}}
+        codes_cur = db.rentabilidad_producto_locales.distinct("codig", q)
+        return {str(c).upper() for c in codes_cur if c}
+    except Exception:
+        return set()
+
+
+def is_worker_in_sales_kpis(period_ym: str, perms: dict) -> bool:
+    """Indica si el trabajador (por rut en perms) aparece en kpis_empleado_mensual
+    para el período dado (YYYYMM).
+
+    Esto lo usamos para distinguir lvl 7 garzón (tiene ventas -> True) vs
+    lvl 7 cocina (no tiene ventas -> False).
+    """
+    rut = perms.get("rut")
+    if not rut or not period_ym:
+        return False
+
+    try:
+        ym_dash = f"{period_ym[:4]}-{period_ym[4:]}"
+    except Exception:
+        return False
+
+    try:
+        # es_competidor=True es obligatorio para considerarlo garzón/ventas.
+        doc = db.kpis_empleado_mensual.find_one(
+            {"periodo": ym_dash, "rut": str(rut), "es_competidor": True},
+            {"sales.total": 1, "es_competidor": 1},
+        ) or {}
+    except Exception:
+        return False
+
+    if not doc.get("es_competidor"):
+        return False
+
+    sales = (doc.get("sales") or {}).get("total")
+    try:
+        return bool(sales) and float(sales) > 0
+    except Exception:
+        return False
+
+
+def apply_access_filters_for_product_like_intent(
+    key: str,
+    spec_obj: dict,
+    perms: dict,
+    role_level: Optional[int],
+    period_ym: Optional[str] = None,
+) -> dict:
+    """Helper global para intents tipo productos/menus/ventas_hora.
+
+    - Aplica scope de sucursales (lvl 6+).
+    - Para lvl 7, si se entrega period_ym (YYYYMM), intersecta include_codigos
+      con los códigos permitidos por centros de producción del trabajador.
+
+    No modifica otras partes del spec; devuelve una copia segura.
+    """
+    obj = dict(spec_obj or {})
+    filters = dict((obj.get("filters") or {}))
+
+    # 1) Sucursal scope (niveles 6+)
+    filters = _apply_sucursal_scope(filters, perms or {}, role_level)
+
+    # 2) Scope por centros / RUT para nivel 7 (si tenemos período)
+    try:
+        lvl = int(role_level) if role_level is not None else None
+    except Exception:
+        lvl = None
+    if lvl == 7 and period_ym:
+        allowed_codes = resolve_allowed_codes_lvl7_from_centros(period_ym, perms or {})
+        if allowed_codes:
+            include_codigos = [str(x).upper() for x in (filters.get("include_codigos") or [])]
+            if include_codigos:
+                intersect = [c for c in include_codigos if c in allowed_codes]
+                if not intersect:
+                    # No hay intersección entre lo pedido y lo permitido por centros:
+                    # marcamos deny explícito para que el handler pueda bloquear la receta.
+                    filters["include_codigos"] = []
+                    filters["_lvl7_denied"] = True
+                else:
+                    filters["include_codigos"] = intersect
+            else:
+                # Sin códigos previos: usamos todos los permitidos por centros
+                filters["include_codigos"] = sorted(list(allowed_codes))
+
+    obj["filters"] = filters
     return obj

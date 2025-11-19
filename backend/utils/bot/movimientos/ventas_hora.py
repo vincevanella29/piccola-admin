@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from utils.web3mongo import db
+from ..common.filters import _apply_sucursal_scope, is_worker_in_sales_kpis
 # OJO: este handler NO llama a grok_filters; el bot lo hace antes y mete
 # el resultado en context.user_data["ventas_hora_filters"].
 
@@ -139,6 +140,46 @@ async def handle_ventas_hora(update, context):
     include_fields = [str(x).lower() for x in (view.get("include_fields") or [])]
 
     f = vf.get("filters") or {}
+
+    # Scope de sucursales / RUT por permisos y nivel de rol
+    perms = getattr(context, "user_data", {}).get("permissions") or {}
+    try:
+        role_level = int(getattr(context, "user_data", {}).get("role_level"))
+    except Exception:
+        role_level = None
+
+    # 1) Aplicar scope de sucursales para niveles 6+ (1-5 sin cambios)
+    f = _apply_sucursal_scope(f, perms or {}, role_level)
+
+    # 2) Para nivel 7 garzón, limitar a sus propias ventas (RUT)
+    #    Usamos el mismo criterio que en otros handlers: is_worker_in_sales_kpis(period_ym, perms).
+    period_ym = None
+    try:
+        # s_str viene de _resolve_period como YYYY-MM-DD -> usamos YYYYMM
+        period_ym = (s_str or "")[:7].replace("-", "") if s_str else None
+    except Exception:
+        period_ym = None
+    is_lvl7_garzon = False
+    if role_level == 7 and perms.get("rut") and period_ym:
+        try:
+            is_lvl7_garzon = is_worker_in_sales_kpis(period_ym, perms)
+        except Exception:
+            is_lvl7_garzon = False
+    if is_lvl7_garzon:
+        try:
+            rut_val = perms.get("rut")
+            if rut_val is not None:
+                try:
+                    rut_int = int(rut_val)
+                except Exception:
+                    rut_int = None
+                if rut_int is not None:
+                    f["include_ruts"] = [rut_int]
+                else:
+                    f["include_ruts"] = [rut_val]
+        except Exception:
+            pass
+
     include_locals     = [str(x) for x in (f.get("include_locals") or [])]
     include_siglas     = [str(x).upper() for x in (f.get("include_siglas") or [])]
     # normaliza nombres a sigla si el usuario puso “alameda/providencia/...”. Si no hay siglas ya, derivar de nombres
@@ -324,6 +365,8 @@ async def handle_ventas_hora(update, context):
 
     # Comparativo (mismo grupo) — MoM o YoY
     prev_map: Dict[str, float] = {}
+    prev_global_amount = 0.0
+    prev_global_units = 0.0
     if (compare in {"mom","yoy"}) and cur:
         try:
             if compare == "yoy":
@@ -414,7 +457,19 @@ async def handle_ventas_hora(update, context):
         ]
         prev_rows = list(db[COLL].aggregate(prev_st))
         for r in prev_rows:
-            if measure == "total": prev_map[r["_id"]] = r.get("total",0) or 0
+            # Guardar valor previo por grupo según la medida seleccionada
+            if measure == "total":
+                val_prev = float(r.get("total", 0) or 0)
+            elif measure == "cantidad":
+                val_prev = float(r.get("cantidad", 0) or 0)
+            else:  # avg_precio
+                c_prev = float(r.get("cantidad", 0) or 0)
+                t_prev = float(r.get("total", 0) or 0)
+                val_prev = (t_prev / c_prev) if c_prev else 0.0
+            prev_map[r["_id"]] = val_prev
+        # Acumulados globales para KPIs de comparativo (unidades y monto)
+        prev_global_amount = sum(float(r.get("total", 0) or 0) for r in prev_rows)
+        prev_global_units = sum(float(r.get("cantidad", 0) or 0) for r in prev_rows)
     pretty_range = f"{s_str} a {e_str}"
     label_by = "hora" if group_by == "hora" else group_by.replace("_"," y ")
     cmp_tag = "" if compare=="none" else (" · YoY" if compare=="yoy" else " · MoM")
@@ -433,6 +488,18 @@ async def handle_ventas_hora(update, context):
     else:
         columns.append({"key":"value","label":"Total","type":"number","align":"right","format":"money"})
     columns.append({"key":"count","label":"Ítems","type":"number","align":"right","format":"number"})
+    # Columnas de comparativo por grupo (cuando hay YoY/MoM)
+    include_compare_cols = compare in {"mom","yoy"}
+    if include_compare_cols:
+        if measure == "cantidad":
+            columns.append({"key":"prev_value","label":"Unid prev","type":"number","align":"right","format":"number"})
+            columns.append({"key":"delta","label":"Δ unid","type":"number","align":"right","format":"number"})
+        elif measure == "total":
+            columns.append({"key":"prev_value","label":"Total prev","type":"number","align":"right","format":"money"})
+            columns.append({"key":"delta","label":"Δ total","type":"number","align":"right","format":"money"})
+        else:  # avg_precio
+            columns.append({"key":"prev_value","label":"Precio prev","type":"number","align":"right","format":"money"})
+            columns.append({"key":"delta","label":"Δ precio","type":"number","align":"right","format":"money"})
     # Optional extras
     if "cantidad" in include_fields and measure != "cantidad":
         columns.append({"key":"cantidad","label":"Unidades","type":"number","align":"right","format":"number"})
@@ -442,8 +509,10 @@ async def handle_ventas_hora(update, context):
         columns.append({"key":"weather","label":"Clima","type":"text","align":"left"})
 
     rows_out: List[Dict] = []
-    total_value = 0.0
-    total_count = 0
+    total_value = 0.0   # suma de la columna "value" (depende de measure)
+    total_count = 0     # suma de count (número de docs agregados)
+    total_amount = 0.0  # suma de TOTAL (monto en CLP)
+    total_units = 0.0   # suma de CANTIDAD (unidades)
     for g in cur:
         key = g.get("_id")
         v = float(g.get("value", 0))
@@ -469,12 +538,40 @@ async def handle_ventas_hora(update, context):
         if "avg_precio" in include_fields and measure != "avg_precio":
             c = float(g.get("cantidad", 0) or 0)
             ap = (float(g.get("total", 0)) / c) if c else 0.0
-            row["avg_precio"] = ap
+            # Precio promedio en CLP sin decimales
+            row["avg_precio"] = int(round(ap)) if ap else 0
         if "weather" in include_fields:
             row["weather"] = g.get("sample_weather") or ""
+        # Valores del período anterior por grupo (comparativo YoY/MoM)
+        if include_compare_cols:
+            prev_v = float(prev_map.get(key, 0.0) or 0.0)
+            row["prev_value"] = prev_v
+            row["delta"] = v - prev_v
         rows_out.append(row)
         total_value += v
         total_count += int(g.get("count", 0) or 0)
+        total_amount += float(g.get("total", 0) or 0)
+        total_units += float(g.get("cantidad", 0) or 0)
+
+    # KPIs
+    kpis: List[Dict] = []
+    if measure == "cantidad":
+        # En consultas por unidades, mostrar también el monto total vendido
+        kpis.append({"label": "Unidades", "value": int(total_units)})
+        kpis.append({"label": "Venta total", "value": int(total_amount), "isMoney": True})
+    else:
+        # Para total/avg_precio mantenemos el KPI principal como antes
+        kpis.append({"label": "Total", "value": int(total_value), "isMoney": measure in {"total", "avg_precio"}})
+    # KPIs comunes
+    kpis.append({"label": "Grupos", "value": len(rows_out)})
+    kpis.append({"label": "Ítems", "value": int(total_count)})
+
+    # Si hay comparativo YoY/MoM, mostrar deltas globales cuando existan datos previos
+    if compare in {"mom","yoy"} and (prev_global_amount or prev_global_units):
+        delta_units = int(total_units - prev_global_units)
+        delta_amount = int(total_amount - prev_global_amount)
+        kpis.append({"label": "Δ unidades", "value": delta_units})
+        kpis.append({"label": "Δ venta", "value": delta_amount, "isMoney": True})
 
     payload = {
         "type": "data_table",
@@ -483,11 +580,7 @@ async def handle_ventas_hora(update, context):
         "subtitle": f"Agrupado por {label_by}{cmp_tag}",
         "columns": columns,
         "rows": rows_out,
-        "kpis": [
-            {"label": "Total", "value": int(total_value), "isMoney": measure in {"total", "avg_precio"}},
-            {"label": "Grupos", "value": len(rows_out)},
-            {"label": "Ítems", "value": int(total_count)},
-        ],
+        "kpis": kpis,
         "totals": {"value": int(total_value), "count": int(total_count)}
     }
     return update, payload

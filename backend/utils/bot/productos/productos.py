@@ -6,7 +6,7 @@ from collections import defaultdict
 from zoneinfo import ZoneInfo
 
 from utils.web3mongo import db
-from ..common.filters import grok_filters
+from ..common.filters import grok_filters, apply_access_filters_for_product_like_intent
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +226,48 @@ async def handle_productos(update, context):
     detail   = bool(view.get("detail", False))
     include_measures = [str(x).lower() for x in (view.get("include_measures") or [])]
 
+    # -----------------
+    # Permisos / acceso (solo para reglas de negocio generales)
+    # -----------------
+    perms = getattr(context, "user_data", {}).get("permissions") or {}
+    # Tomar SIEMPRE el nivel efectivo ya resuelto por el engine (1..7),
+    # y sólo caer a perms["role_level"] si no viene en el contexto.
+    raw_ctx_level = getattr(context, "user_data", {}).get("role_level") if hasattr(context, "user_data") else None
+    raw_perm_level = perms.get("role_level")
+    try:
+        role_level = int(raw_ctx_level) if raw_ctx_level is not None else (
+            int(raw_perm_level) if raw_perm_level is not None else None
+        )
+    except Exception:
+        role_level = None
+
+    own_id_sucursal = perms.get("own_id_sucursal")
+    sucursal_ids = perms.get("sucursal_ids") or []
+    has_sucursal_scope = bool(own_id_sucursal is not None or (isinstance(sucursal_ids, list) and len(sucursal_ids) > 0))
+
+    # Regla de negocio simplificada para 'productos':
+    # - SOLO nivel 6 con sucursal asignada puede ver montos (venta/margen/costo/margen%).
+    # - Todos los demás niveles (1-5, 7, y 6 sin sucursal) sólo ven cantidades.
+
+    if role_level is not None:
+        can_see_money = (role_level == 6 and has_sucursal_scope)
+        if not can_see_money:
+            if measure in {"venta", "margen", "costo", "margen_pct"}:
+                measure = "cantidad"
+            include_measures = [m for m in include_measures if m == "cantidad"]
+
+    # Aplicar scope global de acceso por sucursal usando helpers de filters
+    try:
+        before_filters = f.get("filters") or {}
+    except Exception:
+        before_filters = {}
+    try:
+        # En 'productos' no hacemos scoping por centros/códigos; sólo sucursales.
+        # Por eso no pasamos period_ym (None) para desactivar el recorte lvl7 by centro.
+        f = apply_access_filters_for_product_like_intent("productos", f, perms or {}, role_level, None)
+    except Exception:
+        f = f or {}
+
     ff = f.get("filters") or {}
     include_categories = ff.get("include_categories") or []
     include_locals = ff.get("include_locals") or []
@@ -235,6 +277,30 @@ async def handle_productos(update, context):
 
     # Códigos por búsqueda/categoría
     codes = _resolve_code_set(by, q, include_categories)
+
+    try:
+        logger.info(
+            "[productos.handle_productos] role_level=%s period=%s is_garzon=%s "
+            "filters_before=%s filters_after=%s codes=%s",
+            role_level,
+            period,
+            is_lvl7_garzon,
+            {
+                "include_categories": before_filters.get("include_categories"),
+                "include_locals": before_filters.get("include_locals"),
+                "include_siglas": before_filters.get("include_siglas"),
+                "include_codigos": before_filters.get("include_codigos"),
+            },
+            {
+                "include_categories": include_categories,
+                "include_locals": include_locals,
+                "include_siglas": ff.get("include_siglas"),
+                "include_codigos": ff.get("include_codigos"),
+            },
+            codes,
+        )
+    except Exception:
+        pass
     # Heurística: si solo obtuvimos 0/1 código con búsqueda por nombre/texto, intenta ampliar por término base (p.ej. 'lasagna')
     if (by in {"", "nombre"}) and q and len(codes) <= 1:
         menus_all = _menus_by_code()
@@ -451,13 +517,9 @@ async def handle_productos(update, context):
     title = f"TOP {limit} — {nice_measure} — {period[:4]}-{period[4:]}{title_q}{clima_q}{comp_line}"
 
     menus = _menus_by_code()
-    # Role gating: only levels 3-4 are authorized to see sensitive metrics
-    role_level = None
-    try:
-        role_level = int(getattr(context, "user_data", {}).get("role_level"))
-    except Exception:
-        role_level = None
-    authorized = role_level in {3, 4}
+    # Role gating para métricas sensibles: niveles 1-6 pueden ver métricas completas;
+    # nivel 7 solo si es garzón (tiene ventas en KPIs); resto nivel 7 solo cantidades/recetas.
+    authorized = bool(role_level is not None and (role_level <= 6 or (role_level == 7 and is_lvl7_garzon)))
 
     # Si no autorizado: no exponer métricas. Entregar lista de productos o una card con receta si hay detalle o 1 match
     if not authorized and group_by == "producto" and cur:

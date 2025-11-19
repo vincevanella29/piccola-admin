@@ -50,5 +50,6 @@
   "all": "Todos",
   "auth_required_title": "Apenas usuários registrados podem falar com a Nonna",
   "auth_required_desc": "Conecte-se ou crie sua carteira para começar a conversar e receber recomendações personalizadas.",
-  "auth_required_footer": "Conecte-se ou crie sua carteira para enviar mensagens."
+  "auth_required_footer": "Conecte-se ou crie sua carteira para enviar mensagens.",
+  "latest": "Últimas"
 }

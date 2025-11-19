@@ -50,5 +50,6 @@
   "all": "All",
   "auth_required_title": "Only registered users can chat with Nonna",
   "auth_required_desc": "Connect or create your wallet to start chatting and receive personalized recommendations.",
-  "auth_required_footer": "Connect or create your wallet to send messages."
+  "auth_required_footer": "Connect or create your wallet to send messages.",
+  "latest": "Latest"
 }

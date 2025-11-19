@@ -50,5 +50,6 @@
   "all": "Tutti",
   "auth_required_title": "Solo gli utenti registrati possono parlare con la Nonna",
   "auth_required_desc": "Connettiti o crea il tuo wallet per iniziare a chattare e ricevere consigli personalizzati.",
-  "auth_required_footer": "Connettiti o crea il tuo wallet per inviare messaggi."
+  "auth_required_footer": "Connettiti o crea il tuo wallet per inviare messaggi.",
+  "latest": "Ultimi"
 }

@@ -140,3 +140,54 @@ SPEC = FilterSpec(
     postprocess=_postprocess_productos,
 )
 register_filter_spec(SPEC)
+
+
+ENGINE_ROUTES = {
+    "productos": {
+        "intent": "productos",
+        "kind": "filter_handler",
+        # Dejamos que el engine también parsee con el SPEC de 'productos',
+        # aunque el handler vuelva a llamar grok_filters por compatibilidad.
+        "filter_key": "productos",
+        "filter_timeout": 2.0,
+        "handler": "utils.bot.productos.productos:handle_productos",
+        "handler_timeout": 6.0,
+        # Por ahora no mapeamos filtros al contexto porque el handler ya los lee directo
+        # desde grok_filters("productos", text).
+        "filter_to_context": {},
+        # Reglas de acceso declarativas: este intent sólo aplica para niveles 1 a 7.
+        # La lógica fina (sucursal propia, medidas según nivel) se aplica dentro del handler
+        # usando permissions (role_level y own_id_sucursal).
+        "access": {
+            "min_role_level": 1,
+            "max_role_level": 6,
+        },
+        # Config declarativa de qué partes del payload son relevantes para el resumen con Grok.
+        # El engine sólo sigue estas secciones, sin conocer la semántica de "producto".
+        "summary": {
+            # Para las fichas de producto que arma handle_productos (product_card)
+            "product_card": {
+                "include_generic": True,
+                "sections": {
+                    "product": {
+                        "root_key": "product",
+                        "fields": ["id", "name", "code", "price", "currency", "categories", "options", "description"],
+                    },
+                    # En productos la receta viene como {"mesano": YYYYMM, "lines": ["- ING — qty unit", ...]}
+                    # Para no depender del formato, sólo mandamos mesano.
+                    "recipe": {
+                        "root_key": "recipe",
+                        "fields": ["mesano"],
+                    },
+                },
+            },
+        },
+        "default_payload": {
+            "type": "text_block_list",
+            "intent": "productos",
+            "lines": [
+                "No hay datos de productos ahora.",
+            ],
+        },
+    }
+}

@@ -25,3 +25,27 @@ SPEC = FilterSpec(
     postprocess=_postprocess_locations,
 )
 register_filter_spec(SPEC)
+
+
+ENGINE_ROUTES = {
+    "locations": {
+        "intent": "locations",
+        "kind": "filter_handler",
+        "filter_key": "locations",
+        "filter_timeout": 2.0,
+        "handler": "utils.bot.sucursales.locations:handle_locations",
+        "handler_timeout": 4.0,
+        "filter_to_context": {
+            "q": "locations_q",
+        },
+        "access": {
+            # Solo control por niveles (no centros de producción)
+            "min_role_level": 1,
+            "max_role_level": 7,
+        },
+        "default_payload": {
+            "type": "text",
+            "text": "No hay datos de sucursales ahora.",
+        },
+    }
+}

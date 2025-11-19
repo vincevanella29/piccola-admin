@@ -207,3 +207,65 @@ SPEC = FilterSpec(
     postprocess=_postprocess_menus,
 )
 register_filter_spec(SPEC)
+
+
+ENGINE_ROUTES = {
+    "menus": {
+        "intent": "menus",
+        "kind": "filter_handler",
+        # El engine también puede parsear con el SPEC de 'menus'.
+        "filter_key": "menus",
+        "filter_timeout": 2.5,
+        "handler": "utils.bot.productos.menus:handle_menus_intent",
+        "handler_timeout": 6.0,
+        # Pasamos el spec completo de filtros al contexto como 'menus_filters' para evitar
+        # volver a llamar grok_filters("menus", text) dentro del handler.
+        "filter_to_context": {"__full__": "menus_filters"},
+        "access": {
+            "min_role_level": 1,
+            "max_role_level": 7,
+        },
+        # Hint para el engine: qué partes del payload son relevantes para el resumen con Grok.
+        # El engine NO conoce nada del dominio (producto/receta); solo recorre estas secciones.
+        "summary": {
+            "product_card": {
+                "include_generic": True,
+                "sections": {
+                    "product": {
+                        "root_key": "product",
+                        "fields": ["name", "code", "price", "currency", "categories", "description"],
+                    },
+                    "recipe": {
+                        "root_key": "recipe",
+                        "fields": ["mesano"],
+                        "rows": {
+                            "key": "rows",
+                            "fields": ["ingredient", "qty_text", "unit", "pct"],
+                            "max": 40,
+                        },
+                    },
+                },
+            },
+            "data_table": {
+                "include_generic": True,
+                "sections": {
+                    "products": {
+                        "root_key": "__payload__",
+                        "rows": {
+                            "key": "rows",
+                            "fields": ["code", "name", "price", "currency", "image_url", "group"],
+                            "max": 40,
+                        },
+                    },
+                },
+            },
+        },
+        "default_payload": {
+            "type": "text_block_list",
+            "intent": "menus",
+            "lines": [
+                "No hay datos de menús ahora.",
+            ],
+        },
+    },
+}
