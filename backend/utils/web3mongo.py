@@ -24,6 +24,7 @@ WEB3_POLYGON = os.getenv("WEB3_POLYGON")
 WEB3_ALCHEMY = os.getenv("WEB3_ALCHEMY")
 WEB3_INFURA = os.getenv("WEB3_INFURA")
 WEB3_INFURA_TOKEN = os.getenv("WEB3_INFURA_TOKEN")
+WEB3_ALCHEMY_WSS = os.getenv("WEB3_ALCHEMY_WSS")
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')

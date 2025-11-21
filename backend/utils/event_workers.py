@@ -24,8 +24,7 @@ from utils.web3_utils import sync_company_data
 from utils.web3mongo import db
 from utils.companies_tokens import sync_token_pairs, update_pair_reserves
 from utils.payment_token import sync_payment_tokens
-# from utils.event_config import CONFIGS  # <-- (1) ELIMINADO. Ya no usamos configs estáticas.
-from utils.event_listener import listen_events # <-- (2) MANTENIDO. Usamos el listener inteligente.
+from utils.ws_event_listener import start_ws_listeners_for_all_contracts
 
 # --- Configuración del Logger con Zona Horaria de Chile ---
 class ChileTimeFormatter(logging.Formatter):
@@ -231,11 +230,8 @@ def event_listener_persistent():
     El propio listen_events() maneja el loop infinito y el lock de Redis.
     """
     logger.info("Iniciando worker persistente: event_listener (Modo Fino V4)...")
-    # Ya no necesitamos setup_event_collections_indexes(CONFIGS)
-    # ni crear múltiples threads.
-    # El nuevo listen_events() carga TODOS los contratos de web3mongo.py
-    # y corre en un solo ciclo controlado por Redis.
-    listen_events() 
+    # Para modo WebSocket prioritario con fallback HTTP por contrato usamos ws_event_listener.
+    start_ws_listeners_for_all_contracts()
 
 def event_processor_consumer_persistent():
     """
