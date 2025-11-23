@@ -158,9 +158,8 @@ const CommandOverlay = ({ open, onClose, searchConfig, onNavigate }) => {
   );
 };
 
-// --- WALLET SHEET (Estilo Glass) ---
+// --- WALLET SHEET CENTRADO (Estilo Modal) ---
 const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconnect, menuItems = [], t, chainId, isAuthenticated }) => {
-  // Hook de balances
   const { tokens = [], loading: balancesLoading } = useWalletBalances(account, open, chainId) || {};
   const native = Array.isArray(tokens) ? tokens.find((t) => t?.isNative) : null;
   const nativeBalance = typeof native?.balance === 'number' ? native.balance : null;
@@ -170,118 +169,142 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
     <AnimatePresence>
       {open && (
         <>
+          {/* Backdrop */}
           <motion.div 
-             className="fixed inset-0 z-[80] bg-black/30 backdrop-blur-sm" 
+             className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm" 
              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
              onClick={onClose} 
           />
-          <motion.div
-            className={`fixed inset-x-0 bottom-6 md:bottom-24 z-[90] w-[95vw] max-w-md mx-auto rounded-[32px] ${DROPDOWN_GLASS} overflow-hidden`}
-            initial={{ y: '120%', opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: '120%', opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          >
-            {/* Sheet Handle */}
-            <div className="flex justify-center pt-3 pb-1" onClick={onClose}>
-               <div className="w-12 h-1.5 rounded-full bg-light-border/50 dark:bg-dark-border/50" />
-            </div>
+          
+          {/* Container para centrar */}
+          <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 pointer-events-none">
+            <motion.div
+              className={`w-full max-w-md pointer-events-auto rounded-[32px] ${DROPDOWN_GLASS} flex flex-col max-h-[65vh] shadow-2xl`}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+            >
+              {/* Handle superior */}
+              <div className="flex justify-center pt-3 pb-1 shrink-0 cursor-pointer" onClick={onClose}>
+                 <div className="w-12 h-1.5 rounded-full bg-light-border/50 dark:bg-dark-border/50" />
+              </div>
 
-            <div className="px-5 pb-6 pt-2">
-              {/* Header Profile */}
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-1 rounded-full border border-light-accent/30 dark:border-dark-accent/30">
-                   <Avatar url={profile?.profile_image_url} size={56} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary truncate">
-                    {profile?.name || (account ? 'Usuario' : t('header.no_wallet'))}
+
+              {/* ZONA SCROLL: perfil + acciones + QR + menú */}
+              <div className="px-5 pt-2 pb-4 overflow-y-auto flex-1">
+                {/* Header Profile */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="p-1 rounded-full border border-light-accent/30 dark:border-dark-accent/30">
+                     <Avatar url={profile?.profile_image_url} size={56} />
                   </div>
-                  {account && (
-                    <button onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent transition-colors">
-                      <span className="font-mono bg-light-surface-secondary dark:bg-dark-surface-secondary px-2 py-0.5 rounded-md">{account.slice(0,6)}...{account.slice(-4)}</span>
-                      <Copy size={12} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary truncate">
+                      {profile?.name || (account ? 'Usuario' : t('header.no_wallet'))}
+                    </div>
+                    {account && (
+                      <button onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent transition-colors">
+                        <span className="font-mono bg-light-surface-secondary dark:bg-dark-surface-secondary px-2 py-0.5 rounded-md">{account.slice(0,6)}...{account.slice(-4)}</span>
+                        <Copy size={12} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+
+                {/* Action Grid */}
+                <div className="grid grid-cols-3 gap-3 mb-6">
+                  <button onClick={() => { onViewWallet(); haptics(); }} className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all">
+                    <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Eye size={20} /></div>
+                    <span className="text-[10px] font-bold uppercase tracking-wide">
+                      {account
+                        ? t('header.view_wallet', 'Ver')
+                        : t('header.create_wallet', 'Conectar Wallet')}
+                    </span>
+                  </button>
+                  <button 
+                     disabled={!account}
+                     onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} 
+                     className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all disabled:opacity-50"
+                  >
+                    <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Copy size={20} /></div>
+                    <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.copy_address', 'Copiar')}</span>
+                  </button>
+                  <button 
+                     disabled={!account}
+                     onClick={() => { if(navigator.share) navigator.share({text: account}); haptics(); }}
+                     className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all disabled:opacity-50"
+                  >
+                    <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Share2 size={20} /></div>
+                    <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.share', 'Share')}</span>
+                  </button>
+                </div>
+
+
+                {/* QR Card */}
+                {account && (
+                  <div className="mb-5 p-4 rounded-3xl bg-light-surface-secondary/30 dark:bg-black/20 border border-light-border/50 dark:border-dark-border/50 flex items-center gap-4">
+                    <div className="bg-white p-2 rounded-xl shadow-sm shrink-0">
+                      <QRCode value={account} size={70} level="M" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                       <div className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary font-medium uppercase tracking-wide mb-1">Balance</div>
+                       <div className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary truncate">
+                          {balancesLoading ? '...' : `${parseFloat(nativeBalance || 0).toFixed(4)} ${nativeSymbol}`}
+                       </div>
+                       <div className="text-[10px] text-light-text-secondary mt-1 flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> Chain ID: {chainId || 'N/A'}
+                       </div>
+                    </div>
+                  </div>
+                )}
+
+
+                {/* Menu Items (scrollables) */}
+                <div className="space-y-1">
+                   {menuItems.map((item) => {
+                      const Icon = Icons[item.icon] || Icons.FaCircle;
+                      const click = () => {
+                         haptics();
+                         if (item.isExternal) window.open(item.fullPath, item.newTab ? '_blank' : '_self');
+                         else { onClose(); item.__navigate?.(item.fullPath); }
+                      };
+                      return (
+                         <button key={item.fullPath} onClick={click} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary transition-colors">
+                            <Icon size={16} />
+                            <span className="flex-1 text-left">{item.label}</span>
+                            <Icons.FaChevronRight size={10} className="opacity-50" />
+                         </button>
+                      )
+                   })}
+                </div>
+              </div>
+
+
+              {/* FOOTER FIJO: botón de desconectar / conectar */}
+              <div className="border-t border-light-border/60 dark:border-dark-border/60 px-5 py-3 bg-light-surface/90 dark:bg-dark-surface/90 shrink-0">
+                <div className="space-y-2">
+                  <div className="h-[1px] w-full bg-light-border/40 dark:bg-dark-border/40" />
+                  {isAuthenticated ? (
+                    <button
+                      onClick={() => { onDisconnect(); onClose(); }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-light-error dark:text-dark-error hover:bg-light-error/10 dark:hover:bg-dark-error/10 transition-colors"
+                    >
+                      <LogOut size={18} />
+                      <span>{t('header.disconnect', 'Desconectar')}</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { onViewWallet(); }}
+                      className="w-full py-3 rounded-xl bg-light-accent dark:bg-dark-accent text-white font-bold shadow-lg shadow-light-accent/30 dark:shadow-dark-accent/30"
+                    >
+                      {t('header.create_wallet', 'Conectar Wallet')}
                     </button>
                   )}
                 </div>
               </div>
-
-              {/* Action Grid */}
-              <div className="grid grid-cols-3 gap-3 mb-6">
-                <button onClick={() => { onViewWallet(); haptics(); }} className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all">
-                  <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Eye size={20} /></div>
-                  <span className="text-[10px] font-bold uppercase tracking-wide">{t('header.view_wallet', 'Ver')}</span>
-                </button>
-                <button 
-                   disabled={!account}
-                   onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} 
-                   className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all disabled:opacity-50"
-                >
-                  <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Copy size={20} /></div>
-                  <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.copy_address', 'Copiar')}</span>
-                </button>
-                <button 
-                   disabled={!account}
-                   onClick={() => { if(navigator.share) navigator.share({text: account}); haptics(); }}
-                   className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all disabled:opacity-50"
-                >
-                  <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Share2 size={20} /></div>
-                  <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.share', 'Share')}</span>
-                </button>
-              </div>
-
-              {/* QR Card */}
-              {account && (
-                <div className="mb-5 p-4 rounded-3xl bg-light-surface-secondary/30 dark:bg-black/20 border border-light-border/50 dark:border-dark-border/50 flex items-center gap-4">
-                  <div className="bg-white p-2 rounded-xl shadow-sm shrink-0">
-                    <QRCode value={account} size={70} level="M" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                     <div className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary font-medium uppercase tracking-wide mb-1">Balance</div>
-                     <div className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary truncate">
-                        {balancesLoading ? '...' : `${parseFloat(nativeBalance || 0).toFixed(4)} ${nativeSymbol}`}
-                     </div>
-                     <div className="text-[10px] text-light-text-secondary mt-1 flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> Chain ID: {chainId || 'N/A'}
-                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Menu Items */}
-              <div className="space-y-1">
-                 {menuItems.map((item) => {
-                    const Icon = Icons[item.icon] || Icons.FaCircle;
-                    const click = () => {
-                       haptics();
-                       if (item.isExternal) window.open(item.fullPath, item.newTab ? '_blank' : '_self');
-                       else { onClose(); item.__navigate?.(item.fullPath); }
-                    };
-                    return (
-                       <button key={item.fullPath} onClick={click} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary transition-colors">
-                          <Icon size={16} />
-                          <span className="flex-1 text-left">{item.label}</span>
-                          <Icons.FaChevronRight size={10} className="opacity-50" />
-                       </button>
-                    )
-                 })}
-                 
-                 <div className="h-[1px] bg-light-border/50 dark:bg-dark-border/50 my-2 mx-2" />
-                 
-                 {isAuthenticated ? (
-                    <button onClick={() => { onDisconnect(); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-light-error dark:text-dark-error hover:bg-light-error/10 dark:hover:bg-dark-error/10 transition-colors">
-                       <LogOut size={18} />
-                       <span>{t('header.disconnect', 'Desconectar')}</span>
-                    </button>
-                 ) : (
-                    <button onClick={() => { onViewWallet(); }} className="w-full py-3 rounded-xl bg-light-accent dark:bg-dark-accent text-white font-bold shadow-lg shadow-light-accent/30 dark:shadow-dark-accent/30">
-                       {t('header.create_wallet', 'Conectar Wallet')}
-                    </button>
-                 )}
-              </div>
-
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>

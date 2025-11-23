@@ -11,5 +11,12 @@
     "pwa_hint": "PWA Hint",
     "language": "Lingua",
     "settings": "Configurazione",
-    "socials": "Social"
+    "socials": "Social",
+    "home": "Home",
+    "menu": "Menu",
+    "sheet_title": "Navigazione e impostazioni",
+    "apps_section": "Applicazioni",
+    "system_section": "Sistema",
+    "theme_mode_light": "Modalità chiara",
+    "theme_mode_dark": "Modalità scura"
   }

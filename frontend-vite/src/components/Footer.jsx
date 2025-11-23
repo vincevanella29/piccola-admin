@@ -101,7 +101,7 @@ const Popover = ({ open, onClose, className = '', children }) => (
   </AnimatePresence>
 );
 
-// --- Mobile Bottom Sheet ---
+// --- Mobile Bottom Sheet (mejorado para scroll y visibilidad en pantallas chicas) ---
 const BottomSheet = ({ open, onClose, title, children }) => {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
@@ -113,28 +113,33 @@ const BottomSheet = ({ open, onClose, title, children }) => {
     <AnimatePresence>
       {open && (
         <>
+          {/* Backdrop con z-index alto para estar siempre encima del contenido */}
           <motion.div
-            className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
           />
+          {/* Contenedor del sheet con altura máxima y scroll interno */}
           <motion.div
-            className="fixed inset-x-0 bottom-0 z-[75] rounded-t-[32px] border-t border-white/10 bg-light-surface dark:bg-dark-surface shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)]"
+            className="fixed inset-x-0 bottom-0 z-[1001] rounded-t-[32px] border-t border-light-border/20 dark:border-dark-border/20 bg-light-surface/95 dark:bg-dark-surface/95 backdrop-blur-xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)] max-h-[85vh] overflow-y-auto flex flex-col"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
           >
-            <div className="w-full flex justify-center pt-3 pb-1" onClick={onClose}>
-              <div className="w-10 h-1 rounded-full bg-light-text-tertiary/30 dark:bg-dark-text-tertiary/30" />
+            {/* Handle superior clickable */}
+            <div className="sticky top-0 w-full flex justify-center pt-3 pb-1 bg-inherit z-10" onClick={onClose}>
+              <div className="w-12 h-1.5 rounded-full bg-light-text-tertiary/20 dark:bg-dark-text-tertiary/20" />
             </div>
-            <div className="px-6 pb-[env(safe-area-inset-bottom,24px)] pt-2">
-              <div className="flex justify-between items-center mb-6">
+
+            {/* Contenido con padding inferior grande para que nada quede tapado por la barra de gestos */}
+            <div className="px-6 pt-2 pb-16 md:pb-10">
+              <div className="flex justify-between items-center mb-6 border-b border-light-border/10 dark:border-dark-border/10 pb-4">
                 <h3 className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">{title}</h3>
-                <button onClick={onClose} className="p-2 rounded-full bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary">
-                  <X size={16} />
+                <button onClick={onClose} className="p-2 rounded-full bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary transition-colors">
+                  <X size={20} />
                 </button>
               </div>
               {children}
@@ -210,7 +215,7 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
           
           {/* LOGO (Desktop only) */}
           <div className="hidden md:flex mr-2 items-center">
-             <Link to="/" className="hover:scale-105 transition-transform">
+             <Link to="/" className="hover:scale-105 transition-transform" aria-label={t('footer.home')}>
                 <PiccolaFavicon className="w-7 h-7" />
              </Link>
           </div>
@@ -224,7 +229,7 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
               {desktopItems.map(renderNavButton)}
               {overflowDesktop.length > 0 && (
                 <div className="relative">
-                  <IconCircleBtn label="Más" onClick={() => toggleMenu('explore')} isActive={activeMenu === 'explore'}>
+                  <IconCircleBtn label={t('footer.explore')} onClick={() => toggleMenu('explore')} isActive={activeMenu === 'explore'}>
                     <Ellipsis size={20} />
                   </IconCircleBtn>
                   <Popover open={activeMenu === 'explore'} onClose={closeAll}>
@@ -246,13 +251,13 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
 
             {/* Mobile Nav (Space Between) */}
             <div className="flex md:hidden items-center justify-around w-full gap-1">
-               <IconCircleBtn to="/" label="Inicio" onClick={closeAll} isActive={location.pathname === '/'}>
+               <IconCircleBtn to="/" label={t('footer.home')} onClick={closeAll} isActive={location.pathname === '/'}>
                   <Icons.FaHome size={20} />
                </IconCircleBtn>
                
                {mobileItems.map(renderNavButton)}
 
-               <IconCircleBtn label="Menú" onClick={() => toggleMenu('mobile_explore')} isActive={activeMenu === 'mobile_explore'}>
+               <IconCircleBtn label={t('footer.menu')} onClick={() => toggleMenu('mobile_explore')} isActive={activeMenu === 'mobile_explore'}>
                  <Ellipsis size={20} />
                </IconCircleBtn>
             </div>
@@ -264,7 +269,7 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
             <div className="flex gap-2 ml-1">
               {/* Social */}
               <div className="relative">
-                <IconCircleBtn label="Social" onClick={() => toggleMenu('social')} isActive={activeMenu === 'social'}>
+                <IconCircleBtn label={t('footer.socials')} onClick={() => toggleMenu('social')} isActive={activeMenu === 'social'}>
                   <Share2 size={18} />
                 </IconCircleBtn>
                 <Popover open={activeMenu === 'social'} onClose={closeAll}>
@@ -277,7 +282,7 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
 
               {/* Language */}
               <div className="relative">
-                <IconCircleBtn label="Idioma" onClick={() => toggleMenu('lang')} isActive={activeMenu === 'lang'}>
+                <IconCircleBtn label={t('footer.language')} onClick={() => toggleMenu('lang')} isActive={activeMenu === 'lang'}>
                   <Globe size={18} />
                 </IconCircleBtn>
                 <Popover open={activeMenu === 'lang'} onClose={closeAll}>
@@ -293,7 +298,7 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
 
               {/* Theme */}
               <IconCircleBtn 
-                label={theme === 'dark' ? 'Light' : 'Dark'} 
+                label={theme === 'dark' ? t('footer.theme_light') : t('footer.theme_dark')} 
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               >
                  <motion.div initial={false} animate={{ rotate: theme === 'dark' ? 180 : 0 }} transition={{type:'spring'}}>
@@ -302,16 +307,15 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
               </IconCircleBtn>
             </div>
           </div>
-
         </div>
       </motion.footer>
 
       {/* MOBILE SHEET */}
-      <BottomSheet open={activeMenu === 'mobile_explore'} onClose={closeAll} title="Navegación & Ajustes">
+      <BottomSheet open={activeMenu === 'mobile_explore'} onClose={closeAll} title={t('footer.sheet_title')}>
         <div className="space-y-6">
            {/* Full Grid Apps */}
            <div>
-              <h4 className="text-xs font-bold text-light-text-tertiary dark:text-dark-text-tertiary uppercase mb-3 ml-1">Aplicaciones</h4>
+              <h4 className="text-xs font-bold text-light-text-tertiary dark:text-dark-text-tertiary uppercase mb-3 ml-1">{t('footer.apps_section')}</h4>
               <div className="grid grid-cols-4 gap-4">
                 {buttons.map(item => {
                   const Icon = Icons[item.icon] || Icons.FaCircle;
@@ -329,16 +333,32 @@ const Footer = ({ isAuthenticated, changeLanguage, roleLevel, theme, setTheme, l
            
            {/* System Tools Mobile */}
            <div>
-              <h4 className="text-xs font-bold text-light-text-tertiary dark:text-dark-text-tertiary uppercase mb-3 ml-1">Sistema</h4>
-              <div className="flex gap-4">
-                 <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="flex-1 h-12 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border flex items-center justify-center gap-2 text-sm font-semibold">
-                    {theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}
-                    {theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}
+              <h4 className="text-xs font-bold text-light-text-tertiary dark:text-dark-text-tertiary uppercase mb-3 ml-1">{t('footer.system_section')}</h4>
+              <div className="flex flex-col gap-3">
+                 <button
+                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                    className="w-full h-12 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border flex items-center justify-center gap-2 text-sm font-semibold"
+                 >
+                    {theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>} 
+                    {theme === 'dark' ? t('footer.theme_mode_light') : t('footer.theme_mode_dark')}
                  </button>
-                 <button onClick={() => {changeLanguage(language === 'es' ? 'en' : 'es'); closeAll()}} className="flex-1 h-12 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border flex items-center justify-center gap-2 text-sm font-semibold">
-                    <Globe size={18}/>
-                    {language.toUpperCase()}
-                 </button>
+
+                 <div className="flex gap-2">
+                  {['es','en','it','pt'].map((lng) => (
+                    <button
+                      key={lng}
+                      onClick={() => { changeLanguage(lng); closeAll(); }}
+                      className={`flex-1 h-10 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-colors
+                        ${language === lng
+                          ? 'bg-light-accent text-white border-light-accent'
+                          : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-tertiary dark:hover:bg-dark-surface-tertiary'}
+                      `}
+                    >
+                      <Globe size={14} />
+                      {lng.toUpperCase()}
+                    </button>
+                  ))}
+                 </div>
               </div>
            </div>
         </div>
