@@ -196,10 +196,15 @@ ENGINE_ROUTES = {
         # Pasamos el spec completo al contexto para evitar reparsear dentro del handler.
         "filter_to_context": {"__full__": "ventas_spec"},
         # Acceso: solo niveles 1-6. Nivel 6 verá solo sus sucursales permitidas (scope interno en handler).
+        # Para niveles que no tengan acceso directo (p. ej. nivel 7 garzón), el engine puede intentar
+        # redirigir a intents relacionados declarados en "related_intents".
         "access": {
             "min_role_level": 1,
             "max_role_level": 6,
         },
+        # Intents relacionados: si el usuario no tiene acceso a 'ventas' pero sí a alguno de estos,
+        # el engine puede rutear automáticamente a ese intent alternativo (p. ej. ventas_hora para lvl7).
+        "related_intents": ["ventas_hora"],
         # Config declarativa de qué partes del payload son relevantes para el resumen con Grok.
         # El engine sólo recorre estas secciones, sin conocer la semántica de "ventas".
         "summary": {

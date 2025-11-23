@@ -315,14 +315,57 @@ async def chat_complete(messages: list[dict]) -> str:
                     denied = True
 
                 if denied:
-                    denied_payload = access_cfg.get("denied_payload") or {
-                        "type": "text_block_list",
-                        "intent": itype,
-                        "lines": [
-                            "No tienes acceso para ver esta información.",
-                        ],
-                    }
-                    return denied_payload
+                    # Antes de devolver un denied_payload genérico, intentar rutear a intents relacionados
+                    # declarados en el spec (p. ej. ventas -> ventas_hora) que sí acepten el nivel actual.
+                    related = route.get("related_intents") or []
+                    # Normalizar role_level a int una sola vez
+                    try:
+                        rl_int = int(role_level) if role_level is not None else None
+                    except Exception:
+                        rl_int = None
+
+                    redirected = False
+                    if related and rl_int is not None:
+                        for rel_key in related:
+                            rel_route = ENGINE_ROUTES.get(rel_key)
+                            if not isinstance(rel_route, dict):
+                                continue
+                            rel_access = rel_route.get("access") or {}
+                            rel_min = rel_access.get("min_role_level")
+                            rel_max = rel_access.get("max_role_level")
+
+                            rel_denied = False
+                            if rel_min is not None and rl_int < int(rel_min):
+                                rel_denied = True
+                            if not rel_denied and rel_max is not None and rl_int > int(rel_max):
+                                rel_denied = True
+
+                            if rel_denied:
+                                continue
+
+                            # Este intent relacionado acepta el nivel actual: redirigir.
+                            itype = rel_route.get("intent") or rel_key
+                            route = rel_route
+                            access_cfg = rel_access
+                            redirected = True
+                            denied = False
+                            logger.info(
+                                "[engine.chat_complete] redirected_intent from=%s to=%s role_level=%s",
+                                intent,
+                                itype,
+                                rl_int,
+                            )
+                            break
+
+                    if denied and not redirected:
+                        denied_payload = access_cfg.get("denied_payload") or {
+                            "type": "text_block_list",
+                            "intent": itype,
+                            "lines": [
+                                "No tienes acceso para ver esta información.",
+                            ],
+                        }
+                        return denied_payload
 
             # 2) Flujo estándar filter -> handler
             if kind == "filter_handler":
