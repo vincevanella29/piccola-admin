@@ -22,9 +22,8 @@ def _catalog_menus(limit=3000) -> List[str]:
     for r in rows:
         code = _norm(r.get("codigo"))
         name = _norm(r.get("nombre"))
-        descr = _norm(r.get("descripcion"))
-        if code or name or descr:
-            out.append(f"{code}|{name}|{descr[:120]}")
+        if code or name:
+            out.append(f"{code}|{name}")
     return out
 
 def _catalog_weather_tags() -> List[str]:
@@ -130,7 +129,9 @@ SPEC = FilterSpec(
         "- Periodo: natural → YYYYMM (si hay rango multi-mes, se arma vía handler multi-periodos).\n"
         "- 'con la renta' o 'con rentabilidad' + top/mas vendidos => measure='venta' y view.include_measures=['margen','margen_pct'].\n"
         "- 'rentabilidad' a secas => si no especifican measure, usar measure='margen'.\n"
-        "- 'centro de costo'|'centro de producción'|'cocina fría'|'cocina caliente' => group_by='centroproduccion'."
+        "- 'centro de costo'|'centro de producción'|'cocina fría'|'cocina caliente' => group_by='centroproduccion'.\n"
+        "- Si el usuario pregunta por renta/margen de un producto por NOMBRE (sin código numérico explícito), busca TODOS los productos MENUS(codigo|nombre) cuyo nombre contenga o sea muy parecido al texto, y devuelve TODOS sus códigos en filters.include_codigos (no elijas solo uno).\n"
+        "- Solo cuando el usuario entrega un código numérico explícito en el texto, puedes limitar filters.include_codigos a ese único código."
     ),
     catalogs=[
         ("CATEGORIAS(id|nombre)", _catalog_categories),

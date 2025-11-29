@@ -1,5 +1,6 @@
 import logging
 import re
+import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import List, Dict, Tuple, Optional
@@ -353,12 +354,14 @@ async def handle_gastos(update, context):
 
     # (A) Agrupado -> data_table
     if group_by in {"mes", "sigla", "cuenta", "mes_sigla"} and not want_detail:
-        grouped = _query_gastos_grouped(
-            start, end, siglas, cuentas,
-            keyword=keyword, search_in=search_in,
-            text_mode=text_mode, search_logic=search_logic,
-            case_insensitive=case_insensitive, is_regex=is_regex,
-            group_by=group_by, exclude_siglas=exclude_siglas, rut=rut
+        grouped = await asyncio.to_thread(
+            lambda: _query_gastos_grouped(
+                start, end, siglas, cuentas,
+                keyword=keyword, search_in=search_in,
+                text_mode=text_mode, search_logic=search_logic,
+                case_insensitive=case_insensitive, is_regex=is_regex,
+                group_by=group_by, exclude_siglas=exclude_siglas, rut=rut,
+            )
         )
 
         label_by = _label_group(group_by)
@@ -404,12 +407,14 @@ async def handle_gastos(update, context):
         rows_out: List[Dict] = []
 
         if do_yoy:
-            prev_grouped = _query_gastos_grouped(
-                start_prev, end_prev, siglas, cuentas,
-                keyword=keyword, search_in=search_in,
-                text_mode=text_mode, search_logic=search_logic,
-                case_insensitive=case_insensitive, is_regex=is_regex,
-                group_by=group_by, exclude_siglas=exclude_siglas, rut=rut
+            prev_grouped = await asyncio.to_thread(
+                lambda: _query_gastos_grouped(
+                    start_prev, end_prev, siglas, cuentas,
+                    keyword=keyword, search_in=search_in,
+                    text_mode=text_mode, search_logic=search_logic,
+                    case_insensitive=case_insensitive, is_regex=is_regex,
+                    group_by=group_by, exclude_siglas=exclude_siglas, rut=rut,
+                )
             )
 
             def _yoy_key(gkey: str) -> str:
@@ -510,21 +515,25 @@ async def handle_gastos(update, context):
             return update, payload
 
     # (B) Detalle -> data_table
-    cur_rows = _query_gastos_raw(
-        start, end, siglas, cuentas,
-        keyword=keyword, search_in=search_in,
-        text_mode=text_mode, search_logic=search_logic,
-        case_insensitive=case_insensitive, is_regex=is_regex,
-        limit=max(20, limit_rows), exclude_siglas=exclude_siglas, rut=rut
-    )
-
-    if do_yoy:
-        prev_rows = _query_gastos_raw(
-            start_prev, end_prev, siglas, cuentas,
+    cur_rows = await asyncio.to_thread(
+        lambda: _query_gastos_raw(
+            start, end, siglas, cuentas,
             keyword=keyword, search_in=search_in,
             text_mode=text_mode, search_logic=search_logic,
             case_insensitive=case_insensitive, is_regex=is_regex,
-            limit=200, exclude_siglas=exclude_siglas, rut=rut
+            limit=max(20, limit_rows), exclude_siglas=exclude_siglas, rut=rut,
+        )
+    )
+
+    if do_yoy:
+        prev_rows = await asyncio.to_thread(
+            lambda: _query_gastos_raw(
+                start_prev, end_prev, siglas, cuentas,
+                keyword=keyword, search_in=search_in,
+                text_mode=text_mode, search_logic=search_logic,
+                case_insensitive=case_insensitive, is_regex=is_regex,
+                limit=200, exclude_siglas=exclude_siglas, rut=rut,
+            )
         )
         cur_cargo, cur_abono, cur_count = _totals(cur_rows)
         prev_cargo, prev_abono, prev_count = _totals(prev_rows)

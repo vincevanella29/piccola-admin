@@ -1,12 +1,10 @@
 import os
-import logging
 from typing import List, Dict, Any, Tuple
 
 from utils.web3mongo import db
 from ..common.filters import grok_filters, apply_access_filters_for_product_like_intent, is_worker_in_sales_kpis
 import unicodedata
 
-logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Importante para ver **negritas** y formato bonito en Telegram:
@@ -149,7 +147,6 @@ async def handle_menus_intent(update, context):
     mf = getattr(context, "user_data", {}).get("menus_filters") or (
         await grok_filters("menus", text + filters_hint) or {}
     )
-    logger.info(f"menus_filters: {mf}")
 
     # Guardamos el spec completo en el contexto para que handle_menus pueda
     # reutilizarlo (filtros de acceso, periodos, etc.).
@@ -418,17 +415,6 @@ async def handle_menus(update, context):
     if hasattr(context, "user_data"):
         context.user_data["menus_filters"] = scoped_obj
     f = scoped_obj
-    logger.info(
-        "[menus.handle_menus] role_level=%s rut=%s cargo=%s seccion=%s period_ym=%s is_lvl7_garzon=%s filters_before=%s filters_after=%s",
-        role_level,
-        perms.get("rut"),
-        perms.get("cargo"),
-        perms.get("seccion"),
-        period_ym,
-        is_lvl7_garzon,
-        filters_before,
-        filters_after,
-    )
 
     # Filtrado
     matched: List[dict] = []
@@ -521,20 +507,11 @@ async def handle_menus(update, context):
         ff_filters_effective = (f or {}).get("filters") or {}
         allowed_codes = {str(x).upper() for x in (ff_filters_effective.get("include_codigos") or [])}
         lvl7_denied = bool(ff_filters_effective.get("_lvl7_denied"))
-        before_codes = [(_norm_str(m.get("codigo")).upper() or "") for m in matched]
         if allowed_codes:
             matched = [m for m in matched if _norm_str(m.get("codigo")).upper() in allowed_codes]
         elif lvl7_denied:
             # No hay códigos permitidos para este centro/cargo en el período: bloquea recetas.
             matched = []
-        after_codes = [(_norm_str(m.get("codigo")).upper() or "") for m in matched]
-        logger.info(
-            "[menus.handle_menus] lvl7 cocina scope by centers codes_before=%s codes_after=%s allowed_codes=%s lvl7_denied=%s",
-            before_codes,
-            after_codes,
-            sorted(list(allowed_codes)),
-            lvl7_denied,
-        )
         if not matched:
             return update, [
                 "No tienes acceso a recetas para ese producto en tu centro de costos.",
@@ -558,8 +535,9 @@ async def handle_menus(update, context):
 
     # ---- Recetas ----
     if recipe:
-        # Si hay más de un match y piden receta, devolvemos una tabla de productos con recipes adjuntas
-        if not (q and any(_norm_str(x.get("codigo")) == q for x in matched)) and len(matched) > 1:
+        # Si hay más de un match y piden receta, devolvemos SIEMPRE una tabla de productos con recipes adjuntas
+        # (no intentamos elegir un único producto aunque q coincida con algún código).
+        if len(matched) > 1:
             # Tabla de productos (máx 20) con imagen + nombre + código + precio
             MAX_ITEMS = 20
             rows = []
@@ -804,15 +782,6 @@ async def handle_menus(update, context):
 
         return update, payload_pc
 
-    # ---- Detalle único ----
-    if len(matched) == 1 or detail or _wants_detail_menus(text):
-        m = matched[0]
-        img = _resolve_menu_image_url(m)
-        if img:
-            caption = _menu_detail_caption(m, cat_by_id)
-            return update, [{"type": "photo", "url": img, "caption": caption}]
-        return update, [_menu_detail_block(m, cat_by_id)]
-
     # ---- Listado corto como data_table (para que el frontend lo trate como tabla estándar) ----
     MAX_ITEMS = 50
     rows: List[dict] = []
@@ -851,57 +820,3 @@ async def handle_menus(update, context):
     }
 
     return update, payload
-
-# ===============================
-# Ventas por hora de productos
-# ===============================
-
-from zoneinfo import ZoneInfo
-from datetime import datetime, timedelta
-
-
-COLL_SALES_HOURLY = "sales_by_waiter_hour"
-RENTAB_COLL = "rentabilidad_producto_locales"
-
-
-def _vh_resolve_period(per: dict) -> tuple[datetime, datetime, str, str, ZoneInfo]:
-    tz = ZoneInfo((per.get("tz") or "America/Santiago"))
-    now = datetime.now(tz).date()
-    preset = (per.get("preset") or "").lower()
-    s = e = None
-    def _parse(d: str): return datetime.fromisoformat(d).date()
-    try:
-        if preset == "hoy": s=e=now
-        elif preset == "ayer": s=e=(now - timedelta(days=1))
-        elif preset == "este_mes":
-            s = now.replace(day=1)
-            n1 = s.replace(year=s.year+1,month=1,day=1) if s.month==12 else s.replace(month=s.month+1,day=1)
-            e = n1 - timedelta(days=1)
-        elif preset == "mes_pasado":
-            f = now.replace(day=1); lp = f - timedelta(days=1)
-            s = lp.replace(day=1); e = lp
-        elif preset == "este_ano":
-            s = now.replace(month=1, day=1); e = now
-        else:
-            st = (per.get("start") or "").strip(); en = (per.get("end") or "").strip()
-            if st and en: s = _parse(st); e = _parse(en)
-    except Exception:
-        s = e = None
-    if not s or not e:
-        s = now.replace(day=1)
-        n1 = s.replace(year=s.year+1,month=1,day=1) if s.month==12 else s.replace(month=s.month+1,day=1)
-        e = n1 - timedelta(days=1)
-    start_dt = datetime.combine(s, datetime.min.time()).replace(tzinfo=tz)
-    end_excl = datetime.combine(e, datetime.min.time()).replace(tzinfo=tz) + timedelta(days=1)
-    return start_dt, end_excl, s.strftime("%Y-%m-%d"), e.strftime("%Y-%m-%d"), tz
-
-
-def _vh_group_expr(gb: str):
-    if gb == "hora": return {"$toString":"$H"}
-    if gb == "dia":  return {"$ifNull":["$DATE_STR","-"]}
-    if gb == "mes":  return {"$ifNull":["$MONTH_STR","-"]}
-    if gb == "local": return {"$ifNull":["$LOCAL","-"]}
-    if gb == "local_mes": return {"$concat":[{"$ifNull":["$LOCAL","-"]}," | ",{"$ifNull":["$MONTH_STR","-"]}]}
-    if gb == "local_dia": return {"$concat":[{"$ifNull":["$LOCAL","-"]}," | ",{"$ifNull":["$DATE_STR","-"]}]}
-    if gb == "producto": return {"$ifNull":["$CODIGO_PRODUCTO","-"]}
-    return {"$literal":"-"}

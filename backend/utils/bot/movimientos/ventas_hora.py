@@ -1,5 +1,6 @@
 import re
 import logging
+import asyncio
 from typing import Dict, List, Tuple
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -354,7 +355,7 @@ async def handle_ventas_hora(update, context):
     else: stages += [{"$sort":{"value":-1}}]
     stages += [{"$limit": int(max(5, min(limit_groups, 400)))}]
 
-    cur = list(db[COLL].aggregate(stages))
+    cur = await asyncio.to_thread(lambda: list(db[COLL].aggregate(stages)))
     if not cur:
         logger.info("[ventas_hora] vacío: %s", {
             "period": (s_str, e_str),
@@ -455,7 +456,7 @@ async def handle_ventas_hora(update, context):
             {"$addFields":{"_g": gid_prev}},
             {"$group":{"_id":"$_g", "total":{"$sum":"$TOTAL"}, "cantidad":{"$sum":"$CANTIDAD"}}}
         ]
-        prev_rows = list(db[COLL].aggregate(prev_st))
+        prev_rows = await asyncio.to_thread(lambda: list(db[COLL].aggregate(prev_st)))
         for r in prev_rows:
             # Guardar valor previo por grupo según la medida seleccionada
             if measure == "total":

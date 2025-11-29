@@ -69,32 +69,6 @@ def _identity_from_session(user: dict) -> dict:
     sub = user.get("sub")
     return {"wallet": wallet.lower() if wallet else None, "privy_id": sub}
 
-
-def _fetch_profile(wallet: Optional[str], privy_id: Optional[str]) -> Optional[dict]:
-    try:
-        if wallet:
-            prof = db.user_profiles.find_one({"wallet": wallet})
-        elif privy_id:
-            prof = db.user_profiles.find_one({"privy_id": privy_id})
-        else:
-            prof = None
-        if not prof:
-            return None
-        # Minimal snapshot for chat
-        return {
-            "wallet": prof.get("wallet"),
-            "name": prof.get("name"),
-            "profile_image_url": prof.get("profile_image_url"),
-            "twitter": prof.get("twitter"),
-            "discord": prof.get("discord"),
-            "instagram": prof.get("instagram"),
-            "favorite_location": prof.get("favorite_location"),
-            "liked_products": prof.get("liked_products", {}),
-            "public_profile": prof.get("public_profile", False),
-        }
-    except Exception:
-        return None
-
 def _assert_owner(conv: dict, user: dict):
     ident = _identity_from_session(user)
     if conv.get("wallet"):

@@ -71,7 +71,7 @@ const DonutChart = ({ data }) => {
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
         {cleanData.map((d, i) => (
           <div key={i} className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
+            <span className={`w-2 h-2 rounded-full ${segmentClasses[i % segmentClasses.length].replace('stroke-', 'bg-')}`} />
             <span className="opacity-70 truncate max-w-[80px]" title={d.label}>{d.label}</span>
             <span className="font-medium ml-auto">{numberFormat(d.value)}</span>
           </div>
@@ -272,12 +272,24 @@ export default function DataTable({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
             {kpis.slice(0, isExpanded ? undefined : 4).map((k, idx) => {
               const deltaVal = Number(k.delta);
+
+              // Formato compacto para KPIs tipo lista de fechas (evitar muro de texto)
+              let displayValue = k.value;
+              if (k.label === 'Fechas' && typeof k.value === 'string') {
+                const parts = k.value.split(',').map(s => s.trim()).filter(Boolean);
+                if (parts.length >= 2) {
+                  const first = parts[0];
+                  const last = parts[parts.length - 1];
+                  displayValue = `${first} → ${last} (${parts.length} días)`;
+                }
+              }
+
               return (
                 <div key={idx} className="flex flex-col p-2.5 rounded-xl bg-white dark:bg-dark-surface-secondary border border-gray-100 dark:border-dark-border/40 shadow-sm hover:shadow-md transition-shadow">
                   <span className="text-[9px] uppercase tracking-wider text-gray-400 font-semibold truncate">{k.label}</span>
                   <div className="flex items-baseline gap-1.5 mt-0.5">
-                    <span className="text-sm font-bold text-gray-900 dark:text-white">
-                      {k.isMoney ? numberFormat(k.value, 'money') : numberFormat(k.value)}
+                    <span className="text-sm font-bold text-gray-900 dark:text-white truncate max-w-[180px]">
+                      {k.isMoney ? numberFormat(displayValue, 'money') : (typeof displayValue === 'number' ? numberFormat(displayValue) : displayValue)}
                     </span>
                     {typeof k.delta !== 'undefined' && (
                       <span className={`text-[9px] font-bold ${deltaVal >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>

@@ -1,5 +1,6 @@
 import re
 import logging
+import asyncio
 from typing import List, Any
 from utils.web3mongo import db
 from ..common.filters import grok_filters, _apply_sucursal_scope, resolve_allowed_codes_lvl7_from_centros
@@ -72,8 +73,13 @@ def _weather_tag_expr():
 async def handle_consumos(update, context):
     text = (update.message.text or "").strip()
 
-    # 1) Grok decide TODO → plan (incluye unit)
-    plan = await grok_filters("consumos", text) or {}
+    # 1) Plan desde el engine (si viene en el contexto) o, en su defecto, desde grok_filters
+    try:
+        plan = getattr(context, "user_data", {}).get("consumos_spec")
+    except Exception:
+        plan = None
+    if not isinstance(plan, dict) or not plan:
+        plan = await grok_filters("consumos", text) or {}
     m = plan.get("match") or {}
     dates       = m.get("dates") or []
     mesanos     = m.get("mesanos") or []
@@ -82,6 +88,16 @@ async def handle_consumos(update, context):
     families    = m.get("families") or []
     subfamilies = m.get("subfamilies") or []
     art_regex   = m.get("article_regex") or []
+
+    # Derivar codigos de 7 digitos desde los articulos (primer token del string)
+    article_codes: list[str] = []
+    for a in articles:
+        try:
+            m_code = re.match(r"\s*(\d{7})\b", str(a))
+            if m_code:
+                article_codes.append(m_code.group(1))
+        except Exception:
+            continue
 
     # 1.1) Scope de acceso según permisos y nivel de rol
     perms = getattr(context, "user_data", {}).get("permissions") or {}
@@ -143,6 +159,7 @@ async def handle_consumos(update, context):
 
     # 2) Pipeline construido SOLO desde el plan
     stages: List[dict] = []
+    # Proyeccion base + normalizacion de fecha y codigo de articulo
     stages += [{
         "$project": {
             "_id": 0,
@@ -167,21 +184,17 @@ async def handle_consumos(update, context):
         }
     }},
     {"$addFields": {"date_str": {"$dateToString": {"format": "%Y-%m-%d", "date": "$fecha_norm"}}}},
-    {"$lookup": {
-        "from": "weather_daily",
-        "let": {"slug": "$local", "d": "$date_str"},
-        "pipeline": [
-            {"$match": {"$expr": {"$and": [
-                {"$eq": ["$permalink_slug", "$$slug"]},
-                {"$eq": [{"$dateToString": {"format": "%Y-%m-%d", "date": "$date"}}, "$$d"]}
-            ]}}},
-            {"$project": {"_id":0, "temp_max":1,"temp_min":1,"precipitation_sum":1,"rain_sum":1,"snowfall_sum":1,"was_raining":1,"was_snowing":1}}
-        ],
-        "as": "w"
-    }},
-    {"$addFields": {"weather": {"$arrayElemAt": ["$w", 0]}}},
-    {"$addFields": {"weather_tag": _weather_tag_expr()}},
-    {"$project": {"w":0}}
+    # Codigo normalizado del articulo (primer token, en mayusculas)
+    {"$addFields": {
+        "_codigo": {
+            "$toUpper": {
+                "$arrayElemAt": [
+                    {"$split": [{"$ifNull": ["$articulo", ""]}, " "]},
+                    0
+                ]
+            }
+        }
+    }}
     ]
 
     # Filtro extra para nivel 7 cocina: solo códigos de producto permitidos
@@ -189,16 +202,6 @@ async def handle_consumos(update, context):
     if allowed_codes_lvl7:
         codes_list = [str(c).upper() for c in allowed_codes_lvl7]
         stages += [
-            {"$addFields": {
-                "_codigo": {
-                    "$toUpper": {
-                        "$arrayElemAt": [
-                            {"$split": [{"$ifNull": ["$articulo", ""]}, " "]},
-                            0
-                        ]
-                    }
-                }
-            }},
             {"$match": {"_codigo": {"$in": codes_list}}},
         ]
 
@@ -210,23 +213,56 @@ async def handle_consumos(update, context):
         match_and.append(_periods_str_or_int_match(mesanos))
     if locals_:
         match_and.append({"local": {"$in": locals_}})
-    # Artículo: exacto o substring (fallback)
-    if articles or art_regex:
+    # Artículo: combinar match por codigo (_codigo) con nombre/regex en un solo OR.
+    # Si hay codigos claros, evitamos regex para esos articulos para no forzar scans pesados.
+    if article_codes or articles or art_regex:
         ors = []
-        if articles:
-            ors.append({"articulo": {"$in": articles}})
-            ors += [{"articulo": {"$regex": re.escape(t), "$options": "i"}} for t in articles]
-        if art_regex:
-            ors += [{"articulo": {"$regex": re.escape(t), "$options": "i"}} for t in art_regex]
-        match_and.append({"$or": ors})
-    if families:
-        match_and.append({"familia": {"$in": families}})
-    if subfamilies:
-        match_and.append({"subfamilia": {"$in": subfamilies}})
+        if article_codes:
+            # Filtro principal por codigo normalizado
+            ors.append({"_codigo": {"$in": [c.upper() for c in article_codes]}})
+            # Opcionalmente, permitir match exacto por articulo si viene en el plan
+            if articles:
+                ors.append({"articulo": {"$in": articles}})
+        else:
+            # Sin codigos: usamos nombre + regex como antes
+            if articles:
+                ors.append({"articulo": {"$in": articles}})
+                ors += [{"articulo": {"$regex": re.escape(t), "$options": "i"}} for t in articles]
+            if art_regex:
+                ors += [{"articulo": {"$regex": re.escape(t), "$options": "i"}} for t in art_regex]
+        if ors:
+            match_and.append({"$or": ors})
+    # Si estamos filtrando por codigo de articulo, ignorar families/subfamilies del plan
+    # para no descartar productos validos por una clasificacion mal inferida.
+    fam_filters = [] if article_codes else families
+    subfam_filters = [] if article_codes else subfamilies
+    if fam_filters:
+        match_and.append({"familia": {"$in": fam_filters}})
+    if subfam_filters:
+        match_and.append({"subfamilia": {"$in": subfam_filters}})
     # (art_regex integrado arriba)
 
     if match_and:
         stages += [{"$match": {"$and": match_and}}]
+
+    # Join con clima SOLO despues de filtrar por fechas/locales/articulo
+    stages += [
+        {"$lookup": {
+            "from": "weather_daily",
+            "let": {"slug": "$local", "d": "$date_str"},
+            "pipeline": [
+                {"$match": {"$expr": {"$and": [
+                    {"$eq": ["$permalink_slug", "$$slug"]},
+                    {"$eq": [{"$dateToString": {"format": "%Y-%m-%d", "date": "$date"}}, "$$d"]}
+                ]}}},
+                {"$project": {"_id":0, "temp_max":1,"temp_min":1,"precipitation_sum":1,"rain_sum":1,"snowfall_sum":1,"was_raining":1,"was_snowing":1}}
+            ],
+            "as": "w"
+        }},
+        {"$addFields": {"weather": {"$arrayElemAt": ["$w", 0]}}},
+        {"$addFields": {"weather_tag": _weather_tag_expr()}},
+        {"$project": {"w":0}}
+    ]
 
     # Guardar base antes de agrupar (para reutilizar en detalle)
     stages_base = list(stages)
@@ -314,11 +350,20 @@ async def handle_consumos(update, context):
         stages_group += [{"$sort": {"value": -1 if order == "desc" else 1}}]
     stages_group += [{"$limit": max(1, min(limit, 200))}]
 
-    logger.info(f"[consumos plan] {plan}")
-    logger.info(f"[consumos stages] {stages_group}")
-    rows = list(coll.aggregate(stages_group))
+    rows = await asyncio.to_thread(lambda: list(coll.aggregate(stages_group)))
     if not rows:
-        return update, ["Sin resultados para ese pedido."]
+        # Payload estructurado sin texto; el resumen final lo hará siempre el motor común
+        # (engine._attach_summary + ask_grok) en base al payload.
+        return update, {
+            "type": "data_table",
+            "title": "Consumos",
+            "subtitle": "Sin datos para los filtros pedidos",
+            "kpis": [],
+            "columns": [],
+            "rows": [],
+            "totals": {"value": 0},
+            "charts": [],
+        }
 
     # 3) Render bonito en Markdown: encabezado compacto + una sola métrica según unidad
     # Unidad efectiva de salida
@@ -379,8 +424,10 @@ async def handle_consumos(update, context):
         rows_out.append(row_obj)
 
     # If grouping is aggregated (does not include 'dia'), compute per-group daily detail
+    # Solo habilitar este detalle cuando el group_by efectivo tenga una sola clave
+    # (p.ej. ['local']), para evitar aggregates muy pesados con muchas combinaciones.
     detail_map = {}
-    if "dia" not in valid_gbs:
+    if ("dia" not in valid_gbs) and (len(valid_gbs) == 1):
         # Build detail grouping = valid_gbs + ['dia']
         gb_map = {
             "local": {"$ifNull": ["$local", "-"]},
@@ -421,7 +468,7 @@ async def handle_consumos(update, context):
             }
         }}]
         stages_detail += [{"$sort": {"_id.dia": 1}}]
-        detail_rows = list(coll.aggregate(stages_detail))
+        detail_rows = await asyncio.to_thread(lambda: list(coll.aggregate(stages_detail)))
         # Build map key from group values (excluding 'dia')
         def _key_from_id(_id: dict):
             return tuple((_id.get(g) if isinstance(_id, dict) else None) for g in valid_gbs)

@@ -1,5 +1,6 @@
 import logging
 import re
+import asyncio
 from datetime import datetime, date
 from typing import List, Dict, Optional, Tuple, Any
 
@@ -335,7 +336,7 @@ async def _handle_duplicates(update, months: List[str], f: Dict):
         {"$limit": 200}
     ])
     
-    dups = list(db.pago_sueldos_intranet.aggregate(pipeline))
+    dups = await asyncio.to_thread(lambda: list(db.pago_sueldos_intranet.aggregate(pipeline)))
     
     rows_out = []
     total_val, total_items = 0, 0
@@ -390,7 +391,7 @@ async def _handle_detail_view(update, months: List[str], base_stages: List[Dict]
     
     pipeline = base_stages + enrich_stages + [{"$addFields": {"sigla": _derive_sigla_expr()}}] + [project_stage] + [{"$limit": int(max(10, limit_rows))}]
     
-    rows = list(db.pago_sueldos_intranet.aggregate(pipeline))
+    rows = await asyncio.to_thread(lambda: list(db.pago_sueldos_intranet.aggregate(pipeline)))
     rows = _apply_security_filter_to_rows(rows, role_level, perms)
     
     pretty_period = _get_pretty_period(months)
@@ -403,7 +404,7 @@ async def _handle_detail_view(update, months: List[str], base_stages: List[Dict]
             {"$match": {"rut_norm": single_rut}}
         ] + enrich_stages + [{"$addFields": {"sigla": _derive_sigla_expr()}}] + [project_stage] + [{"$sort": {"periodo": -1}}, {"$limit": limit_rows}]
         
-        rows = list(db.pago_sueldos_intranet.aggregate(fallback_pipeline))
+        rows = await asyncio.to_thread(lambda: list(db.pago_sueldos_intranet.aggregate(fallback_pipeline)))
         rows = _apply_security_filter_to_rows(rows, role_level, perms) # Re-aplicar seguridad
         if rows:
             pretty_period = "Histórico (Todos los periodos)"
@@ -475,7 +476,7 @@ async def _handle_grouped_view(update, months: List[str], base_stages: List[Dict
     sort_d = 1 if order_by in ["group_asc", "value_asc"] else -1
     pipeline += [{"$sort": {sort_k: sort_d}}, {"$limit": limit_groups}]
     
-    grouped = list(db.pago_sueldos_intranet.aggregate(pipeline))
+    grouped = await asyncio.to_thread(lambda: list(db.pago_sueldos_intranet.aggregate(pipeline)))
     
     # Lógica YoY (Año contra Año)
     yoy_label = ""
@@ -488,7 +489,8 @@ async def _handle_grouped_view(update, months: List[str], base_stages: List[Dict
             {"$addFields": {"group": group_expr}},
             {"$group": {"_id": "$group", "value": acc}}
         ]
-        prev_data = {g["_id"]: g.get("value", 0) for g in db.pago_sueldos_intranet.aggregate(prev_pipeline)}
+        prev_rows = await asyncio.to_thread(lambda: list(db.pago_sueldos_intranet.aggregate(prev_pipeline)))
+        prev_data = {g["_id"]: g.get("value", 0) for g in prev_rows}
         
         curr_total = sum(g.get("value", 0) for g in grouped)
         prev_total = sum(prev_data.values())

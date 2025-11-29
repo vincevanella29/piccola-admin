@@ -23,9 +23,10 @@ def _catalog_menus(limit=3000) -> List[str]:
     for r in rows:
         code = _norm(r.get("codigo"))
         name = _norm(r.get("nombre"))
-        descr = _norm(r.get("descripcion"))
-        if code or name or descr:
-            out.append(f"{code}|{name}|{descr[:120]}")
+        # No enviamos descripcion a Grok en el catalogo para evitar que se sesgue
+        # demasiado a un solo producto por texto largo; solo codigo y nombre.
+        if code or name:
+            out.append(f"{code}|{name}")
     return out
 
 
@@ -155,6 +156,8 @@ SPEC = FilterSpec(
         "- 'detail' true: habilitar salida de recetas (para usuarios 3-4) en tabla separada.\n"
         "- 'hour_in' y 'dow_in' cuando mencionan horas/días específicos.\n"
         "- 'include_locals'/'include_siglas' para filtrar sucursales.\n"
+        "- Si el usuario pide la RECETA de un producto por nombre (sin código numérico explícito), busca TODOS los productos MENUS(codigo|nombre) cuyo nombre contenga o sea muy parecido al texto, y devuelve TODOS sus códigos en filters.include_codigos (no adivines solo uno).\n"
+        "- Solo cuando el usuario entrega un código numérico explícito en el texto, puedes limitar filters.include_codigos a ese único código.\n"
     ),
     catalogs=[
         ("CATEGORIAS(id|nombre)", _catalog_categories),

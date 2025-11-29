@@ -23,6 +23,10 @@ XAI_API_URL = os.getenv("XAI_API_URL", "https://api.x.ai/v1/chat/completions")
 XAI_MODEL   = os.getenv("XAI_MODEL", "grok-2-latest")
 XAI_API_KEY = os.getenv("XAI_API_KEY")
 
+# Límite duro de tamaño de texto para catálogos enviados a Grok desde grok_filters.
+# 20000 tokens ~ 70-80k chars, así que usar ~40000 chars es conservador.
+_MAX_CATALOGS_TEXT_CHARS = 40000
+
 def get_env_xai():
     return XAI_API_URL, XAI_MODEL, XAI_API_KEY
 
@@ -99,7 +103,6 @@ _REGISTRY: dict[str, FilterSpec] = {}
 
 def register_filter_spec(spec: FilterSpec):
     _REGISTRY[spec.key] = spec
-    logger.info(f"[filters] Registered FilterSpec for '{spec.key}'")
 
 # ---------------------
 # Prompt builder + call
@@ -133,6 +136,9 @@ async def grok_filters(spec_or_key, user_text: str) -> Optional[dict]:
         if rows:
             catalogs_parts.append(label + ":\n" + "\n".join(rows))
     catalogs_text = "\n\n".join(catalogs_parts)
+    # Proteger a Grok de prompts gigantes: recortar catálogos si exceden el máximo.
+    if len(catalogs_text) > _MAX_CATALOGS_TEXT_CHARS:
+        catalogs_text = catalogs_text[:_MAX_CATALOGS_TEXT_CHARS]
 
     # System + user messages
     tz = ZoneInfo("America/Santiago")
@@ -160,7 +166,9 @@ async def grok_filters(spec_or_key, user_text: str) -> Optional[dict]:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        # Timeout ligeramente menor que el filter_timeout típico (p.ej. ~15s para consumos)
+        # para que grok_filters complete o falle antes de que el engine lo corte.
+        async with httpx.AsyncClient(timeout=12.0) as client:
             r = await client.post(api_url, headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -172,6 +180,7 @@ async def grok_filters(spec_or_key, user_text: str) -> Optional[dict]:
         logger.warning(f"[filters] Grok call failed: {e}")
         return None
 
+    # Parsear primer objeto JSON valido de la respuesta
     obj = _json_first_object(content or "")
     if not isinstance(obj, dict):
         return None

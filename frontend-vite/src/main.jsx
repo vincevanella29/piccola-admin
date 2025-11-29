@@ -252,15 +252,15 @@ const MainContent = () => {
     trackSwap,
   };
 
-
-
   const handleLogout = async () => {
+    // Mostrar loading mientras se cierra sesión y se navega a home
+    setPageLoading(true);
     try {
       await disconnectWallet();
     } finally {
-      if (typeof window !== 'undefined') {
-        window.location.reload();
-      }
+      // Asegurar que el flag global quede en false
+      setPageLoading(false);
+      navigate('/', { replace: true });
     }
   };
 

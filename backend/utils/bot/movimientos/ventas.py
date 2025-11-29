@@ -1,4 +1,5 @@
 import logging, re
+import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import Dict, List, Optional, Tuple
@@ -320,7 +321,7 @@ async def handle_ventas(update, context):
             {"$sort": {"local":1, "date_str":1}},
             {"$limit": int(max(10, limit_rows))}
         ]
-        rows = list(db.ventas_locales.aggregate(stages_detail))
+        rows = await asyncio.to_thread(lambda: list(db.ventas_locales.aggregate(stages_detail)))
         total = sum(r.get("total",0) for r in rows)
         lines = [f"Nonna Marriana dice: Ventas {pretty_range} (detalle, máx {limit_rows}).",
                  f"Total ${total:,.0f}, ítems {len(rows)}.",
@@ -381,7 +382,7 @@ async def handle_ventas(update, context):
     else:
         stages_group += [{"$sort": {"value": -1}}]
     stages_group += [{"$limit": int(max(5, limit_groups))}]
-    grouped = list(db.ventas_locales.aggregate(stages_group))
+    grouped = await asyncio.to_thread(lambda: list(db.ventas_locales.aggregate(stages_group)))
 
     # Comparativo (yoy/mom/none)
     yoy_line = ""
@@ -428,7 +429,8 @@ async def handle_ventas(update, context):
             "sum_mesas": {"$sum": {"$ifNull":["$mesas",0]}},
             "count": {"$sum": 1}
         }}]
-        prev_doc = next(iter(db.ventas_locales.aggregate(base_prev)), None) or {}
+        prev_list = await asyncio.to_thread(lambda: list(db.ventas_locales.aggregate(base_prev)))
+        prev_doc = next(iter(prev_list), None) or {}
         base_cur = stages + [
             {"$group": {
                 "_id": None,
@@ -438,7 +440,8 @@ async def handle_ventas(update, context):
                 "count": {"$sum": 1}
             }}
         ]
-        cur_doc = next(iter(db.ventas_locales.aggregate(base_cur)), None) or {}
+        cur_list = await asyncio.to_thread(lambda: list(db.ventas_locales.aggregate(base_cur)))
+        cur_doc = next(iter(cur_list), None) or {}
         def _value_total(doc: dict)->float:
             st = float(doc.get("sum_total",0))
             sp = float(doc.get("sum_personas",0))

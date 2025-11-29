@@ -51,6 +51,10 @@ SCHEMA = (
 
 RULES = (
     "- Traduce el pedido a un **plan ejecutable** con el SCHEMA.\n"
+    "- Piensa SIEMPRE en un **data table**: columnas = claves de `group_by`, filas = cada combinación distinta de esas claves (rows).\n"
+    "- Si el usuario habla explícitamente de datos 'por local y fecha/día' (o 'agrupado por local y día'), usa `group_by`=['local','dia'] como layout natural de tabla.\n"
+    "- Si SOLO menciona una dimensión (p.ej. solo local, o solo fecha, o solo artículo) o frases como 'por local' sin hablar de día/fecha, usa `group_by` como string con ESA única dimensión (filas simples, sin dia adicional).\n"
+    "- Para combinaciones más complejas (local + familia, local + artículo, etc.), arma `group_by` como una lista ordenada con esas claves, pensando en que la tabla sea legible (primero local, luego dia/familia/etc.).\n"
     "- **Resuelve todas las fechas** (p.ej. 'viernes pasado', 'semana pasada') a lista explícita YYYY-MM-DD en zona America/Santiago.\n"
     "- Usa catálogos (ARTICULOS, FAMILIAS, SUBFAMILIAS, LOCALES) para devolver **valores exactos**; si no hay match exacto, usa `article_regex`.\n"
     "- `group_by` puede ser un string o una lista de claves; soporta: local, articulo, familia, subfamilia, mes, dia. Ej.: ['local','dia'].\n"
@@ -150,9 +154,9 @@ ENGINE_ROUTES = {
         "intent": "consumos",
         "kind": "filter_handler",
         "filter_key": "consumos",
-        "filter_timeout": 2.5,
+        "filter_timeout": 15.0,
         "handler": "utils.bot.consumos.consumos:handle_consumos",
-        "handler_timeout": 8.0,
+        "handler_timeout": 30.0,
         # Pasamos el plan completo al contexto para evitar reparsear dentro del handler.
         "filter_to_context": {"__full__": "consumos_spec"},
         # Acceso: niveles 1-7; el handler restringe lvl6 por sucursal y lvl7 por centros de costo/productos.

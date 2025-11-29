@@ -179,7 +179,7 @@ async def _attach_summary(intent: str, payload, text: str, context) -> dict:
             rut=str(rut) if rut else None,
             wallet=wallet,
         ),
-        timeout=2.5,
+        timeout=8.0,
         default=None,
     )
     if isinstance(summary, str):
@@ -418,7 +418,7 @@ async def chat_complete(messages: list[dict]) -> str:
             rut=str(rut) if rut else None,
             wallet=wallet,
         ),
-        timeout=5.0,
+        timeout=45.0,
         default=None,
     )
     if reply is None:
