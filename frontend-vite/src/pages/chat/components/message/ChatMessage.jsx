@@ -148,7 +148,7 @@ const ChatMessage = ({
     <div
       ref={listRef}
       onScroll={onListScroll}
-      className={`h-full min-h-0 w-full max-w-full relative overflow-y-auto overflow-x-hidden p-3 pr-1 md:pr-2 space-y-5 rounded-lg break-words ${className || ''}`}
+      className={`h-full min-h-0 w-full max-w-full relative overflow-y-auto overflow-x-visible p-3 pr-1 md:pr-2 space-y-5 rounded-lg break-words ${className || ''}`}
     >
       {isLoading && (messages?.length || 0) === 0 ? (
         <p className="text-center text-light-text/60 pt-10 text-sm animate-pulse">{(t && t('chat.loading')) || 'Conectando con la Matrix...'}</p>

@@ -7,7 +7,7 @@ const MessageBubble = ({ role = 'bot', children }) => {
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div 
         className={`
-          relative px-5 py-3.5 max-w-[85%] sm:max-w-[75%] shadow-md transition-all duration-200
+          relative px-5 py-3.5 w-full sm:max-w-[95%] shadow-md transition-all duration-200
           
           ${isUser 
             ? 'bg-gradient-to-br from-light-accent to-matrix-green text-dark-bg rounded-2xl rounded-tr-sm' 

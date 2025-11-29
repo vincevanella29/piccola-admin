@@ -330,14 +330,14 @@ export default function DataTable({
           )}
 
           {/* Tabla */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto w-full">
+            <table className="min-w-full text-left border-collapse">
               <thead className="bg-gray-50 dark:bg-dark-surface-secondary border-b border-gray-200 dark:border-gray-800">
                 <tr>
                   {columns.map((c, idx) => (
                     <th 
                       key={idx} 
-                      className={`px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-800 dark:hover:text-gray-200 select-none ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}
+                      className={`px-2 sm:px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-800 dark:hover:text-gray-200 select-none ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}
                       onClick={() => { if (sortKey === c.key) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortKey(c.key); setSortDir('desc'); } }}
                     >
                       {c.label} {sortKey === c.key && (sortDir === 'asc' ? '▴' : '▾')}
@@ -349,7 +349,7 @@ export default function DataTable({
                 {pageRows.map((r, ridx) => (
                   <tr key={ridx} onClick={onRowClick ? () => onRowClick(r, start + ridx) : undefined} className={`group transition-colors ${onRowClick ? 'cursor-pointer hover:bg-light-accent/5 dark:hover:bg-dark-accent/20' : ''}`}>
                     {columns.map((c, cidx) => (
-                      <td key={cidx} className={`px-4 py-2.5 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300 tabular-nums ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}>
+                      <td key={cidx} className={`px-2 sm:px-4 py-2.5 whitespace-normal sm:whitespace-nowrap break-words text-xs text-gray-700 dark:text-gray-300 tabular-nums ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}>
                         {renderCell(r, c)}
                       </td>
                     ))}
