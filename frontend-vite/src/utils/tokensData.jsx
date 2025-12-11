@@ -44,7 +44,6 @@ export async function fetchPairReserves(pairAddress) {
  * @returns {Promise<Object>} Respuesta del backend (incluyendo la tx lista para firmar)
  */
 export async function removeLiquidityPool(liquidityData, walletAddress, token) {
-  console.log('[tokensData.removeLiquidityPool] called', { ...liquidityData, walletAddress, token });
   return api({
     method: 'POST',
     endpoint: '/remove_liquidity',
@@ -66,7 +65,6 @@ export async function removeLiquidityPool(liquidityData, walletAddress, token) {
  * @returns {Promise<Object>} Respuesta del backend (incluyendo la tx lista para firmar)
  */
 export async function createNewPool(poolData, walletAddress, token) {
-  console.log('[tokensData.createPool] called', { ...poolData, walletAddress, token });
   return api({
     method: 'POST',
     endpoint: '/create_pool',
@@ -88,7 +86,6 @@ export async function createNewPool(poolData, walletAddress, token) {
  * @returns {Promise<Object>} Respuesta del backend (incluyendo la tx lista para firmar)
  */
 export async function addLiquidityPool(liquidityData, walletAddress, token) {
-  console.log('[tokensData.addLiquidity] called', { ...liquidityData, walletAddress, token });
   return api({
     method: 'POST',
     endpoint: '/add_liquidity',

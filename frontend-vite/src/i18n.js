@@ -56,14 +56,6 @@ i18n
     debug: process.env.NODE_ENV === 'development'
   });
 
-i18n.on('languageChanged', (lng) => {
-  console.log('i18n.js - Language changed to:', lng);
-});
-
-i18n.on('loaded', (loaded) => {
-  console.log('i18n.js - Resources loaded:', loaded);
-});
-
 i18n.on('failedLoading', (lng, ns, msg) => {
   console.error('i18n.js - Failed loading:', lng, ns, msg);
 });

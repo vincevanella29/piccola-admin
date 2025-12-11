@@ -78,8 +78,6 @@ const MeritsDashboardPage = ({ appState }) => {
     return result;
   }, [allEmployees, searchTerm, clientFilters, sortConfig]);
 
-  console.log("filteredAndSortedEmployees", filteredAndSortedEmployees);
-
   // Opciones para selectores: locales desde appState.allowed, cargos desde data
   const clientFilterOptions = useMemo(() => {
     // 1) Locales PERMITIDOS (siglas) desde appState

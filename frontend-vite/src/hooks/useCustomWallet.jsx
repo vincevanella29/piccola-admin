@@ -161,7 +161,6 @@ export const useCustomWallet = (appState) => {
   // Handler para transacciones con useSendTransaction
   const handleTransactionConfirm = useCallback(async () => {
     if (isProcessingRef.current) {
-      console.log('[useCustomWallet] Ya está procesando transacción, ignorando click adicional');
       return;
     }
     
@@ -202,8 +201,6 @@ export const useCustomWallet = (appState) => {
           throw waitErr;
         }
       }
-
-      console.log('[useCustomWallet] Transacción completada exitosamente');
       
       // Actualizar UI a éxito antes de cerrar
       setSuccess(true);
@@ -231,7 +228,6 @@ export const useCustomWallet = (appState) => {
   // **HANDLER CON DEBUGGING**: Firma manteniendo whitelabel con normalización
   const handleSignatureConfirm = useCallback(async () => {
     if (isProcessingRef.current) {
-      console.log('[useCustomWallet] Ya está procesando, ignorando click adicional');
       return;
     }
     
@@ -248,9 +244,7 @@ export const useCustomWallet = (appState) => {
         throw new Error('No se pudo generar la firma simulada');
       }
       
-      console.log('[useCustomWallet] Firma obtenida exitosamente');
       
-      // Debugging logs...
       
       setSuccess(true);
 

@@ -250,7 +250,6 @@ const Analytics = ({ appState }) => {
           include_sucursales_ids: sucursalIds,
           include_siglas: sucursalSiglas,
         });
-        console.log("gastos", gCur);
         setGastos(gCur?.widget || []);
         const { start: gCs, end: gCe } = computeComparison(pendingDateRange, gastoMinDate, gastoMaxDate, pendingConfig);
         if (gCs && gCe && pendingConfig.comparisonType !== 'none') {

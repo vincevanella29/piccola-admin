@@ -43,7 +43,6 @@ export default function VentasPanel({ fichaContext }) {
   if (isLoading && (!ventasData.porPeriodo || !ventasData.total)) {
     return <div className="flex justify-center p-8"><LoaderCircle className="animate-spin text-matrix-green" /></div>;
   }
-  console.log('ventasData', ventasData);
 
   return (
     <div className="space-y-6">

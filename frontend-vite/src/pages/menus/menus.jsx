@@ -216,18 +216,24 @@ const Menus = ({ appState }) => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4 }}
             >
-              {dineinMenus.map((menu) => (
-                <ProductCard
-                  key={menu._id}
-                  dish={menu}
-                  mediaMap={mediaMap}
-                  chileTime={appState.chileTime}
-                  onClick={() => setSelectedProduct(menu)}
-                  profile={appState.profile}
-                  account={appState.account}
-                  isHorizontal={layout === 'horizontal'}
-                />
-              ))}
+              {dineinMenus.map((menu, index) => {
+                const safeKey =
+                  (menu && (menu._id || menu.id || menu.codigo))
+                    ? String(menu._id || menu.id || menu.codigo)
+                    : `menu-${index}`;
+                return (
+                  <ProductCard
+                    key={safeKey}
+                    dish={menu}
+                    mediaMap={mediaMap}
+                    chileTime={appState.chileTime}
+                    onClick={() => setSelectedProduct(menu)}
+                    profile={appState.profile}
+                    account={appState.account}
+                    isHorizontal={layout === 'horizontal'}
+                  />
+                );
+              })}
             </motion.div>
 
             {/* Empty State */}
@@ -271,6 +277,7 @@ const Menus = ({ appState }) => {
       <AnimatePresence>
         {selectedProduct && (
           <ProductModal
+            key="product-modal"
             product={selectedProduct}
             mediaMap={mediaMap}
             onClose={() => setSelectedProduct(null)}
@@ -279,6 +286,7 @@ const Menus = ({ appState }) => {
           />
         )}
         <SearchModal
+          key="search-modal"
           isOpen={isSearchModalOpen}
           onClose={() => setIsSearchModalOpen(false)}
           searchQuery={searchQuery}

@@ -180,18 +180,6 @@ const RuleRequirement = ({ rule, index, account, t, met, profile, appState, burn
         : toMeritHuman(requiredBase);
 
     const metFront = balanceHuman >= requiredMerit;
-    console.log('[RuleRequirement] MERIT_MIN_WALLET UI data', {
-      ruleId: rule.id,
-      promotionId: rule.promotion_id,
-      segmentId,
-      name,
-      symbol,
-      balanceHuman,
-      meritEntry,
-      requiredBase,
-      requiredMerit,
-      metFront,
-    });
     const progress = requiredMerit > 0 ? Math.min((balanceHuman / requiredMerit) * 100, 100) : 0;
 
     return (

@@ -33,10 +33,12 @@
       "no_image": "No image",
       "no_name": "No name",
       "ref": "ref",
-      "period_current": "Current"
+      "period_current": "Current",
+      "no_description": "No description available."
     },
     "recipes": {
       "title": "Technical Sheet",
+      "description": "Explore detailed technical sheets for your products.",
       "period": "Period",
       "ingredient": "Ingredient",
       "qty": "Quantity",

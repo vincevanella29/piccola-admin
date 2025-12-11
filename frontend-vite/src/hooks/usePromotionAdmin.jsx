@@ -83,7 +83,6 @@ export function usePromotionAdmin(appState, t) {
       try {
         const resRules = await apiListMeritRules({ onlyActive: true, walletAddress: wallet, token });
         const items = resRules?.data?.rules || resRules?.rules || [];
-        console.log('[usePromotionAdmin] meritRules fetched:', items);
         setMeritRules(items);
       } catch (rulesErr) {
         console.error('Error fetching merit rules:', rulesErr);

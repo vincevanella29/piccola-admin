@@ -112,7 +112,6 @@ export async function fetchAllPromotions({ walletAddress, token, page = 1, limit
 
 // Función para reactivar un cupón
 export async function reactivateCoupon({ walletAddress, token, couponCode }) {
-    console.log("reactivateCoupon", { walletAddress, token, couponCode });
     return api({
         method: 'POST',
         endpoint: '/promotions/coupon/reactivate',

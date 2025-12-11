@@ -44,7 +44,6 @@ const EmployeesTable = ({ appState }) => {
       skip: 0,
       limit: 10000,
     });
-    console.log("items", items);
     setRows(Array.isArray(items) ? items : []);
   }, [sucursal, cargo, seccion, loadTrabajadoresActivos]);
 

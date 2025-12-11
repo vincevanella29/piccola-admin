@@ -97,19 +97,6 @@ const LoadingSpinner = ({
               // Clamp para que nunca sean negativas ni se salgan del canvas
               rippleX = Math.max(0, Math.min(rippleX, rippleRect.width - 1));
               rippleY = Math.max(0, Math.min(rippleY, rippleRect.height - 1));
-              // Log para debug visual: posición real de la letra y posición ripple
-              console.log('[MatrixLetter]', {
-                letra: drop.char,
-                col: drop.col,
-                drop_x: drop.x,
-                drop_y: drop.y,
-                absX,
-                absY,
-                rippleX,
-                rippleY,
-                matrixRect,
-                rippleRect
-              });
               rippleDrop(rippleX, rippleY, 14, 0.04, drop.id, 'move');
             }
           }

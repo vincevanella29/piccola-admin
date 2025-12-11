@@ -9,10 +9,7 @@ import { TabButton } from './ui/TabButton';
 // El prop `allEmployees` es la lista completa que viene desde MeritsDashboardPage
 export const KpiTab = ({ employee, allEmployees }) => {
   const [activeKpi, setActiveKpi] = useState('sales');
-  console.log("allEmployees", allEmployees);
   const benchmarks = useKpiBenchmarks(employee, allEmployees);
-
-  console.log("benchmarks", benchmarks);
 
   // Map comparative/variation data from employee payload to KPI keys used here
   const comp = employee?.comparativo || {};

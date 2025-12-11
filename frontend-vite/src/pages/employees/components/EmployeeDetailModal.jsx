@@ -64,7 +64,6 @@ const EmployeeDetailModal = ({ open, onClose, emp, appState }) => {
         },
         cfg
       );
-      console.log("asistencia con comparación", res);
       const curr = Array.isArray(res?.current) ? res.current : [];
       const prev = Array.isArray(res?.previous) ? res.previous : [];
       setAttData(curr);
@@ -135,7 +134,6 @@ const EmployeeDetailModal = ({ open, onClose, emp, appState }) => {
       skip: 0,
       limit: null
     });
-    console.log("asistencia sin comparación", res);
     const list = Array.isArray(res)
       ? res
       : Array.isArray(res?.asistencia)

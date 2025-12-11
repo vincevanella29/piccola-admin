@@ -61,9 +61,14 @@ const LocationSelector = ({ locations, selectedLocation, onSelect }) => {
                 {t('club.selectLocation', { defaultValue: 'Selecciona una sucursal' })}
               </h3>
               <div className="grid grid-cols-1 gap-2">
-                {locations.map((location) => (
+                {locations.map((location, index) => {
+                  const safeKey =
+                    (location && (location._id || location.nombre))
+                      ? String(location._id || location.nombre)
+                      : `location-${index}`;
+                  return (
                   <button
-                    key={location._id || location.nombre}
+                    key={safeKey}
                     className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 text-left ${
                       selectedLocation?._id === location._id
                         ? 'bg-matrix-green text-white shadow-md'
@@ -76,7 +81,7 @@ const LocationSelector = ({ locations, selectedLocation, onSelect }) => {
                   >
                     {location.nombre || `Sucursal ${location._id}`}
                   </button>
-                ))}
+                )})}
               </div>
             </motion.div>
           </motion.div>

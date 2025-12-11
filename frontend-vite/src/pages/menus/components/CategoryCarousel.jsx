@@ -14,9 +14,14 @@ const CategoryCarousel = ({ categories = [], selectedCategory, onSelect }) => {
       className="top-0 z-30 w-full backdrop-blur-md bg-light-surface/10 dark:bg-dark-surface/20 py-2 px-2 rounded-full overflow-x-auto scrollbar-hide flex gap-2 shadow-neon"
       style={{ minHeight: 56 }}
     >
-      {activeCategories.map((category) => (
+      {activeCategories.map((category, index) => {
+        const rawKey = category && (category.id ?? category.nombre);
+        const safeKey = (rawKey !== null && rawKey !== undefined && String(rawKey).length > 0)
+          ? String(rawKey)
+          : `category-${index}`;
+        return (
         <button
-          key={String(category.id ?? category.nombre)}
+          key={safeKey}
           className={`whitespace-nowrap px-5 py-2 rounded-full font-medium text-sm transition-all duration-300 ${
             String(selectedCategory?.id) === String(category.id)
               ? 'bg-gradient-to-r from-light-accent to-dark-accent text-white shadow-neon border-2 border-light-accent/50 dark:border-dark-accent/50'
@@ -26,7 +31,7 @@ const CategoryCarousel = ({ categories = [], selectedCategory, onSelect }) => {
         >
           {category.nombre}
         </button>
-      ))}
+      )})}
     </div>
   );
 };

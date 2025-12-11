@@ -94,7 +94,6 @@ const useChatClient = ({ appState, accessToken, account, setError, setSuccess, p
     setIsLoading(true);
     try {
       const res = await fetchChatHistory({ token, walletAddress, convId: id });
-      console.log('loadHistory', res);
       // Expecting array of { role, text, created_at, ... }
       replaceHistory(res?.messages || res || []);
       setStatus(res?.status || null);
@@ -158,7 +157,6 @@ const useChatClient = ({ appState, accessToken, account, setError, setSuccess, p
 
     try {
       const res = await sendChatMessage({ token, walletAddress, convId: activeId, text, metadata });
-      console.log('sendMessage', res);
       if (!optimistic) {
         // WS is open: do nothing here; rely on WS echo to append
       } else if (res?.message) {

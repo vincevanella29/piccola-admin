@@ -20,11 +20,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements.txt
 
-# Descarga WSDLs necesarios en tiempo de build para ONVIF
-RUN mkdir -p /backend/wsdl \
- && curl -fL https://www.onvif.org/ver10/device/wsdl/devicemgmt.wsdl -o /backend/wsdl/devicemgmt.wsdl \
- && curl -fL https://www.onvif.org/ver20/media/wsdl/media.wsdl       -o /backend/wsdl/media.wsdl \
- && curl -fL https://www.onvif.org/ver20/ptz/wsdl/ptz.wsdl           -o /backend/wsdl/ptz.wsdl
+# Copia WSDLs necesarios para ONVIF (ya incluidos en el repo en backend/wsdl)
+COPY wsdl /backend/wsdl
 
 # Valor por defecto dentro del contenedor (puede sobreescribirse en runtime)
 ENV ONVIF_WSDL_DIR=/backend/wsdl

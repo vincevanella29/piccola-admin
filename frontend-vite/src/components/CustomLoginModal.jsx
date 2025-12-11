@@ -65,9 +65,7 @@ const CustomLoginModal = ({ isOpen, onClose }) => {
   const handleVerifyCode = async () => {
     if (!verificationCode) return;
     try {
-      console.log('[CustomLoginModal] Verifying code', verificationCode);
       await loginWithCode({ code: verificationCode });
-      console.log('[CustomLoginModal] loginWithCode resolved, calling onClose');
       onClose();
     } catch (error) {
       console.error("Error verifying code:", error);

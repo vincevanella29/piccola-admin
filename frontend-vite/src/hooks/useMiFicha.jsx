@@ -51,9 +51,7 @@ export default function useMiFicha(appState, t) {
           })
           .finally(() => { inFlight.delete(cacheKey); });
         inFlight.set(cacheKey, promise);
-        console.log(`Fetching ${key} with params:`, localParams);
         const result = await promise;
-        console.log(`Result:`, result);
         return result;
       } catch (err) {
         setError(t?.(`mificha.error_fetch`, { message: err.message }));

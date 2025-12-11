@@ -61,7 +61,6 @@ export default function useAdminRankings(appState) {
             limit: 100000, // gran límite para traer todo
           }
         );
-        console.log(response);
 
         const rows = response.ranking || [];
         setData(rows);

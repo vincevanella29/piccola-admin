@@ -33,10 +33,12 @@
     "no_image": "Sem imagem",
     "no_name": "Sem nome",
     "ref": "ref",
-    "period_current": "Atual"
+    "period_current": "Atual",
+    "no_description": "Sem descrição disponível."
   },
   "recipes": {
     "title": "Ficha Técnica",
+    "description": "Explore fichas técnicas detalhadas dos seus produtos.",
     "period": "Período",
     "ingredient": "Ingrediente",
     "qty": "Quantidade",

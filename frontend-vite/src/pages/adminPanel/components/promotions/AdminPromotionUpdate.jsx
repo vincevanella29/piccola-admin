@@ -324,8 +324,6 @@ const AdminPromotionUpdate = ({ onUpdate, locations, menus, promotions, isLoadin
   }, [isModalOpen, searchQuery, statusFilter, startDate, endDate]);
 
   const handleSelectPromotion = (promo) => {
-    // Debug: inspeccionar cómo vienen las rules (incluyendo merit_min_wallet) desde el backend
-    console.log('[AdminPromotionUpdate] Selected promo from backend', promo);
     setFormData(mapToFormData(promo));
     setSelectedPromotion(promo);
     setIsModalOpen(false);

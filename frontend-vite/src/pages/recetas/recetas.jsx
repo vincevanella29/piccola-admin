@@ -23,7 +23,6 @@ const Recetas = ({ appState }) => {
     selectedCategory, 
     setSelectedCategory 
   } = useRecipes(appState);
-  console.log('data', data);
   
   const { locations = [], categories = [], menus = [], allLocationMenus = [], mediaMap = {} } = data || {};
 
@@ -43,7 +42,6 @@ const Recetas = ({ appState }) => {
     hasMore,
     loaderRef,
   } = useMenuSearch(allLocationMenus);
-  console.log('menus', selectedProduct);
 
   const [layout, setLayout] = useState('single');
 
@@ -214,7 +212,7 @@ export default Recetas;
 
 export const pageMetadata = {
   path: '/app/analytics/recetas',
-  label: 'menus.label',
+  label: 'menus.recipes.title',
   category: 'analytics.Análisis',
   minRoleLevel: 3,
   maxRoleLevel: 7,
@@ -222,7 +220,7 @@ export const pageMetadata = {
   orderWalletMenu: 2,
   orderFooter: 1,
   locations: ['sidebar', 'header', 'footer', 'walletMenu'],
-  description: 'menus.description',
+  description: 'menus.recipes.description',
   icon: 'FaUtensils',
   isMainPage: false,
   isSearchable: true,

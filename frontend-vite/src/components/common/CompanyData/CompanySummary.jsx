@@ -7,7 +7,6 @@ import VestingSchedule from './Summary/VestingSchedule.jsx';
 import FundAllocation from './Summary/FundAllocation.jsx';
 
 const CompanySummary = ({ tokens, t, language, appState, motionClassName }) => {
-  console.log("tokens", tokens);
   // Accepts an array of tokens and handles selection UI
   const [selectedTab, setSelectedTab] = React.useState(0);
   const { address: walletAddress } = useAccount();

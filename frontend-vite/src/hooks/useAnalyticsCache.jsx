@@ -229,7 +229,6 @@ export default function useAnalyticsCache(appState, cacheKey = 'global') {
             walletAddress: wallet,
             token,
           });
-          console.log("ventas", res);
           const groups = Array.isArray(res?.ventas) ? res.ventas : [];
           for (const g of groups) {
             const dets = Array.isArray(g.details) ? g.details : [];
@@ -363,7 +362,6 @@ export default function useAnalyticsCache(appState, cacheKey = 'global') {
           walletAddress: wallet,
           token,
         });
-        console.log("gastos", res);
 
         const groups = Array.isArray(res?.gastos || res?.data) ? (res.gastos || res.data) : [];
         // OJO: groups ya viene como { [by]: "<grupo>", details: [{fecha, total_cargo, ...}] }

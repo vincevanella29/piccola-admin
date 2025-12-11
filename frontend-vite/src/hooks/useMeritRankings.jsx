@@ -143,7 +143,6 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
         limit: 100000,
       });
       const response = await inflightRankingRef.current;
-      console.log('response', response);
       const rows = response?.ranking || [];
       setData(rows);
       setPagination((prev) => ({
@@ -289,7 +288,6 @@ export default function useMeritRankings(appState, { defaultMonths = 3 } = {}) {
       const res = await getPublicEmployeeMeritHistory(appState, {
         rut: e.rut, wallet: preEmployee.wallet, include_profile: true,
       });
-      console.log('res', res);
 
       // Si el backend no incluyó by_segment/totals, los construimos
       let finalPayload = { ...res };

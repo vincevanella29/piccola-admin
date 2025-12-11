@@ -36,7 +36,6 @@ export async function getGastosTotals({
   if (Array.isArray(include_siglas) && include_siglas.length) {
     params.append('include_siglas', include_siglas.join(','));
   }
-  console.log(params.toString());
   return api({
     method: 'GET',
     endpoint: `/gastos/totals?${params.toString()}`,

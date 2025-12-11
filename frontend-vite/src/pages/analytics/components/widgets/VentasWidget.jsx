@@ -3,8 +3,6 @@ import ResumenWidget from './resumen';
 
 const VentasWidget = ({ data, comparisonData, comparisonType, nonce }) => {
   const resumenes = [...new Set((data || []).map(d => d.series))];
-  console.log('data', data);
-  console.log('comparisonData', comparisonData);
   return (
     <ResumenWidget
       nonce={nonce}
