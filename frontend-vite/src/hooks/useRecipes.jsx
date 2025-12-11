@@ -2,8 +2,33 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { fetchLocations, fetchMenusRecipes, updateLocation as apiUpdateLocation, uploadLocationPhotos as apiUploadLocationPhotos } from '../utils/clubNonnaData';
 import { normalizeLocationsApiResponse } from './useRestaurantUtils';
 
+const CACHE_KEY = 'recipes_data';
+const CACHE_TTL = 60 * 60 * 1; // 1 hora en milisegundos
 const SELECTED_LOCATION_KEY = 'selected_location_recipes';
 const SELECTED_CATEGORY_KEY = 'selected_category_recipes';
+
+const getCachedData = () => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    const { timestamp, data } = JSON.parse(cached);
+    const now = Date.now();
+    if (now - timestamp < CACHE_TTL) return data;
+    return null;
+  } catch (e) {
+    console.error('Error reading recipes cache:', e);
+    return null;
+  }
+};
+
+const saveToCache = (data) => {
+  try {
+    const cacheData = { timestamp: Date.now(), data };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+  } catch (e) {
+    console.error('Error saving recipes cache:', e);
+  }
+};
 
 const getCachedSelectedLocation = () => {
   try {
@@ -61,7 +86,26 @@ const useRecipes = (appState = {}) => {
     if (mountedRef.current) setter(value);
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (forceRefresh = false) => {
+    if (!forceRefresh) {
+      const cachedData = getCachedData();
+      if (cachedData) {
+        setAllLocations(cachedData.locations || []);
+        setAllMenus(cachedData.menus || []);
+        setAllCategories(cachedData.categories || []);
+        setMenuOptions(cachedData.menuOptions || []);
+
+        if (cachedData.locations?.length > 0 && !selectedLocation) {
+          const sortedLocations = [...cachedData.locations].sort((a, b) => Number(a._id) - Number(b._id));
+          setSelectedLocation(sortedLocations[0]);
+          saveSelectedLocation(sortedLocations[0]);
+        }
+
+        setIsLoading(false);
+        return;
+      }
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -91,6 +135,13 @@ const useRecipes = (appState = {}) => {
       setAllMenus(menusdatalist);
       setAllCategories(categories);
       setMenuOptions(menuOptionsRes);
+
+      saveToCache({
+        locations,
+        menus: menusdatalist,
+        categories,
+        menuOptions: menuOptionsRes,
+      });
 
       if (locations.length > 0 && !selectedLocation) {
         const sortedLocations = [...locations].sort((a, b) => Number(a._id) - Number(b._id));
