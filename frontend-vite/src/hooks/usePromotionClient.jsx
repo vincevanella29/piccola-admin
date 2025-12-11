@@ -48,7 +48,6 @@ export function usePromotionClient(appState, t) {
     const ids = Array.from(new Set((segmentTokenIds || []).filter((id) => id !== null && id !== undefined)));
     if (!walletAddress || !provider || ids.length === 0) return;
     try {
-      console.log('[usePromotionClient] fetchMeritBalances -> wallet', walletAddress, 'segments', ids);
       const meritContract = getContractInstance('GlobalMeritocracy', provider);
       const results = await Promise.all(
         ids.map(async (id) => {
@@ -56,7 +55,6 @@ export function usePromotionClient(appState, t) {
             const balanceBase = await meritContract.balanceOf(walletAddress, id);
             const baseStr = balanceBase?.toString ? balanceBase.toString() : String(balanceBase ?? '0');
             const human = toMeritHuman(baseStr);
-            console.log('[usePromotionClient] merit balance raw', { segmentId: id, baseStr, human });
             return { id, base: baseStr, human };
           } catch (e) {
             console.error('Error fetching merit balance for segment', id, e);
@@ -68,7 +66,6 @@ export function usePromotionClient(appState, t) {
       results.forEach(({ id, base, human }) => {
         map[id] = { base, human };
       });
-      console.log('[usePromotionClient] meritBalances map', map);
       setMeritBalances((prev) => ({ ...prev, ...map }));
     } catch (err) {
       console.error('Error fetching merit balances:', err);
@@ -181,17 +178,6 @@ export function usePromotionClient(appState, t) {
       rule._meritBalanceHuman = onchainHuman;
       rule._meritRequiredHuman = requiredHuman;
 
-      console.log('[usePromotionClient] checkRuleMet MERIT_MIN_WALLET', {
-        ruleId: rule.id,
-        promotionId: rule.promotion_id,
-        segmentId,
-        onchainHuman,
-        meritEntry: entry,
-        requiredBase,
-        requiredHuman,
-        met,
-      });
-
       return met;
     }
 
@@ -199,15 +185,6 @@ export function usePromotionClient(appState, t) {
       const meritProgress = rule.merit_progress || {};
       const status = meritProgress.status || 'unknown';
       const met = status === 'fulfilled';
-
-      console.log('[usePromotionClient] checkRuleMet MERIT_RULE_FULFILLED', {
-        ruleId: rule.id,
-        promotionId: rule.promotion_id,
-        merit_rule_name: rule.merit_rule_name,
-        ranking_period: rule.ranking_period,
-        status,
-        progress: meritProgress.progress,
-      });
 
       // Solo marcamos como cumplida la regla si el backend ya la considera fulfilled.
       return met;
@@ -324,8 +301,6 @@ export function usePromotionClient(appState, t) {
       const provider = appState?.provider;
       const response = await fetchActivePromotions({ walletAddress, token });
 
-      console.log('[usePromotionClient] /promotions_claim/active raw response', response);
-
       const tokenAddresses = [...new Set(
         response.promotions.flatMap((promo) =>
           promo.rules
@@ -357,11 +332,6 @@ export function usePromotionClient(appState, t) {
 
       const processedPromos = await Promise.all(
         response.promotions.map(async (promo) => {
-          console.log('[usePromotionClient] Processing promo from backend', {
-            id: promo.id,
-            name: promo.name,
-            rules: promo.rules,
-          });
           const processedRules = promo.rules.map((rule) => {
             if (rule.token_address && rule.amount) {
               const dec = tokenDecimals[rule.token_address] || 18;  // Use pre-fetched, default 18
@@ -425,7 +395,6 @@ export function usePromotionClient(appState, t) {
     appState.setSuccess(t('wallet.processing_transaction'));
     setError(null);
     try {
-      console.log('Claiming promotion:', promotion);
       const provider = appState?.provider;
       const wallet = appState?.account;
       const token = appState?.token;

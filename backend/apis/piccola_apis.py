@@ -23,9 +23,24 @@ COMPANY_ID = int(os.getenv("COMPANY_ID", 1))
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 async def verify_api_key(api_key: str = Security(api_key_header)):
-    token = db.api_tokens.find_one({"token": api_key, "expires_at": {"$gt": datetime.utcnow()}})
+    """Valida un API token considerando dos casos:
+
+    - Tokens con expires_at: deben tener expires_at > ahora.
+    - Tokens sin expires_at (null o campo ausente): se consideran "sin expiración" y válidos.
+    """
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Missing API token")
+
+    now = datetime.utcnow()
+    token = db.api_tokens.find_one({"token": api_key})
     if not token:
         raise HTTPException(status_code=401, detail="Invalid or expired API token")
+
+    expires_at = token.get("expires_at")
+    # Si tiene expires_at y está en el pasado, se considera expirado
+    if expires_at is not None and expires_at <= now:
+        raise HTTPException(status_code=401, detail="Invalid or expired API token")
+
     return token
 
 def verify_signature(wallet: str, plain_data: str, signature: str) -> bool:
@@ -368,7 +383,7 @@ async def redeem_promotion(request: RedeemRequest, token: dict = Depends(verify_
                 }
             }
         )
-        db.promotion_coupons_history.insert_one({
+        history_doc = {
             "coupon_id": str(coupon["_id"]),
             "discount_amount": discount_amount,
             "timestamp": datetime.now(ZoneInfo("America/Santiago")),
@@ -379,9 +394,14 @@ async def redeem_promotion(request: RedeemRequest, token: dict = Depends(verify_
             "validusuario": request.validusuario,
             "validdata": request.validdata,
             "pos_order_id": request.validdata.get("posorderid", ""),
-            "sku": coupon["menu_item_sku"],
             "tipo": request.tipo
-        })
+        }
+
+        # Solo agregar SKU al historial si existe (promos de producto).
+        if "menu_item_sku" in coupon:
+            history_doc["sku"] = coupon["menu_item_sku"]
+
+        db.promotion_coupons_history.insert_one(history_doc)
         return make_json_serializable(response_data)
     except ValueError as e:
         logger.error(f"Validation error redeeming promotion for code {request.codigo}: {str(e)}")

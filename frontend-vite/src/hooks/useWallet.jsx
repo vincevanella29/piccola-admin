@@ -144,7 +144,6 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           permissions_granted: permissionsGranted,
         });
         const res = await appData.fetchUserRole({ accessToken, walletAddress: newAddress.toLowerCase() });
-        console.log("res", res);
         setProfile(res.profile);
         setPermission(res.permissions);
         setAllowed(res.allowed);
@@ -232,7 +231,6 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
         // Autenticado pero sin wallet: consultar rol/perfil usando solo el token (empleados sin wallet)
         if (!walletAddress) {
           const res = await appData.fetchUserRole({ accessToken, walletAddress: null });
-          console.log('res (no wallet)', res);
           setProfile(res.profile);
           setPermission(res.permissions);
           setAllowed(res.allowed);
@@ -260,7 +258,6 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           permissions_granted: permissionsGranted
         });
         const res = await appData.fetchUserRole({ accessToken, walletAddress: walletAddress.toLowerCase() });
-        console.log("res", res);
         setProfile(res.profile);
         setPermission(res.permissions);
         setAllowed(res.allowed);
@@ -354,7 +351,6 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           permissions_granted: permissionsGranted
         });
         const res = await appData.fetchUserRole({ accessToken, walletAddress: walletAddress.toLowerCase() });
-        console.log("res", res);
         setProfile(res.profile);
         setPermission(res.permissions);
         setAllowed(res.allowed);

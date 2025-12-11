@@ -91,7 +91,6 @@ export default function useEmpleadosCache(appState) {
         token,
       });
 
-      console.log("empleados", res);
       const data = Array.isArray(res?.trabajadores || res?.data) ? (res.trabajadores || res.data) : [];
       const count = typeof res?.count === 'number' ? res.count : (res?.total ?? data.length);
 
@@ -220,7 +219,6 @@ export default function useEmpleadosCache(appState) {
         walletAddress: wallet,
         token,
       });
-      console.log(res);
       return res?.data ?? res;
     } catch (e) {
       setError(e);
@@ -279,7 +277,6 @@ export default function useEmpleadosCache(appState) {
         walletAddress: wallet,
         token,
       });
-      console.log(res);
       const items = Array.isArray(res?.sueldos) ? res.sueldos : (res?.data || res || []);
       const count = typeof res?.count === 'number' ? res.count : items.length;
       setSueldosList(items);

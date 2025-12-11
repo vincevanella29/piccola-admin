@@ -36,19 +36,16 @@ const RuleCreate = ({ isLoading, defineRuleFromTemplate, listRuleTemplates, list
   useEffect(() => {
     listRuleTemplates?.()
       .then((res) => {
-        console.log('listRuleTemplates', res);
         setTemplates(Array.isArray(res?.templates) ? res.templates : (Array.isArray(res) ? res : []))
       })
       .catch(console.error);
     listSegments?.()
       .then((res) => {
-        console.log('listSegments', res);
         setSegments(Array.isArray(res?.segments) ? res.segments : (Array.isArray(res?.data?.segments) ? res.data.segments : []))
       })
       .catch(console.error);
     listCatalogs?.()
       .then((res) => {
-        console.log('listCatalogs', res);
         setCatalogs({
           cargos: Array.isArray(res?.cargos) ? res.cargos : (Array.isArray(res?.data?.cargos) ? res.data.cargos : []),
           secciones: Array.isArray(res?.secciones) ? res.secciones : (Array.isArray(res?.data?.secciones) ? res.data.secciones : []),

@@ -66,7 +66,6 @@ export function useGamification(appState, t) {
     const res = await handleApiCall(() => apiListRuleTemplates({ walletAddress: effectiveWallet, token }), { setLoading: false });
     const data = res?.templates || res || [];
     cacheRef.current.templates = { ts: now(), data };
-    console.log('listRuleTemplates', data);
     return data;
   }, [handleApiCall, effectiveWallet, token]);
 
@@ -90,7 +89,6 @@ export function useGamification(appState, t) {
       return { rules: cache.data };
     }
     const res = await apiListMeritRules({ onlyActive, walletAddress: effectiveWallet, token });
-    console.log('listMeritRules', res);
     const items = res?.data?.rules || res?.rules || [];
     setRules(items);
     cacheRef.current.rules = { ts: now(), data: items, lastArgsKey: argsKey };
@@ -135,7 +133,6 @@ export function useGamification(appState, t) {
       () => apiListMeritResults({ ...rest, walletAddress: effectiveWallet, token }),
       { setLoading: true }
     );
-    console.log('listMeritResults', response);
     const items = response?.results || response?.data?.results || [];
     const arr = Array.isArray(items) ? items : [];
     setMeritResults(arr);

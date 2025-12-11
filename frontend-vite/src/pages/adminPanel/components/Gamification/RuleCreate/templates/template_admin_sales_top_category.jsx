@@ -93,9 +93,7 @@ export const adminSalesTopCategoryTemplate = {
 
   // 👇 Componente con selects dependientes y multi-select
   Component: function AdminSalesTopCategoryComponent({ formData, setFormData, errors, t }) {
-    console.log(formData);
     const catalogs = formData?.catalogs || formData?.template_meta?.catalogs || /** desde Step2_Logic */ (formData?.__resolvedTemplate?.catalogs) || {};
-    console.log(catalogs);
 
     const current = useMemo(() => formData?.params || {}, [formData]);
     const setParam = (name, value) =>

@@ -16,7 +16,6 @@ export const timesMetricsLocalTemplate = {
       formData?.template_meta?.catalogs ||
       formData?.__resolvedTemplate?.catalogs ||
       {};
-    console.log(catalogs);
 
     const current = useMemo(() => formData?.params || {}, [formData]);
     const setParam = (name, value) =>

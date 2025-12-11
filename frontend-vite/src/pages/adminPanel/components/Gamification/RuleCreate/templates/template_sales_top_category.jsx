@@ -94,9 +94,7 @@ export const salesTopCategoryTemplate = {
 
   // 👇 Componente con selects dependientes y multi-select
   Component: function SalesTopCategoryComponent({ formData, setFormData, errors, t }) {
-    console.log(formData);
     const catalogs = formData?.catalogs || formData?.template_meta?.catalogs || /** desde Step2_Logic */ (formData?.__resolvedTemplate?.catalogs) || {};
-    console.log(catalogs);
     // Tip: Step2_Logic no inyecta __resolvedTemplate; usamos prop 'catalogs' del resolvedTemplate
     // => este componente recibirá catalogs vía resolvedTemplate (ver patch de Step2_Logic).
 

@@ -85,7 +85,6 @@ export function useEmpresaAdmin(appState, t) {
         throw new Error(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
       }
       const data = await apiListCuentasRefs({ page, limit, q, resumen2, es_operacional, es_cuenta, walletAddress: wallet, token });
-      console.log("listCuentasRefs", data);
       return { items: data?.items || [], total: data?.total || 0 };
     } catch (err) {
       setError(err.message);
@@ -100,7 +99,6 @@ export function useEmpresaAdmin(appState, t) {
         throw new Error(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
       }
       const data = await apiListSucursalesRefs({ page, limit, q, walletAddress: wallet, token });
-      console.log("listSucursalesRefs", data);
       return { items: data?.items || [], total: data?.total || 0 };
     } catch (err) {
       setError(err.message);

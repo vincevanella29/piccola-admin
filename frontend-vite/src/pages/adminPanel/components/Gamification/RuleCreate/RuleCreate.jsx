@@ -46,9 +46,6 @@ const RuleCreate = ({ isLoading, defineRuleFromTemplate, listRuleTemplates, list
       // ### CORRECCIÓN CLAVE AQUÍ ###
       // Se ajusta cómo se accede a `templates` para manejar respuestas anidadas en `.data`
       // y se hace más robusto para los otros casos también.
-      console.log('templatesRes', templatesRes);
-      console.log('segmentsRes', segmentsRes);
-      console.log('catalogsRes', catalogsRes);
       setApiData({
         templates: Array.isArray(templatesRes)
           ? templatesRes
@@ -64,7 +61,6 @@ const RuleCreate = ({ isLoading, defineRuleFromTemplate, listRuleTemplates, list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  console.log('apiData', apiData);
   const selectedTemplate = useMemo(() => 
     apiData.templates.find(t => t.key === formData.selectedTemplateKey) || null
   , [apiData.templates, formData.selectedTemplateKey]);

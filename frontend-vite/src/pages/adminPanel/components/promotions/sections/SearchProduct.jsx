@@ -95,11 +95,15 @@ const SearchProduct = ({
           {/* Scrollable Products */}
           <div className="flex-1 overflow-y-auto px-6 pb-6 pt-2 grid grid-cols-1 gap-4 scrollbar-thin">
             {filteredMenus.length > 0 ? (
-              filteredMenus.map((menu) => {
+              filteredMenus.map((menu, index) => {
                 const { price, isSpecial, schedule } = getCurrentPrice(menu, 'dinein', chileTime, t);
+                const rawKey = menu && (menu._id || menu.codigo);
+                const safeKey = (rawKey !== null && rawKey !== undefined && String(rawKey).length > 0)
+                  ? String(rawKey)
+                  : `search-menu-${index}`;
                 return (
                   <motion.div
-                    key={menu._id || menu.codigo}
+                    key={safeKey}
                     className="flex items-center gap-4 p-3 bg-light-surface/50 dark:bg-dark-surface/50 rounded-lg hover:bg-light-accent/20 dark:hover:bg-dark-accent/20 transition-all duration-300 cursor-pointer"
                     onClick={() => handleSelectProduct(menu)}
                     initial={{ opacity: 0, y: 10 }}

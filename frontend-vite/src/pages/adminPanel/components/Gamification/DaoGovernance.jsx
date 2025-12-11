@@ -190,7 +190,6 @@ const DaoGovernance = ({ appState }) => {
     try {
       const result = await dao.executeProposal({ proposalId: id });
       if (result?.hash) {
-        console.log(result);
         toast.success(`${t('dao.execute_sent') || 'Ejecución enviada con éxito'}. Hash: ${result.hash.slice(0, 10)}...` );
       }
       setTimeout(() => refresh().catch(console.error), 7000);

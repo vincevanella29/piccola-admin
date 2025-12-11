@@ -76,7 +76,6 @@ export function useDaoMeritocracy(appState, t) {
     }
     try {
       const res = await apiBuildCreateSegmentTx({ name, symbol, walletAddress: effectiveWallet, token });
-      console.log('createSegmentViaBackend', res);
       const tx = res?.data?.transaction || res?.transaction;
       if (!tx) throw new Error('TX no recibida del backend');
       const hash = await sendTx(tx, appState);
@@ -138,7 +137,6 @@ export function useDaoMeritocracy(appState, t) {
       throw new Error('Wallet/provider not ready');
     }
     try {
-      console.log('allowDaoInSegment', token_id);
       const res = await apiBuildAllowDaoTx({ tokenId: token_id, walletAddress: effectiveWallet, token });
       const tx = res?.data?.transaction || res?.transaction;
       if (!tx) throw new Error('TX no recibida del backend');
@@ -250,7 +248,6 @@ export function useDaoMeritocracy(appState, t) {
       return { segments: cache.data };
     }
     const res = await apiListMeritSegments({ walletAddress: effectiveWallet, token });
-    console.log('listSegments', res);
     const items = res?.data?.segments || res?.segments || [];
     setSegments(items);
     cacheRef.current.segments = { ts: now(), data: items };
