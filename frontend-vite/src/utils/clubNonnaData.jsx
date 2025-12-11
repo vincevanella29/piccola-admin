@@ -34,6 +34,17 @@ export async function fetchMenus(walletAddress, token) {
   });
 }
 
+export async function fetchMenusRecipes(walletAddress, token) {
+  return api({
+    method: 'GET',
+    endpoint: '/menus_recipes',
+    headers: {
+      'X-Wallet-Address': walletAddress,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 // New function to claim tokens
 export async function fetchClaimTokens({ walletAddress, signature, plainData, token }) {
   return api({

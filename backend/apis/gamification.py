@@ -8,8 +8,8 @@ from utils.web3mongo import w3
 from config.gamification import service as gamification_service
 from config.gamification.models import SegmentDefinition
 
-# ⬇️ NUEVO: import del requisito de nivel admin
-from config.roles.access import require_admin_level
+# ⬇️ Reglas de acceso por nivel de rol
+from config.roles.access import require_admin_level, get_effective_role_level_from_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -40,13 +40,27 @@ class DefineFromTemplatePayload(BaseModel):
     is_active: bool = True
     scope: Optional[Dict[str, Any]] = None
 
-# -------------------- HELPER: enforce admin --------------------
+class _UserSession(BaseModel):
+    permissions: Dict[str, Any] = {}
+
+
+# -------------------- HELPERS DE ACCESO --------------------
 def admin_user(user: Dict[str, Any] = Depends(verify_session)) -> Dict[str, Any]:
-    """
-    Devuelve el user de sesión si y solo si tiene nivel de admin (role level 3/4),
-    lanzando 403 en caso contrario.
-    """
+    """Restringe a niveles 3/4 (admin/subadmin on-chain)."""
     require_admin_level(user, "admin")
+    return user
+
+
+def staff_user(user: Dict[str, Any] = Depends(verify_session)) -> Dict[str, Any]:
+    """Permite cualquier usuario con role_level efectivo 1..7 según permissions.
+
+    Útil para vistas de staff (empleados) que no requieren rol admin on-chain,
+    como la lista de segmentos disponibles.
+    """
+    rl_int = get_effective_role_level_from_user(user or {})
+    if rl_int is None:
+        raise HTTPException(status_code=403, detail="No tienes un nivel de acceso válido para ver esta información.")
+
     return user
 
 # -------------------- ENDPOINTS --------------------
@@ -77,10 +91,24 @@ async def get_merit_results(
     dependencies=[Depends(admin_user)],
 )
 async def plan_batch_merit(body: BatchPlanInput):
-    employees = [
-        {"rut": e.rut, "wallet": w3.to_checksum_address(e.wallet)}
-        for e in body.employees
-    ]
+    # Filtrar solo empleados con wallet EVM válida; ignorar DIDs de Privy u otros formatos
+    employees = []
+    for e in body.employees:
+        wallet_str = (e.wallet or "").strip()
+        # Ignorar explícitamente DIDs u otros identificadores no EVM
+        if not wallet_str or wallet_str.startswith("did:"):
+            logger.info(f"Ignorando empleado sin wallet EVM válida en plan-batch: rut={e.rut}, wallet={wallet_str}")
+            continue
+        try:
+            checksum_wallet = w3.to_checksum_address(wallet_str)
+        except ValueError:
+            logger.info(f"Ignorando empleado con wallet inválida en plan-batch: rut={e.rut}, wallet={wallet_str}")
+            continue
+        employees.append({"rut": e.rut, "wallet": checksum_wallet})
+
+    if not employees:
+        raise HTTPException(status_code=400, detail="No hay empleados con wallet EVM válida para este batch.")
+
     return gamification_service.plan_batch_merit(employees=employees, ym=body.ym)
 
 
@@ -218,7 +246,7 @@ async def build_create_segment_tx(payload: SegmentDefinition, user: dict = Depen
 @router.get(
     "/admin/gamification/segments/list",
     summary="Lista segmentos permitidos para la DAO",
-    dependencies=[Depends(admin_user)],
+    dependencies=[Depends(staff_user)],
 )
 async def list_meritocracy_segments():
     return gamification_service.list_permitted_segments_for_company()

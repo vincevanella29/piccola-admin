@@ -1,13 +1,85 @@
 from __future__ import annotations
 import os
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi import HTTPException
 
 from utils.web3mongo import db, w3
 from .helpers import list_permitted_segments_for_company
 
 logger = logging.getLogger(__name__)
+
+
+# -----------------------------
+# Helpers de ficha de empleados
+# -----------------------------
+LINKS_EMPLEADOS = db.empleados_usuarios
+
+
+def get_employee_profile_by_rut(rut: str) -> Optional[dict]:
+    """Obtiene la ficha de trabajador desde trabajadores_vpn dado un RUT.
+
+    Esta función replica la lógica usada en los endpoints de Mi Ficha para que
+    otros módulos (por ejemplo community_users) puedan reutilizar la misma
+    fuente de verdad del sistema de RRHH.
+    """
+    if not rut:
+        return None
+    or_terms = [{"rut": rut}]
+    try:
+        or_terms.append({"rut": int(rut)})
+    except Exception:
+        pass
+    emp = db.trabajadores_vpn.find_one({"$or": or_terms})
+    if emp and emp.get("_id"):
+        emp["_id"] = str(emp["_id"])
+    return emp
+
+
+def resolve_employee_from_session(user: dict) -> Optional[Dict[str, Any]]:
+    """Intenta resolver la ficha de empleado a partir de la sesión (wallet/sub/email).
+
+    Devuelve un dict con claves {"rut", "emp"} o None si no hay vínculo.
+    """
+    if not user:
+        return None
+    wallet = user.get("wallet")
+    sub = user.get("sub")
+    email = user.get("email")
+    or_terms = []
+    if wallet:
+        or_terms.append({"wallet": wallet})
+    if sub:
+        or_terms.append({"sub": sub})
+    if email:
+        or_terms.append({"email": email})
+    if not or_terms:
+        return None
+    link = LINKS_EMPLEADOS.find_one({"$or": or_terms})
+    if not link:
+        return None
+    rut = str(link.get("rut") or "").strip()
+    if not rut:
+        return None
+    emp = get_employee_profile_by_rut(rut)
+    if not emp:
+        return None
+    return {"rut": rut, "emp": emp}
+
+
+def normalize_employee_birthdate(value: Optional[object]) -> Optional[str]:
+    """Normaliza fecha de nacimiento a string YYYY-MM-DD/ISO cuando viene desde ficha empleados."""
+    if value is None:
+        return None
+    from datetime import datetime as _dt
+
+    if isinstance(value, _dt):
+        return value.date().isoformat()
+    try:
+        # Truncamos a 10 chars por si viene con hora
+        return str(value)[:10]
+    except Exception:
+        return str(value)
 
 def user_profile_summary(wallet: str) -> Dict[str, Any]:
     try:

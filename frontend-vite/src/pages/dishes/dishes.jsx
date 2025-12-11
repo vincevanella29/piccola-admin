@@ -185,7 +185,7 @@ export const pageMetadata = {
   order: 2,
   orderWalletMenu: 2,
   orderFooter: 1,
-  locations: ['sidebar', 'header', 'footer', 'walletMenu'],
+  locations: ['sidebar', 'footer', 'walletMenu'],
   description: 'dishes.description',
   icon: 'FaBrain',
   isMainPage: false,

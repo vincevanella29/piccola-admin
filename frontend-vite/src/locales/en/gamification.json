@@ -132,7 +132,9 @@
     "signing_tx": "Please sign the transaction in your wallet…",
     "tx_success": "Transaction sent! Hash: {{hash}}",
     "db_updated": "Database updated!",
-    "db_update_error": "CRITICAL: TX sent but database could not be updated."
+    "db_update_error": "CRITICAL: TX sent but database could not be updated.",
+    "no_wallet_onchain": "No valid on-chain wallet, not eligible for minting.",
+    "no_valid_wallets": "There are no employees with a valid EVM wallet in this period."
   },
   
   "minter": {

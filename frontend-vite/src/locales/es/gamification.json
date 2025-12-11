@@ -133,7 +133,9 @@
     "signing_tx": "Por favor, firma la transacción en tu wallet…",
     "tx_success": "¡Transacción enviada! Hash: {{hash}}",
     "db_updated": "¡Base de datos actualizada!",
-    "db_update_error": "CRÍTICO: La TX se envió pero no se pudo actualizar la base de datos."
+    "db_update_error": "CRÍTICO: La TX se envió pero no se pudo actualizar la base de datos.",
+    "no_wallet_onchain": "Sin wallet on-chain válida, no elegible para minteo.",
+    "no_valid_wallets": "No hay empleados con wallet EVM válida en este período."
   },
   
   "minter": {

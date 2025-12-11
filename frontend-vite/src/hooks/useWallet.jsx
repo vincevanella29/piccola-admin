@@ -486,15 +486,18 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
     } catch (err) {
       setError(t('wallet.error_in_logout', { error: err?.message || err?.toString() }));
     } finally {
+      // Después de logout dejamos todos los datos de wallet limpios,
+      // pero marcamos isWalletDataReady en true para que la UI no se quede
+      // bloqueada en loaders que dependen de este flag.
       setAccount(null);
       setProfile(null);
       setRoleLevel(-1);
       setIsAuthenticated(false);
-      setIsWalletDataReady(false);
+      setIsWalletDataReady(true);
       hasAuthenticatedRef.current = false;
       pendingWalletRef.current = null;
     }
-  }, [logout, disconnect]);
+  }, [logout, disconnect, t]);
 
   const signMessage = useCallback(
     async (message) => {

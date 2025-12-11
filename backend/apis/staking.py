@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 CHAIN_ID = int(os.getenv('CHAIN_ID'))
+CLAIM_COOLDOWN_SECONDS = 24 * 60 * 60
 
 
 def serialize_stake_data(stake):
@@ -41,23 +42,16 @@ def make_json_serializable(obj):
 @router.post("/staking/stake")
 async def stake(request: Request, user: dict = Depends(verify_session)):
     """
-    Recibe datos firmados del frontend para realizar stake en el contrato.
-    Valida la firma y construye la transacción para que el frontend la firme y envíe.
+    Recibe datos del frontend para realizar stake en el contrato.
+    Construye la transacción para que el frontend la firme y envíe.
     """
     try:
         data = await request.json()
         encodedData = data.get("encodedData")
-        signature = data.get("signature")
-        plainData = data.get("plainData")
         wallet = data.get("wallet")
         # Validar que la wallet corresponde al usuario autenticado
-        if user["wallet"].lower() != wallet.lower():
+        if not wallet or user["wallet"].lower() != wallet.lower():
             raise HTTPException(status_code=403, detail="La wallet no coincide con la sesión")
-        # Verificar que la firma corresponde al wallet
-        message = encode_defunct(text=plainData)
-        recovered = w3.eth.account.recover_message(message, signature=signature)
-        if recovered.lower() != wallet.lower():
-            raise HTTPException(status_code=400, detail="La firma no corresponde al wallet")
         # Convertir wallet a checksum address antes de cualquier uso con web3
         wallet = w3.to_checksum_address(wallet)
         # Construir la transacción usando el encodedData que viene del frontend
@@ -81,23 +75,16 @@ async def stake(request: Request, user: dict = Depends(verify_session)):
 @router.post("/staking/claim_rewards")
 async def claim_rewards(request: Request, user: dict = Depends(verify_session)):
     """
-    Recibe datos firmados del frontend para claimRewards en el contrato.
-    Valida la firma y construye la transacción para que el frontend la firme y envíe.
+    Recibe datos del frontend para claimRewards en el contrato.
+    Construye la transacción para que el frontend la firme y envíe.
     """
     try:
         data = await request.json()
         encodedData = data.get("encodedData")
-        signature = data.get("signature")
-        plainData = data.get("plainData")
         wallet = data.get("wallet")
         # Validar que la wallet corresponde al usuario autenticado
-        if user["wallet"].lower() != wallet.lower():
+        if not wallet or user["wallet"].lower() != wallet.lower():
             raise HTTPException(status_code=403, detail="La wallet no coincide con la sesión")
-        # Verificar que la firma corresponde al wallet
-        message = encode_defunct(text=plainData)
-        recovered = w3.eth.account.recover_message(message, signature=signature)
-        if recovered.lower() != wallet.lower():
-            raise HTTPException(status_code=400, detail="La firma no corresponde al wallet")
         # Convertir wallet a checksum address antes de cualquier uso con web3
         wallet = w3.to_checksum_address(wallet)
         # Construir la transacción usando el encodedData que viene del frontend
@@ -120,23 +107,16 @@ async def claim_rewards(request: Request, user: dict = Depends(verify_session)):
 @router.post("/staking/unstake")
 async def unstake(request: Request, user: dict = Depends(verify_session)):
     """
-    Recibe datos firmados del frontend para realizar unstake en el contrato.
-    Valida la firma y construye la transacción para que el frontend la firme y envíe.
+    Recibe datos del frontend para realizar unstake en el contrato.
+    Construye la transacción para que el frontend la firme y envíe.
     """
     try:
         data = await request.json()
         encodedData = data.get("encodedData")
-        signature = data.get("signature")
-        plainData = data.get("plainData")
         wallet = data.get("wallet")
         # Validar que la wallet corresponde al usuario autenticado
-        if user["wallet"].lower() != wallet.lower():
+        if not wallet or user["wallet"].lower() != wallet.lower():
             raise HTTPException(status_code=403, detail="La wallet no coincide con la sesión")
-        # Verificar que la firma corresponde al wallet
-        message = encode_defunct(text=plainData)
-        recovered = w3.eth.account.recover_message(message, signature=signature)
-        if recovered.lower() != wallet.lower():
-            raise HTTPException(status_code=400, detail="La firma no corresponde al wallet")
         # Convertir wallet a checksum address
         wallet = w3.to_checksum_address(wallet)
         # Construir la transacción usando el encodedData
@@ -179,7 +159,6 @@ async def get_staking_last_updated():
 
 @router.get("/staking/company-data/{company_id}")
 async def get_company_staking_data(company_id: int):
-    logger.info(f"[get_company_staking_data] company_id: {company_id}")
     """
     Obtiene TODOS los datos de staking para una sola compañía (todas las seasons/años),
     con pools, datos de la compañía, Governance Token, Utility Token y total de rewards.
@@ -299,10 +278,19 @@ async def get_company_staking_data(company_id: int):
             args = ev.get("args", {})
             user = args.get("user", "").lower()
             pool_key = str(args.get("poolIndex")) if "poolIndex" in args else str(args.get("durationDays"))
-            # Usar timestamp principal, o el del raw_log si existe
+            # Usar timestamp del documento, luego raw_log, y como fallback el timestamp del bloque
             claim_timestamp = ev.get("timestamp")
             if not claim_timestamp:
-                claim_timestamp = ev.get("raw_log", {}).get("timestamp", None)
+                claim_timestamp = ev.get("raw_log", {}).get("timestamp")
+            if not claim_timestamp:
+                try:
+                    block_number = ev.get("blockNumber") or ev.get("raw_log", {}).get("blockNumber")
+                    if block_number is not None:
+                        block = w3.eth.get_block(block_number)
+                        claim_timestamp = int(block.get("timestamp", 0))
+                except Exception as e:
+                    logger.warning(f"[get_company_staking_data] No se pudo obtener timestamp de bloque para claim: {e}")
+                    claim_timestamp = None
             claim_data = {
                 "pool_key": pool_key,
                 "amount": str(args.get("amount")),
@@ -312,6 +300,26 @@ async def get_company_staking_data(company_id: int):
             }
             claims.setdefault(user, []).append(claim_data)
 
+        # Estado de cooldown por usuario y pool (para que el front no tenga que definir la lógica)
+        user_claims_status = {}
+        now_ts = int(time.time())
+        for user, user_claims_list in claims.items():
+            per_pool = {}
+            for c in user_claims_list:
+                pool_key = str(c.get("pool_key"))
+                ts = c.get("timestamp") or 0
+                existing = per_pool.get(pool_key)
+                if existing is None or ts > existing.get("last_claim_timestamp", 0):
+                    cooldown_ends_at = ts + CLAIM_COOLDOWN_SECONDS if ts else None
+                    is_in_cooldown = cooldown_ends_at is not None and cooldown_ends_at > now_ts
+                    per_pool[pool_key] = {
+                        "pool_key": pool_key,
+                        "last_claim_timestamp": ts,
+                        "cooldown_ends_at": cooldown_ends_at,
+                        "is_in_cooldown": is_in_cooldown,
+                    }
+            user_claims_status[user] = list(per_pool.values())
+
         last_updated = max([s.get('last_updated', 0) for s in stakings], default=int(time.time()))
         response = {
             "stakings": stakings,
@@ -319,9 +327,9 @@ async def get_company_staking_data(company_id: int):
             "all_staked_events": [serialize_stake_data(ev) for ev in staked_events],
             "all_unstaked_events": [serialize_stake_data(ev) for ev in unstaked_events],
             "claims": claims,
+            "user_claims_status": user_claims_status,
             "last_updated": last_updated
         }
-        logger.info(f"[get_company_staking_data] Response: {response}")
         return JSONResponse(content=make_json_serializable(response))
 
     except Exception as e:

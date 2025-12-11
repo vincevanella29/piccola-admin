@@ -3,10 +3,20 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from utils.auth.session import verify_session
-from config.roles.access import require_admin_level
+from config.roles.access import require_admin_level, get_effective_role_level_from_user
+from config.roles.access_gastos import (
+    get_perms_from_user as get_gastos_perms_from_user,
+    allowed_sucursales_filter,
+    resolve_siglas_to_sucursales,
+)
 from utils.web3mongo import db
 from utils.r2_upload import upload_to_r2
+from utils.bot.common.filters import (
+    is_worker_in_sales_kpis,
+    apply_access_filters_for_product_like_intent,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -40,20 +50,6 @@ class UpdateLocationResponse(BaseModel):
 class PhotoUploadResponse(BaseModel):
     urls: List[str]
     error: Optional[str] = None
-
-@router.get("/locations", response_model=LocationsResponse)
-async def get_locations():
-    """
-    Fetch location data from MongoDB, returning raw documents.
-    No session verification required.
-    """
-    try:
-        locations = list(db.locations.find({}, {}))
-        logger.info(f"Fetched {len(locations)} locations")
-        return LocationsResponse(locations=locations, error=None)
-    except Exception as e:
-        logger.error(f"Unexpected error in get_locations: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching locations: {str(e)}")
 
 
 @router.get("/menus", response_model=MenusResponse)
@@ -197,29 +193,109 @@ async def get_menus(user: dict = Depends(verify_session)):
         raise HTTPException(status_code=500, detail=f"Error fetching menus: {str(e)}")
 
 
-@router.patch("/locations/{location_id}", response_model=UpdateLocationResponse)
-async def update_location(location_id: str, payload: UpdateLocationRequest, user: dict = Depends(verify_session)):
+@router.get("/locations", response_model=LocationsResponse)
+async def get_locations(user: dict = Depends(verify_session)):
+    """Devuelve locations filtradas por permisos de sucursales.
+
+    - role_level 1–5: ve todas las locations.
+    - role_level 6:   sucursales según allowed_sucursales_filter (como gastos).
+    - role_level 7:   sólo la sucursal de su ficha (own_id_sucursal).
     """
-    Actualiza campos de una location. Requiere nivel de rol 3, 4 o 5.
-    Campos admitidos: capacidad_personas, cantidad_mesas, cantidad_sillas, descripcion, media_urls.
-    """
-    require_admin_level(user, "admin")
+    logger.info(f"get_locations: user={user}")
     try:
-        update_doc = {k: v for k, v in payload.dict().items() if v is not None}
-        update_doc["updated_at"] = datetime.utcnow().isoformat()
-        res = db.locations.find_one_and_update(
-            {"_id": location_id},
-            {"$set": update_doc},
-            return_document=True
-        )
-        if not res:
-            raise HTTPException(status_code=404, detail="Local no encontrado")
-        return UpdateLocationResponse(location=res, error=None)
-    except HTTPException:
-        raise
+        rl_int = get_effective_role_level_from_user(user or {})
+        logger.info(f"get_locations: rl_int={rl_int}")
+
+        # Niveles 1–5: sin filtro (todas las locations)
+        if rl_int is None or rl_int <= 5:
+            query = {}
+        else:
+            perms_full = (user or {}).get("permissions") or {}
+            logger.info(f"get_locations: rl_int={rl_int}, perms_full={perms_full}")
+
+            if rl_int == 7:
+                # lvl 7: sucursal/es desde la ficha (trabajadores_vpn) usando el rut
+                rut_value = perms_full.get("rut")
+                vpn_doc = None
+                if rut_value is not None:
+                    candidates = []
+                    if isinstance(rut_value, int):
+                        candidates = [{"rut": rut_value}, {"rut": str(rut_value)}]
+                    elif isinstance(rut_value, str):
+                        r = rut_value.strip()
+                        candidates = [{"rut": r}]
+                        try:
+                            candidates.append({"rut": int(r)})
+                        except Exception:
+                            pass
+                    else:
+                        try:
+                            candidates.append({"rut": int(rut_value)})
+                        except Exception:
+                            pass
+                        candidates.append({"rut": str(rut_value)})
+
+                    for q in candidates:
+                        found = db.trabajadores_vpn.find_one(q)
+                        if found:
+                            vpn_doc = found
+                            break
+
+                sucursal_code = None
+                logger.info(f"get_locations: vpn_doc={vpn_doc}")
+                if vpn_doc:
+                    sucursal_code = (vpn_doc.get("sucursal") or "").strip()
+
+                if sucursal_code:
+                    try:
+                        mapping = resolve_siglas_to_sucursales([sucursal_code])
+                        allowed_ids = {
+                            int(p["id_sucursal"])
+                            for pairs in mapping.values()
+                            for p in pairs
+                            if p.get("id_sucursal") is not None
+                        }
+                    except Exception:
+                        allowed_ids = set()
+                else:
+                    allowed_ids = set()
+            else:
+                # lvl 6 (u otros >=6 no 7): usar reglas de gastos
+                perms = get_gastos_perms_from_user(user or {})
+                allowed_ids = allowed_sucursales_filter(perms)
+
+            if allowed_ids is None:
+                # Acceso global a sucursales/empresas
+                query = {}
+            elif not allowed_ids:
+                # Sin acceso efectivo a ninguna sucursal
+                return LocationsResponse(locations=[], error=None)
+            else:
+                # Mapear id_sucursal -> permalink_slug de location
+                try:
+                    cursor = db.empresas.aggregate([
+                        {"$unwind": "$sucursales"},
+                        {"$match": {"sucursales.id_sucursal": {"$in": list(allowed_ids)}}},
+                        {"$project": {
+                            "_id": 0,
+                            "slug": {"$ifNull": ["$sucursales.location.permalink_slug", None]},
+                        }},
+                    ])
+                    slugs = {str(d.get("slug")) for d in cursor if d.get("slug")}
+                except Exception:
+                    slugs = set()
+
+                if not slugs:
+                    return LocationsResponse(locations=[], error=None)
+
+                query = {"permalink_slug": {"$in": list(slugs)}}
+
+        locations = list(db.locations.find(query, {}))
+        logger.info(f"Fetched {len(locations)} locations with filter={query}")
+        return LocationsResponse(locations=locations, error=None)
     except Exception as e:
-        logger.error(f"Unexpected error in update_location: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error actualizando local: {str(e)}")
+        logger.error(f"Unexpected error in get_locations: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching locations: {str(e)}")
 
 
 @router.post("/locations/{location_id}/photos", response_model=PhotoUploadResponse)
@@ -245,10 +321,350 @@ async def upload_location_photos(location_id: str, files: List[UploadFile] = Fil
         if uploaded_urls:
             db.locations.update_one(
                 {"_id": location_id},
-                {"$push": {"media_urls": {"$each": uploaded_urls}}, "$set": {"updated_at": datetime.utcnow().isoformat()}},
+                {
+                    "$push": {"media_urls": {"$each": uploaded_urls}},
+                    "$set": {"updated_at": datetime.utcnow().isoformat()},
+                },
             )
 
         return PhotoUploadResponse(urls=uploaded_urls, error=None)
     except Exception as e:
         logger.error(f"Unexpected error in upload_location_photos: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error subiendo fotos: {str(e)}")
+
+
+@router.get("/menus_recipes", response_model=MenusResponse)
+async def get_menus_recipes(user: dict = Depends(verify_session)):
+    """
+    Igual que /menus, pero adjunta la última receta disponible de cada producto
+    en el campo `recipe`.
+
+    Control de acceso:
+    - Solo role_level 1..7.
+    - Para role_level 7, solo si aparece en KPIs de ventas (garzón); cocina NO ve recetas.
+    """
+    perms = (user or {}).get("permissions") or {}
+    role_level_int = get_effective_role_level_from_user(user or {})
+
+    if role_level_int is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso para ver esta información (role_level inválido).",
+        )
+
+    # Período actual YYYYMM para distinguir lvl 7 garzón vs cocina en el scoping
+    tz = ZoneInfo("America/Santiago")
+    now = datetime.now(tz)
+    period_ym = now.strftime("%Y%m")
+
+    try:
+        # Cargar colecciones base
+        menus = list(db.menus.find({}))
+        categories = list(db.categories.find({}))
+        menu_options = list(db.menu_options.find({}))
+
+        # -------- Aplicar reglas de acceso igual que el bot (centros / lvl7) --------
+        # Usamos el helper global del bot para intents tipo productos/menus.
+        # Armamos un spec mínimo (sin NLP) solo para que resuelva include_codigos.
+        base_spec = {
+            "key": "menus",
+            "filters": {},  # sin filtros previos de NLP
+        }
+
+        # Si es lvl7, ya sabemos si es garzón o cocina por is_worker_in_sales_kpis arriba.
+        # Replicamos la lógica del bot: si es garzón, NO pasamos period_ym; si es cocina, sí.
+        is_lvl7 = role_level_int == 7
+        try:
+            is_lvl7_garzon = bool(is_worker_in_sales_kpis(period_ym, perms)) if is_lvl7 else False
+        except Exception:
+            is_lvl7_garzon = False
+
+        scoped = apply_access_filters_for_product_like_intent(
+            "menus",
+            base_spec,
+            perms or {},
+            role_level_int,
+            None if is_lvl7_garzon else period_ym,
+        )
+
+        filters_after = (scoped or {}).get("filters") or {}
+        allowed_codes = {str(x).upper() for x in (filters_after.get("include_codigos") or [])}
+        lvl7_denied = bool(filters_after.get("_lvl7_denied"))
+
+        # Para nivel 7 cocina (no garzón), reforzamos el scope por centros
+        # SÓLO cuando hay allowed_codes definidos. Si _lvl7_denied viene
+        # explícito o no hay códigos, igual dejamos pasar, pero confiando en el
+        # scope de sucursal aplicado antes.
+        if is_lvl7 and not is_lvl7_garzon and allowed_codes:
+            def _code_allowed(m):
+                c = str(m.get("codigo") or "").upper().strip()
+                return c and c in allowed_codes
+
+            menus = [m for m in menus if _code_allowed(m)]
+
+        # -------- Agregar solo cantidades de venta (sin montos) --------
+        # Reutilizamos la misma lógica de periodos que /menus, pero sólo traemos "cantidad".
+        try:
+            mes = int(now.strftime("%m"))
+            anio = int(now.strftime("%Y"))
+        except Exception:
+            mes, anio = 1, int(period_ym[:4]) if period_ym and len(period_ym) >= 4 else 1970
+
+        periodo_actual = period_ym
+        if mes == 1:
+            periodo_anterior = f"{anio-1}12"
+            periodo_antepasado = f"{anio-1}11"
+        elif mes == 2:
+            periodo_anterior = f"{anio}01"
+            periodo_antepasado = f"{anio-1}12"
+        else:
+            periodo_anterior = f"{anio}{str(mes-1).zfill(2)}"
+            periodo_antepasado = f"{anio}{str(mes-2).zfill(2)}"
+
+        periodo_anio_anterior = f"{anio-1}{str(mes).zfill(2)}"
+        if mes == 1:
+            periodo_anterior_anio_anterior = f"{anio-2}12"
+        else:
+            periodo_anterior_anio_anterior = f"{anio-1}{str(mes-1).zfill(2)}"
+
+        periodos = [
+            periodo_actual,
+            periodo_anterior,
+            periodo_antepasado,
+            periodo_anio_anterior,
+            periodo_anterior_anio_anterior,
+        ]
+
+        # Códigos de los menús actualmente visibles (tras filtros de acceso)
+        codigos_menu = set()
+        for m in menus:
+            cod = m.get("codigo")
+            if cod:
+                codigos_menu.add(str(cod).strip())
+
+        sales_idx = {}
+        if codigos_menu:
+            # Scoping por sucursal/centro igual que el bot
+            include_siglas = [str(x).upper() for x in (filters_after.get("include_siglas") or [])]
+
+            # Helper para obtener rango de fechas (1..hoy) para un periodo YYYYMM
+            def _date_range_for_period(p: str):
+                try:
+                    y = int(str(p)[:4])
+                    m = int(str(p)[4:6])
+                except Exception:
+                    return None, None
+                # día actual del mes, acotado al último día razonable
+                try:
+                    today_day = now.day
+                except Exception:
+                    today_day = 28
+                # último día del mes (aprox; suficiente para agrupar por rango)
+                if m in (1, 3, 5, 7, 8, 10, 12):
+                    last_day = 31
+                elif m == 2:
+                    last_day = 29
+                else:
+                    last_day = 30
+                end_day = max(1, min(today_day, last_day))
+                start_str = f"{y:04d}-{m:02d}-01"
+                end_str = f"{y:04d}-{m:02d}-{end_day:02d}"
+                return start_str, end_str
+
+            # Para cada periodo, agregamos cantidades desde ventas_producto_dia_hora_cprodu
+            period_map = {
+                periodo_actual: periodo_actual,
+                periodo_anterior: periodo_anterior,
+                periodo_antepasado: periodo_antepasado,
+                periodo_anio_anterior: periodo_anio_anterior,
+                periodo_anterior_anio_anterior: periodo_anterior_anio_anterior,
+            }
+
+            for periodo in period_map.values():
+                start_str, end_str = _date_range_for_period(periodo)
+                if not start_str or not end_str:
+                    continue
+
+                match = {
+                    "codigo": {"$in": list(codigos_menu)},
+                    "fecha": {"$gte": start_str, "$lte": end_str},
+                }
+
+                # lvl 6 y lvl 7 garzón: filtrar por sucursal/local via include_siglas
+                try:
+                    rl_int = int(role_level_int) if role_level_int is not None else None
+                except Exception:
+                    rl_int = None
+
+                if include_siglas and rl_int is not None and rl_int >= 6:
+                    match["local_norm"] = {"$in": include_siglas}
+
+                try:
+                    pipeline = [
+                        {"$match": match},
+                        {"$group": {"_id": "$codigo", "cantidad": {"$sum": "$cantidad"}}},
+                    ]
+                    docs = list(db.ventas_producto_dia_hora_cprodu.aggregate(pipeline))
+                except Exception:
+                    docs = []
+
+                for doc in docs:
+                    cod = str(doc.get("_id") or "").strip()
+                    if not cod:
+                        continue
+                    if cod not in sales_idx:
+                        sales_idx[cod] = {}
+                    sales_idx[cod][periodo] = doc.get("cantidad")
+
+        # -------- Normalizar menús (sin rentabilidad ni montos) --------
+        for menu in menus:
+            if not menu.get("id") and menu.get("_id"):
+                menu["id"] = str(menu["_id"])
+            elif not menu.get("id"):
+                menu["id"] = ""
+            menu.pop("_id", None)
+            if menu.get("created_at") and hasattr(menu["created_at"], "isoformat"):
+                menu["created_at"] = menu["created_at"].isoformat()
+            if menu.get("updated_at") and hasattr(menu["updated_at"], "isoformat"):
+                menu["updated_at"] = menu["updated_at"].isoformat()
+            # IMPORTANTE: NO agregamos ni devolvemos 'rentabilidad' ni montos calculados aquí.
+            # Sólo cantidades de venta por periodo, sin valores monetarios.
+
+            cod_norm = str(menu.get("codigo") or "").strip()
+            if cod_norm and cod_norm in sales_idx:
+                by_period = sales_idx.get(cod_norm, {})
+                menu["sales_units"] = {
+                    "actual": by_period.get(periodo_actual),
+                    "anterior": by_period.get(periodo_anterior),
+                    "antepasado": by_period.get(periodo_antepasado),
+                    "anio_anterior": by_period.get(periodo_anio_anterior),
+                    "anterior_anio_anterior": by_period.get(periodo_anterior_anio_anterior),
+                }
+            else:
+                menu["sales_units"] = {
+                    "actual": None,
+                    "anterior": None,
+                    "antepasado": None,
+                    "anio_anterior": None,
+                    "anterior_anio_anterior": None,
+                }
+
+        # Normalizar categorías y quedarnos sólo con las que tienen menús visibles
+        # Primero normalizamos ids de categorías
+        for cat in categories:
+            if not cat.get("id") and cat.get("_id"):
+                cat["id"] = str(cat["_id"])
+            elif not cat.get("id"):
+                cat["id"] = ""
+            cat.pop("_id", None)
+            if cat.get("created_at") and hasattr(cat["created_at"], "isoformat"):
+                cat["created_at"] = cat["created_at"].isoformat()
+            if cat.get("updated_at") and hasattr(cat["updated_at"], "isoformat"):
+                cat["updated_at"] = cat["updated_at"].isoformat()
+
+        # Conjunto de ids de menús realmente visibles después de TODOS los filtros
+        visible_menu_ids = {str(m.get("id") or "") for m in menus if m.get("id")}
+
+        # Filtrar categorías: sólo las que tengan al menos un menu_id dentro de los menús visibles
+        if visible_menu_ids:
+            filtered_categories = []
+            for cat in categories:
+                raw_menu_ids = cat.get("menu_ids") or []
+                cat_menu_ids = {str(x) for x in raw_menu_ids}
+                if not cat_menu_ids:
+                    continue
+                if visible_menu_ids.intersection(cat_menu_ids):
+                    filtered_categories.append(cat)
+            categories = filtered_categories
+
+        # Normalizar opciones de menú
+        for opt in menu_options:
+            if not opt.get("id") and opt.get("_id"):
+                opt["id"] = str(opt["_id"])
+            elif not opt.get("id"):
+                opt["id"] = ""
+            opt.pop("_id", None)
+            if opt.get("created_at") and hasattr(opt["created_at"], "isoformat"):
+                opt["created_at"] = opt["created_at"].isoformat()
+            if opt.get("updated_at") and hasattr(opt["updated_at"], "isoformat"):
+                opt["updated_at"] = opt["updated_at"].isoformat()
+
+        # -------- Adjuntar recetas (último mesano por código) --------
+        codes = sorted(
+            {str(m.get("codigo") or "").strip() for m in menus if m.get("codigo")}
+        )
+        recipes_by_code = {}
+
+        for code in codes:
+            if not code:
+                continue
+            try:
+                latest_cur = (
+                    db.recetas_productos.find(
+                        {"producto_codigo": code}, {"mesano": 1}
+                    )
+                    .sort("mesano", -1)
+                    .limit(1)
+                )
+                latest_doc = next(iter(latest_cur), None)
+            except Exception:
+                latest_doc = None
+
+            if not latest_doc or not latest_doc.get("mesano"):
+                continue
+
+            use_mesano = str(latest_doc.get("mesano"))
+            try:
+                cur = db.recetas_productos.find(
+                    {"producto_codigo": code, "mesano": use_mesano}
+                ).sort("linea", 1)
+            except Exception:
+                continue
+
+            recipe_rows = []
+            for rr in cur:
+                ing = str(
+                    rr.get("ingrediente_nombre")
+                    or rr.get("ingrediente_codigo")
+                    or ""
+                ).strip()
+                qty = rr.get("cantidad_ingrediente")
+                unit = str(
+                    rr.get("u_medida_compra") or rr.get("u_medida_base") or ""
+                ).strip()
+                pct = rr.get("porcentaje_linea")
+                qty_text = (
+                    f"{qty:.3f}"
+                    if isinstance(qty, (int, float))
+                    else str(qty).strip()
+                    if qty is not None
+                    else ""
+                )
+                row = {
+                    "ingredient": ing,
+                    "qty_text": qty_text,
+                    "unit": unit,
+                }
+                if isinstance(pct, (int, float)):
+                    row["pct"] = round(float(pct), 1)
+                recipe_rows.append(row)
+
+            if recipe_rows:
+                recipes_by_code[code] = {"mesano": use_mesano, "rows": recipe_rows}
+
+        for menu in menus:
+            code = str(menu.get("codigo") or "").strip()
+            if code and code in recipes_by_code:
+                menu["recipe"] = recipes_by_code[code]
+
+        return MenusResponse(
+            menus=menus, categories=categories, menu_options=menu_options, error=None
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_menus_recipes: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching menus with recipes: {str(e)}",
+        )

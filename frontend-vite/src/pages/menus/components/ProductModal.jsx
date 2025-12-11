@@ -1,272 +1,293 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { motion, LayoutGroup } from 'framer-motion';
-import { FaTimes } from 'react-icons/fa';
-import { Tooltip as ReactTooltip } from 'react-tooltip';
+// src/pages/menus/components/ProductModal.jsx
+import React, { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FaTimes, FaChartLine, FaBoxOpen, FaDollarSign, FaPercentage, FaArrowUp, FaArrowDown, FaMinus, FaInfoCircle } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { getCurrentPrice } from '../../../hooks/useRestaurantUtils';
+import { Tooltip as ReactTooltip } from 'react-tooltip';
 
+// --- Utility Functions ---
 const isNum = (n) => typeof n === 'number' && isFinite(n);
-const fmtCL = (n) => (isNum(n) ? n.toLocaleString('es-CL') : '—');
-const fmtMoney = (n, symbol = '$') => (isNum(n) ? `${symbol}${n.toLocaleString('es-CL')}` : '—');
-const pct = (num, den) => (isNum(num) && isNum(den) && den !== 0 ? (num / Math.abs(den)) : null);
-const pctText = (v, digits = 0) => (isNum(v) ? `${Math.round(v * 100)}%` : '—');
-const delta = (curr, prev) => (isNum(curr) && isNum(prev) && prev !== 0 ? (curr - prev) / Math.abs(prev) : null);
+const fmtMoney = (n, symbol = '$') => (isNum(n) ? `${symbol}${Math.round(n).toLocaleString('es-CL')}` : '—');
+const fmtNum = (n) => (isNum(n) ? n.toLocaleString('es-CL') : '—');
+const pct = (num, den) => (isNum(num) && isNum(den) && den !== 0 ? (num / den) * 100 : 0);
 
-const TinyTrend = ({ d }) => {
-  if (!isNum(d)) return <span className="text-[10px] text-gray-500">—</span>;
-  const p = Math.round(d * 100);
-  const up = p > 0, eq = p === 0;
-  const color = eq ? 'text-gray-500' : up ? 'text-emerald-600' : 'text-red-600';
-  const arrow = eq ? '•' : up ? '▲' : '▼';
-  return <span className={`text-[10px] font-semibold ${color}`}>{arrow} {Math.abs(p)}%</span>;
-};
+// --- Sub-Components ---
 
-const Cell = ({ label, tip, value, deltaVal, uid }) => {
-  const tid = `tt-${uid}-${label}`;
+const TrendBadge = ({ current, previous, inverse = false }) => {
+  if (!isNum(current) || !isNum(previous) || previous === 0) return <span className="text-gray-400 text-xs">—</span>;
+  
+  const diff = current - previous;
+  const percentage = (diff / Math.abs(previous)) * 100;
+  const isPositive = percentage > 0;
+  const isNeutral = percentage === 0;
+  
+  // Logic: Higher sales/margin is good (green), Higher cost is bad (red) - unless inverse
+  const isGood = inverse ? !isPositive : isPositive;
+  
+  const colorClass = isNeutral 
+    ? 'text-gray-500 bg-gray-100 dark:bg-gray-800' 
+    : isGood 
+      ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' 
+      : 'text-red-600 bg-red-50 dark:bg-red-900/20';
+
+  const Icon = isNeutral ? FaMinus : isPositive ? FaArrowUp : FaArrowDown;
+
   return (
-    <div className="flex items-center justify-between gap-2 text-[11px]">
-      <span
-        className="text-gray-500"
-        {...(tip ? { 'data-tooltip-id': tid, 'data-tooltip-content': tip } : {})}
-      >
-        {label}
-      </span>
-      {tip && <ReactTooltip id={tid} place="top" />}
-      <div className="flex items-center gap-2">
-        <span className="font-semibold">{value}</span>
-        {deltaVal !== undefined && <TinyTrend d={deltaVal} />}
-      </div>
+    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${colorClass}`}>
+      <Icon size={8} />
+      <span>{Math.abs(percentage).toFixed(1)}%</span>
     </div>
   );
 };
 
+const MetricCard = ({ label, value, subValue, trend, icon: Icon, color = "blue", tooltip }) => {
+  const colorMap = {
+    blue: "text-blue-500 bg-blue-50 dark:bg-blue-900/20",
+    green: "text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20",
+    purple: "text-purple-500 bg-purple-50 dark:bg-purple-900/20",
+    orange: "text-orange-500 bg-orange-50 dark:bg-orange-900/20",
+  };
+
+  return (
+    <div className="flex flex-col p-4 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 shadow-sm relative overflow-hidden group hover:border-light-border/40 transition-all">
+      <div className="flex justify-between items-start mb-2">
+        <div className={`p-2 rounded-lg ${colorMap[color]} transition-colors`}>
+          <Icon size={16} />
+        </div>
+        {trend}
+      </div>
+      <div className="mt-auto">
+        <p className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-1">
+          {label}
+          {tooltip && (
+             <FaInfoCircle 
+               className="text-gray-300 hover:text-gray-500 cursor-help" 
+               size={10} 
+               data-tooltip-id={`tt-${label}`} 
+               data-tooltip-content={tooltip}
+             />
+          )}
+        </p>
+        <h3 className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary mt-0.5 tracking-tight">
+          {value}
+        </h3>
+        {subValue && (
+          <p className="text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary mt-1 font-mono">
+            {subValue}
+          </p>
+        )}
+      </div>
+      {tooltip && <ReactTooltip id={`tt-${label}`} place="top" className="z-50 text-xs" />}
+    </div>
+  );
+};
+
+const PeriodTab = ({ label, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`
+      px-4 py-2 text-xs font-bold rounded-full transition-all border
+      ${active 
+        ? 'bg-light-text-primary dark:bg-white text-white dark:text-black border-transparent shadow-md' 
+        : 'bg-transparent text-light-text-secondary dark:text-dark-text-secondary border-transparent hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary'
+      }
+    `}
+  >
+    {label}
+  </button>
+);
+
 const ProductModal = ({ product, mediaMap, onClose }) => {
   const { t } = useTranslation();
-  const { price: basePrice, isSpecial } = getCurrentPrice(product, 'dinein', undefined, t);
-
+  const { price: basePrice } = getCurrentPrice(product, 'dinein', undefined, t);
+  const [activeTab, setActiveTab] = useState('anterior'); // Default to last month
   const [isMounted, setIsMounted] = useState(false);
-  const [showFullImage, setShowFullImage] = useState(false);
 
+  // --- Logic & Data Prep ---
   let imgUrl = product?.media_r2 || product?.media_local || product?.media_url || null;
   if (!imgUrl && product?.media_id && mediaMap?.[String(product.media_id)]) {
     imgUrl = mediaMap[String(product.media_id)];
   }
 
-  const modalRef = useRef(null);
-  useEffect(() => {
-    const timeout = setTimeout(() => setIsMounted(true), 60);
-    return () => clearTimeout(timeout);
-  }, []);
-  useEffect(() => {
-    const handleKeyDown = (e) => { if (e.key === 'Escape') onClose?.(); };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-  const handleBackdropClick = (e) => { if (e.target === e.currentTarget) onClose?.(); };
+  // Effect for animation mount
+  useEffect(() => { setIsMounted(true); return () => setIsMounted(false); }, []);
 
   if (!isMounted) return null;
 
-  // ====== DATA PERIODOS ======
+  // --- Data Extraction ---
   const R = product?.rentabilidad || {};
-  const A = R.actual || {};
-  const P1 = R.anterior || {};
-  const P2 = R.antepasado || {};
-  const AY = R.anio_anterior || {};
-  const AA = R.anterior_anio_anterior || {};
-
-  const currency = product?.currency || '$';
-  const unitPrice = isNum(basePrice)
-    ? basePrice
-    : isNum(A.margen) && isNum(A.cupro) ? (A.margen + A.cupro)
-    : isNum(P1.margen) && isNum(P1.cupro) ? (P1.margen + P1.cupro)
-    : null;
-
-  const gmPct = (m, p) => {
-    const price = isNum(unitPrice) ? unitPrice : (isNum(m) && isNum(p) ? m + p : null);
-    return isNum(m) && isNum(price) && price !== 0 ? m / price : null;
+  const dataMap = {
+    actual: { data: R.actual, label: t('menus.modal.p_now'), compare: R.anterior }, // This month vs Last month
+    anterior: { data: R.anterior, label: t('menus.modal.p_prev'), compare: R.antepasado }, // Last month vs 2 months ago
+    anio_anterior: { data: R.anio_anterior, label: t('menus.modal.p_year'), compare: R.anterior_anio_anterior }, // Last year
   };
 
-  // Paquetes de periodos para pintar en orden
-  const periods = [
-    { key: 'now', label: t('menus.modal.p_now'), data: A, compareWith: P1 },
-    { key: 'p1', label: t('menus.modal.p_prev'), data: P1, compareWith: P2 },
-    { key: 'p2', label: t('menus.modal.p_prev2'), data: P2, compareWith: AY },
-    { key: 'ay', label: t('menus.modal.p_year'), data: AY, compareWith: AA },
-    { key: 'aa', label: t('menus.kpis.compare_aa'), data: AA, compareWith: null }
-  ];
+  const currentPeriod = dataMap[activeTab];
+  const D = currentPeriod?.data || {};
+  const C = currentPeriod?.compare || {};
 
-  const modalVariants = {
-    hidden: { opacity: 0, scale: 0.96, y: 40, filter: 'blur(8px)' },
-    visible: { opacity: 1, scale: 1, y: 0, filter: 'blur(0)', transition: { duration: 0.45 } },
-    exit: { opacity: 0, scale: 0.98, y: 30, filter: 'blur(6px)', transition: { duration: 0.3 } }
-  };
+  // Metrics
+  const sales = D.total_venta;
+  const prevSales = C.total_venta;
+  
+  const profit = D.total_margen;
+  const prevProfit = C.total_margen;
+  
+  const units = D.cantidad;
+  const prevUnits = C.cantidad;
+  
+  const margin = pct(profit, sales);
+  const prevMargin = pct(prevProfit, prevSales);
 
-  const uid = String(product?.id || product?._id || product?.codigo || 'x');
+  const unitCost = D.cupro;
+  const unitPrice = isNum(basePrice) ? basePrice : (isNum(D.margen) && isNum(D.cupro) ? D.margen + D.cupro : null);
 
   return (
-    <LayoutGroup>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <motion.div
-        className={`fixed inset-0 z-50 flex items-center justify-center p-4`}
-        variants={modalVariants}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-        onClick={handleBackdropClick}
-        aria-modal="true"
-        role="dialog"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="bg-light-surface/95 dark:bg-dark-surface/95 w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl border border-light-border/20 dark:border-dark-border/20 overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
       >
-        <motion.div
-          layout
-          ref={modalRef}
-          className="relative bg-light-surface/95 dark:bg-dark-surface/95 rounded-3xl w-full max-w-5xl max-h-[85vh] overflow-hidden shadow-neon border border-light-accent/20 dark:border-dark-accent/20"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* HEADER */}
-          <div className="sticky top-0 z-10 bg-light-surface/95 dark:bg-dark-surface/95 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-light-border/50 dark:border-dark-border/50">
-            <div className="flex items-center gap-3">
-              {imgUrl && (
-                <div className="w-8 h-8 rounded-full overflow-hidden border border-light-accent/40 dark:border-dark-accent/40">
-                  <img src={imgUrl} alt={product?.nombre || 'Product'} className="w-full h-full object-cover" />
-                </div>
+        
+        {/* HEADER */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-light-border/10 dark:border-dark-border/10 bg-light-surface/50 dark:bg-dark-surface/50 backdrop-blur-md sticky top-0 z-10">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl overflow-hidden bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/10 dark:border-dark-border/10 flex-shrink-0">
+              {imgUrl ? (
+                <img src={imgUrl} alt={product.nombre} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-400">IMG</div>
               )}
-              <div className="flex flex-col">
-                <h4 className="text-lg font-medium text-light-text-primary dark:text-dark-text-primary">
-                  {product?.nombre || t('menus.kpis.no_name')}
-                </h4>
-                <div className="text-[11px] text-gray-500">{t('menus.modal.title')}</div>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary leading-tight">
+                {product.nombre}
+              </h2>
+              <div className="flex items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary font-mono mt-0.5">
+                <span className="bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 px-1.5 py-0.5 rounded">
+                  {product.codigo || 'NO-CODE'}
+                </span>
+                <span>•</span>
+                <span>{fmtMoney(unitPrice)}</span>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="text-light-text-secondary dark:text-dark-text-secondary hover:text-light-error dark:hover:text-dark-error transition-colors"
-              aria-label={t('menus.modal.close')}
-            >
-              <FaTimes className="w-6 h-6" />
-            </button>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-full bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary hover:text-light-error transition-colors"
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        {/* CONTROLS (Period Selector) */}
+        <div className="px-6 py-4 flex gap-2 overflow-x-auto no-scrollbar border-b border-light-border/5 dark:border-dark-border/5">
+          {Object.keys(dataMap).map((key) => (
+            <PeriodTab 
+              key={key} 
+              label={dataMap[key].label} 
+              active={activeTab === key} 
+              onClick={() => setActiveTab(key)} 
+            />
+          ))}
+        </div>
+
+        {/* DASHBOARD CONTENT */}
+        <div className="p-6 overflow-y-auto custom-scrollbar">
+          
+          {/* 1. KEY METRICS GRID */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <MetricCard 
+              label={t('menus.kpis.sales')} 
+              value={fmtMoney(sales)} 
+              trend={<TrendBadge current={sales} previous={prevSales} />}
+              icon={FaDollarSign}
+              color="blue"
+              tooltip="Ventas totales en este periodo"
+            />
+            <MetricCard 
+              label={t('menus.kpis.profit')} 
+              value={fmtMoney(profit)} 
+              trend={<TrendBadge current={profit} previous={prevProfit} />}
+              icon={FaChartLine}
+              color="green"
+              tooltip="Utilidad bruta (Ventas - Costos)"
+            />
+            <MetricCard 
+              label={t('menus.kpis.units')} 
+              value={fmtNum(units)} 
+              trend={<TrendBadge current={units} previous={prevUnits} />}
+              icon={FaBoxOpen}
+              color="purple"
+              tooltip="Unidades vendidas"
+            />
+            <MetricCard 
+              label={t('menus.modal.margin_pct')} 
+              value={`${margin.toFixed(1)}%`} 
+              subValue={`Ref: ${prevMargin.toFixed(1)}%`}
+              trend={<TrendBadge current={margin} previous={prevMargin} />}
+              icon={FaPercentage}
+              color="orange"
+              tooltip="Margen porcentual sobre venta"
+            />
           </div>
 
-          {/* BODY: GRID 1/3 IMG + 2/3 DATA */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 overflow-y-auto max-h-[calc(85vh-72px)]">
-            {/* LEFT: IMAGE + INFO */}
-            <div className="md:col-span-1 flex flex-col gap-4">
-              <div className="relative rounded-2xl overflow-hidden border border-light-accent/40 dark:border-dark-accent/40 bg-white/80 dark:bg-dark-surface/80">
-                <div
-                  className={`w-full aspect-square cursor-${imgUrl ? 'pointer' : 'default'}`}
-                  onClick={() => imgUrl && setShowFullImage(true)}
-                  {...(imgUrl ? { 'data-tooltip-id': `tt-${uid}-img`, 'data-tooltip-content': t('menus.modal.img_tip') } : {})}
-                >
-                  {imgUrl ? (
-                    <img
-                      src={imgUrl}
-                      alt={product?.nombre || t('menus.kpis.no_name')}
-                      className="w-full h-full object-cover object-center"
-                      loading="lazy"
+          {/* 2. UNIT ECONOMICS (Detail View) */}
+          <div className="bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/20 rounded-2xl p-6 border border-light-border/10 dark:border-dark-border/10">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary mb-4 flex items-center gap-2">
+              <FaInfoCircle /> Economía Unitaria
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+               {/* Visual Connector Lines (Desktop) */}
+               <div className="hidden md:block absolute top-1/2 left-1/3 w-8 h-px bg-gray-300 dark:bg-gray-700 -translate-y-1/2 -translate-x-1/2" />
+               <div className="hidden md:block absolute top-1/2 left-2/3 w-8 h-px bg-gray-300 dark:bg-gray-700 -translate-y-1/2 -translate-x-1/2" />
+
+               {/* Price Breakdown */}
+               <div className="text-center">
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Precio Venta</p>
+                  <p className="text-2xl font-mono font-bold text-light-text-primary dark:text-dark-text-primary">{fmtMoney(unitPrice)}</p>
+               </div>
+
+               {/* Cost Breakdown */}
+               <div className="text-center relative">
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Costo Unitario (CUPRO)</p>
+                  <p className="text-2xl font-mono font-bold text-red-500">-{fmtMoney(unitCost)}</p>
+               </div>
+
+               {/* Profit Breakdown */}
+               <div className="text-center">
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">Margen Unitario</p>
+                  <p className="text-2xl font-mono font-bold text-emerald-500">
+                    +{fmtMoney(isNum(unitPrice) && isNum(unitCost) ? unitPrice - unitCost : 0)}
+                  </p>
+                  <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-emerald-500 h-full rounded-full" 
+                      style={{ width: `${Math.min(100, Math.max(0, margin))}%` }} 
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
-                      <span className="text-gray-400 text-xs">{t('menus.kpis.no_image')}</span>
-                    </div>
-                  )}
-                </div>
-                {imgUrl && <ReactTooltip id={`tt-${uid}-img`} place="top" />}
-              </div>
-
-              {/* INFO CARD */}
-              <div className="rounded-2xl border border-light-accent/30 dark:border-dark-accent/30 bg-white/60 dark:bg-dark-surface/60 p-3">
-                <div className="text-sm font-semibold mb-2 text-light-text-primary dark:text-dark-text-primary">{t('menus.modal.info')}</div>
-                <div className="space-y-1 text-[11px]">
-                  <div className="flex justify-between gap-2"><span className="text-gray-500">{t('menus.modal.code')}</span><span className="font-semibold">{product?.codigo || '—'}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-gray-500">{t('menus.modal.id')}</span><span className="font-semibold">{product?.id || product?._id || '—'}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-gray-500">{t('menus.modal.price')}</span><span className="font-semibold">{fmtMoney(isNum(basePrice) ? basePrice : product?.precio, currency)}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-gray-500">{t('menus.modal.cupro')}</span><span className="font-semibold">{fmtMoney(A.cupro ?? P1.cupro ?? P2.cupro ?? AY.cupro ?? AA.cupro, currency)}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-gray-500">{t('menus.modal.restrictions')}</span><span className="font-semibold truncate" title={(product?.restriccion || []).join(', ') || '—'}>{(product?.restriccion || []).join(', ') || '—'}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-gray-500">{t('menus.modal.category_ids')}</span><span className="font-semibold truncate" title={(product?.category_ids || []).join(', ') || '—'}>{(product?.category_ids || []).join(', ') || '—'}</span></div>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-gray-500">{t('menus.modal.special')}</span>
-                    <span className={`font-semibold ${product?.especial?.special_status ? 'text-emerald-600' : 'text-gray-600'}`}>
-                      {product?.especial?.special_status ? t('menus.modal.special_on') : t('menus.modal.special_off')}
-                    </span>
                   </div>
-                </div>
-              </div>
-
-              {/* DESCRIPCION */}
-              <div className="rounded-2xl border border-light-accent/30 dark:border-dark-accent/30 bg-white/60 dark:bg-dark-surface/60 p-3">
-                <div className="text-sm font-semibold mb-2 text-light-text-primary dark:text-dark-text-primary">{t('menus.modal.desc')}</div>
-                <div className="text-[12px] text-light-text-secondary dark:text-dark-text-secondary leading-5">
-                  {product?.descripcion || '—'}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT: METRICS (2/3) */}
-            <div className="md:col-span-2 flex flex-col gap-4">
-              <div className="rounded-2xl border border-light-accent/30 dark:border-dark-accent/30 bg-white/60 dark:bg-dark-surface/60 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary">{t('menus.modal.metrics')}</div>
-                  <div className="text-[10px] text-gray-500">{t('menus.modal.periods')}: {t('menus.modal.p_now')} · {t('menus.modal.p_prev')} · {t('menus.modal.p_prev2')} · {t('menus.modal.p_year')} · {t('menus.kpis.compare_aa')}</div>
-                </div>
-
-                {/* GRID DE PERIODOS */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {periods.map(({ key, label, data, compareWith }) => {
-                    const ventas = data?.total_venta;
-                    const utilT = data?.total_margen;
-                    const unid = data?.cantidad;
-                    const mUnit = data?.margen;
-                    const cupro = data?.cupro;
-
-                    const gm = pct(utilT, ventas);                           // margen sobre ventas del periodo
-                    const gmUnit = gmPct(mUnit, cupro);                      // margen sobre precio unitario aprox
-
-                    // Deltas cortitos vs periodo de comparación
-                    const dUnid = compareWith ? delta(unid, compareWith?.cantidad) : null;
-                    const dVenta = compareWith ? delta(ventas, compareWith?.total_venta) : null;
-                    const dUtilT = compareWith ? delta(utilT, compareWith?.total_margen) : null;
-                    const dGM = compareWith ? delta(gm, (isNum(compareWith?.total_margen) && isNum(compareWith?.total_venta) && compareWith?.total_venta !== 0 ? compareWith.total_margen / compareWith.total_venta : null)) : null;
-
-                    return (
-                      <div
-                        key={key}
-                        className="rounded-xl border border-light-accent/20 dark:border-dark-accent/20 bg-white/70 dark:bg-dark-surface/70 p-2.5"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="text-[12px] font-semibold text-light-text-primary dark:text-dark-text-primary">{label}</div>
-                          {compareWith && <span className="text-[10px] text-gray-500">{t('menus.modal.delta_vs_prev')}</span>}
-                        </div>
-
-                        <div className="space-y-1">
-                          <Cell uid={uid} label={t('menus.modal.units')} tip={t('menus.kpis.units_last_month_tip')} value={fmtCL(unid)} deltaVal={dUnid} />
-                          <Cell uid={uid} label={t('menus.modal.sales')} tip={t('menus.kpis.sales_last_month_tip')} value={fmtMoney(ventas, currency)} deltaVal={dVenta} />
-                          <Cell uid={uid} label={t('menus.modal.profit_total')} tip={t('menus.kpis.total_profit_last_month_tip')} value={fmtMoney(utilT, currency)} deltaVal={dUtilT} />
-                          <Cell uid={uid} label={t('menus.modal.profit_unit')} tip={t('menus.kpis.profit_per_unit_last_month_tip')} value={fmtMoney(mUnit, currency)} />
-                          <Cell uid={uid} label={t('menus.modal.margin_pct')} tip={t('menus.kpis.margin_percent_last_month_tip')} value={pctText(gm)} deltaVal={dGM} />
-                          <Cell uid={uid} label={t('menus.modal.cupro')} tip={t('menus.kpis.cupro_tip')} value={fmtMoney(cupro, currency)} />
-                          <Cell uid={uid} label={t('menus.modal.price')} tip={t('menus.kpis.price_tip')} value={fmtMoney(unitPrice, currency)} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+               </div>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
 
-      {/* FULL IMAGE VIEWER */}
-      {showFullImage && imgUrl && (
-        <motion.div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setShowFullImage(false)}
-        >
-          <img src={imgUrl} alt={product?.nombre || t('menus.kpis.no_name')} className="max-w-full max-h-full object-contain" />
-        </motion.div>
-      )}
-    </LayoutGroup>
+          {/* 3. ADDITIONAL INFO (Footer) */}
+          <div className="mt-6 grid grid-cols-2 gap-4 text-xs text-light-text-tertiary dark:text-dark-text-tertiary font-mono">
+             <div>
+               <span className="font-bold text-light-text-secondary dark:text-dark-text-secondary">ID Sistema:</span> {product.id || product._id}
+             </div>
+             <div className="text-right">
+               <span className="font-bold text-light-text-secondary dark:text-dark-text-secondary">Categoría:</span> {(product.category_ids || []).join(', ') || 'N/A'}
+             </div>
+          </div>
+
+        </div>
+      </motion.div>
+    </div>
   );
 };
 

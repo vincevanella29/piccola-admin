@@ -260,6 +260,7 @@
     "label": "Promozioni",
     "dashboard": "Pannello delle Promozioni",
     "description": "Gestisci le campagne promozionali",
+    "close": "Chiudi",
     "create": "Crea Promozione",
     "update": "Aggiorna Promozione",
     "update_button": "Aggiorna Promozione",
@@ -349,7 +350,9 @@
       "rule": "Regola di Token",
       "burn_rule": "Regola di burn del token",
       "selected_token": "Token selezionato",
-      "max_one_burn_rule": "È consentita solo una regola di bruciatura di token per promozione"
+      "max_one_burn_rule": "È consentita solo una regola di bruciatura di token per promozione",
+      "merit_min_wallet": "Saldo minimo di merito (segmento)",
+      "merit_min_points": "Punti minimi di merito"
     },
     "limits": "Limiti",
     "yes": "Sì",
@@ -380,6 +383,7 @@
     "display_before_claim": "L'inizio della visualizzazione deve essere almeno 5 giorni prima dell'inizio del reclamo",
     "missing_recurring_days": "Le promozioni ricorrenti richiedono almeno un giorno valido",
     "invalid_token_rule": "La regola dei token richiede un indirizzo valido e una quantità",
+    "invalid_merit_rule": "La regola di merito richiede un segmento e un numero positivo di punti",
     "error_creating": "Errore nella creazione della promozione: {{message}}",
     "error_updating": "Errore nell'aggiornamento della promozione: {{message}}",
     "days": {

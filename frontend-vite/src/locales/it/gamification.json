@@ -128,7 +128,9 @@
     "signing_tx": "Per favore, firma la transazione nel tuo wallet…",
     "tx_success": "Transazione inviata! Hash: {{hash}}",
     "db_updated": "Database aggiornato!",
-    "db_update_error": "CRITICO: TX inviata ma impossibile aggiornare il database."
+    "db_update_error": "CRITICO: TX inviata ma impossibile aggiornare il database.",
+    "no_wallet_onchain": "Nessun wallet on-chain valido, non idoneo al mint.",
+    "no_valid_wallets": "Non ci sono dipendenti con wallet EVM valido in questo periodo."
   },
   
   "minter": {

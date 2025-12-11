@@ -51,7 +51,7 @@ const EmployeesRegister = ({ appState }) => {
 export default EmployeesRegister;
 
 export const pageMetadata = {
-  path: '/app/mi-ficha',
+  path: '/app/mi-ficha/employees',
   label: 'employees.profiles.label',
   category: 'employees.profiles.category',
   minRoleLevel: -1,

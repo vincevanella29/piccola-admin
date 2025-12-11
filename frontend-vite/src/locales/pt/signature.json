@@ -1,0 +1,20 @@
+{
+  "sign_message": "Assinar mensagem",
+  "no_fees": "Assinar esta mensagem não tem custo de gas.",
+  "sign_continue": "Assinar e continuar",
+  "secure_signing": "Assinatura segura",
+  "message_content": "Mensagem para assinar",
+  "success": "Assinatura concluída",
+  "success_description": "Sua mensagem foi assinada com sucesso.",
+  "cancel": "Cancelar",
+  "close": "Fechar",
+  "error": "Erro na assinatura",
+  "error_title": "Erro ao assinar",
+  "secure_request": "Solicitação segura",
+  "message_preview": "Pré-visualização da mensagem",
+  "raw_message": "RAW MESSAGE",
+  "view_raw": "Ver RAW",
+  "view_pretty": "Ver formatado",
+  "signing": "Assinando...",
+  "unknown_error": "Erro desconhecido ao assinar."
+}

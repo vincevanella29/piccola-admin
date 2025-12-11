@@ -133,7 +133,9 @@
     "signing_tx": "Por favor, assine a transação na sua wallet…",
     "tx_success": "Transação enviada! Hash: {{hash}}",
     "db_updated": "Banco de dados atualizado!",
-    "db_update_error": "CRÍTICO: TX enviada mas não foi possível atualizar o banco de dados."
+    "db_update_error": "CRÍTICO: TX enviada mas não foi possível atualizar o banco de dados.",
+    "no_wallet_onchain": "Sem wallet on-chain válida, não elegível para mint.",
+    "no_valid_wallets": "Não há colaboradores com wallet EVM válida neste período."
   },
   
   "minter": {

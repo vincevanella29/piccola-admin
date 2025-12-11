@@ -182,7 +182,7 @@ const Sidebar = memo(({ isSidebarOpen, toggleSidebar, isAuthenticated, appState,
         transition={{ duration: 0.4, type: 'spring', bounce: 0.15 }}
         style={{
           position: 'fixed',
-          top: 80, // Debajo del Header
+          top: 90, // Debajo del Header
           left: 16, // Margen Izquierdo Flotante
           bottom: 96, // Espacio para el Footer Flotante
           zIndex: 90,

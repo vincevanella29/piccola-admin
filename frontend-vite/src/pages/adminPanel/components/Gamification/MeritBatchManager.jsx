@@ -18,6 +18,13 @@ const getSegmentStyle = (symbol) => {
   return styles[symbol] || 'bg-gray-500/10 text-gray-400 border-gray-500/30';
 };
 
+const isValidEvmAddress = (wallet) => {
+  if (!wallet || typeof wallet !== 'string') return false;
+  const trimmed = wallet.trim();
+  if (!trimmed || trimmed.startsWith('did:')) return false;
+  return /^0x[a-fA-F0-9]{40}$/.test(trimmed);
+};
+
 const MeritBatchManager = ({ api, appState }) => {
   const { t } = useTranslation();
   const { meritResults, listMeritResults, buildBatch, isLoading } = api;
@@ -68,15 +75,22 @@ const MeritBatchManager = ({ api, appState }) => {
   };
 
   const handleSelectAll = (period) => {
-    const idsInPeriod = meritResults.filter(r => r.periodo === period).map(r => r.result_id);
-    const allSelected = idsInPeriod.every(id => selectedResultIds.has(id));
+    // Solo considerar resultados con wallet EVM válida para selección masiva
+    const idsInPeriodValid = meritResults
+      .filter(r => r.periodo === period && isValidEvmAddress(r.wallet))
+      .map(r => r.result_id);
+    if (idsInPeriodValid.length === 0) {
+      toast.warn(t('gamification.merit.no_valid_wallets') || 'No hay empleados con wallet EVM válida en este período.');
+      return;
+    }
+    const allSelected = idsInPeriodValid.every(id => selectedResultIds.has(id));
     if (allSelected) {
-      const newSelection = new Set([...selectedResultIds].filter(id => !idsInPeriod.includes(id)));
+      const newSelection = new Set([...selectedResultIds].filter(id => !idsInPeriodValid.includes(id)));
       setSelectedResultIds(newSelection);
       if (newSelection.size === 0) setActivePeriod(null);
     } else {
       setActivePeriod(period);
-      setSelectedResultIds(new Set(idsInPeriod));
+      setSelectedResultIds(new Set(idsInPeriodValid));
     }
   };
 
@@ -140,8 +154,13 @@ const MeritBatchManager = ({ api, appState }) => {
       // Enviar solo para el período activo
       const period = activePeriod || selectedMerits[0].periodo;
       const employees = selectedMerits
-        .filter(m => m.periodo === period)
+        .filter(m => m.periodo === period && isValidEvmAddress(m.wallet))
         .map(merit => ({ rut: merit.rut, wallet: merit.wallet }));
+      if (employees.length === 0) {
+        toast.warn(t('gamification.merit.no_valid_wallets') || 'No hay empleados con wallet EVM válida seleccionados para este período.');
+        setIsProcessingBatch(false);
+        return;
+      }
       toast.info(t('gamification.merit.processing_period', { period }) || `Procesando batch para ${period}...`);
       const plan = { ym: period, employees };
       await buildBatch({ plan });
@@ -158,7 +177,6 @@ const MeritBatchManager = ({ api, appState }) => {
       setIsProcessingBatch(false);
     }
   };
-
 
   return (
     <div className="space-y-8">
@@ -232,8 +250,9 @@ const MeritBatchManager = ({ api, appState }) => {
           const arr = resultsByPeriod.map[period];
           const summary = periodSummaries[period] || { uniqueEmployees: 0, bySegment: {}, count: 0 };
           const isExpanded = expandedPeriods.has(period);
-          const idsInPeriod = arr.map(r => r.result_id);
-          const allSelected = idsInPeriod.length > 0 && idsInPeriod.every(id => selectedResultIds.has(id));
+          // Solo usamos los IDs con wallet válida para el estado del botón "Seleccionar todo"
+          const idsInPeriodValid = arr.filter(r => isValidEvmAddress(r.wallet)).map(r => r.result_id);
+          const allSelected = idsInPeriodValid.length > 0 && idsInPeriodValid.every(id => selectedResultIds.has(id));
           return (
             <div key={period} className={`border rounded-xl overflow-hidden ${activePeriod && activePeriod !== period ? 'opacity-60' : ''}`}>
               {/* Header del periodo */}
@@ -277,31 +296,44 @@ const MeritBatchManager = ({ api, appState }) => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-dark-border/20">
-                      {arr.map((r) => (
-                        <tr key={r.result_id} className={`hover:bg-dark-surface-secondary/40 transition-colors ${selectedResultIds.has(r.result_id) ? 'bg-matrix-green/5' : ''}`}>
-                          <td className="p-4">
-                            <input type="checkbox" checked={selectedResultIds.has(r.result_id)} onChange={() => handleSelect(r)} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <img src={r.employee_photo || `https://ui-avatars.com/api/?name=${r.employee_name}&background=222&color=fff`} alt={r.employee_name} className="w-9 h-9 rounded-full object-cover ring-2 ring-dark-surface" />
-                              <div>
-                                <div className="font-semibold text-white">{r.employee_name}</div>
-                                <div className="text-xs text-dark-text-secondary">{r.employee_cargo || t('gamification.merit.no_cargo') || 'Sin cargo'}</div>
+                      {[...arr].sort((a, b) => {
+                        const aOk = isValidEvmAddress(a.wallet);
+                        const bOk = isValidEvmAddress(b.wallet);
+                        if (aOk === bOk) return 0;
+                        return aOk ? -1 : 1; // válidos primero, luego inválidos
+                      }).map((r) => {
+                        const walletOk = isValidEvmAddress(r.wallet);
+                        return (
+                          <tr key={r.result_id} className={`hover:bg-dark-surface-secondary/40 transition-colors ${selectedResultIds.has(r.result_id) ? 'bg-matrix-green/5' : ''}`}>
+                            <td className="p-4">
+                              <input type="checkbox" checked={selectedResultIds.has(r.result_id)} onChange={() => handleSelect(r)} disabled={!walletOk} />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                <img src={r.employee_photo || `https://ui-avatars.com/api/?name=${r.employee_name}&background=222&color=fff`} alt={r.employee_name} className="w-9 h-9 rounded-full object-cover ring-2 ring-dark-surface" />
+                                <div>
+                                  <div className="font-semibold text-white">{r.employee_name}</div>
+                                  <div className="text-xs text-dark-text-secondary">{r.employee_cargo || t('gamification.merit.no_cargo') || 'Sin cargo'}</div>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-dark-text-secondary">{r.rule_name}</td>
-                          <td className="px-4 py-3">
-                            {r.segment_info && (
-                              <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${getSegmentStyle(r.segment_info.symbol)}`}>
-                                {r.segment_info.name} ({r.segment_info.symbol})
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right font-bold text-matrix-green text-base">{r.merit_points}</td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="px-4 py-3 text-dark-text-secondary">{r.rule_name}</td>
+                            <td className="px-4 py-3">
+                              {r.segment_info && (
+                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${getSegmentStyle(r.segment_info.symbol)}`}>
+                                  {r.segment_info.name} ({r.segment_info.symbol})
+                                </span>
+                              )}
+                              {!walletOk && (
+                                <div className="mt-1 text-[11px] text-red-400">
+                                  {t('gamification.merit.no_wallet_onchain') || 'Sin wallet on-chain válida, no elegible para minteo.'}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-matrix-green text-base">{r.merit_points}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

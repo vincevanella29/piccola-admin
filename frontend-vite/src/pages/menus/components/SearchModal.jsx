@@ -141,11 +141,16 @@ const SearchModal = ({
           {/* Productos scrollables */}
           <div className="flex-1 overflow-y-auto px-6 pb-6 pt-2 grid grid-cols-1 gap-4 scrollbar-thin">
             {displayedMenus.length > 0 ? (
-              displayedMenus.map((menu) => {
+              displayedMenus.map((menu, index) => {
+                const safeKey =
+                  menu._id ||
+                  menu.id ||
+                  menu.codigo ||
+                  `search-menu-${index}`;
                 const { price, isSpecial, schedule } = getCurrentPrice(menu, 'dinein', chileTime, t);
                 return (
                   <motion.div
-                    key={menu._id}
+                    key={safeKey}
                     className="flex items-center gap-4 p-3 bg-light-surface/50 dark:bg-dark-surface/50 rounded-lg hover:bg-light-accent/20 dark:hover:bg-dark-accent/20 transition-all duration-300 cursor-pointer"
                     onClick={() => handleProductClick(menu)}
                     initial={{ opacity: 0, y: 10 }}

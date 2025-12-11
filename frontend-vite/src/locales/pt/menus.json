@@ -6,6 +6,7 @@
   "category": "Menus",
   "kpis": {
     "units_last_month": "Unid P-1",
+    "units_last_month_short": "Venda Mês",
     "units_last_month_tip": "Unidades vendidas no mês passado.",
     "sales_last_month": "Vendas P-1",
     "sales_last_month_tip": "Receita total do mês passado.",
@@ -13,6 +14,10 @@
     "profit_per_unit_last_month_tip": "Lucro por unidade no mês passado.",
     "total_profit_last_month": "Lucro Total P-1",
     "total_profit_last_month_tip": "Lucro total do mês passado.",
+    "sales": "Vendas",
+    "profit": "Lucro",
+    "units": "Unid",
+    "unit_profit": "L/Unid",
     "margin_percent_last_month": "Margem% P-1",
     "margin_percent_last_month_tip": "Margem total / vendas do mês passado.",
     "compare_aa": "AA",
@@ -27,7 +32,15 @@
     "price_tip": "Preço unitário atual.",
     "no_image": "Sem imagem",
     "no_name": "Sem nome",
-    "ref": "ref"
+    "ref": "ref",
+    "period_current": "Atual"
+  },
+  "recipes": {
+    "title": "Ficha Técnica",
+    "period": "Período",
+    "ingredient": "Ingrediente",
+    "qty": "Quantidade",
+    "percent": "%"
   },
   "modal": {
     "title": "Detalhe do produto",

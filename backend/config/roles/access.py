@@ -476,6 +476,25 @@ def compute_permissions_for_identity(identity: str) -> Dict[str, Any]:
 
 
 # ---- Helpers de autorización por nivel de rol ----
+
+def get_effective_role_level_from_user(user: Dict[str, Any]) -> Optional[int]:
+    """Devuelve el role_level efectivo (1..7) desde el dict de sesión.
+
+    - Usa siempre user["permissions"]["role_level"], que ya viene de
+      compute_permissions_for_identity.
+    - Si no está en rango 1..7 o no es convertible a int, devuelve None.
+    """
+    try:
+        perms = (user or {}).get("permissions") or {}
+        raw = perms.get("role_level")
+        rl_int = int(raw) if raw is not None else None
+    except Exception:
+        rl_int = None
+    if rl_int is None or not (1 <= rl_int <= 7):
+        return None
+    return rl_int
+
+
 def require_admin_level(user: Dict[str, Any], role: str):
     from fastapi import HTTPException
     # Acepta tanto el dict de sesión como el string de wallet

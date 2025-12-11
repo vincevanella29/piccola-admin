@@ -1,0 +1,20 @@
+{
+  "sign_message": "Sign message",
+  "no_fees": "Signing this message will not cost any gas fees.",
+  "sign_continue": "Sign and continue",
+  "secure_signing": "Secure signing",
+  "message_content": "Message to sign",
+  "success": "Signature completed",
+  "success_description": "Your message has been signed successfully.",
+  "cancel": "Cancel",
+  "close": "Close",
+  "error": "Signature error",
+  "error_title": "Error while signing",
+  "secure_request": "Secure request",
+  "message_preview": "Message preview",
+  "raw_message": "RAW MESSAGE",
+  "view_raw": "View RAW",
+  "view_pretty": "View pretty",
+  "signing": "Signing...",
+  "unknown_error": "Unknown error while signing."
+}

@@ -1,0 +1,20 @@
+{
+  "sign_message": "Firma il messaggio",
+  "no_fees": "Firmare questo messaggio non ha costi di gas.",
+  "sign_continue": "Firma e continua",
+  "secure_signing": "Firma sicura",
+  "message_content": "Messaggio da firmare",
+  "success": "Firma completata",
+  "success_description": "Il tuo messaggio è stato firmato correttamente.",
+  "cancel": "Annulla",
+  "close": "Chiudi",
+  "error": "Errore di firma",
+  "error_title": "Errore durante la firma",
+  "secure_request": "Richiesta sicura",
+  "message_preview": "Anteprima del messaggio",
+  "raw_message": "RAW MESSAGE",
+  "view_raw": "Vedi RAW",
+  "view_pretty": "Vedi formattato",
+  "signing": "Firma in corso...",
+  "unknown_error": "Errore sconosciuto durante la firma."
+}

@@ -46,7 +46,6 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None) -> int
         cid = int(company_id if company_id is not None else COMPANY_ID)
         role_level = launchpad_contract.functions.getCompanyLevel(checksum, cid).call()
         if not isinstance(role_level, int) or role_level < 0 or role_level > 5:
-            logger.info(f"[roles.service] Out-of-range role_level={role_level} for {checksum} cid={cid}; returning -1")
             return -1
         return role_level
     except ContractLogicError as e:

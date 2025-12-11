@@ -258,6 +258,7 @@
     "label": "Promotions",
     "dashboard": "Promotions Dashboard",
     "description": "Manage promotional campaigns",
+    "close": "Close",
     "create": "Create Promotion",
     "update": "Update Promotion",
     "update_button": "Update Promotion",
@@ -347,7 +348,9 @@
       "rule": "Token Rule",
       "burn_rule": "Burn token rule",
       "selected_token": "Selected token",
-      "max_one_burn_rule": "Only one burn tokens rule is allowed per promotion"
+      "max_one_burn_rule": "Only one burn tokens rule is allowed per promotion",
+      "merit_min_wallet": "Minimum merit balance (segment)",
+      "merit_min_points": "Minimum merit points"
     },
     "limits": "Limits",
     "yes": "Yes",

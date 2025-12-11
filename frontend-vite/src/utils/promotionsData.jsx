@@ -14,6 +14,18 @@ export async function createPromotion({ walletAddress, token, promotionData }) {
     });
 }
 
+// Función para obtener segmentos de meritocracia permitidos para la compañía (admin)
+export async function fetchMeritSegments({ walletAddress, token }) {
+    return api({
+        method: 'GET',
+        endpoint: '/admin/gamification/segments/list',
+        headers: {
+            'X-Wallet-Address': walletAddress,
+            Authorization: `Bearer ${token}`,
+        },
+    });
+}
+
 // Función para actualizar una promoción
 export async function updatePromotion({ walletAddress, token, promotionId, promotionData }) {
     return api({

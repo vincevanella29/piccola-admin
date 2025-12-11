@@ -1,0 +1,94 @@
+# promotions/display_rules.py
+from datetime import datetime
+from typing import Dict, Optional, Any
+from zoneinfo import ZoneInfo
+import logging
+
+from utils.web3mongo import db
+
+logger = logging.getLogger(__name__)
+
+RULES_COLL = db.gamification_meritocracy_rules
+
+
+def validate_display_rules(
+    promotion: Dict,
+    now: datetime = None,
+    employee: Optional[Dict[str, Any]] = None,
+) -> tuple[bool, str]:
+    """Valida reglas de display para una promoción.
+
+    Además de fechas/horas, si la promo tiene reglas MERIT_RULE_FULFILLED y
+    se pasa un `employee`, se usa el scope de la regla de gamificación
+    (cargos/secciones) para decidir si mostrar o no la promoción al usuario.
+    NO evalúa si el mérito está cumplido; sólo si el usuario pertenece al
+    universo de la regla.
+    """
+    if now is None:
+        now = datetime.now(ZoneInfo("America/Santiago"))
+
+    # Validate date range
+    if not (promotion["display_start"] <= now <= promotion["display_end"]):
+        return False, "Promotion not valid for current date"
+
+    # Validate recurring days
+    recurring_days = promotion.get("display_recurring_every", [])
+    if recurring_days and now.strftime("%A").lower() not in recurring_days:
+        return False, f"Promotion not valid on {now.strftime('%A').lower()}"
+
+    # Validate time ranges
+    if promotion.get("display_from_time") and promotion.get("display_to_time"):
+        try:
+            current_time = now.time()
+            start_time = datetime.strptime(promotion["display_from_time"], "%H:%M:%S").time()
+            end_time = datetime.strptime(promotion["display_to_time"], "%H:%M:%S").time()
+            if not (start_time <= current_time <= end_time):
+                return False, f"Promotion not valid at current time: {current_time}"
+        except ValueError:
+            return False, "Invalid display_from_time or display_to_time format"
+
+    # Validate excluded dates
+    excluded_dates = promotion.get("display_excluded_dates", [])
+    if excluded_dates:
+        current_date = now.strftime("%Y-%m-%d")
+        if current_date in excluded_dates:
+            return False, f"Promotion not valid on excluded date: {current_date}"
+
+    # --- Validate meritocracy scope (cargos / secciones) ---
+    # Si la promo tiene reglas MERIT_RULE_FULFILLED y tenemos info del empleado,
+    # revisamos el scope de la regla de gamificación y ocultamos la promo si el
+    # empleado está fuera de ese scope (igual que en mi_meritos).
+    if employee and promotion.get("rules"):
+        cargo = (employee.get("cargo") or "").strip()
+        emp_section_norm = str(employee.get("emp_section_norm") or "").strip().lower()
+
+        for rule in promotion.get("rules", []):
+            if rule.get("rule_type") != "merit_rule_fulfilled":
+                continue
+
+            merit_rule_name = rule.get("merit_rule_name")
+            if not merit_rule_name:
+                continue
+
+            gam_rule = RULES_COLL.find_one({"rule_name": merit_rule_name})
+            if not gam_rule:
+                # Config mala: mejor ocultar promo para no ensuciar el feed.
+                return False, f"Gamification rule '{merit_rule_name}' not found for display scope."
+
+            scope = gam_rule.get("scope") or {}
+
+            # Scope por cargos
+            if "cargos" in scope:
+                include = scope["cargos"].get("include", [])
+                exclude = scope["cargos"].get("exclude", [])
+                if (include and cargo not in include) or (cargo in exclude):
+                    return False, "Promotion not in scope for employee cargo."
+
+            # Scope por secciones
+            if "secciones" in scope:
+                sec_include = [str(s).strip().lower() for s in scope["secciones"].get("include", [])]
+                sec_exclude = [str(s).strip().lower() for s in scope["secciones"].get("exclude", [])]
+                if (sec_include and emp_section_norm not in sec_include) or (emp_section_norm in sec_exclude):
+                    return False, "Promotion not in scope for employee section."
+
+    return True, ""
