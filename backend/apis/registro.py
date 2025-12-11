@@ -346,6 +346,35 @@ async def validar_registro(request: Request, user: dict = Depends(verify_session
     if wallet:
         identity["wallet"] = wallet
 
+    # --- Protección de unicidad: un sub/wallet no puede estar vinculado a más de un RUT ---
+    conflict_filters = []
+    if sub:
+        conflict_filters.append({"sub": sub})
+    if wallet:
+        conflict_filters.append({"wallet": wallet})
+
+    if conflict_filters:
+        conflict_query = {
+            "$and": [
+                {"$or": conflict_filters},
+                {"rut": {"$ne": rut}},  # otro rut distinto
+                {"status": {"$ne": "deleted"}},
+            ]
+        }
+        existing_identity_link = LINKS.find_one(conflict_query)
+        if existing_identity_link:
+            logger.warning(
+                "Intento de vincular identidad ya usada: sub=%s, wallet=%s, nuevo_rut=%s, existente_rut=%s",
+                sub,
+                wallet,
+                rut,
+                existing_identity_link.get("rut"),
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="Esta identidad (wallet/sub) ya está vinculada a otro RUT. Contacta a un administrador para corregir el registro.",
+            )
+
     # Datos de cargo/sección para perfilar usuario empleado
     cargo = (emp.get("cargo") or "").strip() or None
     seccion = None
