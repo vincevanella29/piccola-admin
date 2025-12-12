@@ -2,7 +2,7 @@
 // Helper API functions for Registro de Empleados (RUT + verificación facial)
 // Estilo similar a utils/empresas.jsx y utils/analitycsData.jsx
 
-import api, { apiFetchBinary } from './api.jsx';
+import api, { apiFetchBinary, apiform } from './api.jsx';
 
 // Verificar existencia de RUT y disponibilidad de foto (no mostrar foto en UI)
 export async function consultaRegistro({ rut, walletAddress, token }) {
@@ -12,6 +12,27 @@ export async function consultaRegistro({ rut, walletAddress, token }) {
   return api({
     method: 'GET',
     endpoint: `/registro/consulta?${params.toString()}`,
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}
+
+// Escanear carnet (frente) para obtener descriptor de referencia (ArcFace)
+export async function escanearCarnet({ rut, frontImageBlob, walletAddress, token }) {
+  if (!rut) throw new Error('RUT es obligatorio');
+  if (!frontImageBlob) throw new Error('Foto del carnet es obligatoria');
+
+  const formData = new FormData();
+  formData.append('rut', rut);
+  formData.append('front_image', frontImageBlob, 'carnet_front.jpg');
+
+  return apiform({
+    method: 'POST',
+    endpoint: '/registro/escanear_carnet',
+    data: formData,
     withCredentials: true,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -36,42 +57,45 @@ export async function solicitarRegistro({ rut, walletAddress, token }) {
   });
 }
 
-// Validar registro: enviar descriptores y flags de liveness
-// liveDescriptor: float[] (128D)
-// referenceDescriptor: float[] opcional (si el cliente lo calculó desde foto_url)
-// liveDescriptorAlt: float[] opcional (para self-match si no hay referencia)
-// liveness: { blink: bool, turn_left: bool, turn_right: bool }
+// Validar registro: enviar FOTO en vivo + descriptor de referencia (ArcFace)
+// liveImageBlob: Blob/File de la captura final del rostro
+// referenceDescriptor: float[] devuelto por /registro/escanear_carnet
+// liveness: { turn_left: bool, turn_right: bool, look_forward: bool }
 export async function validarRegistro({
   sessionId,
   rut,
-  liveDescriptor,
-  referenceDescriptor = null,
-  liveDescriptorAlt = null,
-  liveness = {},
+  liveImageBlob,
+  referenceDescriptor,
+  liveness,
   walletAddress,
   token,
 }) {
   if (!sessionId) throw new Error('sessionId es obligatorio');
   if (!rut) throw new Error('rut es obligatorio');
-  if (!Array.isArray(liveDescriptor)) throw new Error('liveDescriptor debe ser un arreglo (float[])');
+  if (!liveImageBlob) throw new Error('Falta la captura de imagen (liveImageBlob)');
 
-  const data = {
-    session_id: sessionId,
-    rut,
-    live_descriptor: liveDescriptor,
-  };
-  if (Array.isArray(referenceDescriptor)) data.reference_descriptor = referenceDescriptor;
-  if (Array.isArray(liveDescriptorAlt)) data.live_descriptor = liveDescriptorAlt;
-  if (liveness && typeof liveness === 'object') data.liveness = liveness;
+  const formData = new FormData();
+  formData.append('session_id', sessionId);
+  formData.append('rut', rut);
+  formData.append('live_image', liveImageBlob, 'capture.jpg');
 
-  return api({
+  if (referenceDescriptor) {
+    formData.append('reference_descriptor_json', JSON.stringify(referenceDescriptor));
+  }
+
+  if (liveness) {
+    formData.append('liveness', JSON.stringify(liveness));
+  }
+
+  return apiform({
     method: 'POST',
-    endpoint: '/registro/validar',
-    data,
+    endpoint: '/registro/validar_arcface',
+    data: formData,
     withCredentials: true,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+      // Importante: no establecer Content-Type; el navegador añadirá el boundary
     },
   });
 }
@@ -117,4 +141,5 @@ export default {
   getRegistroEstado,
   buildFotoProxyUrl,
   fetchFotoProxyBlob,
+  escanearCarnet,
 };

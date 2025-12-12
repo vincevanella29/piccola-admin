@@ -16,11 +16,23 @@ async def mi_sueldos(
     user: dict = Depends(verify_session),
 ):
     wallet = user.get("wallet")
-    link = LINKS.find_one({"$or": [
-        {"wallet": wallet},
-        {"sub": user.get("sub")},
-        {"email": user.get("email")}
-    ]})
+    sub = user.get("sub")
+    email = user.get("email")
+
+    # Construir criterios solo con identidades realmente presentes para evitar
+    # que {wallet: None} o {email: None} coincidan con otros empleados.
+    identity_filters = []
+    if wallet:
+        identity_filters.append({"wallet": wallet})
+    if sub:
+        identity_filters.append({"sub": sub})
+    if email:
+        identity_filters.append({"email": email})
+
+    if not identity_filters:
+        raise HTTPException(status_code=401, detail="Sesión sin identidad válida (wallet/sub/email)")
+
+    link = LINKS.find_one({"$or": identity_filters})
     if not link or not link.get("rut"):
         raise HTTPException(status_code=404, detail="No hay ficha vinculada a esta identidad")
     rut = str(link.get("rut"))

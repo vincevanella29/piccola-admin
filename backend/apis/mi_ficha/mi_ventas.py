@@ -49,7 +49,22 @@ def _find_worker_by_rut(rut_value) -> Optional[Dict]:
 
 def get_user_rut_and_local(user: dict) -> tuple[str, Optional[str]]:
     """Obtiene el RUT y el local actual del perfil del usuario."""
-    link = LINKS.find_one({"wallet": user.get("wallet")})
+    wallet = user.get("wallet")
+    sub = user.get("sub")
+    email = user.get("email")
+
+    identity_filters = []
+    if wallet:
+        identity_filters.append({"wallet": wallet})
+    if sub:
+        identity_filters.append({"sub": sub})
+    if email:
+        identity_filters.append({"email": email})
+
+    if not identity_filters:
+        raise HTTPException(status_code=401, detail="Sesión sin identidad válida (wallet/sub/email)")
+
+    link = LINKS.find_one({"$or": identity_filters})
     if not link or not link.get("rut"):
         raise HTTPException(status_code=404, detail="No hay ficha de empleado vinculada a esta identidad.")
     
@@ -67,7 +82,22 @@ def get_user_seccion(user: dict) -> Optional[str]:
     """Obtiene la sección (área) del trabajador vinculado a la sesión.
     Si `trabajadores_vpn` no la tiene, la resuelve desde `cargos_intranet` por nombre de cargo.
     """
-    link = LINKS.find_one({"wallet": user.get("wallet")})
+    wallet = user.get("wallet")
+    sub = user.get("sub")
+    email = user.get("email")
+
+    identity_filters = []
+    if wallet:
+        identity_filters.append({"wallet": wallet})
+    if sub:
+        identity_filters.append({"sub": sub})
+    if email:
+        identity_filters.append({"email": email})
+
+    if not identity_filters:
+        return None
+
+    link = LINKS.find_one({"$or": identity_filters})
     if not link or not link.get("rut"):
         return None
     worker = _find_worker_by_rut(link.get("rut")) or {}

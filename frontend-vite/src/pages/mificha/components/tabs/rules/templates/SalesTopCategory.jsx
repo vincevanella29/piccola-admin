@@ -1,6 +1,8 @@
+// src/pages/mificha/components/tabs/rules/templates/SalesTopCategory.jsx
+
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Award, BarChart3, Gem } from 'lucide-react';
+import { Award, BarChart3, Gem, Tag, Trophy, Target } from 'lucide-react';
 
 const formatLevel = (level, t) => t(`mificha.rules.sales_cat.level_${level}`, level);
 const formatMetric = (metric, t) => t(`mificha.rules.sales_cat.metric_${metric}`, metric);
@@ -8,14 +10,19 @@ const formatScope = (scope, t) => t(`mificha.rules.sales.scope_${scope}`, scope)
 
 const ProgressAggregated = ({ progress, params }) => {
   const { t } = useTranslation();
+  
+  // Extracción segura de datos
   const rankingItem = Array.isArray(progress?.progress)
     ? progress.progress.find((p) => p?.type === 'ranking')
     : (typeof progress?.current_position !== 'undefined' ? progress : null);
 
   if (!rankingItem || typeof rankingItem.current_position === 'undefined') {
     return (
-      <div className="bg-light-surface dark:bg-dark-surface p-2 rounded-md text-center border border-light-border/10 dark:border-dark-border/10">
-        <p className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary">{t('mificha.rules.sales.no_data')}</p>
+      <div className="flex flex-col items-center justify-center p-4 bg-light-surface-secondary/30 dark:bg-black/20 rounded-xl border border-dashed border-light-border/20">
+        <BarChart3 size={20} className="text-light-text-tertiary dark:text-dark-text-tertiary mb-2 opacity-50"/>
+        <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary opacity-70">
+          {t('mificha.rules.sales.no_data', 'Sin datos de venta')}
+        </span>
       </div>
     );
   }
@@ -23,37 +30,78 @@ const ProgressAggregated = ({ progress, params }) => {
   const target_position = params?.ranking_position ?? 1;
   const { current_position, top_value, current_value, keys_aggregated, local } = rankingItem;
   const isWinner = current_position > 0 && current_position <= target_position;
+  const isTop1 = current_position === 1;
 
   return (
-    <div className="bg-light-surface dark:bg-dark-surface p-3 rounded-md space-y-2 border border-light-border/10 dark:border-dark-border/10">
-      <div className="flex justify-between items-center text-xs text-light-text-secondary dark:text-dark-text-secondary">
-        <span>{t('mificha.rules.sales.your_position')}</span>
-        <span>{t('mificha.rules.sales.target')}</span>
-      </div>
-      <div className="flex justify-between items-baseline">
-        <p className="text-2xl font-bold text-light-text-primary dark:text-dark-text-primary">#{current_position > 0 ? current_position : '--'}</p>
-        <p className={`font-bold ${isWinner ? 'text-matrix-green' : 'text-light-text-primary dark:text-dark-text-primary'}`}>Top {target_position}</p>
-      </div>
-      {(typeof top_value !== 'undefined' || typeof current_value !== 'undefined') && (
-        <div className="text-xs text-center text-light-text-secondary dark:text-dark-text-secondary pt-2 border-t border-light-border/10 dark:border-dark-border/10 space-y-1">
-          {typeof top_value !== 'undefined' && (
-            <div>
-              {t('mificha.rules.sales.leader_value')}: <span className="font-mono font-bold text-light-text-primary dark:text-dark-text-primary">{Number(top_value)?.toLocaleString('es-CL')}</span>
+    <div className="space-y-3">
+        {/* --- Header: Posición y Target --- */}
+        <div className={`
+            flex items-center justify-between p-3 rounded-xl border
+            ${isWinner 
+                ? 'bg-indigo-500/10 border-indigo-500/20' 
+                : 'bg-light-surface-secondary/30 dark:bg-black/20 border-light-border/10 dark:border-white/5'}
+        `}>
+             <div className="flex items-center gap-3">
+                <div className={`
+                    flex items-center justify-center w-10 h-10 rounded-lg font-bold text-lg shadow-inner
+                    ${isTop1 ? 'bg-yellow-400 text-black' : isWinner ? 'bg-indigo-500 text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400'}
+                `}>
+                    #{current_position > 0 ? current_position : '-'}
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[10px] uppercase text-light-text-secondary dark:text-dark-text-secondary font-bold tracking-wider">
+                        {t('mificha.rules.sales.your_position', 'Posición')}
+                    </span>
+                    <span className={`text-sm font-bold leading-tight ${isWinner ? 'text-indigo-400' : 'text-light-text-primary dark:text-white'}`}>
+                        {isTop1 ? '¡Líder de Categoría!' : isWinner ? '¡En el Ranking!' : 'Sigue vendiendo'}
+                    </span>
+                </div>
             </div>
-          )}
-          {typeof current_value !== 'undefined' && (
-            <div>
-              {t('mificha.rules.sales.your_value')}: <span className="font-mono font-bold text-light-text-primary dark:text-dark-text-primary">{Number(current_value)?.toLocaleString('es-CL')}</span>
+
+            <div className="text-right">
+                <span className="text-[10px] uppercase text-light-text-secondary dark:text-dark-text-secondary block mb-0.5 flex items-center justify-end gap-1">
+                    <Target size={10} /> Meta
+                </span>
+                <div className="px-2 py-0.5 rounded bg-light-surface dark:bg-black/40 border border-light-border/10 dark:border-white/10 text-xs font-mono font-bold">
+                    Top {target_position}
+                </div>
             </div>
-          )}
-          {!!(keys_aggregated?.length) && (
-            <div className="truncate">
-              {t('mificha.rules.sales_cat.aggregated_from', { count: keys_aggregated.length })}
-              {local ? ` • ${t('mificha.rules.sales.scope_local_label')}: ${local}` : ''}
-            </div>
-          )}
         </div>
-      )}
+
+        {/* --- Grid de Ventas --- */}
+        {(typeof top_value !== 'undefined' || typeof current_value !== 'undefined') && (
+            <div className="grid grid-cols-2 gap-2 text-xs">
+                {typeof current_value !== 'undefined' && (
+                    <div className="p-2 rounded-lg bg-light-surface-secondary/50 dark:bg-white/5 border border-light-border/10 dark:border-white/5 flex flex-col justify-between">
+                        <span className="text-[9px] text-light-text-secondary dark:text-dark-text-secondary uppercase font-bold mb-1">
+                            {t('mificha.rules.sales.your_value', 'Tu Venta')}
+                        </span>
+                        <span className="font-mono font-bold text-sm text-light-text-primary dark:text-white">
+                            ${Number(current_value)?.toLocaleString('es-CL')}
+                        </span>
+                    </div>
+                )}
+                
+                {typeof top_value !== 'undefined' && (
+                     <div className="p-2 rounded-lg bg-light-surface-secondary/30 dark:bg-white/5 border border-light-border/5 dark:border-white/5 flex flex-col justify-between">
+                        <span className="text-[9px] text-light-text-secondary dark:text-dark-text-secondary uppercase font-bold mb-1 flex items-center gap-1">
+                            <Trophy size={10} className="text-yellow-500"/> {t('mificha.rules.sales.leader_value', 'Líder')}
+                        </span>
+                        <span className="font-mono font-bold text-sm text-light-text-primary dark:text-white opacity-80">
+                            ${Number(top_value)?.toLocaleString('es-CL')}
+                        </span>
+                    </div>
+                )}
+            </div>
+        )}
+
+        {/* Info adicional (Productos agregados) */}
+        {!!(keys_aggregated?.length) && (
+            <div className="text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary text-center pt-1 truncate">
+               {t('mificha.rules.sales_cat.aggregated_from', { count: keys_aggregated.length }, `Calculado sobre ${keys_aggregated.length} productos`)}
+               {local ? ` • ${local}` : ''}
+            </div>
+        )}
     </div>
   );
 };
@@ -61,39 +109,45 @@ const ProgressAggregated = ({ progress, params }) => {
 const SalesTopCategoryCard = ({ merit }) => {
   const { t } = useTranslation();
   const { params, progress } = merit;
-  const scope = params.ranking_scope;
-  const position = params.ranking_position;
-  const isCompanyChamp = scope === 'empresa' && position === 1;
-
-  const levelLabel = formatLevel(params.level, t);
-  const metricLabel = formatMetric(params.metric, t);
-  const scopeLabel = formatScope(scope, t);
-
+  
+  // Extraemos las etiquetas de la categoría
   const labels = (params.selected_labels && params.selected_labels.length > 0)
     ? params.selected_labels
     : (params.names && params.names.length > 0)
       ? params.names
       : (params.selected_keys || []);
-  const keysCount = labels.length;
+  
+  const displayLabels = labels.slice(0, 3); // Mostrar solo las primeras 3 para no saturar
+  const remaining = labels.length - 3;
 
   return (
-    <div className="mt-3 mb-4 space-y-3">
-      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-        {t('mificha.rules.sales_cat.card_desc', { level: levelLabel, metric: metricLabel, scope: scopeLabel, count: keysCount })}
-      </p>
-      {keysCount > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {labels.map((lbl, idx) => (
-            <span
-              key={idx}
-              className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-light-text-secondary dark:text-dark-text-secondary"
-              title={lbl}
-            >
-              {lbl}
-            </span>
-          ))}
-        </div>
-      )}
+    <div className="mt-2 space-y-3">
+      {/* Descripción + Etiquetas Visuales */}
+      <div className="space-y-2">
+         <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary italic">
+            {t('mificha.rules.sales_cat.card_desc', 'Posiciónate como el mejor vendiendo estos productos.')}
+         </p>
+         
+         {labels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {displayLabels.map((lbl, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-indigo-500/10 text-indigo-500 border border-indigo-500/20"
+                >
+                  <Tag size={10} />
+                  {lbl}
+                </span>
+              ))}
+              {remaining > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-light-surface-secondary dark:bg-white/10 text-light-text-secondary dark:text-dark-text-secondary border border-light-border/10">
+                  +{remaining}
+                </span>
+              )}
+            </div>
+         )}
+      </div>
+
       <ProgressAggregated progress={progress} params={params} />
     </div>
   );
@@ -106,15 +160,26 @@ const SalesTopCategoryTooltip = ({ merit }) => {
   const metricLabel = formatMetric(params.metric, t);
 
   return (
-    <div>
-      <h4 className="font-bold mb-2">{t('mificha.rules.sales_cat.tooltip_title', { position: params.ranking_position, level: levelLabel })}</h4>
-      <p className="text-sm">{t('mificha.rules.sales_cat.tooltip_desc', { metric: metricLabel })}</p>
+    <div className="space-y-2">
+      <h4 className="font-bold text-sm text-indigo-400 flex items-center gap-2">
+        <BarChart3 size={16}/> 
+        {t('mificha.rules.sales_cat.tooltip_title', { position: params.ranking_position }, 'Ranking por Categoría')}
+      </h4>
+      <p className="text-xs text-gray-300">
+        {t('mificha.rules.sales_cat.tooltip_desc', { metric: metricLabel }, 'Compite por volumen de venta en productos seleccionados.')}
+      </p>
+      
       {!!(params.selected_labels?.length) && (
-        <ul className="text-xs list-disc pl-5 mt-2 space-y-1 text-light-text-secondary dark:text-dark-text-secondary">
-          {params.selected_labels.map((label, idx) => (
-            <li key={idx}>{label}</li>
-          ))}
-        </ul>
+        <div className="pt-2 border-t border-white/10">
+            <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Categorías participantes:</p>
+            <div className="flex flex-wrap gap-1">
+                {params.selected_labels.map((label, idx) => (
+                    <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/5 text-gray-300">
+                        {label}
+                    </span>
+                ))}
+            </div>
+        </div>
       )}
     </div>
   );
@@ -128,12 +193,28 @@ export const config = {
   getCardStyle: (merit) => {
     const scope = merit.params?.ranking_scope;
     const position = merit.params?.ranking_position;
+    
+    // Top 1 Empresa: Diamante / Morado fuerte
     if (scope === 'empresa' && position === 1) {
-      return { borderColor: 'rgba(16, 185, 129, 0.35)', backgroundColor: 'rgba(16, 185, 129, 0.05)', icon: Gem };
+      return { 
+          borderColor: 'rgba(168, 85, 247, 0.6)', // Purple 500
+          backgroundColor: 'rgba(168, 85, 247, 0.08)', 
+          icon: Gem 
+      };
     }
+    // Top 1 Local: Dorado
     if (scope === 'local' && position === 1) {
-      return { borderColor: 'rgba(234, 179, 8, 0.4)', backgroundColor: 'rgba(245, 158, 11, 0.05)', icon: Award };
+      return { 
+          borderColor: 'rgba(234, 179, 8, 0.6)', 
+          backgroundColor: 'rgba(234, 179, 8, 0.08)', 
+          icon: Award 
+      };
     }
-    return { borderColor: 'rgba(34, 197, 94, 0.3)', backgroundColor: 'rgba(34, 197, 94, 0.05)' };
+    // General: Índigo
+    return { 
+        borderColor: 'rgba(99, 102, 241, 0.4)', // Indigo 500
+        backgroundColor: 'rgba(99, 102, 241, 0.05)',
+        icon: BarChart3
+    };
   },
 };

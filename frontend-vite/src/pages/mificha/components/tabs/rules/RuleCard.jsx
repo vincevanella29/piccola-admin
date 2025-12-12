@@ -1,92 +1,143 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Tooltip } from 'react-tooltip';
-import { HelpCircle, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { HelpCircle, CheckCircle2, Clock, AlertTriangle, Sparkles } from 'lucide-react';
 import { getRuleConfig } from './templates/_index';
 
 const RuleCard = ({ merit, type, segmentMap, historyStatus }) => {
+  // 1. Obtenemos la configuración base y dinámica del template
   const baseConfig = getRuleConfig(merit.template_key);
   const dynamicConfig = baseConfig.getCardStyle(merit);
 
+  // 2. Extraemos los componentes visuales del template
+  // Si el dynamicConfig trae un icono específico (ej: Copa de Oro), usamos ese.
   const Icon = dynamicConfig.icon || baseConfig.icon;
   const CardBody = baseConfig.card;
   const TooltipBody = baseConfig.tooltip;
   
-  const segment = segmentMap[merit.segment_token_id] || { symbol: '???', name: 'Desconocido' };
+  // 3. Datos del segmento (puntos)
+  const segment = segmentMap?.[merit.segment_token_id] || { symbol: '???', name: 'Desconocido' };
 
+  // 4. Lógica de Estados
   const isFulfilledThisMonth = type === 'current' && merit.status === 'fulfilled';
   const isHistory = type === 'history';
   const isFulfilledHistorically = isHistory && ((historyStatus ?? merit.status) === 'fulfilled');
   const needsMinting = isHistory && isFulfilledHistorically && merit.mint_status === 'pending';
+  const isCompleted = isFulfilledThisMonth || isFulfilledHistorically;
 
   const tooltipId = `rule-tooltip-${merit.rule_id || merit.result_id}`;
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      className="bg-light-surface dark:bg-dark-surface rounded-xl border border-light-border/20 dark:border-dark-border/20 p-4 flex flex-col justify-between"
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
+      className={`
+        relative flex flex-col justify-between
+        rounded-2xl border backdrop-blur-md overflow-hidden transition-all duration-300
+        ${isCompleted ? 'shadow-lg shadow-matrix-green/10' : 'shadow-sm hover:shadow-md'}
+      `}
       style={{
-        borderColor: dynamicConfig.borderColor,
-        background: `radial-gradient(circle at top left, ${dynamicConfig.backgroundColor}, rgba(0,0,0,0) 50%)` ,
+        // Usamos los colores definidos en la template (ej: AdminSalesRanking devuelve dorado si es top 1)
+        borderColor: dynamicConfig.borderColor || 'rgba(255,255,255,0.1)',
+        backgroundColor: dynamicConfig.backgroundColor ? `${dynamicConfig.backgroundColor}` : 'rgba(255,255,255,0.02)', 
       }}
     >
-      <div>
-        <div className="flex justify-between items-start gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 p-2 rounded-full">
-              <Icon size={20} className="text-light-text-primary dark:text-dark-text-primary" />
+        {/* Barra superior de color sutil para dar identidad sin invadir */}
+        <div 
+            className="absolute top-0 left-0 right-0 h-1 opacity-60" 
+            style={{ backgroundColor: dynamicConfig.borderColor }} 
+        />
+
+        <div className="p-5 flex flex-col h-full">
+            {/* --- HEADER: Identidad de la Misión --- */}
+            <div className="flex justify-between items-start mb-4">
+                <div className="flex items-start gap-3">
+                    {/* El Icono respeta el color del template */}
+                    <div 
+                        className="p-2.5 rounded-xl border border-black/5 dark:border-white/10 shadow-sm bg-white/50 dark:bg-black/20"
+                        style={{ color: dynamicConfig.borderColor }} // El icono toma el color del borde (ej: dorado)
+                    >
+                        <Icon size={20} strokeWidth={2} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-sm leading-tight text-light-text-primary dark:text-white line-clamp-2">
+                            {merit.name}
+                        </h3>
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-[10px] uppercase tracking-wider font-semibold text-light-text-secondary dark:text-dark-text-secondary">
+                                {segment.name}
+                            </span>
+                             {/* Badge de Puntos pequeño */}
+                             <span className="px-1.5 py-0.5 text-[10px] rounded bg-light-surface-secondary dark:bg-white/10 font-mono font-bold text-light-text-primary dark:text-white border border-light-border/10 dark:border-white/5">
+                                +{merit.merit_points} {segment.symbol}
+                             </span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div>
-              <p className="font-bold text-base text-light-text-primary dark:text-dark-text-primary">{merit.name}</p>
-              <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary font-mono">
-                +{merit.merit_points} {segment.symbol} ({segment.name})
-              </p>
+            
+            {/* --- BODY: Aquí se renderiza el diseño "Bonito" del Template --- */}
+            <div className="flex-grow relative z-10">
+                <CardBody merit={merit} />
             </div>
-          </div>
-          {isFulfilledThisMonth || isFulfilledHistorically ? (
-            <CheckCircle size={20} className="text-matrix-green" />
-          ) : (
-            <Clock size={20} className="text-yellow-400" />
-          )}
+
+            {/* --- FOOTER: Estado unificado --- */}
+            <div className="mt-4 pt-3 border-t border-light-border/10 dark:border-white/5 flex items-center justify-between">
+                <div className="flex flex-col">
+                     {isHistory ? (
+                        <div className="flex items-center gap-1.5">
+                            {isFulfilledHistorically ? (
+                                <CheckCircle2 size={14} className="text-matrix-green" />
+                            ) : (
+                                <Clock size={14} className="text-red-400" />
+                            )}
+                            <span className={`text-xs font-medium ${isFulfilledHistorically ? 'text-matrix-green' : 'text-red-400'}`}>
+                                {isFulfilledHistorically ? merit.periodo : 'No Logrado'}
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1.5">
+                            {isFulfilledThisMonth ? (
+                                <>
+                                    <Sparkles size={14} className="text-matrix-green fill-matrix-green/20" />
+                                    <span className="text-xs font-bold text-matrix-green">¡Logrado!</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Clock size={14} className="text-yellow-500" />
+                                    <span className="text-xs font-medium text-yellow-500">En curso</span>
+                                </>
+                            )}
+                        </div>
+                    )}
+                    
+                    {needsMinting && (
+                        <div className="flex items-center gap-1 mt-0.5 text-[10px] font-semibold text-blue-400 animate-pulse" data-tooltip-id="mint-tooltip">
+                            <AlertTriangle size={10} />
+                            <span>Pendiente Blockchain</span>
+                        </div>
+                    )}
+                </div>
+
+                <button 
+                    data-tooltip-id={tooltipId} 
+                    className="p-1.5 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-white/10 transition-colors"
+                >
+                  <HelpCircle size={18} strokeWidth={1.5} />
+                </button>
+            </div>
         </div>
-        
-        {/* Renderiza el cuerpo de la tarjeta dinámicamente */}
-        <CardBody merit={merit} />
 
-      </div>
-      <div className="flex justify-between items-center mt-auto pt-3 border-t border-light-border/10 dark:border-dark-border/10">
-        {isHistory ? (
-          <div className='flex items-center gap-2'>
-            <span className={`text-xs font-mono px-2 py-1 rounded ${isFulfilledHistorically ? 'bg-matrix-green/20 text-matrix-green' : 'bg-red-500/20 text-red-500'}`}>
-              {isFulfilledHistorically ? `Logrado: ${merit.periodo}` : `No logrado: ${merit.periodo}`}
-            </span>
-            {needsMinting && (
-              <div className='flex items-center gap-1 text-xs text-blue-400 font-semibold' data-tooltip-id="mint-tooltip">
-                <AlertTriangle size={14}/> 
-                <span>Pendiente de Entrega</span>
-              </div>
-            )}
-          </div>
-        ) : (
-           <span className={`text-xs font-mono px-2 py-1 rounded ${isFulfilledThisMonth ? 'bg-matrix-green/20 text-matrix-green' : 'bg-yellow-400/20 text-yellow-400'}` }>
-             {isFulfilledThisMonth ? '¡Logrado este mes!' : 'Misión Activa'}
-           </span>
-        )}
-        <button data-tooltip-id={tooltipId} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary transition-colors">
-          <HelpCircle size={18} />
-        </button>
-      </div>
-
-      <Tooltip id={tooltipId} place="top" className="z-50 max-w-xs" clickable>
-        <div className="p-1"><TooltipBody merit={merit} /></div>
+      {/* Tooltips */}
+      <Tooltip id={tooltipId} place="top" className="!bg-dark-surface !text-white !border !border-white/10 !rounded-xl !shadow-xl !px-4 !py-3 backdrop-blur-md z-50 max-w-xs" clickable>
+        <div className="text-xs leading-relaxed opacity-90"><TooltipBody merit={merit} /></div>
       </Tooltip>
-      <Tooltip id="mint-tooltip" place="top" className="z-50 max-w-xs">
-        <div className="p-1 text-center">
-            <p className='font-bold'>¡Tus méritos están listos!</p>
-            <p className='text-xs'>Avisa a administración para que envíen tus puntos a tu wallet y se registren en la blockchain.</p>
+      <Tooltip id="mint-tooltip" place="top" className="!bg-blue-900/90 !text-blue-100 !border !border-blue-500/30 !rounded-xl !shadow-xl !px-4 !py-3 z-50 max-w-xs">
+        <div className="text-center space-y-1">
+            <p className='font-bold text-xs'>¡Méritos Listos!</p>
+            <p className='text-[10px]'>Esperando envío a tu wallet.</p>
         </div>
       </Tooltip>
     </motion.div>

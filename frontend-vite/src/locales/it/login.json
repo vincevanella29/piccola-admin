@@ -1,0 +1,14 @@
+{
+  "modal_title": "Benvenuto",
+  "modal_subtitle": "Accedi all'ecosistema Vanellix",
+  "email_placeholder": "nome@esempio.com",
+  "or": "Oppure continua con",
+  "connect_external_wallet": "Collega Wallet Esterna",
+  "terms_disclaimer": "Continuando accetti Termini e Condizioni.",
+  "code_sent_badge": "Codice inviato",
+  "enter_code_desc": "Inserisci il codice inviato a",
+  "verify": "Verifica",
+  "use_different_email": "Usa un'altra email",
+  "error_generic": "Errore nell'invio/verifica",
+  "connecting": "Collegando..."
+}

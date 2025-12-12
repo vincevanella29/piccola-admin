@@ -1,0 +1,27 @@
+{
+  "biometric_title": "Registrazione Biometrica",
+  "biometric_subtitle": "Verifica la tua identità per accedere in modo sicuro al tuo profilo digitale.",
+  "disclaimer": "I tuoi dati biometrici vengono elaborati localmente e protetti tramite crittografia.",
+  "welcome_title": "Attiva la tua Identità",
+  "welcome_desc": "Inserisci il tuo codice fiscale per avviare la validazione biometrica sicura.",
+  "footer_secure": "Powered by Vanellix ID • Crittografia di livello militare",
+  "rut_label": "Codice dipendente",
+  "btn_continue": "Continua",
+  "success_title": "Identità Verificata!",
+  "success_msg": "La tua registrazione biometrica è stata completata con successo. Ora puoi accedere alla tua scheda.",
+  "go_dashboard": "Vai alla mia Scheda",
+  "verify_step": {
+    "align": "Allinea il tuo volto",
+    "turn_right": "Gira a DESTRA",
+    "turn_left": "Gira a SINISTRA",
+    "look_front": "Guarda DRITTO avanti",
+    "detecting": "Rilevamento del volto...",
+    "analyzing": "Analisi dell'identità...",
+    "hold_still": "Rimani fermo",
+    "hold": "Mantieni la posizione",
+    "success": "Cattura riuscita!",
+    "processing": "Elaborazione della verifica...",
+    "slowly": "Lentamente"
+  },
+  "switch_camera": "Cambia fotocamera"
+}

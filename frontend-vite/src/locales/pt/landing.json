@@ -3,12 +3,18 @@
   "tab_ficha": "Meu Perfil",
   "tab_register": "Vincular Perfil",
 
+  "badge": "Ecossistema Vanellix",
+
   "welcome_title": "Bem-vindo à DAO da La Piccola Italia",
   "welcome_subtitle": "Este é o hub de análise e meritocracia do grupo. Acompanhe seu desempenho, conquiste méritos on-chain e construa sua reputação profissional.",
 
   "connect_title": "Comece sua jornada",
   "connect_desc": "Conecte sua wallet para acessar painéis, rankings, folha de pagamento, presença e seu perfil de méritos.",
   "cta_connect": "Conectar Wallet",
+
+  "welcome_back": "Bem-vindo de volta",
+  "continue_dashboard": "Acesse seu painel de controle",
+  "cta_enter": "Entrar no Dashboard",
 
   "feature_titles": {
     "merits": "Méritos on-chain",
@@ -22,6 +28,8 @@
     "payroll": "Acesso seguro à folha e presenças.",
     "privacy": "Suas chaves, sua identidade. Você no controle."
   },
+
+  "secure_connection": "Conexão segura via Web3",
 
   "disclaimer": "Ao conectar uma wallet você aceita as políticas internas e os termos."
 }

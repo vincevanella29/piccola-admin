@@ -79,9 +79,23 @@ async def mi_meritos(
     user: dict = Depends(verify_session),
 ):
     wallet = user.get("wallet")
-    link = LINKS.find_one({"wallet": wallet})
+    sub = user.get("sub")
+    email = user.get("email")
+
+    identity_filters = []
+    if wallet:
+        identity_filters.append({"wallet": wallet})
+    if sub:
+        identity_filters.append({"sub": sub})
+    if email:
+        identity_filters.append({"email": email})
+
+    if not identity_filters:
+        raise HTTPException(status_code=401, detail="Sesión sin identidad válida (wallet/sub/email)")
+
+    link = LINKS.find_one({"$or": identity_filters})
     if not link or not link.get("rut"):
-        raise HTTPException(status_code=404, detail="No hay ficha de empleado vinculada a esta wallet")
+        raise HTTPException(status_code=404, detail="No hay ficha de empleado vinculada a esta identidad")
     rut = str(link.get("rut"))
 
     # --- 1. Cargar todas las definiciones y datos necesarios ---

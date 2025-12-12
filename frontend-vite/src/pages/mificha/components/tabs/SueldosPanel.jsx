@@ -1,10 +1,18 @@
 // File: frontend-vite/src/pages/mificha/components/tabs/sueldos/SueldosPanel.jsx
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  DollarSign, Eye, LoaderCircle, TrendingUp, TrendingDown
+  DollarSign, 
+  Eye, 
+  LoaderCircle, 
+  TrendingUp, 
+  TrendingDown,
+  Calendar,
+  BarChart3,
+  Clock
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import LiquidacionModal from './sueldos/LiquidacionModal';
+import { motion, AnimatePresence } from 'framer-motion';
+import LiquidacionModal from './sueldos/LiquidacionModal'; // Asegúrate de que la ruta sea correcta
 
 // ===== Helpers =====
 const toCLP = (n = 0) => Number(n || 0).toLocaleString('es-CL', { style: 'currency', currency: 'CLP' });
@@ -15,45 +23,52 @@ const monthShort = (yyyymm) => {
 };
 
 // ===== UI Atoms =====
-function Pill({ children }) {
+function Pill({ children, className = "" }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full
-      border border-light-border/30 bg-light-surface
-      dark:border-dark-border/30 dark:bg-dark-surface text-light-text-secondary dark:text-dark-text-secondary">
+    <span className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md
+      border border-light-border/20 bg-light-surface-secondary/50
+      dark:border-dark-border/20 dark:bg-dark-surface-secondary/50 text-light-text-secondary dark:text-dark-text-secondary ${className}`}>
       {children}
     </span>
   );
 }
-function KPI({ label, value, highlight }) {
+
+function KPI({ label, value, highlight, subtext }) {
   return (
     <div className={[
-      "px-3 py-2 rounded-xl border text-xs",
+      "flex flex-col justify-between p-3 rounded-xl border transition-all",
       highlight
-        ? "border-light-accent/40 bg-light-accent/10 dark:border-dark-accent/40 dark:bg-dark-accent/10"
-        : "border-light-border/30 bg-light-surface-secondary/30 dark:border-dark-border/30 dark:bg-dark-surface-secondary/40"
+        ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10"
+        : "border-light-border/30 bg-light-surface-secondary/20 dark:border-dark-border/20 dark:bg-dark-surface-secondary/20"
     ].join(' ')}>
-      <div className="text-[10px] uppercase tracking-wide text-light-text-secondary dark:text-dark-text-secondary">{label}</div>
-      <div className="font-semibold text-light-text-primary dark:text-dark-text-primary text-sm">{value}</div>
-    </div>
-  );
-}
-function TinyBar({ v = 0, max = 1 }) {
-  const h = max ? Math.max(2, Math.round((v / max) * 32)) : 2; // 2..32px
-  return (
-    <div className="w-2.5 rounded-sm bg-light-surface-tertiary/50 dark:bg-dark-surface-secondary/60 overflow-hidden">
-      <div className="w-full bg-matrix-green" style={{ height: `${h}px` }} />
-    </div>
-  );
-}
-function Gauge({ pct = 0 }) {
-  return (
-    <div className="w-full h-1.5 rounded bg-light-surface-tertiary/50 dark:bg-dark-surface-secondary/50 overflow-hidden">
-      <div className="h-1.5 bg-matrix-green" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      <div className="text-[10px] font-bold uppercase tracking-wider text-light-text-tertiary dark:text-dark-text-secondary/70 mb-1 truncate">
+        {label}
+      </div>
+      <div className={`font-mono font-semibold text-sm truncate ${highlight ? 'text-emerald-700 dark:text-emerald-400' : 'text-light-text-primary dark:text-dark-text-primary'}`}>
+        {value}
+      </div>
+      {subtext && <div className="text-[10px] text-light-text-tertiary mt-1">{subtext}</div>}
     </div>
   );
 }
 
-// ===== Year Header (Trading style) =====
+function TinyBar({ v = 0, max = 1, active }) {
+  const h = max ? Math.max(4, Math.round((v / max) * 40)) : 4; // 4..40px height
+  return (
+    <div className="group relative flex flex-col items-center gap-1">
+      {/* Tooltip on hover */}
+      <div className="absolute bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-black text-white px-1.5 py-0.5 rounded whitespace-nowrap pointer-events-none z-10">
+        {toCLP(v)}
+      </div>
+      <div 
+        className={`w-2.5 rounded-t-sm transition-all duration-500 ${active ? 'bg-light-accent dark:bg-dark-accent' : 'bg-light-border/50 dark:bg-dark-border/50'}`} 
+        style={{ height: `${h}px` }} 
+      />
+    </div>
+  );
+}
+
+// ===== Year Header (Financial Dashboard Style) =====
 function YearCard({ y, agg, prev, months, t }) {
   const deltaAbs = prev ? agg.totalNeto - prev.totalNeto : 0;
   const deltaPct = prev ? (agg.totalNeto - prev.totalNeto) / (prev.totalNeto || 1) : 0;
@@ -61,96 +76,126 @@ function YearCard({ y, agg, prev, months, t }) {
   const maxInYear = Math.max(...months.map(m => safeNum(m.neto_total)), 1);
 
   return (
-    <div className="rounded-2xl border border-light-border/30 dark:border-dark-border/20 p-4
-                    bg-light-surface dark:bg-dark-surface">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary">{y}</div>
-        <div className={[
-          "inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border",
-          pos
-            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-            : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
-        ].join(' ')}>
-          {pos ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-          <strong>{pos ? '+' : ''}{toCLP(deltaAbs)}</strong>
-          <span>({(deltaPct*100).toFixed(1)}%)</span>
+    <motion.div 
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-light-border/30 dark:border-dark-border/30 p-5
+                 bg-gradient-to-br from-light-surface via-light-surface to-light-surface-secondary/30
+                 dark:from-dark-surface dark:via-dark-surface dark:to-dark-surface-secondary/10 shadow-sm relative overflow-hidden"
+    >
+      {/* Background Decor */}
+      <div className="absolute top-0 right-0 p-32 bg-light-accent/5 dark:bg-dark-accent/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+
+      <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-2xl font-black text-light-text-primary dark:text-dark-text-primary tracking-tight">{y}</span>
+            <div className={[
+              "inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border",
+              pos
+                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                : "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-400"
+            ].join(' ')}>
+              {pos ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              <span>{Math.abs(deltaPct * 100).toFixed(1)}% vs anterior</span>
+            </div>
+          </div>
+          <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            Resumen anual de remuneraciones y desempeño.
+          </div>
+        </div>
+
+        {/* Mini Chart */}
+        <div className="flex items-end gap-1.5 h-12 pb-1">
+          {months.slice().reverse().map(m => ( // Mostrar orden cronológico visualmente
+            <TinyBar key={m.periodo} v={safeNum(m.neto_total)} max={maxInYear} active={safeNum(m.neto_total) === agg.best} />
+          ))}
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-4">
+      {/* KPIs Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KPI label={t('mificha.sueldos.total_neto')} value={toCLP(agg.totalNeto)} highlight />
         <KPI label={t('mificha.sueldos.promedio_neto')} value={toCLP(agg.promedioNeto)} />
-        <KPI label={t('mificha.sueldos.mejor_mes')} value={toCLP(agg.best)} />
-        <KPI label={t('mificha.sueldos.peor_mes')} value={toCLP(agg.worst)} />
-        <KPI label={t('mificha.sueldos.total_horas_extra')} value={agg.totalHE} />
-        <KPI label={t('mificha.sueldos.total_dias_trabajados')} value={agg.totalDias} />
+        <KPI label="Mejor Ingreso" value={toCLP(agg.best)} subtext="Mensual más alto" />
+        <KPI label="Total Días" value={agg.totalDias} subtext="Trabajados" />
+        <KPI label="Total H.E." value={agg.totalHE} subtext="Horas Extras" />
+        <KPI label="Días Licencia" value={agg.totalLicencia} />
       </div>
-
-      {/* Sparkline tipo “volumenes” */}
-      <div className="flex items-end gap-1 h-32 mb-2">
-        {months.map(m => (
-          <div key={m.periodo} className="flex flex-col items-center gap-1">
-            <TinyBar v={safeNum(m.neto_total)} max={maxInYear} />
-            <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{monthShort(m.periodo)}</span>
-          </div>
-        ))}
-      </div>
-      <Gauge pct={Math.round((agg.totalNeto / (agg.months ? agg.promedioNeto * agg.months : 1)) * 100)} />
-    </div>
+    </motion.div>
   );
 }
 
-// ===== Month Row (compact “ticket”) =====
-function MonthRow({ g, avg, onOpen, t }) {
+// ===== Month Row (Detailed Ticket) =====
+function MonthRow({ g, avg, onOpen, t, index }) {
   const neto = safeNum(g.neto_total);
   const bruto = safeNum(g.bruto_total);
-  const ratio = bruto ? Math.round((neto / bruto) * 100) : 0;
   const delta = neto - (avg || 0);
   const pos = delta >= 0;
   const it = g.items?.[0];
   const he50 = safeNum(it?.hhs_extra_50);
   const he100 = safeNum(it?.hhs_extra_100);
-  const dias = safeNum(it?.dias_trabajados);
+  
+  // Variantes de animación
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: { opacity: 1, y: 0, transition: { delay: index * 0.05, duration: 0.3 } }
+  };
 
   return (
-    <div className="rounded-xl border border-light-border/30 dark:border-dark-border/20 p-3
-                    bg-light-surface dark:bg-dark-surface">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs px-2 py-0.5 rounded
-                           bg-light-surface-secondary dark:bg-dark-surface
-                           text-light-text-secondary dark:text-dark-text-secondary">
-            {monthShort(g.periodo)} {String(g.periodo).slice(0,4)}
-          </span>
-          <span className="text-base font-semibold text-light-text-primary dark:text-dark-text-primary">{toCLP(neto)}</span>
-          <Pill>{t('mificha.sueldos.neto_bruto')}: <strong className="ml-1">{ratio}%</strong></Pill>
+    <motion.div 
+      variants={itemVariants}
+      initial="hidden"
+      animate="visible"
+      className="group relative rounded-xl border border-light-border/30 dark:border-dark-border/30 
+                 bg-light-surface dark:bg-dark-surface hover:border-light-accent/30 dark:hover:border-dark-accent/30
+                 transition-colors overflow-hidden"
+    >
+      <div className="p-4 flex flex-col gap-3">
+        {/* Header Row */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary flex flex-col items-center justify-center border border-light-border/20 dark:border-dark-border/20">
+              <span className="text-[9px] uppercase font-bold text-light-text-tertiary">{String(g.periodo).slice(0,4)}</span>
+              <span className="text-xs font-black text-light-text-primary dark:text-dark-text-primary uppercase">{monthShort(g.periodo).replace('.','')}</span>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary tabular-nums tracking-tight">
+                {toCLP(neto)}
+              </div>
+              <div className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-2">
+                <span>Líquido a Pago</span>
+                <span className={`flex items-center ${pos ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                  {pos ? <TrendingUp size={10} className="mr-0.5"/> : <TrendingDown size={10} className="mr-0.5"/>}
+                  {Math.abs(delta / (avg || 1) * 100).toFixed(0)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => it?._id && onOpen(it._id)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg
+                       bg-light-text-primary text-light-surface hover:bg-light-text-primary/90
+                       dark:bg-white dark:text-black dark:hover:bg-gray-200 transition-colors"
+          >
+            <Eye size={14} /> 
+            <span className="hidden sm:inline">{t('mificha.sueldos.ver_liquidacion')}</span>
+          </button>
         </div>
 
-        <button
-          onClick={() => it?._id && onOpen(it._id)}
-          className="inline-flex items-center gap-1 text-xs font-semibold
-                     text-light-text-secondary hover:text-light-text-primary
-                     dark:text-dark-text-secondary dark:hover:text-dark-text-primary"
-        >
-          <Eye size={14} /> {t('mificha.sueldos.ver_liquidacion')}
-        </button>
+        {/* Details Row */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-light-border/10 dark:border-dark-border/10 mt-1">
+          <Pill><Clock size={10} /> {it?.dias_trabajados} días trab.</Pill>
+          {(he50 > 0 || he100 > 0) && (
+            <Pill className="text-orange-600/80 dark:text-orange-400/80 bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800/30">
+               <Clock size={10} /> {he50 + he100} HE
+            </Pill>
+          )}
+          <Pill>Bruto: {toCLP(bruto)}</Pill>
+        </div>
       </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Pill>{t('mificha.sueldos.dias_trabajados')}: <strong className="ml-1">{dias}</strong></Pill>
-        <Pill>{t('mificha.sueldos.horas_extra_50')}: <strong className="ml-1">{he50}</strong></Pill>
-        <Pill>{t('mificha.sueldos.horas_extra_100')}: <strong className="ml-1">{he100}</strong></Pill>
-        <span className={[
-          "text-xs inline-flex items-center gap-1 px-2 py-1 rounded",
-          pos ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-              : "bg-red-500/10 text-red-700 dark:text-red-300"
-        ].join(' ')}>
-          {pos ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}
-          {pos ? '+' : ''}{toCLP(delta)} {t('mificha.sueldos.vs_promedio')}
-        </span>
-      </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -158,6 +203,7 @@ function MonthRow({ g, avg, onOpen, t }) {
 export default function SueldosPanel({ isLoading, sueldos, fetchLiquidacionDetalle }) {
   const { t } = useTranslation();
 
+  // Ordenar y agrupar data (lógica conservada)
   const sorted = useMemo(() => {
     const arr = Array.isArray(sueldos) ? [...sueldos] : [];
     return arr.sort((a,b) => Number(b.periodo) - Number(a.periodo));
@@ -204,7 +250,7 @@ export default function SueldosPanel({ isLoading, sueldos, fetchLiquidacionDetal
         promedioNeto: list.length ? totalNeto / list.length : 0,
         best,
         worst: worst===Number.MAX_SAFE_INTEGER ? 0 : worst,
-        totalDias: totalDias,
+        totalDias,
         totalLicencia: totalLic,
         totalAusencia: totalAus,
         totalHE50,
@@ -217,8 +263,9 @@ export default function SueldosPanel({ isLoading, sueldos, fetchLiquidacionDetal
 
   const [openYear, setOpenYear] = useState(() => years[0] || null);
 
-  // Modal Liquidación
+  // Modal State
   const [liq, setLiq] = useState({ open:false, loading:false, data:null, error:null });
+  
   const openLiquidacion = useCallback(async (id) => {
     if (!id || !fetchLiquidacionDetalle) return;
     setLiq({ open:true, loading:true, data:null, error:null });
@@ -229,83 +276,116 @@ export default function SueldosPanel({ isLoading, sueldos, fetchLiquidacionDetal
       setLiq({ open:true, loading:false, data:null, error:e?.response?.data?.detail || e?.message || 'Error' });
     }
   }, [fetchLiquidacionDetalle]);
+
   const closeLiquidacion = () => setLiq({ open:false, loading:false, data:null, error:null });
 
-  // Loading / empty
+  // Loading View
   if (isLoading && sueldos === null) {
     return (
-      <div className="flex justify-center p-8">
-        <LoaderCircle className="animate-spin text-matrix-green" />
+      <div className="flex flex-col items-center justify-center p-12 gap-3 min-h-[300px]">
+        <LoaderCircle className="animate-spin text-light-accent dark:text-dark-accent" size={32} />
+        <span className="text-sm text-light-text-tertiary animate-pulse">Cargando historial...</span>
       </div>
     );
   }
+
+  // Empty View
   if (sueldos !== null && Array.isArray(sueldos) && sueldos.length === 0) {
     return (
-      <p className="text-center text-light-text-secondary dark:text-dark-text-secondary py-8">
-        {t('mificha.no_hay_sueldos')}
-      </p>
+      <div className="flex flex-col items-center justify-center p-12 min-h-[300px] text-center border border-dashed border-light-border/30 dark:border-dark-border/30 rounded-3xl bg-light-surface/50 dark:bg-dark-surface/50">
+        <div className="p-4 rounded-full bg-light-surface-secondary dark:bg-dark-surface-secondary mb-3">
+            <DollarSign size={24} className="text-light-text-tertiary" />
+        </div>
+        <p className="text-light-text-secondary dark:text-dark-text-secondary font-medium">
+          {t('mificha.no_hay_sueldos')}
+        </p>
+      </div>
     );
   }
 
-  // Ready
+  // Ready View
   return (
     <>
-      {Array.isArray(sueldos) && sueldos.length > 0 && (
-        <section className="rounded-3xl border border-light-border/30 dark:border-dark-border/20
-                            bg-light-surface dark:bg-dark-surface-secondary/40 p-4 md:p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <DollarSign size={22} className="text-matrix-green" />
-              <h2 className="text-lg md:text-xl font-bold text-light-text-primary dark:text-dark-text-primary">
-                {t('mificha.sueldos.historial_sueldos')}
-              </h2>
+      <div className="space-y-6">
+        {Array.isArray(sueldos) && sueldos.length > 0 && (
+          <section>
+            {/* Header Title */}
+            <div className="flex items-center gap-3 mb-6 px-1">
+               <div className="p-2.5 rounded-xl bg-gradient-to-br from-light-accent/20 to-light-accent/5 dark:from-dark-accent/20 dark:to-dark-accent/5 border border-light-accent/10 dark:border-dark-accent/10">
+                 <BarChart3 size={20} className="text-light-accent dark:text-dark-accent" />
+               </div>
+               <div>
+                 <h2 className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">
+                    {t('mificha.sueldos.historial_sueldos')}
+                 </h2>
+                 <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                   Historial completo de liquidaciones y bonos.
+                 </p>
+               </div>
             </div>
-          </div>
 
-          {/* Year tabs (scroll) */}
-          <div className="sticky top-0 z-10 -mx-2 mb-4 px-2 py-2
-                          bg-light-surface/90 backdrop-blur-sm dark:bg-dark-surface/90">
-            <div className="flex gap-2 overflow-x-auto scrollbar-none">
-              {years.map(y => (
-                <button
-                  key={y}
-                  onClick={() => setOpenYear(y)}
-                  className={[
-                    "px-3 py-1.5 rounded-lg border text-sm",
-                    openYear === y
-                      ? "border-light-accent/50 bg-light-accent/10 text-light-text-primary dark:border-dark-accent/50 dark:bg-dark-accent/10 dark:text-dark-text-primary"
-                      : "border-light-border/30 bg-light-surface-secondary/40 text-light-text-secondary hover:bg-light-surface-secondary/60 dark:border-dark-border/30 dark:bg-dark-surface-secondary/40 dark:text-dark-text-secondary dark:hover:bg-dark-surface-secondary/60"
-                  ].join(' ')}
-                >
-                  {y}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Year card + month list */}
-          {openYear && (
-            <div className="space-y-4">
-              <YearCard
-                y={openYear}
-                agg={yearAgg[openYear]}
-                prev={yearAgg[String(Number(openYear) - 1)]}
-                months={byYear.get(openYear) || []}
-                t={t}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {(byYear.get(openYear) || []).map(g => (
-                  <MonthRow key={g.periodo} g={g} avg={yearAgg[openYear]?.promedioNeto} onOpen={openLiquidacion} t={t} />
+            {/* Year Selector (Sticky) */}
+            <div className="sticky top-0 z-20 py-3 bg-light-background/80 dark:bg-dark-background/80 backdrop-blur-md -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                {years.map(y => (
+                  <button
+                    key={y}
+                    onClick={() => setOpenYear(y)}
+                    className={`
+                      px-4 py-1.5 rounded-full border text-xs font-semibold transition-all whitespace-nowrap
+                      ${openYear === y
+                        ? "border-light-accent/50 bg-light-accent text-white dark:border-dark-accent/50 dark:bg-dark-accent dark:text-black shadow-md shadow-light-accent/20 dark:shadow-dark-accent/20"
+                        : "border-light-border/30 bg-light-surface dark:border-dark-border/30 dark:bg-dark-surface text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary"
+                      }
+                    `}
+                  >
+                    {y}
+                  </button>
                 ))}
               </div>
             </div>
-          )}
-        </section>
-      )}
 
-      {/* Modal Liquidación */}
+            {/* Content Area */}
+            <AnimatePresence mode="wait">
+              {openYear && (
+                <motion.div 
+                  key={openYear}
+                  initial={{ opacity: 0, x: -5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 5 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  {/* Summary Card */}
+                  <YearCard
+                    y={openYear}
+                    agg={yearAgg[openYear]}
+                    prev={yearAgg[String(Number(openYear) - 1)]}
+                    months={byYear.get(openYear) || []}
+                    t={t}
+                  />
+
+                  {/* Month Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(byYear.get(openYear) || []).map((g, idx) => (
+                      <MonthRow 
+                        key={g.periodo} 
+                        g={g} 
+                        avg={yearAgg[openYear]?.promedioNeto} 
+                        onOpen={openLiquidacion} 
+                        t={t} 
+                        index={idx}
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+        )}
+      </div>
+
+      {/* Modal Integration */}
       <LiquidacionModal
         open={liq.open}
         onClose={closeLiquidacion}

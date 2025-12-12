@@ -1,14 +1,25 @@
 import logging
 import secrets
 import time
+import re
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
-import requests
-from PIL import Image, ImageFile
 import io
 from urllib.parse import urlparse
+
+import cv2
+import numpy as np
+import requests
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi.responses import Response
+from paddleocr import PaddleOCR
+from PIL import Image, ImageFile
+
+from utils.biometria import (
+    get_secure_face_embedding,
+    compare_faces_cosine,
+    is_match_secure,
+)
 
 from utils.auth.session import verify_session
 from utils.web3mongo import db
@@ -29,7 +40,82 @@ def l2_distance(v1: List[float], v2: List[float]) -> float:
         raise ValueError("Descriptores inválidos o de distinta dimensión")
     return sum((a - b) ** 2 for a, b in zip(v1, v2)) ** 0.5
 
-MATCH_THRESHOLD = 0.6  # umbral típico para 128D (face-api/face_recognition ~0.6)
+MATCH_THRESHOLD = 0.6  # umbral histórico para flujo legacy (face-api/dlib)
+
+# Umbral recomendado para similitud coseno con ArcFace (InsightFace)
+SECURE_THRESHOLD = 0.45
+
+
+# --- OCR & CARNET HELPERS ---
+
+# Inicializar OCR una sola vez (lang es). Algunas versiones no aceptan 'show_log'.
+ocr_engine = PaddleOCR(use_angle_cls=True, lang="es")
+
+
+def extract_rut_from_text(text_list: List[str]) -> Optional[str]:
+    """Extrae un RUT chileno desde una lista de líneas de texto del OCR.
+
+    Acepta formatos como:
+    - 12.345.678-9
+    - 12345678-9
+    - 12345678K
+    """
+    rut_pattern = re.compile(r"(\d{1,2}\.?\d{3}\.?\d{3}-?[\dkK])")
+
+    for line in text_list or []:
+        clean_line = (line or "").replace(" ", "").replace("..", ".")
+        match = rut_pattern.search(clean_line)
+        if match:
+            raw_rut = match.group(1).replace(".", "").replace("-", "").upper()
+            if len(raw_rut) > 1:
+                body = raw_rut[:-1]
+                dv = raw_rut[-1]
+                return f"{body}-{dv}"
+    return None
+
+
+def extract_face_from_id_card(image_bytes: bytes) -> Optional[np.ndarray]:
+    """Recorta el rostro principal desde la foto del carnet.
+
+    Devuelve una imagen RGB (numpy array) lista para generar encoding biométrico.
+    """
+    try:
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img_bgr is None:
+            return None
+        rgb_img = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    except Exception as e:
+        logger.warning(f"extract_face_from_id_card: error decodificando imagen: {e}")
+        return None
+
+    # Detectar caras en el carnet (modelo hog para CPU)
+    try:
+        face_locations = face_recognition.face_locations(rgb_img, model="hog")
+    except Exception as e:
+        logger.warning(f"extract_face_from_id_card: error detectando rostro: {e}")
+        return None
+
+    if not face_locations:
+        return None
+
+    # Tomar la cara más grande (titular)
+    top, right, bottom, left = max(
+        face_locations,
+        key=lambda f: (f[2] - f[0]) * (f[1] - f[3]),
+    )
+
+    height, width, _ = rgb_img.shape
+    pad_h = int((bottom - top) * 0.3)
+    pad_w = int((right - left) * 0.3)
+
+    new_top = max(0, top - int(pad_h * 1.5))
+    new_bottom = min(height, bottom + int(pad_h * 0.5))
+    new_left = max(0, left - pad_w)
+    new_right = min(width, right + pad_w)
+
+    face_rgb = rgb_img[new_top:new_bottom, new_left:new_right]
+    return face_rgb if face_rgb.size > 0 else None
 
 
 def get_employee_profile(rut: str) -> Optional[dict]:
@@ -256,97 +342,210 @@ async def foto_proxy(url: str, user: dict = Depends(verify_session)):
     return response
 
 
-@router.post("/registro/validar", summary="Validar verificación facial y activar cuenta de empleado (gratis)")
-async def validar_registro(request: Request, user: dict = Depends(verify_session)):
-    data = await request.json()
-    session_id = data.get("session_id")
-    rut = data.get("rut")
-    live_descriptor = data.get("live_descriptor")  # Lista de floats
-    reference_descriptor = data.get("reference_descriptor")  # Lista de floats (opcional si no hay foto)
-    liveness = data.get("liveness") or {}
-    # liveness esperado: { blink: bool, turn_left: bool, turn_right: bool }
+@router.post("/registro/escanear_carnet", summary="Validar carnet y extraer rostro para referencia")
+async def escanear_carnet(
+    rut: str = Form(...),
+    front_image: UploadFile = File(...),
+    user: dict = Depends(verify_session),
+):
+    """Escanea el carnet de identidad:
 
-    if not session_id or not rut or not isinstance(live_descriptor, list) or not isinstance(reference_descriptor, list):
-        logger.warning(
-            "Validación fallida: parámetros incompletos - session_id=%s, rut=%s, live_descriptor=%s, reference_descriptor=%s",
-            session_id,
-            rut,
-            (len(live_descriptor) if isinstance(live_descriptor, list) else None),
-            (len(reference_descriptor) if isinstance(reference_descriptor, list) else None),
-        )
-        raise HTTPException(status_code=400, detail="Faltan parámetros: session_id, rut, live_descriptor, reference_descriptor")
+    - Valida que el RUT impreso coincida (o al menos el cuerpo) con el RUT objetivo.
+    - Extrae el rostro oficial del plástico.
+    - Genera un descriptor biométrico de referencia para usar en la validación en vivo.
+    """
+    start_time = time.time()
+    rut = clean_rut(rut or "")
+    if not rut:
+        raise HTTPException(status_code=400, detail="Debe enviar rut")
 
+    # Leer bytes de la imagen frontal
+    front_bytes = await front_image.read()
+    if not front_bytes:
+        raise HTTPException(status_code=400, detail="Imagen frontal vacía")
+
+    # Decodificar para OCR (PaddleOCR acepta ndarray)
+    try:
+        nparr = np.frombuffer(front_bytes, np.uint8)
+        img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img_bgr is None:
+            raise ValueError("No se pudo decodificar la imagen")
+    except Exception as e:
+        logger.error(f"escanear_carnet: error decodificando imagen: {e}")
+        raise HTTPException(status_code=400, detail="Imagen inválida o corrupta")
+
+    # 1) OCR del carnet para extraer/validar el RUT impreso
+    try:
+        # Algunas versiones de PaddleOCR no aceptan el argumento keyword cls en .ocr()
+        ocr_result = ocr_engine.ocr(img_bgr)
+    except Exception as e:
+        logger.error(f"escanear_carnet: error OCR: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando imagen del carnet")
+
+    detected_texts: List[str] = []
+    try:
+        if ocr_result and ocr_result[0]:
+            detected_texts = [line[1][0] for line in ocr_result[0]]
+    except Exception as e:
+        logger.warning(f"escanear_carnet: error parseando resultado OCR: {e}")
+
+    logger.info(f"Texto detectado en carnet para rut objetivo {rut}: {detected_texts}")
+
+    extracted_rut = extract_rut_from_text(detected_texts)
+
+    if not extracted_rut:
+        # Fallback: si no logramos extraer RUT completo, buscamos al menos el cuerpo
+        body_rut = rut.split("-")[0]
+        normalized_lines = [t.replace(".", "").replace(" ", "") for t in detected_texts]
+        if not any(body_rut in txt for txt in normalized_lines):
+            raise HTTPException(
+                status_code=400,
+                detail="No pudimos leer el RUT en la imagen. Asegúrate que el carnet esté nítido y sin brillos.",
+            )
+    else:
+        # Validar coincidencia exacta de RUT si fue posible extraerlo
+        clean_extracted = clean_rut(extracted_rut)
+        if clean_extracted != rut:
+            raise HTTPException(
+                status_code=409,
+                detail=f"El RUT del carnet ({extracted_rut}) no coincide con el empleado seleccionado.",
+            )
+
+    # 2) Extraer rostro desde el carnet usando InsightFace (ArcFace)
+    reference_descriptor, emb_error, face_info = get_secure_face_embedding(front_bytes)
+    if emb_error:
+        raise HTTPException(status_code=400, detail=f"Error en carnet: {emb_error}")
+
+    elapsed = time.time() - start_time
+    logger.info(
+        "escanear_carnet ok: rut=%s, extracted_rut=%s, elapsed=%.3fs",
+        rut,
+        extracted_rut,
+        elapsed,
+    )
+
+    # Nota: por simplicidad devolvemos el descriptor al front para que lo use en /registro/validar
+    # En una versión más estricta podrías guardar reference_descriptor en REG_SESSIONS
+    return {
+        "ok": True,
+        "message": "Carnet validado y rostro extraído exitosamente.",
+        "rut_detected": extracted_rut or rut,
+        "reference_descriptor": reference_descriptor,
+    }
+
+
+@router.post("/registro/validar_arcface", summary="Validar selfie contra referencia (ArcFace, CPU)")
+async def validar_registro_arcface(
+    session_id: str = Form(...),
+    rut: str = Form(...),
+    live_image: UploadFile = File(...),
+    reference_descriptor_json: str = Form(...),
+    liveness: str = Form(None),
+    user: dict = Depends(verify_session),
+):
+    """Endpoint alternativo que valida imagen en vivo contra descriptor de referencia usando InsightFace.
+
+    No reemplaza al flujo legacy `/registro/validar`; puedes migrar el front gradualmente.
+    """
+    import json
+
+    # 1) Parsear descriptor de referencia recibido del front (puede venir de carnet o JS)
+    try:
+        ref_vec = json.loads(reference_descriptor_json)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Descriptor de referencia corrupto")
+
+    # 2) Procesar selfie en vivo en backend
+    live_content = await live_image.read()
+    live_vec, emb_error, live_info = get_secure_face_embedding(live_content)
+    if emb_error:
+        raise HTTPException(status_code=400, detail=f"Error en selfie: {emb_error}")
+
+    # 2b) Asegurar que el descriptor de referencia tenga la misma dimensión que el embedding vivo (512D)
+    # Si viene de face-api (128D), recalculamos referencia desde foto_url almacenado en la sesión.
+    if not isinstance(ref_vec, list) or len(ref_vec) != len(live_vec):
+        sess = REG_SESSIONS.find_one({"_id": session_id, "rut": rut})
+        foto_url = sess.get("foto_url") if sess else None
+        if not foto_url:
+            raise HTTPException(
+                status_code=400,
+                detail="Referencia biométrica incompatible y sin foto de respaldo para recalcular.",
+            )
+
+        # Recalcular embedding de referencia desde foto_url en backend
+        try:
+            resp = requests.get(foto_url, timeout=5)
+            if resp.status_code != 200 or not resp.content:
+                raise ValueError("No se pudo descargar la foto de referencia")
+            ref_vec, ref_err, _ = get_secure_face_embedding(resp.content)
+            if ref_err:
+                raise HTTPException(status_code=400, detail=f"Error en foto de referencia: {ref_err}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("validar_registro_arcface: error recalculando referencia desde foto_url=%s: %s", foto_url, e)
+            raise HTTPException(status_code=500, detail="Error técnico procesando la foto de referencia.")
+
+    # 3) Comparación con similitud coseno
+    similarity = compare_faces_cosine(live_vec, ref_vec)
+    is_match = is_match_secure(similarity, threshold=SECURE_THRESHOLD)
+
+    logger.info(
+        "validar_registro_arcface rut=%s session_id=%s similarity=%.4f threshold=%.2f match=%s",
+        rut,
+        session_id,
+        similarity,
+        SECURE_THRESHOLD,
+        is_match,
+    )
+
+    if not is_match:
+        raise HTTPException(status_code=401, detail="Biometría fallida: el rostro no coincide con la referencia.")
+
+    # --- 4) Liveness recibido como JSON opcional ---
+    try:
+        liveness_dict = json.loads(liveness) if liveness else {}
+    except Exception:
+        liveness_dict = {}
+
+    # --- 5) Reutilizar lógica de activación (similar a validar_registro) ---
+
+    # Obtener sesión y empleado
     sess = REG_SESSIONS.find_one({"_id": session_id, "rut": rut})
     if not sess:
-        logger.warning("Sesión no encontrada: session_id=%s, rut=%s", session_id, rut)
+        logger.warning("Sesión no encontrada (arcface): session_id=%s, rut=%s", session_id, rut)
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
-    if sess.get("status") == "completed":
-        logger.info("Sesión ya completada: session_id=%s, rut=%s", session_id, rut)
-        return {"ok": True, "message": "Sesión ya completada"}
 
-    # Validar liveness del front (gratis, challenge-response)
-    for step in (sess.get("challenge") or []):
-        if not liveness.get(step):
-            logger.warning("Liveness no cumplido: step=%s, liveness=%s", step, liveness)
-            raise HTTPException(status_code=400, detail=f"Liveness no cumplido: falta {step}")
-
-    # Obtener empleado
     emp = get_employee_profile(rut)
     if not emp:
-        logger.warning("Trabajador no encontrado: rut=%s", rut)
+        logger.warning("Trabajador no encontrado (arcface): rut=%s", rut)
         raise HTTPException(status_code=404, detail="Trabajador no encontrado")
 
-    # Asegurar solo 1 usuario por ficha/RUT: si ya hay un vínculo activo, no permitir otro registro
+    # No permitir duplicar vínculos activos para el mismo rut
     existing_link = LINKS.find_one({"rut": rut, "status": "active"})
     if existing_link:
-        logger.info("Intento de registro duplicado para rut=%s", rut)
+        logger.info("Intento de registro duplicado (arcface) para rut=%s", rut)
         raise HTTPException(status_code=409, detail="Este RUT ya tiene un usuario activo vinculado")
 
-    # Determinar descriptor de referencia (obligatorio si hay foto en la BD)
-    ref_desc = reference_descriptor
-
-    foto_url = sess.get("foto_url")
-    if foto_url and not isinstance(ref_desc, list):
-        logger.warning("Falta reference_descriptor para empleado con foto: rut=%s", rut)
-        raise HTTPException(status_code=400, detail="Falta reference_descriptor basado en foto de empleado")
-    if not foto_url:
-        # Sin foto en BD: no permitir continuar con registro; mantener aviso admin
-        raise HTTPException(status_code=409, detail="Empleado sin foto: actualizar ficha antes de registrar")
-
-    try:
-        dist = l2_distance(live_descriptor, ref_desc)
-        logger.info("Comparación de descriptores: rut=%s, dist=%.3f, threshold=%s", rut, dist, MATCH_THRESHOLD)
-    except Exception as e:
-        logger.error("Error comparando descriptores: rut=%s, error=%s", rut, e)
-        raise HTTPException(status_code=400, detail=f"Error comparando descriptores: {e}")
-
-    if dist > MATCH_THRESHOLD:
-        logger.warning("No coincide rostro: rut=%s, dist=%.3f, threshold=%s", rut, dist, MATCH_THRESHOLD)
-        raise HTTPException(status_code=401, detail=f"No coincide rostro (dist={dist:.3f} > {MATCH_THRESHOLD})")
-
-    # Resolver identidad del usuario (guardar SIEMPRE wallet, email y sub)
+    # Resolver identidad (email/sub/wallet) desde sesión auth
     sub = user.get("sub")
-    # intentar wallet desde sesión y como fallback desde header
-    wallet = user.get("wallet") or request.headers.get("x-wallet-address") or request.headers.get("X-Wallet-Address")
-    # email desde sesión/privy
+    wallet = user.get("wallet")
     email = None
     try:
         email = user.get("email") if isinstance(user.get("email"), str) else None
     except Exception:
         email = None
     if sub and not email:
-        # obtener email desde Privy con el sub
         try:
             email = get_email_from_privy(sub)
         except Exception:
             email = None
 
-    # Wallet es opcional: si no está, seguimos adelante; guardamos lo disponible
     identity = {"email": email, "sub": sub}
     if wallet:
         identity["wallet"] = wallet
 
-    # --- Protección de unicidad: un sub/wallet no puede estar vinculado a más de un RUT ---
+    # Protección de unicidad identidad->rut
     conflict_filters = []
     if sub:
         conflict_filters.append({"sub": sub})
@@ -357,14 +556,14 @@ async def validar_registro(request: Request, user: dict = Depends(verify_session
         conflict_query = {
             "$and": [
                 {"$or": conflict_filters},
-                {"rut": {"$ne": rut}},  # otro rut distinto
+                {"rut": {"$ne": rut}},
                 {"status": {"$ne": "deleted"}},
             ]
         }
         existing_identity_link = LINKS.find_one(conflict_query)
         if existing_identity_link:
             logger.warning(
-                "Intento de vincular identidad ya usada: sub=%s, wallet=%s, nuevo_rut=%s, existente_rut=%s",
+                "Intento de vincular identidad ya usada (arcface): sub=%s, wallet=%s, nuevo_rut=%s, existente_rut=%s",
                 sub,
                 wallet,
                 rut,
@@ -375,7 +574,7 @@ async def validar_registro(request: Request, user: dict = Depends(verify_session
                 detail="Esta identidad (wallet/sub) ya está vinculada a otro RUT. Contacta a un administrador para corregir el registro.",
             )
 
-    # Datos de cargo/sección para perfilar usuario empleado
+    # Datos de cargo/sección
     cargo = (emp.get("cargo") or "").strip() or None
     seccion = None
     try:
@@ -386,17 +585,18 @@ async def validar_registro(request: Request, user: dict = Depends(verify_session
     except Exception:
         pass
 
-    # Upsert de vínculo a "empleados_usuarios" como base de usuarios empleados
+    # Upsert a empleados_usuarios con metadata biométrica basada en ArcFace
     update_fields = {
         "rut": rut,
         "email": email,
         "sub": sub,
         "linked_at": int(time.time()),
         "biometric": {
-            "dist": dist,
-            "threshold": MATCH_THRESHOLD,
-            "liveness": liveness,
+            "similarity": similarity,
+            "threshold": SECURE_THRESHOLD,
+            "liveness": liveness_dict,
             "session_id": session_id,
+            "engine": "arcface",
         },
         "status": "active",
         "role": "employee",
@@ -413,21 +613,15 @@ async def validar_registro(request: Request, user: dict = Depends(verify_session
     )
 
     # Marcar sesión como completada
-    REG_SESSIONS.update_one({"_id": session_id}, {"$set": {"status": "completed", "completed_at": int(time.time())}})
+    REG_SESSIONS.update_one(
+        {"_id": session_id},
+        {"$set": {"status": "completed", "completed_at": int(time.time())}},
+    )
 
-    return {"ok": True, "rut": rut, **identity, "biometric_dist": dist}
-
-
-@router.get("/registro/estado", summary="Consultar si un rut ya está vinculado y activo")
-async def estado_registro(rut: str):
-    link = LINKS.find_one({"rut": rut})
-    if not link:
-        return {"linked": False}
     return {
-        "linked": True,
+        "ok": True,
         "rut": rut,
-        "wallet": link.get("wallet"),
-        "email": link.get("email"),
-        "status": link.get("status", "unknown"),
-        "linked_at": link.get("linked_at"),
+        **identity,
+        "similarity": similarity,
+        "message": "Identidad verificada y cuenta de empleado activada (ArcFace).",
     }

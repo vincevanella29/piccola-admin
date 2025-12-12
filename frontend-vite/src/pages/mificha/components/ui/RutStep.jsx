@@ -1,49 +1,57 @@
-import React, { useMemo } from 'react';
-import { FaArrowRight, FaSpinner } from 'react-icons/fa';
-import { formatRutUI, isValidRut, cleanRut, splitRut } from '../utils/rut.js';
+// src/pages/employees_register/components/ui/RutStep.jsx
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { ArrowRight, LoaderCircle } from 'lucide-react';
+import { formatRutUI, isValidRut } from '../utils/rut';
 
 const RutStep = ({ rut, setRut, onSubmit, isLoading, error }) => {
-  const handleRutChange = (e) => {
-    const formatted = formatRutUI(e.target.value);
-    setRut(formatted);
-  };
-  const handleSubmit = (e) => { e.preventDefault(); onSubmit(); };
+  const { t } = useTranslation();
 
-  const showInvalid = useMemo(() => {
-    const cleaned = cleanRut(rut);
-    const { dv } = splitRut(cleaned);
-    if (!dv) return false; // no DV yet, no validation message
-    return !isValidRut(rut);
-  }, [rut]);
+  const handleChange = (e) => setRut(formatRutUI(e.target.value));
+  const handleSubmit = (e) => { e.preventDefault(); onSubmit(); };
+  const isValid = isValidRut(rut);
 
   return (
-    <div className="w-full max-w-sm mx-auto flex flex-col items-center text-center p-4 animate-fadeIn">
-      <h2 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">Ingresa tu RUT</h2>
-      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1 mb-6">Usa el formato sin puntos y con guión.</p>
-      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
-        <input
-          type="text"
-          value={rut}
-          onChange={handleRutChange}
-          placeholder="12345678-9"
-          className="w-full px-4 py-3 text-center text-base rounded-lg border-2 bg-light-background dark:bg-dark-background focus:ring-2 focus:outline-none transition-colors border-light-border dark:border-dark-border focus:border-matrix-green focus:ring-matrix-green/30"
-          disabled={isLoading}
-          autoFocus
-        />
+    <div className="w-full max-w-sm mx-auto animate-fadeIn">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        
+        <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary ml-1">
+                {t('register.rut_label', 'RUT Empleado')}
+            </label>
+            <input
+                type="text"
+                value={rut}
+                onChange={handleChange}
+                placeholder="12.345.678-9"
+                className="w-full px-4 py-4 text-center text-xl font-mono tracking-wide rounded-xl 
+                           bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 
+                           border-2 border-transparent focus:border-matrix-green focus:bg-light-surface dark:focus:bg-dark-surface 
+                           text-light-text-primary dark:text-white 
+                           outline-none transition-all placeholder:opacity-30"
+                disabled={isLoading}
+                autoFocus
+            />
+            {error && (
+                <p className="text-xs text-light-error dark:text-dark-error font-medium text-center mt-2 animate-shake">
+                    {error}
+                </p>
+            )}
+        </div>
+
         <button
           type="submit"
-          disabled={isLoading || !isValidRut(rut)}
-          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg font-semibold text-white bg-matrix-green hover:bg-dark-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-matrix-green/20 hover:shadow-xl hover:shadow-matrix-green/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-matrix-green dark:focus:ring-offset-dark-surface"
+          disabled={isLoading || !isValid}
+          className="w-full py-4 rounded-xl font-bold text-white bg-matrix-green hover:bg-light-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-matrix-green/20 flex items-center justify-center gap-2 group"
         >
-          {isLoading ? <FaSpinner className="animate-spin" /> : 'Verificar Identidad'}
-          {!isLoading && <FaArrowRight />}
+          {isLoading ? <LoaderCircle className="animate-spin" /> : (
+            <>
+                <span>{t('register.btn_continue', 'Continuar')}</span>
+                <ArrowRight className="group-hover:translate-x-1 transition-transform" size={18} />
+            </>
+          )}
         </button>
       </form>
-      {(error || showInvalid) && (
-        <p className="mt-4 text-sm text-dark-error font-medium">
-          {showInvalid ? 'RUT inválido. Revisa dígitos y dígito verificador.' : error}
-        </p>
-      )}
     </div>
   );
 };

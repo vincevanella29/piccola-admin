@@ -26,22 +26,34 @@ async def mi_ficha(
     request: Request = None,
     user: dict = Depends(verify_session),
 ):
-    # Resolve wallet
+    # Resolve identidad base de la sesión
     wallet = user.get("wallet") or request.headers.get("X-Wallet-Address")
-    if not wallet:
-        raise HTTPException(status_code=401, detail="Sesión inválida: falta wallet")
+    sub = user.get("sub")
+    email = user.get("email")
+
+    identity_filters = []
+    if wallet:
+        identity_filters.append({"wallet": wallet})
+    if sub:
+        identity_filters.append({"sub": sub})
+    if email:
+        identity_filters.append({"email": email})
+
+    if not identity_filters:
+        raise HTTPException(status_code=401, detail="Sesión inválida: falta identidad (wallet/sub/email)")
 
     # Resolve link
-    link = LINKS.find_one({"$or": [
-        {"wallet": wallet},
-        {"sub": user.get("sub")},
-        {"email": user.get("email")}
-    ]})
-    if not link:
-        raise HTTPException(status_code=404, detail="No hay ficha vinculada a esta identidad")
+    link = LINKS.find_one({"$or": identity_filters})
+    if not link or not link.get("rut"):
+        return {
+            "rut": None,
+            "wallet": wallet,
+            "profile": None,
+            "merit_profile": None,
+            "linked": False,
+            "message": "No hay ficha vinculada a esta identidad",
+        }
     rut = str(link.get("rut"))
-    if not rut:
-        raise HTTPException(status_code=404, detail="Vínculo sin RUT")
 
     # Update link if missing fields
     updates = {}

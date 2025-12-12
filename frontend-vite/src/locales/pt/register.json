@@ -1,0 +1,27 @@
+{
+  "biometric_title": "Registro Biométrico",
+  "biometric_subtitle": "Verifique sua identidade para acessar com segurança sua ficha digital.",
+  "disclaimer": "Seus dados biométricos são processados localmente e protegidos por criptografia.",
+  "welcome_title": "Ative sua Identidade",
+  "welcome_desc": "Informe seu documento para iniciar o processo de validação biométrica segura.",
+  "footer_secure": "Powered by Vanellix ID • Criptografia de nível militar",
+  "rut_label": "RUT do Funcionário",
+  "btn_continue": "Continuar",
+  "success_title": "Identidade Verificada!",
+  "success_msg": "Seu registro biométrico foi concluído com sucesso. Você já pode acessar sua ficha.",
+  "go_dashboard": "Ir para minha Ficha",
+  "verify_step": {
+    "align": "Alinhe seu rosto",
+    "turn_right": "Vire para a DIREITA",
+    "turn_left": "Vire para a ESQUERDA",
+    "look_front": "Olhe para a FRENTE",
+    "detecting": "Detectando rosto...",
+    "analyzing": "Analisando identidade...",
+    "hold_still": "Não se mova",
+    "hold": "Mantenha a posição",
+    "success": "Captura bem-sucedida!",
+    "processing": "Processando verificação...",
+    "slowly": "Devagar"
+  },
+  "switch_camera": "Trocar câmera"
+}

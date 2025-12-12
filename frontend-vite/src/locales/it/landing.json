@@ -3,12 +3,18 @@
   "tab_ficha": "Il Mio Profilo",
   "tab_register": "Collega Profilo",
 
+  "badge": "Ecosistema Vanellix",
+
   "welcome_title": "Benvenuto nella DAO di La Piccola Italia",
   "welcome_subtitle": "È il centro di analisi e meritocrazia del gruppo. Monitora le tue prestazioni, ottieni meriti on-chain e costruisci la tua reputazione professionale.",
 
   "connect_title": "Inizia il tuo percorso",
   "connect_desc": "Collega il tuo wallet per accedere a dashboard, classifiche, buste paga, presenze e al tuo profilo dei meriti.",
   "cta_connect": "Collega Wallet",
+
+  "welcome_back": "Bentornato",
+  "continue_dashboard": "Accedi al tuo pannello di controllo",
+  "cta_enter": "Entra nel Dashboard",
 
   "feature_titles": {
     "merits": "Meriti on-chain",
@@ -22,6 +28,8 @@
     "payroll": "Accesso sicuro a buste paga e presenze.",
     "privacy": "Le tue chiavi, la tua identità. Il controllo è tuo."
   },
+
+  "secure_connection": "Connessione sicura via Web3",
 
   "disclaimer": "Collegando un wallet accetti le politiche interne e i termini."
 }

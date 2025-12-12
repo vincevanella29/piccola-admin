@@ -1,0 +1,27 @@
+{
+  "biometric_title": "Biometric Registration",
+  "biometric_subtitle": "Verify your identity to securely access your digital profile.",
+  "disclaimer": "Your biometric data is processed locally and secured with cryptography.",
+  "welcome_title": "Activate Your Identity",
+  "welcome_desc": "Enter your national ID number to start secure biometric validation.",
+  "footer_secure": "Powered by Vanellix ID • Military‑grade encryption",
+  "rut_label": "Employee ID",
+  "btn_continue": "Continue",
+  "success_title": "Identity Verified!",
+  "success_msg": "Your biometric registration has been successfully completed. You can now access your ficha.",
+  "go_dashboard": "Go to my Ficha",
+  "verify_step": {
+    "align": "Align your face",
+    "turn_right": "Turn to the RIGHT",
+    "turn_left": "Turn to the LEFT",
+    "look_front": "Look STRAIGHT ahead",
+    "detecting": "Detecting face...",
+    "analyzing": "Analyzing identity...",
+    "hold_still": "Hold still",
+    "hold": "Hold the pose",
+    "success": "Capture Successful!",
+    "processing": "Processing verification...",
+    "slowly": "Slowly"
+  },
+  "switch_camera": "Switch Camera"
+}

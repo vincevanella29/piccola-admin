@@ -2,129 +2,209 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LoaderCircle, Info, BarChart2, FileText, Building, Store, Crown, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+    LoaderCircle, Info, BarChart2, FileText, 
+    Store, Building, Trophy, ArrowUpRight, 
+    ArrowDownRight, Minus, Calendar, Filter, Sparkles
+} from 'lucide-react';
+import { Tooltip as ReactTooltip } from 'react-tooltip';
 
-// --- Componente de Barra de Progreso (sin cambios) ---
-const BenchmarkBar = ({ title, yourSales, average, top, icon: Icon, colorClass }) => {
-    const { t } = useTranslation();
-    const safeYour = Number(isFinite(yourSales) ? yourSales : 0) || 0;
-    const safeAvg = Number(isFinite(average) ? average : 0) || 0;
-    const safeTop = Number(isFinite(top) ? top : 0) || 0;
-    const barMax = Math.max(safeYour, safeTop, 1);
-    const yourSalesPercent = Math.min((safeYour / barMax) * 100, 100);
-    const avgPercent = Math.min((safeAvg / barMax) * 100, 100);
+// --- Helper: Formateo de Moneda ---
+const formatCurrency = (val) => 
+    Number(val || 0).toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
+
+// --- COMPONENTE: Variation Badge ---
+const VariationBadge = ({ value }) => {
+    const isPositive = value > 0;
+    const isNegative = value < 0;
+    const isNeutral = value === 0;
+
+    if (isNeutral) return <span className="text-[10px] text-light-text-tertiary dark:text-gray-500 font-mono flex items-center gap-1"><Minus size={10} /> 0%</span>;
+
     return (
-        <div>
-            <p className="text-xs text-dark-text-secondary mb-1.5 flex items-center gap-1.5"><Icon size={14} className={colorClass} /> {title}</p>
-            <div className="relative w-full h-3 bg-dark-surface-secondary rounded-full" data-tooltip-id="benchmark-tooltip" data-tooltip-content={`${t('mificha.top', 'Top')}: $${safeTop.toLocaleString('es-CL')}`}>
-                <div className="absolute top-0 h-3 border-r-2 border-dashed border-cyan-400 z-10" style={{ left: `${avgPercent}%` }} data-tooltip-id="benchmark-tooltip" data-tooltip-content={`${t('mificha.promedio', 'Promedio')}: $${safeAvg.toLocaleString('es-CL')}`}/>
-                <div className={`absolute top-0 h-3 rounded-full ${colorClass} bg-opacity-40`} style={{ width: `${yourSalesPercent}%` }} />
+        <div className={`flex items-center gap-0.5 text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border ${
+            isPositive 
+                ? 'text-light-success dark:text-dark-success bg-light-success/10 border-light-success/20' 
+                : 'text-light-error dark:text-dark-error bg-light-error/10 border-light-error/20'
+        }`}>
+            {isPositive ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+            {Math.abs(value).toFixed(1)}%
+        </div>
+    );
+};
+
+// --- COMPONENTE: Slim Benchmark Bar ---
+const SlimBenchmark = ({ value, top, avg, label, colorClass, icon: Icon }) => {
+    const percent = Math.min(((value || 0) / (top || 1)) * 100, 100);
+    const avgPercent = Math.min(((avg || 0) / (top || 1)) * 100, 100);
+
+    return (
+        <div className="w-full">
+            <div className="flex justify-between items-end mb-1">
+                <span className="text-[9px] uppercase font-bold text-light-text-tertiary dark:text-gray-500 tracking-wider flex items-center gap-1">
+                    <Icon size={10} className={colorClass} /> {label}
+                </span>
+                <div className="text-[9px] font-mono text-light-text-secondary dark:text-gray-400 flex gap-2">
+                    <span className="opacity-70">Avg: {formatCurrency(avg)}</span>
+                    <span className="font-bold">Top: {formatCurrency(top)}</span>
+                </div>
             </div>
-            <div className="flex justify-between text-xs mt-1.5 px-1 font-mono text-dark-text-secondary">
-                <span>Tú: ${safeYour.toLocaleString('es-CL')}</span>
-                <span className={`font-bold ${colorClass} flex items-center gap-1`}><Crown size={12}/> Top: ${safeTop.toLocaleString('es-CL')}</span>
+            <div className="relative h-1.5 w-full bg-light-surface-secondary dark:bg-white/10 rounded-full overflow-hidden">
+                {/* Marker Promedio */}
+                <div className="absolute top-0 bottom-0 w-0.5 bg-light-text-secondary/40 dark:bg-dark-text-secondary/50 z-10" style={{ left: `${avgPercent}%` }} />
+                {/* Barra Principal */}
+                <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${percent}%` }}
+                    transition={{ duration: 0.8 }}
+                    className={`h-full rounded-full ${colorClass === 'text-light-accent' ? 'bg-light-accent shadow-neon' : 'bg-vanellix-cyan shadow-neon'}`}
+                />
             </div>
         </div>
     );
 };
 
-// --- Tarjeta de Análisis (sin cambios) ---
-const BenchmarkCard = ({ title, data }) => {
-  const { t } = useTranslation();
-  const { tus_ventas, comparativo_anual, benchmark_local, benchmark_empresa, ranking } = data;
-  const getChangeIcon = (variacion) => {
-    if (variacion > 0.1) return <ArrowUp size={14} className="text-green-400" />;
-    if (variacion < -0.1) return <ArrowDown size={14} className="text-red-400" />;
-    return <Minus size={14} className="text-gray-500" />;
-  };
-  const RankingInfo = ({ period, ranks }) => (
-    <div className="text-center">
-        <p className="text-[10px] uppercase text-dark-text-secondary tracking-wider">{period}</p>
-        <p className="font-mono font-bold text-white text-sm">
-            <span className="text-yellow-400" data-tooltip-id="benchmark-tooltip" data-tooltip-content={t('mificha.puesto_local', 'Puesto Local')}>{ranks?.puesto_local ? `L${ranks.puesto_local}` : '-'}</span>
-            <span className="text-dark-text-secondary mx-1">/</span>
-            <span className="text-cyan-400" data-tooltip-id="benchmark-tooltip" data-tooltip-content={t('mificha.puesto_empresa', 'Puesto Empresa')}>{ranks?.puesto_empresa ? `E${ranks.puesto_empresa}` : '-'}</span>
-        </p>
-    </div>
-  );
-  return (
-    <div className="p-4 rounded-xl border border-dark-border/10 bg-dark-surface/50 space-y-4 transition-all hover:border-dark-border/30 hover:shadow-lg">
-      <h4 className="font-bold text-white truncate text-base">{title}</h4>
-      <div className="flex justify-between items-center bg-dark-surface-secondary/40 p-3 rounded-lg">
-        <div>
-          <p className="text-xs text-dark-text-secondary">{t('mificha.tus_ventas', 'Tus Ventas (Rango)')}</p>
-          <p className="text-2xl font-bold font-mono text-matrix-green">${(tus_ventas || 0).toLocaleString('es-CL')}</p>
+// --- COMPONENTE: Ranking Box (Mini Card) ---
+const RankingBox = ({ periodKey, ranks }) => {
+    const { t } = useTranslation();
+    // ranks = { puesto_local, puesto_empresa }
+    const hasLocal = ranks?.puesto_local != null;
+    const hasEmpresa = ranks?.puesto_empresa != null;
+    
+    if (!hasLocal && !hasEmpresa) return null;
+
+    return (
+        <div className="flex-1 bg-light-surface-secondary/30 dark:bg-white/5 rounded-lg border border-light-border/5 dark:border-white/5 p-2 flex flex-col items-center">
+            <span className="text-[8px] font-bold text-light-text-tertiary dark:text-gray-500 uppercase tracking-wide mb-1">{t(periodKey)}</span>
+            <div className="flex gap-2">
+                {hasLocal && (
+                    <span className="text-xs font-black text-yellow-600 dark:text-yellow-500" title="Local">
+                        L#{ranks.puesto_local}
+                    </span>
+                )}
+                {hasEmpresa && (
+                    <span className="text-xs font-black text-cyan-600 dark:text-cyan-400" title="Empresa">
+                        E#{ranks.puesto_empresa}
+                    </span>
+                )}
+            </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-dark-text-secondary">{t('mificha.variacion_anual', 'vs Año Anterior')}</p>
-          <div className={`text-xl font-bold font-mono flex items-center justify-end gap-1 ${comparativo_anual?.variacion_porcentual > 0 ? 'text-green-400' : comparativo_anual?.variacion_porcentual < 0 ? 'text-red-400' : 'text-gray-400'}`}>
-            {getChangeIcon(comparativo_anual?.variacion_porcentual || 0)}
-            {(comparativo_anual?.variacion_porcentual || 0).toFixed(1)}%
-          </div>
-        </div>
-      </div>
-      <div className="space-y-4">
-        {benchmark_local && <BenchmarkBar title={t('mificha.benchmark_local', 'Benchmark Local')} icon={Store} colorClass="text-yellow-400" yourSales={tus_ventas} average={benchmark_local.promedio} top={benchmark_local.top} />}
-        {benchmark_empresa && <BenchmarkBar title={t('mificha.benchmark_empresa', 'Benchmark Empresa')} icon={Building} colorClass="text-cyan-400" yourSales={tus_ventas} average={benchmark_empresa.promedio} top={benchmark_empresa.top} />}
-      </div>
-      <div className="grid grid-cols-3 gap-2 pt-3 border-t border-dark-border/10">
-        <RankingInfo period={t('mificha.ranking_actual', 'Actual')} ranks={ranking?.actual} />
-        <RankingInfo period={t('mificha.ranking_anterior', 'Año Ant.')} ranks={ranking?.anterior} />
-        <RankingInfo period={t('mificha.ranking_historico', 'Histórico')} ranks={ranking?.historico} />
-      </div>
-    </div>
-  );
+    );
 };
 
-// --- Componente de Controles de Fecha ---
+// --- TARJETA DE ANÁLISIS (Card Principal) ---
+const AnalysisCard = ({ title, data, index }) => {
+    const { t } = useTranslation();
+    const { tus_ventas, comparativo_anual, benchmark_local, benchmark_empresa, ranking } = data;
+    
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            className="group flex flex-col bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border/10 dark:border-dark-border/20 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300"
+        >
+            {/* Header: Título y Venta Principal */}
+            <div className="p-5 relative">
+                {/* Decoration */}
+                <div className="absolute top-0 right-0 p-8 bg-light-accent/5 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none group-hover:bg-light-accent/10 transition-colors" />
+
+                <div className="relative z-10 flex justify-between items-start mb-3">
+                    <h4 className="text-sm font-bold text-light-text-primary dark:text-white leading-tight max-w-[70%]">
+                        {title}
+                    </h4>
+                    <div className="flex flex-col items-end">
+                        <VariationBadge value={comparativo_anual?.variacion_porcentual || 0} />
+                        <span className="text-[9px] text-light-text-tertiary dark:text-gray-500 mt-0.5">{t('mificha.analisis_vs_anio_anterior', 'vs Año Ant.')}</span>
+                    </div>
+                </div>
+
+                <div className="relative z-10 mb-4">
+                    <div className="text-[10px] font-bold text-light-text-tertiary dark:text-gray-500 uppercase tracking-wide">{t('mificha.analisis_tus_ventas', 'Tus Ventas')}</div>
+                    <div className="text-2xl font-black text-light-text-primary dark:text-white tabular-nums tracking-tight">
+                        {formatCurrency(tus_ventas)}
+                    </div>
+                </div>
+
+                {/* Benchmarks Section */}
+                <div className="relative z-10 space-y-3">
+                    {benchmark_local && (
+                        <SlimBenchmark 
+                            value={tus_ventas} 
+                            avg={benchmark_local.promedio} 
+                            top={benchmark_local.top} 
+                            label={t('mificha.comparativa_local', 'Local')} 
+                            icon={Store} 
+                            colorClass="text-yellow-500" 
+                        />
+                    )}
+                    {benchmark_empresa && (
+                        <SlimBenchmark 
+                            value={tus_ventas} 
+                            avg={benchmark_empresa.promedio} 
+                            top={benchmark_empresa.top} 
+                            label={t('mificha.comparativa_empresa', 'Empresa')} 
+                            icon={Building} 
+                            colorClass="text-cyan-400" 
+                        />
+                    )}
+                </div>
+            </div>
+
+            {/* Footer: Rankings Grid */}
+            <div className="mt-auto p-3 bg-light-surface-tertiary/10 dark:bg-dark-surface-secondary/40 border-t border-light-border/5 dark:border-dark-border/20 flex gap-2">
+                <RankingBox periodKey="mificha.analisis_periodo_actual" ranks={ranking?.actual} />
+                <RankingBox periodKey="mificha.analisis_periodo_anterior" ranks={ranking?.anterior} />
+                <RankingBox periodKey="mificha.analisis_periodo_historico" ranks={ranking?.historico} />
+            </div>
+        </motion.div>
+    );
+};
+
+// --- CONTROLES DE FECHA (Integrado) ---
 const DateControls = ({ onApply, isLoading }) => {
-  const { t } = useTranslation();
-  const today = new Date().toISOString().split('T')[0];
-  
-  const defaultEndDate = new Date();
-  const defaultStartDate = new Date();
-  defaultStartDate.setDate(defaultEndDate.getDate() - 29);
+    const today = new Date().toISOString().split('T')[0];
+    const defaultEnd = new Date();
+    const defaultStart = new Date();
+    defaultStart.setDate(defaultEnd.getDate() - 29);
 
-  const [startDate, setStartDate] = useState(defaultStartDate.toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(defaultEndDate.toISOString().split('T')[0]);
+    const [start, setStart] = useState(defaultStart.toISOString().split('T')[0]);
+    const [end, setEnd] = useState(defaultEnd.toISOString().split('T')[0]);
 
-  const handleApplyClick = () => {
-    onApply(startDate, endDate);
-  };
-
-  return (
-    <div className="flex flex-col sm:flex-row items-center gap-3 p-3 bg-dark-surface rounded-lg border border-dark-border/10">
-      <div className="w-full sm:w-auto">
-        <label htmlFor="start-date" className="text-xs text-dark-text-secondary">{t('mificha.fecha_inicio', 'Fecha Inicio')}</label>
-        <input 
-          id="start-date" 
-          type="date" 
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="w-full bg-dark-surface-secondary text-white p-2 rounded-md border-dark-border/20 border focus:ring-matrix-green focus:border-matrix-green"
-          max={today}
-        />
-      </div>
-      <div className="w-full sm:w-auto">
-        <label htmlFor="end-date" className="text-xs text-dark-text-secondary">{t('mificha.fecha_fin', 'Fecha Fin')}</label>
-        <input 
-          id="end-date" 
-          type="date" 
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="w-full bg-dark-surface-secondary text-white p-2 rounded-md border-dark-border/20 border focus:ring-matrix-green focus:border-matrix-green"
-          max={today}
-        />
-      </div>
-      <button 
-        onClick={handleApplyClick}
-        disabled={isLoading}
-        className="w-full sm:w-auto mt-4 sm:mt-0 self-end px-4 py-2 bg-matrix-green text-black font-bold rounded-md hover:bg-matrix-green/80 disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        {isLoading ? <LoaderCircle size={16} className="animate-spin" /> : t('mificha.aplicar', 'Aplicar')}
-      </button>
-    </div>
-  );
+    return (
+        <div className="flex flex-col sm:flex-row items-center gap-3 p-1.5 bg-light-surface dark:bg-dark-surface rounded-xl border border-light-border/10 dark:border-dark-border/20 w-full sm:w-auto shadow-sm">
+            <div className="flex items-center gap-2 px-2 w-full sm:w-auto">
+                <Calendar size={14} className="text-light-text-tertiary dark:text-dark-text-secondary" />
+                <div className="flex items-center gap-2 text-xs">
+                    <input 
+                        type="date" 
+                        value={start}
+                        onChange={(e) => setStart(e.target.value)}
+                        max={today}
+                        className="bg-transparent text-light-text-primary dark:text-white focus:outline-none font-mono w-[85px] appearance-none"
+                    />
+                    <span className="text-light-text-tertiary dark:text-dark-text-secondary/70">-</span>
+                    <input 
+                        type="date" 
+                        value={end}
+                        onChange={(e) => setEnd(e.target.value)}
+                        max={today}
+                        className="bg-transparent text-light-text-primary dark:text-white focus:outline-none font-mono w-[85px] appearance-none"
+                    />
+                </div>
+            </div>
+            
+            <button 
+                onClick={() => onApply(start, end)}
+                disabled={isLoading}
+                className="w-full sm:w-auto h-8 px-4 bg-light-text-primary dark:bg-white text-light-surface dark:text-black text-xs font-bold rounded-lg hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-sm"
+            >
+                {isLoading ? <LoaderCircle size={12} className="animate-spin" /> : <Filter size={12} />}
+                <span>{useTranslation().t('mificha.aplicar', 'Filtrar')}</span>
+            </button>
+        </div>
+    );
 };
 
 export default function AnalisisProductosPanel({ ventasDetalle, fetchVentasDetalleProductos, isLoading }) {
@@ -143,43 +223,98 @@ export default function AnalisisProductosPanel({ ventasDetalle, fetchVentasDetal
             handleFetchDetails(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
         }
     }, [ventasDetalle, handleFetchDetails]);
-    
-    const TabButton = ({ id, label, icon: Icon, action, current }) => (
-        <button onClick={action} className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors ${current === id ? 'bg-matrix-green/10 text-matrix-green' : 'text-dark-text-secondary hover:bg-dark-surface-secondary'}`}>
-          <Icon size={16} /><span className="hidden sm:inline">{label}</span>
-        </button>
-      );
+
+    // Data selector logic
+    const activeData = analysisTab === 'familia' 
+        ? ventasDetalle?.analisis_por_familia 
+        : ventasDetalle?.analisis_por_subfamilia;
 
     return (
-        <div className="space-y-6">
-            <DateControls onApply={handleFetchDetails} isLoading={isLoading} />
-            {isLoading && <div className="flex justify-center p-8"><LoaderCircle className="animate-spin text-matrix-green" /></div>}
-            
-            {!isLoading && ventasDetalle && (
-                <>
-                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 text-sm text-blue-300">
-                        <Info size={40} className="hidden sm:block flex-shrink-0" />
-                        <div>
-                            <p className="font-bold">{t('mificha.analisis_title', 'Tu Coaching de Ventas')}</p>
-                            <p className="text-xs" dangerouslySetInnerHTML={{ __html: t('mificha.analisis_desc_dinamico', `Análisis de tu rendimiento en el período <strong>${ventasDetalle.periodo_analisis}</strong>.`)}}/>
-                        </div>
+        <div className="space-y-6 min-h-[500px]">
+            <ReactTooltip id="analysis-tooltip" className="!bg-black !text-white !text-xs !rounded-md !px-2 !py-1 !z-50" />
+
+            {/* Header Controls */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                    <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500">
+                        <Sparkles size={18} />
                     </div>
-                    
-                    <div className="flex items-center gap-2 p-1.5 rounded-lg bg-dark-surface-secondary/40 border border-dark-border/20 w-full sm:w-auto self-start">
-                        <TabButton id="familia" label={t('mificha.tab_familia', 'Por Familia')} icon={BarChart2} action={() => setAnalysisTab('familia')} current={analysisTab} />
-                        <TabButton id="subfamilia" label={t('mificha.tab_subfamilia', 'Por Subfamilia')} icon={FileText} action={() => setAnalysisTab('subfamilia')} current={analysisTab} />
+                    <div>
+                        <h3 className="text-lg font-bold text-light-text-primary dark:text-white leading-none">
+                            {t('mificha.coaching_productos_title', 'Coaching de Productos')}
+                        </h3>
+                        <p className="text-xs text-light-text-secondary dark:text-gray-400 mt-1">
+                            {ventasDetalle 
+                              ? t('mificha.coaching_productos_subtitle_periodo', { periodo: ventasDetalle.periodo_analisis })
+                              : t('mificha.coaching_productos_subtitle', 'Selecciona un rango')}
+                        </p>
                     </div>
-                    
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {analysisTab === 'familia' && ventasDetalle.analisis_por_familia.map((item, idx) => (
-                            <BenchmarkCard key={`fam-${idx}`} title={item.familia} data={item} />
-                        ))}
-                        {analysisTab === 'subfamilia' && ventasDetalle.analisis_por_subfamilia.map((item, idx) => (
-                            <BenchmarkCard key={`sub-${idx}`} title={`${item.familia} / ${item.subfamilia}`} data={item} />
-                        ))}
+                </div>
+                <DateControls onApply={handleFetchDetails} isLoading={isLoading} />
+            </div>
+
+            {/* Content Area */}
+            {isLoading && !ventasDetalle ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <LoaderCircle className="animate-spin text-light-text-secondary dark:text-white" size={32} />
+                    <span className="text-sm text-light-text-secondary dark:text-gray-500 animate-pulse">{t('mificha.analizando_ventas', 'Analizando ventas...')}</span>
+                </div>
+            ) : ventasDetalle ? (
+                <div className="space-y-6">
+                    {/* Tab Switcher (Integrated Look) */}
+                    <div className="flex p-1 bg-light-surface-secondary/50 dark:bg-[#1a1a1a] rounded-xl border border-light-border/10 dark:border-white/10 w-full sm:w-auto self-start">
+                        <button 
+                            onClick={() => setAnalysisTab('familia')}
+                            className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                                analysisTab === 'familia' 
+                                ? 'bg-white dark:bg-white text-black shadow-sm' 
+                                : 'text-light-text-secondary dark:text-gray-400 hover:text-light-text-primary dark:hover:text-white'
+                            }`}
+                        >
+                            <BarChart2 size={14} /> {t('mificha.analisis_tab_familia', 'Por Familia')}
+                        </button>
+                        <button 
+                            onClick={() => setAnalysisTab('subfamilia')}
+                            className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                                analysisTab === 'subfamilia' 
+                                ? 'bg-white dark:bg-white text-black shadow-sm' 
+                                : 'text-light-text-secondary dark:text-gray-400 hover:text-light-text-primary dark:hover:text-white'
+                            }`}
+                        >
+                            <FileText size={14} /> {t('mificha.analisis_tab_subfamilia', 'Por Subfamilia')}
+                        </button>
                     </div>
-                </>
-            )}
+
+                    {/* Grid de Tarjetas */}
+                    <AnimatePresence mode="wait">
+                        <motion.div 
+                            key={analysisTab}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
+                            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"
+                        >
+                            {(activeData || []).map((item, idx) => (
+                                <AnalysisCard 
+                                    key={`${analysisTab}-${idx}`} 
+                                    title={analysisTab === 'familia' ? item.familia : `${item.familia} / ${item.subfamilia}`} 
+                                    data={item} 
+                                    index={idx}
+                                />
+                            ))}
+                            
+                            {(!activeData || activeData.length === 0) && (
+                                <div className="col-span-full py-12 text-center border border-dashed border-light-border/20 dark:border-white/10 rounded-2xl">
+                                    <p className="text-light-text-secondary dark:text-gray-500 text-sm">
+                                        {t('mificha.analisis_sin_datos', 'No hay datos de ventas para este filtro.')}
+                                    </p>
+                                </div>
+                            )}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            ) : null}
         </div>
     );
 }
