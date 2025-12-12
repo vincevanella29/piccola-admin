@@ -105,3 +105,4 @@ numpy
 opencv-python-headless
 scikit-learn
 paddleocr
+paddlepaddle
