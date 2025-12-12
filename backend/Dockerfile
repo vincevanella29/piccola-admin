@@ -17,6 +17,7 @@ RUN apt-get update \
         ffmpeg \
         ca-certificates \
         curl \
+        build-essential \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements.txt
 
