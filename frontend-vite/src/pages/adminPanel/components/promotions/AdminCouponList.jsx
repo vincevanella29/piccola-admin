@@ -49,6 +49,89 @@ const TableSkeleton = () => (
   </div>
 );
 
+const ReactivateConfirmModal = ({ isOpen, coupon, onClose, onConfirm, isSubmitting, t }) => (
+  <AnimatePresence>
+    {isOpen && (
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          aria-label={t('promotion.confirm_close', 'Cerrar')}
+        />
+
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          className="relative w-full max-w-md rounded-2xl bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 shadow-xl overflow-hidden"
+          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 12, scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+        >
+          <div className="p-5 border-b border-light-border/10 dark:border-dark-border/20 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-light-text-primary dark:text-dark-text-primary">
+                {t('promotion.reactivate_confirm_title', '¿Reiniciar cupón?')}
+              </h3>
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                {t('promotion.reactivate_confirm_desc', 'Esto volverá a habilitar el cupón para su uso.')}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-lg text-light-text-secondary hover:text-light-text-primary hover:bg-light-surface-secondary/60 dark:hover:bg-dark-surface-secondary/60 transition-colors"
+              aria-label={t('promotion.confirm_close', 'Cerrar')}
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-3">
+            <div className="rounded-xl bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 border border-light-border/10 dark:border-dark-border/20 p-3">
+              <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                {t('promotion.coupon_code', 'Código de Cupón')}
+              </div>
+              <div className="mt-1 font-mono text-sm font-semibold text-light-text-primary dark:text-dark-text-primary">
+                {coupon?.coupon_code || '-'}
+              </div>
+            </div>
+
+            <p className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary">
+              {t('promotion.reactivate_confirm_note', 'Acción irreversible: se registrará en el historial de auditoría.')}
+            </p>
+          </div>
+
+          <div className="p-5 pt-0 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl border border-light-border/30 dark:border-dark-border/30 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {t('promotion.cancel', 'Cancelar')}
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl bg-vanellix-purple text-white hover:bg-vanellix-purple/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isSubmitting ? t('promotion.processing', 'Procesando...') : t('promotion.reactivate', 'Reactivar')}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
 const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initialLoading, onReactivate, refetchCoupons }) => {
   const { t } = useTranslation();
   
@@ -57,6 +140,8 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
   const [loading, setLoading] = useState(initialLoading);
   const [total, setTotal] = useState(0);
   const [selectedCoupon, setSelectedCoupon] = useState(null);
+  const [reactivateTarget, setReactivateTarget] = useState(null);
+  const [isReactivating, setIsReactivating] = useState(false);
 
   // Pagination & Filter State
   const [page, setPage] = useState(1);
@@ -117,6 +202,17 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
       fetchCoupons();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const confirmReactivate = async () => {
+    if (!reactivateTarget?.coupon_code) return;
+    setIsReactivating(true);
+    try {
+      await handleReactivate(reactivateTarget.coupon_code);
+      setReactivateTarget(null);
+    } finally {
+      setIsReactivating(false);
     }
   };
 
@@ -331,7 +427,7 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
                           </button>
                           {coupon.status === 'redeemed' && (
                             <button 
-                              onClick={() => handleReactivate(coupon.coupon_code)} 
+                              onClick={() => setReactivateTarget(coupon)} 
                               className="p-1.5 text-light-text-secondary hover:text-vanellix-purple hover:bg-vanellix-purple/10 rounded-lg transition-all"
                               title={t('promotion.reactivate')}
                             >
@@ -383,6 +479,15 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
           />
         )}
       </AnimatePresence>
+
+      <ReactivateConfirmModal
+        isOpen={!!reactivateTarget}
+        coupon={reactivateTarget}
+        onClose={() => !isReactivating && setReactivateTarget(null)}
+        onConfirm={confirmReactivate}
+        isSubmitting={isReactivating}
+        t={t}
+      />
     </motion.div>
   );
 };

@@ -176,6 +176,7 @@ export default function MeritosPanel({ isLoading, meritos, ficha }) {
 
   const monthStats = calculateTotals(sortedMonth);
   const yearStats = calculateTotals(sortedYear);
+  const historyStats = calculateTotals(historyFilter === 'fulfilled' ? historyFulfilled : historyNotFulfilled);
 
   // Group History
   const groupByPeriod = (items) => {
@@ -217,6 +218,18 @@ export default function MeritosPanel({ isLoading, meritos, ficha }) {
                 key="year-header"
                 title={`Roadmap Anual ${currentPeriod.split('-')[0]}`}
                 {...yearStats}
+                t={t}
+             />
+        )}
+        {activeTab === 'history' && (
+             <RoadmapHeader 
+                key={`history-header-${historyFilter}`}
+                title={
+                    historyFilter === 'fulfilled'
+                        ? t('mificha.historial_completadas', 'Historial: Completadas')
+                        : t('mificha.historial_simuladas', 'Historial: Simuladas')
+                }
+                {...historyStats}
                 t={t}
              />
         )}

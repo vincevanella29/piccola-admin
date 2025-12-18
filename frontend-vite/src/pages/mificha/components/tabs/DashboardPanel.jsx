@@ -86,9 +86,12 @@ export default function DashboardPanel({ isLoading, ficha, ventasKpis, meritos, 
   const pendingBySegment = useMemo(() => {
       const map = {};
       if (!meritos?.merits) return map;
-      const all = [...(meritos.merits.current_month || []), ...(meritos.merits.history_fulfilled || [])];
-      for (const m of all) {
-          if (m.status === 'fulfilled' && (m.mint_status === 'pending' || m.mint_status == null) && m.segment_token_id) {
+
+      // En el dashboard queremos sumar TODO lo que está ganado pero aún no minteado.
+      // Esa info viene desde history_fulfilled con mint_status='pending'.
+      const history = meritos.merits.history_fulfilled || [];
+      for (const m of history) {
+          if ((m.mint_status === 'pending' || m.mint_status == null) && m.segment_token_id) {
               map[String(m.segment_token_id)] = (map[String(m.segment_token_id)] || 0) + (Number(m.merit_points) || 0);
           }
       }

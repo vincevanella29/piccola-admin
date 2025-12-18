@@ -16,7 +16,16 @@ export default function MeritAccordionItem({ segment }) {
   // segment.balance = Confirmado en Blockchain (Wei)
   // segment.pending = Pendiente de minting (Puntos simples)
   const walletBalance = useMemo(() => parseFloat(segment.balance || 0) / 1e18, [segment.balance]);
-  const pendingBalance = useMemo(() => parseFloat(segment.pending || 0), [segment.pending]); 
+  const pendingBalance = useMemo(() => {
+    const raw = segment.pending;
+    if (Array.isArray(raw)) {
+      return raw.reduce((acc, v) => acc + (Number(v) || 0), 0);
+    }
+    if (raw && typeof raw === 'object') {
+      return Object.values(raw).reduce((acc, v) => acc + (Number(v) || 0), 0);
+    }
+    return Number(raw) || 0;
+  }, [segment.pending]); 
   
   const totalBalance = walletBalance + pendingBalance;
   
