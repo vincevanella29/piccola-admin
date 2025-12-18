@@ -137,6 +137,15 @@ async def sales_kpis_cache_task():
             logger.error(f"Error en sub-tarea {mod_path}: {e}")
     return {"status": "completed"}
 
+async def menus_recipes_cache_task():
+    logger.info("Iniciando tarea de grupo: menus_recipes_cache_task")
+    mod = importlib.import_module('utils.workers.worker_menus_recipes_cache')
+    if hasattr(mod, 'run_worker'):
+        mod.run_worker()
+    else:
+        logger.warning("[MENUS_RECIPES_CACHE] Saltado (sin run_worker): utils.workers.worker_menus_recipes_cache")
+    return {"status": "completed"}
+
 async def intranet_group_task():
     logger.info("Iniciando tarea de grupo: intranet_group_task")
     intranet_modules = [
@@ -265,6 +274,7 @@ ALL_WORKERS = {
     "mtz_group":            {"func": mtz_group_task,            "type": "cpu", "schedule": "daily@08:00"},
     "intranet_group":       {"func": intranet_group_task,       "type": "cpu", "schedule": "daily@08:00"},
     "sales_kpis_cache":     {"func": sales_kpis_cache_task,     "type": "cpu", "schedule": "daily@08:00"},
+    "menus_recipes_cache":  {"func": menus_recipes_cache_task,  "type": "cpu", "schedule": "daily@04:00"},
 
     # Workers Persistentes (corren constantemente)
     "event_listener":           {"func": event_listener_persistent,           "type": "persistent", "schedule": None},

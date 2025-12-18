@@ -1,8 +1,11 @@
 import logging
+import os
+import json
+import redis
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level, get_effective_role_level_from_user
@@ -20,6 +23,46 @@ from utils.bot.common.filters import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
+# OJO: enqueuer.py consume una cola fija "task_queue".
+# Dejamos override opcional por compatibilidad, pero default debe ser task_queue.
+REDIS_QUEUE = os.getenv("REDIS_QUEUE", "task_queue")
+
+
+def _enqueue_menus_recipes_cache_build(throttle_minutes: int = 15) -> bool:
+    """Encola el worker de cache si no se ha encolado recientemente (throttle)."""
+    try:
+        now = datetime.utcnow()
+        meta = db.menus_recipes_cache_meta.find_one({"_id": "enqueue_lock"}) or {}
+        last_iso = meta.get("last_enqueued_at")
+        if last_iso:
+            try:
+                last_dt = datetime.fromisoformat(str(last_iso))
+                if (now - last_dt) < timedelta(minutes=throttle_minutes):
+                    return False
+            except Exception:
+                pass
+
+        db.menus_recipes_cache_meta.update_one(
+            {"_id": "enqueue_lock"},
+            {"$set": {"last_enqueued_at": now.isoformat()}},
+            upsert=True,
+        )
+
+        redis_client = redis.Redis(
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            db=REDIS_DB,
+            decode_responses=True,
+        )
+        task = {"name": "menus_recipes_cache", "args": [], "kwargs": {}}
+        redis_client.lpush(REDIS_QUEUE, json.dumps(task))
+        return True
+    except Exception:
+        return False
 
 # Models for response structure
 class LocationsResponse(BaseModel):
@@ -391,6 +434,18 @@ async def get_menus_recipes(user: dict = Depends(verify_session)):
         allowed_codes = {str(x).upper() for x in (filters_after.get("include_codigos") or [])}
         lvl7_denied = bool(filters_after.get("_lvl7_denied"))
 
+        # Si la cache todavía no existe, pedimos que se construya (sin bloquear la request).
+        # Esto se hace incluso si el usuario no tiene permiso de ver recetas (ej: lvl7 cocina),
+        # porque la cache es un recurso global que sirve para los roles que sí pueden verla.
+        try:
+            cache_last_run = db.menus_recipes_cache_meta.find_one({"_id": "last_run"}, {"_id": 1})
+        except Exception:
+            cache_last_run = None
+        if not cache_last_run:
+            enq = _enqueue_menus_recipes_cache_build(throttle_minutes=15)
+            if enq:
+                logger.info("/menus_recipes: cache no construida, worker encolado (menus_recipes_cache)")
+
         # Para nivel 7 cocina (no garzón), reforzamos el scope por centros
         # SÓLO cuando hay allowed_codes definidos. Si _lvl7_denied viene
         # explícito o no hay códigos, igual dejamos pasar, pero confiando en el
@@ -590,72 +645,42 @@ async def get_menus_recipes(user: dict = Depends(verify_session)):
                 opt["updated_at"] = opt["updated_at"].isoformat()
 
         # -------- Adjuntar recetas (último mesano por código) --------
-        codes = sorted(
-            {str(m.get("codigo") or "").strip() for m in menus if m.get("codigo")}
-        )
-        recipes_by_code = {}
+        # Regla explícita: lvl7 cocina NO ve recetas.
+        attach_recipes = not (is_lvl7 and not is_lvl7_garzon)
 
-        for code in codes:
-            if not code:
-                continue
-            try:
-                latest_cur = (
-                    db.recetas_productos.find(
-                        {"producto_codigo": code}, {"mesano": 1}
+        if attach_recipes:
+            codes = sorted(
+                {str(m.get("codigo") or "").strip() for m in menus if m.get("codigo")}
+            )
+            recipes_by_code = {}
+
+            if codes:
+                try:
+                    cached = list(
+                        db.menus_recipes_cache.find(
+                            {"producto_codigo": {"$in": codes}},
+                            {"_id": 0, "producto_codigo": 1, "recipe": 1},
+                        )
                     )
-                    .sort("mesano", -1)
-                    .limit(1)
-                )
-                latest_doc = next(iter(latest_cur), None)
-            except Exception:
-                latest_doc = None
+                except Exception:
+                    cached = []
 
-            if not latest_doc or not latest_doc.get("mesano"):
-                continue
+                # Si la cache no existe / está vacía, encolamos el worker y devolvemos sin bloquear.
+                if not cached:
+                    enq = _enqueue_menus_recipes_cache_build(throttle_minutes=15)
+                    if enq:
+                        logger.info("/menus_recipes: cache vacía, worker encolado (menus_recipes_cache)")
 
-            use_mesano = str(latest_doc.get("mesano"))
-            try:
-                cur = db.recetas_productos.find(
-                    {"producto_codigo": code, "mesano": use_mesano}
-                ).sort("linea", 1)
-            except Exception:
-                continue
+                for doc in cached:
+                    c = str(doc.get("producto_codigo") or "").strip()
+                    r = doc.get("recipe")
+                    if c and r:
+                        recipes_by_code[c] = r
 
-            recipe_rows = []
-            for rr in cur:
-                ing = str(
-                    rr.get("ingrediente_nombre")
-                    or rr.get("ingrediente_codigo")
-                    or ""
-                ).strip()
-                qty = rr.get("cantidad_ingrediente")
-                unit = str(
-                    rr.get("u_medida_compra") or rr.get("u_medida_base") or ""
-                ).strip()
-                pct = rr.get("porcentaje_linea")
-                qty_text = (
-                    f"{qty:.3f}"
-                    if isinstance(qty, (int, float))
-                    else str(qty).strip()
-                    if qty is not None
-                    else ""
-                )
-                row = {
-                    "ingredient": ing,
-                    "qty_text": qty_text,
-                    "unit": unit,
-                }
-                if isinstance(pct, (int, float)):
-                    row["pct"] = round(float(pct), 1)
-                recipe_rows.append(row)
-
-            if recipe_rows:
-                recipes_by_code[code] = {"mesano": use_mesano, "rows": recipe_rows}
-
-        for menu in menus:
-            code = str(menu.get("codigo") or "").strip()
-            if code and code in recipes_by_code:
-                menu["recipe"] = recipes_by_code[code]
+            for menu in menus:
+                code = str(menu.get("codigo") or "").strip()
+                if code and code in recipes_by_code:
+                    menu["recipe"] = recipes_by_code[code]
 
         return MenusResponse(
             menus=menus, categories=categories, menu_options=menu_options, error=None
