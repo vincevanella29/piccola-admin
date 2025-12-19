@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import os
 import json
 import redis
@@ -24,42 +25,14 @@ from utils.bot.common.filters import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_DB = int(os.getenv("REDIS_DB", 0))
-# OJO: enqueuer.py consume una cola fija "task_queue".
-# Dejamos override opcional por compatibilidad, pero default debe ser task_queue.
-REDIS_QUEUE = os.getenv("REDIS_QUEUE", "task_queue")
 
-
-def _enqueue_menus_recipes_cache_build(throttle_minutes: int = 15) -> bool:
-    """Encola el worker de cache si no se ha encolado recientemente (throttle)."""
+async def _build_menus_recipes_cache_now() -> bool:
+    """Ejecuta el worker de cache en el mismo proceso (sin Redis)."""
     try:
-        now = datetime.utcnow()
-        meta = db.menus_recipes_cache_meta.find_one({"_id": "enqueue_lock"}) or {}
-        last_iso = meta.get("last_enqueued_at")
-        if last_iso:
-            try:
-                last_dt = datetime.fromisoformat(str(last_iso))
-                if (now - last_dt) < timedelta(minutes=throttle_minutes):
-                    return False
-            except Exception:
-                pass
-
-        db.menus_recipes_cache_meta.update_one(
-            {"_id": "enqueue_lock"},
-            {"$set": {"last_enqueued_at": now.isoformat()}},
-            upsert=True,
-        )
-
-        redis_client = redis.Redis(
-            host=REDIS_HOST,
-            port=REDIS_PORT,
-            db=REDIS_DB,
-            decode_responses=True,
-        )
-        task = {"name": "menus_recipes_cache", "args": [], "kwargs": {}}
-        redis_client.lpush(REDIS_QUEUE, json.dumps(task))
+        mod = __import__('utils.workers.worker_menus_recipes_cache', fromlist=['run_worker'])
+        if not hasattr(mod, 'run_worker'):
+            return False
+        await asyncio.to_thread(mod.run_worker)
         return True
     except Exception:
         return False
@@ -443,17 +416,14 @@ async def get_menus_recipes(user: dict = Depends(verify_session)):
             allowed_codes = {str(x).upper() for x in (filters_after.get("include_codigos") or [])}
             lvl7_denied = bool(filters_after.get("_lvl7_denied"))
 
-        # Si la cache todavía no existe, pedimos que se construya (sin bloquear la request).
-        # Esto se hace incluso si el usuario no tiene permiso de ver recetas (ej: lvl7 cocina),
-        # porque la cache es un recurso global que sirve para los roles que sí pueden verla.
         try:
-            cache_last_run = db.menus_recipes_cache_meta.find_one({"_id": "last_run"}, {"_id": 1})
+            cache_any = db.menus_recipes_cache.find_one({}, {"_id": 1})
         except Exception:
-            cache_last_run = None
-        if not cache_last_run:
-            enq = _enqueue_menus_recipes_cache_build(throttle_minutes=15)
-            if enq:
-                logger.info("/menus_recipes: cache no construida, worker encolado (menus_recipes_cache)")
+            cache_any = None
+        if not cache_any:
+            ran = await _build_menus_recipes_cache_now()
+            if ran:
+                logger.info("/menus_recipes: menus_recipes_cache vacía, worker ejecutado")
 
         # Para nivel 7 cocina (no garzón), reforzamos el scope por centros
         # SÓLO cuando hay allowed_codes definidos. Si _lvl7_denied viene
@@ -674,11 +644,19 @@ async def get_menus_recipes(user: dict = Depends(verify_session)):
                 except Exception:
                     cached = []
 
-                # Si la cache no existe / está vacía, encolamos el worker y devolvemos sin bloquear.
+                # Si la cache está vacía, intentamos construirla al tiro y re-leer.
                 if not cached:
-                    enq = _enqueue_menus_recipes_cache_build(throttle_minutes=15)
-                    if enq:
-                        logger.info("/menus_recipes: cache vacía, worker encolado (menus_recipes_cache)")
+                    ran = await _build_menus_recipes_cache_now()
+                    if ran:
+                        try:
+                            cached = list(
+                                db.menus_recipes_cache.find(
+                                    {"producto_codigo": {"$in": codes}},
+                                    {"_id": 0, "producto_codigo": 1, "recipe": 1},
+                                )
+                            )
+                        except Exception:
+                            cached = []
 
                 for doc in cached:
                     c = str(doc.get("producto_codigo") or "").strip()
