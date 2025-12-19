@@ -406,33 +406,42 @@ async def get_menus_recipes(user: dict = Depends(verify_session)):
         categories = list(db.categories.find({}))
         menu_options = list(db.menu_options.find({}))
 
-        # -------- Aplicar reglas de acceso igual que el bot (centros / lvl7) --------
-        # Usamos el helper global del bot para intents tipo productos/menus.
-        # Armamos un spec mínimo (sin NLP) solo para que resuelva include_codigos.
-        base_spec = {
-            "key": "menus",
-            "filters": {},  # sin filtros previos de NLP
-        }
-
-        # Si es lvl7, ya sabemos si es garzón o cocina por is_worker_in_sales_kpis arriba.
-        # Replicamos la lógica del bot: si es garzón, NO pasamos period_ym; si es cocina, sí.
-        is_lvl7 = role_level_int == 7
-        try:
-            is_lvl7_garzon = bool(is_worker_in_sales_kpis(period_ym, perms)) if is_lvl7 else False
-        except Exception:
+        # -------- Aplicar reglas de acceso --------
+        # Rol <= 5: siempre mandamos TODA la data (sin restricciones).
+        # Rol > 5: aplicamos las restricciones del bot (centros / lvl7).
+        if int(role_level_int) <= 5:
+            is_lvl7 = False
             is_lvl7_garzon = False
+            filters_after = {}
+            allowed_codes = set()
+            lvl7_denied = False
+        else:
+            # Usamos el helper global del bot para intents tipo productos/menus.
+            # Armamos un spec mínimo (sin NLP) solo para que resuelva include_codigos.
+            base_spec = {
+                "key": "menus",
+                "filters": {},  # sin filtros previos de NLP
+            }
 
-        scoped = apply_access_filters_for_product_like_intent(
-            "menus",
-            base_spec,
-            perms or {},
-            role_level_int,
-            None if is_lvl7_garzon else period_ym,
-        )
+            # Si es lvl7, ya sabemos si es garzón o cocina por is_worker_in_sales_kpis arriba.
+            # Replicamos la lógica del bot: si es garzón, NO pasamos period_ym; si es cocina, sí.
+            is_lvl7 = role_level_int == 7
+            try:
+                is_lvl7_garzon = bool(is_worker_in_sales_kpis(period_ym, perms)) if is_lvl7 else False
+            except Exception:
+                is_lvl7_garzon = False
 
-        filters_after = (scoped or {}).get("filters") or {}
-        allowed_codes = {str(x).upper() for x in (filters_after.get("include_codigos") or [])}
-        lvl7_denied = bool(filters_after.get("_lvl7_denied"))
+            scoped = apply_access_filters_for_product_like_intent(
+                "menus",
+                base_spec,
+                perms or {},
+                role_level_int,
+                None if is_lvl7_garzon else period_ym,
+            )
+
+            filters_after = (scoped or {}).get("filters") or {}
+            allowed_codes = {str(x).upper() for x in (filters_after.get("include_codigos") or [])}
+            lvl7_denied = bool(filters_after.get("_lvl7_denied"))
 
         # Si la cache todavía no existe, pedimos que se construya (sin bloquear la request).
         # Esto se hace incluso si el usuario no tiene permiso de ver recetas (ej: lvl7 cocina),
