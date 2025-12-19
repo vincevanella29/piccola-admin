@@ -3,7 +3,7 @@ import { fetchLocations, fetchMenusRecipes, updateLocation as apiUpdateLocation,
 import { normalizeLocationsApiResponse } from './useRestaurantUtils';
 
 const CACHE_KEY = 'recipes_data';
-const CACHE_TTL = 60 * 60 * 1; // 1 hora en milisegundos
+const CACHE_TTL = 60 * 60 * 1000; // 1 hora en milisegundos
 const SELECTED_LOCATION_KEY = 'selected_location_recipes';
 const SELECTED_CATEGORY_KEY = 'selected_category_recipes';
 
