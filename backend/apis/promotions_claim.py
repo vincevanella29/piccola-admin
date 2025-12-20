@@ -253,7 +253,8 @@ async def claim_promotion(request: ClaimRequest, user: dict = Depends(verify_ses
 @router.get("/promotions_claim/active")
 async def get_active_promotions(user: Optional[dict] = Depends(optional_verify_session)):
     try:
-        wallet = user["wallet"].lower() if user else None
+        wallet_raw = user.get("wallet") if user else None
+        wallet = wallet_raw.lower() if isinstance(wallet_raw, str) and wallet_raw else None
         rut = None
         employee_scope = None
         rules_map = {}
@@ -297,7 +298,14 @@ async def get_active_promotions(user: Optional[dict] = Depends(optional_verify_s
         now = datetime.now(chile_tz)
         active_promos = []
         platform_tokens = (await get_platform_tokens())["all_token_addresses"]
-        token_map = {t["address"].lower(): t for t in platform_tokens if "address" in t}
+        token_map = {
+            addr.lower(): t
+            for t in platform_tokens
+            if isinstance(t, dict)
+            and isinstance(t.get("address"), str)
+            and t.get("address")
+            for addr in [t.get("address")]
+        }
         for p in promos:
             # Patch: Ensure date fields are datetime objects
             for date_field in [
@@ -497,7 +505,10 @@ async def get_my_coupons(
     if user is None:
         raise HTTPException(status_code=401, detail="Authentication required for my coupons")
     try:
-        wallet = user["wallet"].lower()
+        wallet_raw = user.get("wallet")
+        if not isinstance(wallet_raw, str) or not wallet_raw:
+            raise HTTPException(status_code=401, detail="Wallet session required for my coupons")
+        wallet = wallet_raw.lower()
         q = {"wallet": wallet}
         if status:
             if status == "claimed":
