@@ -14,6 +14,7 @@ from apis.roles import get_company_role_level
 import os
 from zoneinfo import ZoneInfo
 from utils.auth.session import verify_session
+from apis.apikeys import validate_api_key
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -23,15 +24,40 @@ COMPANY_ID = int(os.getenv("COMPANY_ID", 1))
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 async def verify_api_key(api_key: str = Security(api_key_header)):
-    """Valida un API token considerando dos casos:
+    """Valida un API token considerando dos fuentes:
 
-    - Tokens con expires_at: deben tener expires_at > ahora.
-    - Tokens sin expires_at (null o campo ausente): se consideran "sin expiración" y válidos.
+    1) API keys creadas vía /api/apikeys (colección api_keys), usando validate_api_key.
+       - Formato: keyId.secret
+       - Si expires_at es null/no existe -> sin expiración.
+    2) Tokens legacy en db.api_tokens (usados por promociones, etc.).
+       - Campo expires_at con misma semántica: None => sin expiración.
     """
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API token")
 
     now = datetime.utcnow()
+
+    # 1) Intentar primero con las API keys nuevas (apis.apikeys)
+    try:
+        info = validate_api_key(api_key)
+    except Exception as e:
+        logger.error(f"Error validating api key via validate_api_key: {e}")
+        info = None
+
+    if info:
+        exp_str = info.get("expires_at")
+        if exp_str:
+            try:
+                exp_dt = datetime.fromisoformat(exp_str)
+                if exp_dt <= now:
+                    raise HTTPException(status_code=401, detail="Invalid or expired API token")
+            except ValueError:
+                # Si el formato de fecha es raro, por seguridad lo tratamos como expirado
+                raise HTTPException(status_code=401, detail="Invalid or expired API token")
+        # Sin expires_at o en el futuro => válido
+        return info
+
+    # 2) Fallback: tokens legacy en api_tokens
     token = db.api_tokens.find_one({"token": api_key})
     if not token:
         raise HTTPException(status_code=401, detail="Invalid or expired API token")
