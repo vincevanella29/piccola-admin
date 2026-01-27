@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Security
 from fastapi.security import APIKeyHeader
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Any, List
 from datetime import datetime, timedelta
 from bson import ObjectId
 import logging
@@ -42,6 +42,18 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
         raise HTTPException(status_code=401, detail="Invalid or expired API token")
 
     return token
+
+
+def _to_jsonable(obj: Any) -> Any:
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _to_jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_jsonable(v) for v in obj]
+    return obj
 
 def verify_signature(wallet: str, plain_data: str, signature: str) -> bool:
     """Verifica la firma de dos formas:
@@ -449,3 +461,76 @@ async def validate_customer(request: ValidateCustomerRequest, token: dict = Depe
             "customer": None,
             "customer_name": None
         }
+
+@router.get("/public/menus_catalog")
+async def get_menus_catalog(
+    include_options: bool = True,
+    only_active: bool = True,
+    token: dict = Depends(verify_api_key),
+):
+    try:
+        menus_query: Dict[str, Any] = {}
+        categories_query: Dict[str, Any] = {}
+        if only_active:
+            menus_query["estado"] = True
+            categories_query["estado"] = True
+
+        menus = list(db.menus.find(menus_query))
+        categories = list(db.categories.find(categories_query))
+        menu_options = list(db.menu_options.find({})) if include_options else []
+
+        menus_by_id: Dict[str, Dict[str, Any]] = {}
+        for m in menus:
+            mid = str(m.get("id") or m.get("_id") or "")
+            if not mid:
+                continue
+            if not m.get("id") and m.get("_id"):
+                m["id"] = str(m.get("_id"))
+            m.pop("_id", None)
+            menus_by_id[mid] = m
+
+        options_by_menu_id: Dict[str, List[Dict[str, Any]]] = {}
+        if include_options and menu_options:
+            for opt in menu_options:
+                if not opt.get("id") and opt.get("_id"):
+                    opt["id"] = str(opt.get("_id"))
+                opt.pop("_id", None)
+                menu_id = str(opt.get("menu_id") or "")
+                if not menu_id:
+                    continue
+                options_by_menu_id.setdefault(menu_id, []).append(opt)
+
+        def _sort_key_priority(doc: Dict[str, Any]):
+            try:
+                return int(doc.get("prioridad") or 0)
+            except Exception:
+                return 0
+
+        categories_out: List[Dict[str, Any]] = []
+        for c in categories:
+            if not c.get("id") and c.get("_id"):
+                c["id"] = str(c.get("_id"))
+            c.pop("_id", None)
+
+            menu_ids = [str(x) for x in (c.get("menu_ids") or [])]
+            cat_menus: List[Dict[str, Any]] = []
+            for mid in menu_ids:
+                m = menus_by_id.get(mid)
+                if not m:
+                    continue
+                m_out = dict(m)
+                if include_options:
+                    m_out["options"] = options_by_menu_id.get(mid, [])
+                cat_menus.append(m_out)
+
+            cat_menus.sort(key=_sort_key_priority)
+
+            c_out = dict(c)
+            c_out["menus"] = cat_menus
+            categories_out.append(c_out)
+
+        categories_out.sort(key=_sort_key_priority)
+        return _to_jsonable({"categories": categories_out})
+    except Exception as e:
+        logger.error(f"Error building menus catalog: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error building menus catalog: {str(e)}")
