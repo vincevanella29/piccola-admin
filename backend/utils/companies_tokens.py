@@ -3,6 +3,9 @@ companies_tokens.py
 Module to store and manage governance and utility tokens for all companies.
 """
 from utils.web3mongo import load_contract_abi, db, w3, launchpad_contract
+import logging
+logger = logging.getLogger(__name__)
+logger.warning("HTTP-based update_pair_reserves is deprecated - use WebSocket version from ws_reserve_updater")
 
 companies_tokens_collection = db['companies_tokens']
 

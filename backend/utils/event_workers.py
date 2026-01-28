@@ -89,8 +89,13 @@ async def sync_token_pairs_task():
     return {"status": "completed"}
 
 async def update_pair_reserves_task():
-    logger.info("Iniciando tarea: update_pair_reserves_task")
-    update_pair_reserves(logger=logger)
+    logger.info("Iniciando tarea: update_pair_reserves_task (WebSocket)")
+    try:
+        from utils.ws_reserve_updater import reserve_updater_loop
+        await reserve_updater_loop()
+    except Exception as e:
+        logger.error(f"Error en WebSocket reserve updater: {e}")
+        raise
     return {"status": "completed"}
 
 async def sync_payment_tokens_task():

@@ -147,18 +147,38 @@ def validate_api_key(raw_key: str) -> Optional[dict]:
     raw_key format: keyId.secret
     Return the key document if valid and active (without secret hash), else None.
     """
+    logger.info(f"[validate_api_key] Validating key (first 10 chars): {raw_key[:10]}...")
     try:
         key_id, secret = raw_key.split('.', 1)
+        logger.info(f"[validate_api_key] Split key_id: {key_id}, secret_len: {len(secret)}")
     except ValueError:
+        logger.warning("[validate_api_key] Invalid key format (missing '.')")
         return None
-    doc = COLL.find_one({"_id": key_id, "active": True})
+    
+    doc = COLL.find_one({"_id": key_id})
     if not doc:
+        logger.warning(f"[validate_api_key] Key ID not found: {key_id}")
         return None
+    
+    if not doc.get("active", False):
+        logger.warning(f"[validate_api_key] Key ID {key_id} is inactive")
+        return None
+        
+    logger.info(f"[validate_api_key] Found active key for {key_id}, checking secret hash")
+    
     if hash_secret(secret) != doc.get("secret_hash"):
+        logger.warning(f"[validate_api_key] Secret hash mismatch for {key_id}")
         return None
+    
+    expires_at = doc.get("expires_at")
+    if expires_at and expires_at <= datetime.utcnow():
+        logger.warning(f"[validate_api_key] Key {key_id} expired at {expires_at}")
+        return None
+    
+    logger.info(f"[validate_api_key] Key {key_id} validated successfully")
     return {
         "id": doc["_id"],
         "owner": doc["owner"],
         "company_id": doc.get("company_id"),
-        "expires_at": doc.get("expires_at").isoformat() if doc.get("expires_at") else None,
+        "expires_at": expires_at.isoformat() if expires_at else None,
     }
