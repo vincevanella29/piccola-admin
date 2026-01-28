@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import logging, os
 from datetime import datetime
 from bson import ObjectId
+import time
 
 from utils.web3mongo import db, w3
 from config.roles.service import (
@@ -502,7 +503,12 @@ def require_admin_level(user: Dict[str, Any], role: str):
     if not wallet:
         raise HTTPException(status_code=401, detail="No session")
 
-    level = get_company_role_level(wallet)
+    # Use cached role if available and recent (within 1 hour)
+    if isinstance(user, dict) and time.time() - user.get("last_verified", 0) <= 3600:
+        level = user["role_level"]
+    else:
+        from config.roles.service import get_company_role_level
+        level = get_company_role_level(wallet)
     logger.info(f"User: {wallet}")
     logger.info(f"Role level: {level}")
 

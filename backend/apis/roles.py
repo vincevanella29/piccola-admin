@@ -271,6 +271,14 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
 # ---------------------------
 @router.post("/contract/company/assign-role")
 async def assign_company_role(request: Request, data: AssignRoleRequest, user: dict = Depends(verify_session)):
+    # Check cached role first
+    if user.get("role_level", -1) not in (3, 4):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    # Verify signature (still required for sensitive operations)
+    if not verify_signature(user["wallet"], data.plain_data, data.signature):
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
     caller_wallet = user.get("wallet")
     if not caller_wallet:
         raise HTTPException(status_code=400, detail="No wallet address in session")
@@ -283,10 +291,6 @@ async def assign_company_role(request: Request, data: AssignRoleRequest, user: d
 
     caller_wallet = w3.to_checksum_address(caller_wallet)
     target_address = w3.to_checksum_address(data.account)
-
-    # Firma
-    if not verify_signature(caller_wallet, data.plain_data, data.signature):
-        raise HTTPException(status_code=400, detail="Invalid signature")
 
     # Validar rol solicitado existe y coincide nivel
     if data.role_name not in ROLE_LEVELS or ROLE_LEVELS[data.role_name] != data.role_level:

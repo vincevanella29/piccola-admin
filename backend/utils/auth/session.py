@@ -71,12 +71,28 @@ async def verify_session(request: Request) -> dict:
                     sessions_collection.delete_one({"token": token})
                     raise HTTPException(status_code=401, detail="Session expired")
 
-                result = {"id": wallet, "wallet": wallet, "sub": payload.get("sub")}
-                try:
-                    result["permissions"] = compute_permissions_for_identity(wallet)
-                except Exception as e:
-                    logger.error(f"permissions compute failed: {e}")
-                    result["permissions"] = None
+                # Add role caching fields if not present
+                if "role_level" not in session:
+                    from config.roles.service import get_company_role_level
+                    from config.roles.access import compute_permissions_for_identity
+                    sessions_collection.update_one(
+                        {"_id": session["_id"]},
+                        {"$set": {
+                            "role_level": get_company_role_level(wallet),
+                            "permissions": compute_permissions_for_identity(wallet),
+                            "last_verified": int(time.time())
+                        }}
+                    )
+                    session = sessions_collection.find_one({"_id": session["_id"]})
+
+                result = {
+                    "id": wallet,
+                    "wallet": wallet,
+                    "sub": payload.get("sub"),
+                    "role_level": session.get("role_level"),
+                    "permissions": session.get("permissions"),
+                    "last_verified": session.get("last_verified")
+                }
                 return result
 
         # token-only (sin wallet válida): identidad basada en sub
