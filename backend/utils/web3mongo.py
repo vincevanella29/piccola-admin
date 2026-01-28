@@ -47,17 +47,26 @@ global_meritocracy_events = db['global_meritocracy_events']
 
 
 # --- Web3 Setup (Core) ---
-def _resolve_url(url_template: str) -> str:
-    if not url_template:
-        return None
-    if WEB3_INFURA_TOKEN and "{TOKEN}" in url_template:
-        return url_template.replace("{TOKEN}", WEB3_INFURA_TOKEN)
-    return url_template
+PROVIDERS = [
+    os.getenv("WEB3_ALCHEMY"),
+    os.getenv("WEB3_POLYGON"), 
+    os.getenv("WEB3_INFURA")
+]
+PROVIDERS = [p for p in PROVIDERS if p]  # Filter valid providers
 
-_initial_url = _resolve_url(WEB3_POLYGON) or _resolve_url(WEB3_ALCHEMY) or _resolve_url(WEB3_INFURA)
-if not _initial_url:
-    raise RuntimeError("No Web3 RPC URL configured. Set WEB3_POLYGON or WEB3_ALCHEMY or WEB3_INFURA.")
-w3 = Web3(Web3.HTTPProvider(_initial_url))
+def get_web3_instance():
+    """Get working Web3 instance with automatic failover"""
+    for provider_url in PROVIDERS:
+        try:
+            w3 = Web3(Web3.HTTPProvider(provider_url, request_kwargs={'timeout': 10}))
+            if w3.is_connected():
+                return w3
+        except:
+            continue
+    raise ConnectionError("All Web3 providers failed")
+
+# Initialize Web3 instance
+w3 = get_web3_instance()
 w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
 # --- Provider Rotation & Routing ---
@@ -72,7 +81,7 @@ _event_providers = []
 for url in [WEB3_POLYGON, WEB3_ALCHEMY]:
     if url:
         try:
-            resolved = _resolve_url(url)
+            resolved = url
             if resolved:
                 _event_providers.append(Web3.HTTPProvider(resolved))
         except Exception:
@@ -82,7 +91,7 @@ for url in [WEB3_POLYGON, WEB3_ALCHEMY]:
 def _build_api_provider():
     try:
         if WEB3_INFURA:
-            url = _resolve_url(WEB3_INFURA)
+            url = WEB3_INFURA
             return Web3.HTTPProvider(url)
         if _event_providers:
             return _event_providers[0] # Fallback
