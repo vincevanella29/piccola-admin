@@ -1,9 +1,11 @@
+# /backend/utils/ws_reserve_updater.py
 import asyncio
 import logging
 import os
 from typing import Dict, List
 import websockets
 from web3 import Web3
+from web3.providers.websocket import WebsocketProvider  # Correct import path
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -44,7 +46,7 @@ UNISWAP_PAIR_ABI = [
 def safe_mongo_int(val):
     return str(val) if abs(val) > 2**63 - 1 else int(val)
 
-async def get_reserves_ws(w3_ws, pair_address: str) -> Dict:
+async def get_reserves_ws(w3_ws: Web3, pair_address: str) -> Dict:
     """Get reserves for a single pair using WebSocket"""
     pair_contract = w3_ws.eth.contract(
         address=w3_ws.to_checksum_address(pair_address),
@@ -57,7 +59,7 @@ async def get_reserves_ws(w3_ws, pair_address: str) -> Dict:
         "timestamp": int(reserves[2])
     }
 
-async def update_reserves_with_retry(w3_ws, pair: Dict) -> bool:
+async def update_reserves_with_retry(w3_ws: Web3, pair: Dict) -> bool:
     """Update reserves with retry logic"""
     pair_addr = pair.get('pairAddress')
     if not pair_addr or pair_addr == "0x0000000000000000000000000000000000000000":
@@ -84,7 +86,7 @@ async def reserve_updater_loop():
         return
 
     async with websockets.connect(WEB3_ALCHEMY_WSS) as ws:
-        w3_ws = Web3(Web3.WebsocketProvider(WEB3_ALCHEMY_WSS))
+        w3_ws = Web3(WebsocketProvider(WEB3_ALCHEMY_WSS))  # Correct initialization
         
         while True:
             try:
