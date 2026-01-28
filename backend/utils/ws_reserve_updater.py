@@ -2,10 +2,11 @@
 import asyncio
 import logging
 import os
+import time
 from typing import Dict, List
 import websockets
+import json
 from web3 import Web3
-from web3.providers.websocket import WebsocketProvider  # Correct import path
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -46,38 +47,33 @@ UNISWAP_PAIR_ABI = [
 def safe_mongo_int(val):
     return str(val) if abs(val) > 2**63 - 1 else int(val)
 
-async def get_reserves_ws(w3_ws: Web3, pair_address: str) -> Dict:
+def _rpc(id_: str, method: str, params):
+    return json.dumps({"jsonrpc": "2.0", "id": id_, "method": method, "params": params})
+
+async def get_reserves_ws(ws, pair_address: str) -> Dict:
     """Get reserves for a single pair using WebSocket"""
-    pair_contract = w3_ws.eth.contract(
-        address=w3_ws.to_checksum_address(pair_address),
-        abi=UNISWAP_PAIR_ABI
-    )
-    reserves = await pair_contract.functions.getReserves().call()
+    call_id = str(int(time.time()))
+    await ws.send(_rpc(call_id, "eth_call", [{
+        "to": pair_address,
+        "data": "0x0902f1ac"  # getReserves() function selector
+    }, "latest"]))
+    
+    response = await ws.recv()
+    data = json.loads(response)
+    if "error" in data:
+        raise ValueError(f"RPC error: {data['error']}")
+    
+    # Parse the reserves from the response
+    reserves_data = data["result"][2:]  # Remove 0x prefix
+    reserve0 = int(reserves_data[:64], 16)
+    reserve1 = int(reserves_data[64:128], 16)
+    timestamp = int(reserves_data[128:], 16)
+    
     return {
-        "reserve0": safe_mongo_int(reserves[0]),
-        "reserve1": safe_mongo_int(reserves[1]),
-        "timestamp": int(reserves[2])
+        "reserve0": safe_mongo_int(reserve0),
+        "reserve1": safe_mongo_int(reserve1),
+        "timestamp": timestamp
     }
-
-async def update_reserves_with_retry(w3_ws: Web3, pair: Dict) -> bool:
-    """Update reserves with retry logic"""
-    pair_addr = pair.get('pairAddress')
-    if not pair_addr or pair_addr == "0x0000000000000000000000000000000000000000":
-        return False
-
-    for attempt in range(MAX_RETRIES):
-        try:
-            reserves_data = await get_reserves_ws(w3_ws, pair_addr)
-            db['token_pairs'].update_one(
-                {"_id": pair["_id"]},
-                {"$set": {"reserves": reserves_data}}
-            )
-            return True
-        except Exception as e:
-            if attempt < MAX_RETRIES - 1:
-                await asyncio.sleep(RETRY_DELAY * (attempt + 1))
-            logger.warning(f"[WS] Attempt {attempt+1} failed for {pair_addr}: {e}")
-    return False
 
 async def reserve_updater_loop():
     """Main WebSocket update loop"""
@@ -85,24 +81,36 @@ async def reserve_updater_loop():
         logger.error("WEB3_ALCHEMY_WSS not configured")
         return
 
-    async with websockets.connect(WEB3_ALCHEMY_WSS) as ws:
-        w3_ws = Web3(WebsocketProvider(WEB3_ALCHEMY_WSS))  # Correct initialization
-        
-        while True:
-            try:
-                token_pairs = list(db['token_pairs'].find({"exists": True}))
-                updated = 0
+    while True:
+        try:
+            async with websockets.connect(WEB3_ALCHEMY_WSS) as ws:
+                logger.info("[WS] Connected to WebSocket for reserve updates")
                 
-                for pair in token_pairs:
-                    if await update_reserves_with_retry(w3_ws, pair):
-                        updated += 1
-                
-                logger.info(f"[WS] Updated reserves for {updated}/{len(token_pairs)} pairs")
-                await asyncio.sleep(UPDATE_INTERVAL)
-                
-            except Exception as e:
-                logger.error(f"[WS] Reserve updater error: {e}")
-                await asyncio.sleep(5)
+                while True:
+                    token_pairs = list(db['token_pairs'].find({"exists": True}))
+                    updated = 0
+                    
+                    for pair in token_pairs:
+                        pair_addr = pair.get('pairAddress')
+                        if not pair_addr or pair_addr == "0x0000000000000000000000000000000000000000":
+                            continue
+                        
+                        try:
+                            reserves_data = await get_reserves_ws(ws, pair_addr)
+                            db['token_pairs'].update_one(
+                                {"_id": pair["_id"]},
+                                {"$set": {"reserves": reserves_data}}
+                            )
+                            updated += 1
+                        except Exception as e:
+                            logger.warning(f"[WS] Failed to update reserves for {pair_addr}: {e}")
+                    
+                    logger.info(f"[WS] Updated reserves for {updated}/{len(token_pairs)} pairs")
+                    await asyncio.sleep(UPDATE_INTERVAL)
+                    
+        except Exception as e:
+            logger.error(f"[WS] Connection error: {e}")
+            await asyncio.sleep(5)
 
 def start_ws_reserve_updater():
     """Start the WebSocket reserve updater"""
