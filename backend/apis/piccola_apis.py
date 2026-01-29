@@ -491,20 +491,80 @@ async def validate_customer(request: ValidateCustomerRequest, token: dict = Depe
 @router.get("/public/menus_catalog")
 async def get_menus_catalog(
     include_options: bool = True,
+    include_locations: bool = True,
     only_active: bool = True,
     token: dict = Depends(verify_api_key),
 ):
+    """
+    Devuelve el catálogo completo para armar la carta digital:
+    - categories: con menús anidados (nombre, descripcion, precio, codigo, imagen, opciones)
+    - locations: sucursales con nombre, dirección, teléfono, email, coordenadas, horarios, etc.
+
+    Cada menú incluye: nombre, descripcion, precio, codigo, media_url/media_r2, especial (ofertas),
+    prioridad, restriccion, currency, location_ids (en qué locales está disponible).
+
+    Cada location incluye: nombre, direccion, email, city, state, postcode, telephone,
+    lat, lng, status, permalink_slug, opening_hours, delivery_areas, menu_ids.
+    """
     try:
         menus_query: Dict[str, Any] = {}
         categories_query: Dict[str, Any] = {}
+        locations_query: Dict[str, Any] = {}
         if only_active:
             menus_query["estado"] = True
             categories_query["estado"] = True
+            locations_query["status"] = True
 
         menus = list(db.menus.find(menus_query))
         categories = list(db.categories.find(categories_query))
         menu_options = list(db.menu_options.find({})) if include_options else []
 
+        # --- Locations (sucursales) ---
+        locations_out: List[Dict[str, Any]] = []
+        if include_locations:
+            locations = list(db.locations.find(locations_query))
+            for loc in locations:
+                loc_id = str(loc.get("id") or loc.get("_id") or "")
+                if not loc_id:
+                    continue
+                if not loc.get("id") and loc.get("_id"):
+                    loc["id"] = str(loc.get("_id"))
+                loc.pop("_id", None)
+
+                # Normalizar fechas si existen
+                for date_field in ("created_at", "updated_at"):
+                    if loc.get(date_field) and hasattr(loc[date_field], "isoformat"):
+                        loc[date_field] = loc[date_field].isoformat()
+
+                # Incluir solo campos relevantes para la carta digital
+                loc_out = {
+                    "id": loc.get("id"),
+                    "nombre": loc.get("nombre", ""),
+                    "direccion": loc.get("direccion", ""),
+                    "email": loc.get("email", ""),
+                    "city": loc.get("city", ""),
+                    "state": loc.get("state", ""),
+                    "postcode": loc.get("postcode", ""),
+                    "telephone": loc.get("telephone", ""),
+                    "lat": loc.get("lat"),
+                    "lng": loc.get("lng"),
+                    "status": loc.get("status", False),
+                    "permalink_slug": loc.get("permalink_slug", ""),
+                    # Campos adicionales para la carta digital
+                    "opening_hours": loc.get("opening_hours", {}),
+                    "delivery_areas": loc.get("delivery_areas", []),
+                    "media_urls": loc.get("media_urls", []),
+                    "media_ids": loc.get("media_ids", []),
+                    "menu_ids": loc.get("menu_ids", []),
+                    # Campos extra si existen (capacidad, descripción, etc.)
+                    "capacidad_personas": loc.get("capacidad_personas"),
+                    "cantidad_mesas": loc.get("cantidad_mesas"),
+                    "cantidad_sillas": loc.get("cantidad_sillas"),
+                    "descripcion": loc.get("descripcion", ""),
+                }
+                locations_out.append(loc_out)
+
+        # --- Menús indexados por ID ---
         menus_by_id: Dict[str, Dict[str, Any]] = {}
         for m in menus:
             mid = str(m.get("id") or m.get("_id") or "")
@@ -513,14 +573,41 @@ async def get_menus_catalog(
             if not m.get("id") and m.get("_id"):
                 m["id"] = str(m.get("_id"))
             m.pop("_id", None)
+
+            # Normalizar fechas
+            for date_field in ("created_at", "updated_at"):
+                if m.get(date_field) and hasattr(m[date_field], "isoformat"):
+                    m[date_field] = m[date_field].isoformat()
+
+            # Normalizar especial.start_date, especial.end_date, etc.
+            especial = m.get("especial") or {}
+            for esp_date_field in ("start_date", "end_date", "created_at", "updated_at"):
+                if especial.get(esp_date_field) and hasattr(especial[esp_date_field], "isoformat"):
+                    especial[esp_date_field] = especial[esp_date_field].isoformat()
+            if especial:
+                m["especial"] = especial
+
             menus_by_id[mid] = m
 
+        # --- Opciones de menú indexadas por menu_id ---
         options_by_menu_id: Dict[str, List[Dict[str, Any]]] = {}
         if include_options and menu_options:
             for opt in menu_options:
                 if not opt.get("id") and opt.get("_id"):
                     opt["id"] = str(opt.get("_id"))
                 opt.pop("_id", None)
+
+                # Normalizar fechas en opciones
+                for date_field in ("created_at", "updated_at"):
+                    if opt.get(date_field) and hasattr(opt[date_field], "isoformat"):
+                        opt[date_field] = opt[date_field].isoformat()
+
+                # Normalizar fechas en values
+                for val in opt.get("values", []):
+                    for vdf in ("created_at", "updated_at"):
+                        if val.get(vdf) and hasattr(val[vdf], "isoformat"):
+                            val[vdf] = val[vdf].isoformat()
+
                 menu_id = str(opt.get("menu_id") or "")
                 if not menu_id:
                     continue
@@ -532,11 +619,17 @@ async def get_menus_catalog(
             except Exception:
                 return 0
 
+        # --- Categorías con menús anidados ---
         categories_out: List[Dict[str, Any]] = []
         for c in categories:
             if not c.get("id") and c.get("_id"):
                 c["id"] = str(c.get("_id"))
             c.pop("_id", None)
+
+            # Normalizar fechas
+            for date_field in ("created_at", "updated_at"):
+                if c.get(date_field) and hasattr(c[date_field], "isoformat"):
+                    c[date_field] = c[date_field].isoformat()
 
             menu_ids = [str(x) for x in (c.get("menu_ids") or [])]
             cat_menus: List[Dict[str, Any]] = []
@@ -556,7 +649,12 @@ async def get_menus_catalog(
             categories_out.append(c_out)
 
         categories_out.sort(key=_sort_key_priority)
-        return _to_jsonable({"categories": categories_out})
+
+        result: Dict[str, Any] = {"categories": categories_out}
+        if include_locations:
+            result["locations"] = locations_out
+
+        return _to_jsonable(result)
     except Exception as e:
         logger.error(f"Error building menus catalog: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error building menus catalog: {str(e)}")
