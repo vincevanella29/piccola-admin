@@ -74,7 +74,7 @@ async def verify_session(request: Request) -> dict:
                 # Add role caching fields if not present
                 if "role_level" not in session:
                     from config.roles.service import get_company_role_level
-                    from config.roles.access import compute_permissions_for_identity
+
                     sessions_collection.update_one(
                         {"_id": session["_id"]},
                         {"$set": {

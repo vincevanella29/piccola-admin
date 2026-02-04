@@ -129,6 +129,65 @@ def get_employee_profile(rut: str) -> Optional[dict]:
     return emp
 
 
+from utils.r2_upload import upload_profile_image_to_r2
+import hashlib
+
+def _sync_image_with_intranet(rut_val: str, existing_doc: dict) -> Optional[str]:
+    """
+    Verifica si la imagen en la intranet (legacy) es diferente a la que tenemos en R2/Mongo.
+    Si cambió (o no la tenemos), la descarga, sube a R2 y actualiza MongoDB.
+    Retorna la nueva URL si hubo cambio, o None si no hubo cambio.
+    """
+    # Usar el rut almacenado en el doc para armar la URL (formato numérico usualmente)
+    # Si rut_val viene sucio, confiamos en el del doc si existe.
+    target_rut = str(existing_doc.get("rut") or rut_val)
+    intranet_url = f"https://intranet.piccolaitalia.cl/images/uploaded/{target_rut}.jpg"
+    
+    try:
+        # Timeout corto para no afectar UX de la consulta
+        resp = requests.get(intranet_url, timeout=3)
+        if resp.status_code != 200:
+            return None
+        
+        img_bytes = resp.content
+        if not img_bytes:
+            return None
+
+        # Calcular hash para detectar cambios
+        new_hash = hashlib.sha256(img_bytes).hexdigest()
+        
+        stored_hash = existing_doc.get("profile_image_hash")
+        stored_url = existing_doc.get("profile_image_url") or existing_doc.get("foto_url")
+
+        # Si hash coincide y tenemos URL, no hacer nada
+        if stored_hash == new_hash and stored_url:
+            return None
+
+        logger.info(f"Detectado cambio de imagen para rut {target_rut}. Sincronizando...")
+
+        # Subir a R2
+        file_obj = io.BytesIO(img_bytes)
+        filename = f"trabajadores/{target_rut}.jpg"
+        r2_url = upload_profile_image_to_r2(file_obj, filename)
+
+        # Actualizar DB
+        db.trabajadores_vpn.update_one(
+            {"_id": existing_doc["_id"]},
+            {
+                "$set": {
+                    "profile_image_url": r2_url,
+                    "profile_image_hash": new_hash,
+                    "updated_at": int(time.time())
+                }
+            }
+        )
+        return r2_url
+
+    except Exception as e:
+        logger.warning(f"_sync_image_with_intranet failed for {target_rut}: {e}")
+        return None
+
+
 @router.get("/registro/consulta", summary="Consulta si un RUT existe y si tiene foto de referencia")
 async def consulta_registro(rut: str, user: dict = Depends(verify_session)):
     rut = (rut or "").strip()
@@ -141,6 +200,17 @@ async def consulta_registro(rut: str, user: dict = Depends(verify_session)):
     emp = get_employee_profile(rut)
     if not emp:
         return {"exists": False, "rut": rut}
+
+    # --- Sync Imagen On-Demand ---
+    # Antes de responder, chequeamos si la imagen cambió en la intranet
+    try:
+        new_url = _sync_image_with_intranet(rut, emp)
+        if new_url:
+            emp["profile_image_url"] = new_url
+            emp["foto_url"] = new_url  # Forzar uso en lógica de abajo
+    except Exception:
+        pass
+    # -----------------------------
 
     # Si ya existe una sesión completada o un vínculo activo, marcar como ya registrado
     existing_session = REG_SESSIONS.find_one({"rut": rut, "status": "completed"})
