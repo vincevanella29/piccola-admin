@@ -120,8 +120,8 @@ import 'react-toastify/dist/ReactToastify.css'; const PromotionDashboard = ({ ap
                         <motion.button
                             key={tab.key}
                             className={`w-full sm:w-auto flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold ${activeTab === tab.key
-                                    ? 'bg-gradient-to-r from-matrix-green to-vanellix-cyan text-light-text-primary dark:text-dark-text-primary shadow-neon'
-                                    : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface/10 dark:hover:bg-dark-surface/10'
+                                ? 'bg-gradient-to-r from-matrix-green to-vanellix-cyan text-light-text-primary dark:text-dark-text-primary shadow-neon'
+                                : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface/10 dark:hover:bg-dark-surface/10'
                                 }`}
                             onClick={() => handleTabClick(tab.key)}
                             whileHover={{ scale: 1.05 }}
@@ -262,7 +262,7 @@ export const pageMetadata = {
     label: 'promotion.label',
     category: 'admin.category',
     minRoleLevel: 3,
-    maxRoleLevel: 4,
+    maxRoleLevel: 5,
     order: 4,
     locations: ['sidebar'],
     description: 'promotion.description',

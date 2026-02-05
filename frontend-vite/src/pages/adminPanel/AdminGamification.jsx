@@ -80,10 +80,9 @@ const AdminGamification = ({ appState }) => {
                     onClick={() => setActiveSubTab(tab.key)}
                     // Se agrega flex-shrink-0 para que los botones no se encojan y se ajusta el padding
                     className={`flex-shrink-0 flex items-center gap-2 px-3 py-3 text-sm font-semibold transition-colors duration-200 border-b-2
-                      ${
-                        activeSubTab === tab.key
-                          ? 'border-matrix-green text-matrix-green'
-                          : 'border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
+                      ${activeSubTab === tab.key
+                        ? 'border-matrix-green text-matrix-green'
+                        : 'border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
                       }`}
                   >
                     <tab.icon size={18} />
@@ -109,7 +108,7 @@ const AdminGamification = ({ appState }) => {
               onRefresh={api.listSegments} onBootstrapSpecial={api.bootstrapSpecialExecute}
               onAuthorizeAll={api.authorizeCompanyAllBuild} appState={appState}
             />
-          )} 
+          )}
           {activeSubTab === 'list' && (
             <RuleList
               isLoading={api.isLoading}
@@ -166,7 +165,7 @@ export const pageMetadata = {
   label: 'gamification.label',
   category: 'admin.category',
   minRoleLevel: 3,
-  maxRoleLevel: 4,
+  maxRoleLevel: 5,
   order: 7,
   locations: ['sidebar'],
   description: 'gamification.description',

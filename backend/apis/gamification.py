@@ -46,8 +46,8 @@ class _UserSession(BaseModel):
 
 # -------------------- HELPERS DE ACCESO --------------------
 def admin_user(user: Dict[str, Any] = Depends(verify_session)) -> Dict[str, Any]:
-    """Restringe a niveles 3/4 (admin/subadmin on-chain)."""
-    require_admin_level(user, "admin")
+    """Restringe a niveles 3/5 (member/subadmin on-chain)."""
+    require_admin_level(user, "member")
     return user
 
 

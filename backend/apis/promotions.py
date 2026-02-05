@@ -195,7 +195,7 @@ async def get_all_promotions(
     try:
         wallet = user["wallet"].lower()
         role_level = get_company_role_level(wallet)
-        if role_level not in [3, 4]:
+        if role_level not in [3, 5]:
             raise HTTPException(status_code=403, detail="Insufficient role level (must be 3 or 4)")
         q = {"company_id": COMPANY_ID}
         if query:
@@ -233,7 +233,7 @@ async def reactivate_coupon(request: ReactivateCouponRequest, user: dict = Depen
         wallet = user["wallet"].lower()
         coupon_code = request.coupon_code
         role_level = get_company_role_level(wallet)
-        if role_level not in [3, 4]:
+        if role_level not in [3, 5]:
             raise HTTPException(status_code=403, detail="Insufficient role level (must be 3 or 4)")
         coupon = db.promotion_claims.find_one({"codigo": coupon_code})
         if not coupon:
@@ -314,7 +314,7 @@ async def get_coupons(
     try:
         admin_wallet = user["wallet"].lower()
         role_level = get_company_role_level(admin_wallet)
-        if role_level not in [3, 4]:
+        if role_level not in [3, 5]:
             raise HTTPException(status_code=403, detail="Insufficient role level (must be 3 or 4)")
         
         q = {"company_id": COMPANY_ID}
