@@ -315,8 +315,12 @@ async def get_active_promotions(user: Optional[dict] = Depends(optional_verify_s
                     try:
                         p[date_field] = isoparse(p[date_field]).replace(tzinfo=chile_tz)
                     except Exception:
-                        pass  # Ignore parse errors
-            is_valid, _ = validate_display_rules(p, now, employee_scope)
+                        pass  # Ignore
+            print(f"🔥🔥🔥 [ACTIVE_PROMOS] Validating promo '{p.get('name')}' for wallet={wallet}, employee_scope={employee_scope}")
+            logger.info(f"[ACTIVE_PROMOS] Validating promo '{p.get('name')}' for wallet={wallet}, employee_scope={employee_scope}")
+            is_valid, reason = validate_display_rules(p, now, employee_scope)
+            print(f"🔥🔥🔥 [ACTIVE_PROMOS] Result: is_valid={is_valid}, reason='{reason}'")
+            logger.info(f"[ACTIVE_PROMOS] Result: is_valid={is_valid}, reason='{reason}'")
             if is_valid:
                 p["id"] = str(p["_id"])
                 del p["_id"]

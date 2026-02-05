@@ -1,7 +1,7 @@
 // hooks/useEmpleadosCache.jsx
 import React from 'react';
 import dayjs from 'dayjs';
-import { getTrabajadoresActivos, getTrabajadorByRut, getAsistenciaDiaria, getAsistenciaPorSucursal, getSueldos } from '../utils/analitycsData';
+import { getTrabajadoresActivos, getTrabajadorByRut, getAsistenciaDiaria, getAsistenciaPorSucursal, getSueldos, getJobFilters } from '../utils/analitycsData';
 
 // Configurable cache TTL (default: 1 hour)
 // Adjust this constant to change how long cached entries remain valid
@@ -20,11 +20,11 @@ function computeComparison(dateRange, { comparisonType, compareByWeekdays }) {
   const days = end.diff(start, 'day');
   let cs = null, ce = null;
   if (comparisonType === 'previous_period') { cs = start.subtract(days + 1, 'day'); ce = end.subtract(days + 1, 'day'); }
-  if (comparisonType === 'same_period')     { cs = start.subtract(1, 'year'); ce = end.subtract(1, 'year'); }
+  if (comparisonType === 'same_period') { cs = start.subtract(1, 'year'); ce = end.subtract(1, 'year'); }
   if (compareByWeekdays && cs && ce) {
     const curDow = start.day();
     const cmpDow = cs.day();
-    const delta  = (curDow - cmpDow + 7) % 7;
+    const delta = (curDow - cmpDow + 7) % 7;
     cs = cs.add(delta, 'day');
     ce = cs.add(days, 'day');
   }
@@ -290,6 +290,22 @@ export default function useEmpleadosCache(appState) {
     }
   }, [wallet, token]);
 
+  // Cargar secciones y cargos disponibles
+  const loadJobFilters = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getJobFilters({ walletAddress: wallet, token });
+      return response;
+    } catch (err) {
+      const msg = err?.message || 'Error cargando filtros de trabajo';
+      setError(msg);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [wallet, token]);
+
   return {
     // actions
     loadTrabajadoresActivos,
@@ -298,6 +314,7 @@ export default function useEmpleadosCache(appState) {
     loadAsistenciaDiariaWithComparison,
     loadAsistenciaPorSucursal,
     loadSueldos,
+    loadJobFilters,
     clearEmpleadosCache,
 
     // state

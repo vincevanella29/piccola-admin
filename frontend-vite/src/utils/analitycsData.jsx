@@ -254,3 +254,17 @@ export async function getSueldos({
     },
   });
 }
+
+// --- Job Filters (Secciones y Cargos) ---
+
+export async function getJobFilters({ walletAddress, token }) {
+  return api({
+    method: 'GET',
+    endpoint: '/public/merits/filters',
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}

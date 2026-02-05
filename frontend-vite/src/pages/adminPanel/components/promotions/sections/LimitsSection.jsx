@@ -35,12 +35,32 @@ const LimitsSection = ({ formData, handleChange, isLoading, t }) => (
       <div>
         <label className="block text-sm font-medium mb-2 text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-1">
           {t('admin.promotions.max_claims')}
+          <span className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary">
+            ({t('admin.promotions.max_claims_total_label')})
+          </span>
         </label>
         <input
           type="number"
           name="max_claims"
           value={formData.max_claims}
           onChange={handleChange}
+          className="w-full p-3 bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 border border-light-border/40 dark:border-dark-border/40 rounded-xl text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent transition-all disabled:opacity-50"
+          disabled={isLoading}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-2 text-light-text-secondary dark:text-dark-text-secondary flex items-center gap-1">
+          {t('admin.promotions.max_claims_per_day')}
+          <span className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary">
+            ({t('admin.promotions.max_claims_per_day_label')})
+          </span>
+        </label>
+        <input
+          type="number"
+          name="max_claims_per_day"
+          value={formData.max_claims_per_day || ''}
+          onChange={handleChange}
+          placeholder={t('admin.promotions.max_claims_per_day_placeholder')}
           className="w-full p-3 bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 border border-light-border/40 dark:border-dark-border/40 rounded-xl text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent transition-all disabled:opacity-50"
           disabled={isLoading}
         />

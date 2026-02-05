@@ -61,34 +61,70 @@ def validate_display_rules(
     if employee and promotion.get("rules"):
         cargo = (employee.get("cargo") or "").strip()
         emp_section_norm = str(employee.get("emp_section_norm") or "").strip().lower()
+        print(f"🎯🎯🎯 [DISPLAY] Processing rules for {promotion.get('name')}, cargo='{cargo}', section='{emp_section_norm}'")
 
         for rule in promotion.get("rules", []):
-            if rule.get("rule_type") != "merit_rule_fulfilled":
-                continue
+            rule_type = rule.get("rule_type")
+            
+            # Procesar reglas de merit_rule_fulfilled
+            if rule_type == "merit_rule_fulfilled":
 
-            merit_rule_name = rule.get("merit_rule_name")
-            if not merit_rule_name:
-                continue
+                merit_rule_name = rule.get("merit_rule_name")
+                if not merit_rule_name:
+                    continue
 
-            gam_rule = RULES_COLL.find_one({"rule_name": merit_rule_name})
-            if not gam_rule:
-                # Config mala: mejor ocultar promo para no ensuciar el feed.
-                return False, f"Gamification rule '{merit_rule_name}' not found for display scope."
+                gam_rule = RULES_COLL.find_one({"rule_name": merit_rule_name})
+                if not gam_rule:
+                    # Config mala: mejor ocultar promo para no ensuciar el feed.
+                    return False, f"Gamification rule '{merit_rule_name}' not found for display scope."
 
-            scope = gam_rule.get("scope") or {}
+                scope = gam_rule.get("scope") or {}
 
-            # Scope por cargos
-            if "cargos" in scope:
-                include = scope["cargos"].get("include", [])
-                exclude = scope["cargos"].get("exclude", [])
-                if (include and cargo not in include) or (cargo in exclude):
-                    return False, "Promotion not in scope for employee cargo."
+                # Scope por cargos
+                if "cargos" in scope:
+                    include = scope["cargos"].get("include", [])
+                    exclude = scope["cargos"].get("exclude", [])
+                    if (include and cargo not in include) or (cargo in exclude):
+                        return False, "Promotion not in scope for employee cargo."
 
-            # Scope por secciones
-            if "secciones" in scope:
-                sec_include = [str(s).strip().lower() for s in scope["secciones"].get("include", [])]
-                sec_exclude = [str(s).strip().lower() for s in scope["secciones"].get("exclude", [])]
-                if (sec_include and emp_section_norm not in sec_include) or (emp_section_norm in sec_exclude):
-                    return False, "Promotion not in scope for employee section."
+                # Scope por secciones
+                if "secciones" in scope:
+                    sec_include = [str(s).strip().lower() for s in scope["secciones"].get("include", [])]
+                    sec_exclude = [str(s).strip().lower() for s in scope["secciones"].get("exclude", [])]
+                    if (sec_include and emp_section_norm not in sec_include) or (emp_section_norm in sec_exclude):
+                        return False, "Promotion not in scope for employee section."
+
+
+            # Nueva validación: REQUIRE_JOB_POSITION
+            # Si la promo requiere un cargo/sección específico, solo mostrarla 
+            # a empleados que cumplan ese requisito
+            elif rule_type == "require_job_position":
+                required_section = (rule.get("job_section") or "").strip().lower()
+                required_position = (rule.get("job_position") or "").strip().lower()
+                emp_position_norm = cargo.lower() if cargo else ""
+                
+                print(f"🔍🔍🔍 [DISPLAY_JOB_POSITION] promo={promotion.get('name')}, emp_section='{emp_section_norm}', emp_position='{emp_position_norm}', required_section='{required_section}', required_position='{required_position}'")
+                logger.info(
+                    f"[DISPLAY_JOB_POSITION] promo={promotion.get('name')}, "
+                    f"emp_section='{emp_section_norm}', emp_position='{emp_position_norm}', "
+                    f"required_section='{required_section}', required_position='{required_position}'"
+                )
+                
+                # Si se especificó sección, validar
+                if required_section:
+                    if emp_section_norm != required_section:
+                        print(f"❌❌❌ [DISPLAY_JOB_POSITION] Section mismatch, hiding promo")
+                        logger.info(f"[DISPLAY_JOB_POSITION] Section mismatch, hiding promo")
+                        return False, f"Promotion only for section '{rule.get('job_section')}'"
+                
+                # Si se especificó cargo, validar  
+                if required_position:
+                    if emp_position_norm != required_position:
+                        print(f"❌❌❌ [DISPLAY_JOB_POSITION] Position mismatch, hiding promo")
+                        logger.info(f"[DISPLAY_JOB_POSITION] Position mismatch, hiding promo")
+                        return False, f"Promotion only for position '{rule.get('job_position')}'"
+                
+                print(f"✅✅✅ [DISPLAY_JOB_POSITION] Employee matches requirements, showing promo")
+                logger.info(f"[DISPLAY_JOB_POSITION] ✅ Employee matches requirements, showing promo")
 
     return True, ""

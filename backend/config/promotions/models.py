@@ -54,6 +54,7 @@ class RuleType(str, Enum):
     REQUIRE_MIN_LIKED_PRODUCTS = "require_min_liked_products"
     MERIT_MIN_WALLET = "merit_min_wallet"
     MERIT_RULE_FULFILLED = "merit_rule_fulfilled"
+    REQUIRE_JOB_POSITION = "require_job_position"
 
 class ValidityType(str, Enum):
     FIXED = "fixed"
@@ -88,6 +89,8 @@ class PromotionRule(BaseModel):
     valid_days: Optional[List[str]] = None
     time_ranges: Optional[List[Dict[str, str]]] = None
     min_count: Optional[int] = Field(None, description="Minimum count for rules like require_min_liked_products")
+    job_section: Optional[str] = Field(None, description="Required employee section (e.g., 'Cocina', 'Sala')")
+    job_position: Optional[str] = Field(None, description="Required employee position/cargo (e.g., 'Garzón', 'Jefe de Cocina')")
 
     @model_validator(mode="before")
     def preprocess_amount(cls, values):
@@ -239,6 +242,7 @@ class PromotionCreate(BaseModel):
     max_coupon_per_table: Optional[int] = None
     max_coupon_per_promo: Optional[int] = None
     max_claims: int = Field(..., gt=0)
+    max_claims_per_day: Optional[int] = Field(None, gt=0, description="Maximum claims per user per day (optional)")
     locations: Optional[List[str]] = []
     menu_item_skus: Optional[List[str]] = []
     coupon_validity: CouponValidity

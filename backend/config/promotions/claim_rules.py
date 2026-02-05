@@ -196,6 +196,22 @@ def validate_claim_rules(request: Dict, promotion: Dict, customer: Optional[Dict
         if claim_count >= max_claims:
             return False, "Maximum claims reached for this customer"
 
+    # Validate max claims per day
+    max_claims_per_day = promotion.get("max_claims_per_day")
+    if max_claims_per_day and max_claims_per_day > 0:
+        # Get start and end of current day in Chile timezone
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        daily_claim_count = db.promotion_claims.count_documents({
+            "promotion_id": request["promotion_id"],
+            "wallet": request["wallet"].lower(),
+            "created_at": {"$gte": today_start, "$lte": today_end}
+        })
+        
+        if daily_claim_count >= max_claims_per_day:
+            return False, f"Maximum daily claims reached ({max_claims_per_day} per day). Try again tomorrow."
+
     # Validate max total coupons
     max_coupon_per_promo = promotion.get("max_coupon_per_promo", 0)
     if max_coupon_per_promo > 0:
@@ -431,6 +447,80 @@ def validate_claim_rules(request: Dict, promotion: Dict, customer: Optional[Dict
                 errors.append(
                     f"At least {min_count} liked products required. Current: {liked_count}"
                 )
+        elif rule_type == RuleType.REQUIRE_JOB_POSITION:
+            # Validar que el empleado tenga el cargo/sección requeridos
+            try:
+                # Buscar ficha del empleado vinculada a la wallet
+                link = db.empleados_usuarios.find_one({"wallet": request["wallet"].lower()})
+                if not link or not link.get("rut"):
+                    errors.append("No se encontró registro de empleado vinculado a tu wallet.")
+                    continue
+                
+                rut = str(link["rut"]).strip()
+                # Buscar por RUT (intentar como string y como int)
+                emp = db.trabajadores_vpn.find_one({
+                    "$or": [
+                        {"rut": rut, "activo": 1},
+                        {"rut": int(rut) if rut.isdigit() else None, "activo": 1}
+                    ]
+                })
+                if not emp:
+                    errors.append("Tu ficha de empleado no está activa para reclamar esta promoción.")
+                    continue
+                
+                # Obtener sección y cargo del empleado
+                emp_section_raw = (
+                    emp.get("seccion")
+                    or emp.get("Seccion")
+                    or emp.get("sección")
+                    or emp.get("section")
+                    or ""
+                )
+                
+                # Si no tiene sección directa, buscar en cargos_intranet
+                if not emp_section_raw and emp.get("cargo"):
+                    cargo_doc = db.cargos_intranet.find_one(
+                        {"cargo": {"$regex": f"^{emp.get('cargo')}$", "$options": "i"}},
+                        {"_id": 0, "seccion": 1}
+                    )
+                    emp_section_raw = (cargo_doc or {}).get("seccion", "")
+                
+                emp_section = str(emp_section_raw).strip().lower() if emp_section_raw else ""
+                emp_position = str(emp.get("cargo", "")).strip().lower()
+                
+                required_section = (rule.get("job_section") or "").strip().lower()
+                required_position = (rule.get("job_position") or "").strip().lower()
+                
+                logger.info(
+                    f"[REQUIRE_JOB_POSITION] wallet={request['wallet']}, rut={rut}, "
+                    f"emp_section='{emp_section}', emp_position='{emp_position}', "
+                    f"required_section='{required_section}', required_position='{required_position}'"
+                )
+                
+                # Validar sección (si se especificó)
+                if required_section:
+                    logger.info(f"[REQUIRE_JOB_POSITION] Checking section: '{emp_section}' == '{required_section}'")
+                    if emp_section != required_section:
+                        error_msg = f"Esta promoción es solo para empleados de la sección '{rule.get('job_section')}'."
+                        logger.warning(f"[REQUIRE_JOB_POSITION] Section mismatch! {error_msg}")
+                        errors.append(error_msg)
+                        continue
+                    logger.info(f"[REQUIRE_JOB_POSITION] Section matched!")
+                
+                # Validar cargo (si se especificó)
+                if required_position:
+                    logger.info(f"[REQUIRE_JOB_POSITION] Checking position: '{emp_position}' == '{required_position}'")
+                    if emp_position != required_position:
+                        error_msg = f"Esta promoción es solo para empleados con el cargo '{rule.get('job_position')}'."
+                        logger.warning(f"[REQUIRE_JOB_POSITION] Position mismatch! {error_msg}")
+                        errors.append(error_msg)
+                        continue
+                    logger.info(f"[REQUIRE_JOB_POSITION] Position matched!")
+                
+                logger.info(f"[REQUIRE_JOB_POSITION] ✅ Validation passed for wallet {request['wallet']}")
+            except Exception as e:
+                logger.error(f"Error validating REQUIRE_JOB_POSITION rule for wallet {request['wallet']}: {e}")
+                errors.append("No se pudo validar tu cargo para esta promoción.")
 
     if errors:
         return False, "; ".join(errors)

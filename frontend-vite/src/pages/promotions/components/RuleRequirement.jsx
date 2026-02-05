@@ -14,6 +14,7 @@ const RuleRequirement = ({ rule, index, account, t, met, profile, appState, burn
     appState?.user?.email?.address || '';
   const [inputValue, setInputValue] = useState(detectedEmail);
   const [error, setError] = useState(null);
+  console.log(appState);
 
   const isHold = rule.rule_type === 'hold_tokens';
   const isBurn = rule.rule_type === 'burn_tokens';
@@ -211,66 +212,66 @@ const RuleRequirement = ({ rule, index, account, t, met, profile, appState, burn
     );
   }
 
-if (rule.rule_type === 'merit_rule_fulfilled') {
-  // Nuevo modelo: solo 'current' o 'last', pero mantenemos compat con
-  // valores antiguos mapeándolos a las mismas etiquetas.
-  const rawPeriodKey = rule.ranking_period || 'current';
-  let periodKey = rawPeriodKey;
-  if (rawPeriodKey === 'current_month' || rawPeriodKey === 'current_year') periodKey = 'current';
-  if (rawPeriodKey === 'last_month' || rawPeriodKey === 'last_year') periodKey = 'last';
+  if (rule.rule_type === 'merit_rule_fulfilled') {
+    // Nuevo modelo: solo 'current' o 'last', pero mantenemos compat con
+    // valores antiguos mapeándolos a las mismas etiquetas.
+    const rawPeriodKey = rule.ranking_period || 'current';
+    let periodKey = rawPeriodKey;
+    if (rawPeriodKey === 'current_month' || rawPeriodKey === 'current_year') periodKey = 'current';
+    if (rawPeriodKey === 'last_month' || rawPeriodKey === 'last_year') periodKey = 'last';
 
-  const periodLabelMap = {
-    current: 'Periodo actual',
-    last: 'Periodo anterior',
-  };
-  const periodLabel = periodLabelMap[periodKey] || periodKey;
+    const periodLabelMap = {
+      current: 'Periodo actual',
+      last: 'Periodo anterior',
+    };
+    const periodLabel = periodLabelMap[periodKey] || periodKey;
 
-  const meritProgress = rule.merit_progress || {};
-  const progressEntry = Array.isArray(meritProgress.progress) && meritProgress.progress.length > 0
-    ? meritProgress.progress[0]
-    : null;
+    const meritProgress = rule.merit_progress || {};
+    const progressEntry = Array.isArray(meritProgress.progress) && meritProgress.progress.length > 0
+      ? meritProgress.progress[0]
+      : null;
 
-  const {
-    position_type: positionType,
-    ranking_position: rankingPosition,
-    position_from: positionFrom,
-    position_to: positionTo,
-  } = meritProgress.params || {};
+    const {
+      position_type: positionType,
+      ranking_position: rankingPosition,
+      position_from: positionFrom,
+      position_to: positionTo,
+    } = meritProgress.params || {};
 
-  let targetText = null;
-  if (positionType === 'exact') {
-    targetText = `Puesto ${rankingPosition}`;
-  } else if (positionType === 'range') {
-    targetText = `Puestos ${positionFrom}-${positionTo}`;
-  } else if (positionType === 'top_n') {
-    targetText = `Top ${rankingPosition}`;
-  }
+    let targetText = null;
+    if (positionType === 'exact') {
+      targetText = `Puesto ${rankingPosition}`;
+    } else if (positionType === 'range') {
+      targetText = `Puestos ${positionFrom}-${positionTo}`;
+    } else if (positionType === 'top_n') {
+      targetText = `Top ${rankingPosition}`;
+    }
 
-  const currentPosition = progressEntry?.current_position;
-  const scope = progressEntry?.scope === 'local' ? `Local ${progressEntry?.local || ''}` : 'Empresa';
+    const currentPosition = progressEntry?.current_position;
+    const scope = progressEntry?.scope === 'local' ? `Local ${progressEntry?.local || ''}` : 'Empresa';
 
-  return (
-    <li className="flex flex-col gap-1 text-sm">
-      <div className="flex items-center gap-2">
-        {met ? (
-          <FaCheckCircle className="text-matrix-green" />
-        ) : (
-          <FaTimesCircle className="text-light-error dark:text-dark-error" />
-        )}
-        <span>
-          Regla de ranking: <strong>{rule.merit_rule_name}</strong> ({periodLabel})
-        </span>
-      </div>
-      {progressEntry && currentPosition != null && targetText && (
-        <div className="ml-6 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+    return (
+      <li className="flex flex-col gap-1 text-sm">
+        <div className="flex items-center gap-2">
+          {met ? (
+            <FaCheckCircle className="text-matrix-green" />
+          ) : (
+            <FaTimesCircle className="text-light-error dark:text-dark-error" />
+          )}
           <span>
-            Estado actual: {scope} · Puesto {currentPosition} &mdash; Objetivo: {targetText}
+            Regla de ranking: <strong>{rule.merit_rule_name}</strong> ({periodLabel})
           </span>
         </div>
-      )}
-    </li>
-  );
-}
+        {progressEntry && currentPosition != null && targetText && (
+          <div className="ml-6 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            <span>
+              Estado actual: {scope} · Puesto {currentPosition} &mdash; Objetivo: {targetText}
+            </span>
+          </div>
+        )}
+      </li>
+    );
+  }
 
   if (isBirthday || isRequireBirthdate) {
     return (
@@ -388,6 +389,34 @@ if (rule.rule_type === 'merit_rule_fulfilled') {
             {t('promotion-front.like_products')}
           </button>
         )}
+      </li>
+    );
+  }
+
+  // Nueva regla: REQUIRE_JOB_POSITION
+  if (rule.rule_type === 'require_job_position') {
+    const jobSection = rule.job_section;
+    const jobPosition = rule.job_position;
+
+    let requirementText;
+    if (jobSection && jobPosition) {
+      requirementText = t('promotion-front.require_job_both', { section: jobSection, position: jobPosition });
+    } else if (jobSection) {
+      requirementText = t('promotion-front.require_job_section', { section: jobSection });
+    } else if (jobPosition) {
+      requirementText = t('promotion-front.require_job_position_detail', { position: jobPosition });
+    } else {
+      requirementText = t('promotion-front.require_job_position');
+    }
+
+    return (
+      <li className="flex items-center gap-2 text-sm">
+        {met ? (
+          <FaCheckCircle className="text-matrix-green" />
+        ) : (
+          <FaTimesCircle className="text-light-error dark:text-dark-error" />
+        )}
+        <span>{requirementText}</span>
       </li>
     );
   }

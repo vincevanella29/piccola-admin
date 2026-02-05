@@ -122,5 +122,11 @@
   "month": "Mês",
   "year": "Ano",
   "merit_min_wallet": "Ter pelo menos {{required}} pontos de mérito no segmento {{symbol}} ({{name}}). Atual: {{balance}}.",
-  "merit_segment_default": "Segmento de mérito"
+  "merit_segment_default": "Segmento de mérito",
+  "require_job_position": "Requer posição específica",
+  "require_job_section": "Requer pertencer à seção: {{section}}",
+  "require_job_position_detail": "Requer posição: {{position}}",
+  "require_job_both": "Requer seção {{section}} e posição {{position}}",
+  "not_employee": "Esta promoção é apenas para funcionários",
+  "employee_inactive": "Sua ficha de funcionário não está ativa"
 }

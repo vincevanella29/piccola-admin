@@ -17,6 +17,7 @@ import {
   DateSection,
   TokenRuleSection,
   RulesSection,
+  JobPositionRuleSection,
   LimitsSection,
 } from './sections';
 
@@ -37,11 +38,11 @@ import {
 // --- COMPONENTE ACORDEÓN "VANELLIX STYLE" ---
 const Accordion = ({ title, children, isOpen, toggleOpen, isComplete, isLocked = false }) => {
   return (
-    <div 
+    <div
       className={`
         group rounded-2xl border transition-all duration-300
-        ${isOpen 
-          ? 'bg-light-surface dark:bg-dark-surface border-matrix-green/50 shadow-lg shadow-matrix-green/10' 
+        ${isOpen
+          ? 'bg-light-surface dark:bg-dark-surface border-matrix-green/50 shadow-lg shadow-matrix-green/10'
           : 'bg-light-surface dark:bg-dark-surface border-light-border/20 dark:border-dark-border/20 hover:border-light-border/40 dark:hover:border-dark-border/40'
         }
         ${isLocked ? 'opacity-50 pointer-events-none' : 'opacity-100'}
@@ -63,7 +64,7 @@ const Accordion = ({ title, children, isOpen, toggleOpen, isComplete, isLocked =
               <div className={`h-5 w-5 rounded-full border-2 ${isOpen ? 'border-matrix-green' : 'border-light-border/40 dark:border-dark-border/40'}`} />
             )}
           </div>
-          
+
           {/* Title */}
           <span className={`text-lg font-futurist tracking-tight ${isOpen ? 'text-light-text-primary dark:text-dark-text-primary' : 'text-light-text-secondary dark:text-dark-text-secondary'}`}>
             {title}
@@ -85,20 +86,20 @@ const Accordion = ({ title, children, isOpen, toggleOpen, isComplete, isLocked =
         initial={false}
         animate={isOpen ? "open" : "closed"}
         variants={{
-          open: { 
-            height: "auto", 
+          open: {
+            height: "auto",
             opacity: 1,
             transition: { duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98] },
-            transitionEnd: { overflow: "visible" } 
+            transitionEnd: { overflow: "visible" }
           },
-          closed: { 
-            height: 0, 
+          closed: {
+            height: 0,
             opacity: 0,
             overflow: "hidden",
             transition: { duration: 0.3, ease: "easeInOut" }
           }
         }}
-        className="overflow-hidden" 
+        className="overflow-hidden"
       >
         <div className="p-5 pt-0 border-t border-transparent">
           {children}
@@ -124,10 +125,11 @@ const PromotionForm = ({
   meritRules,
   chileTime,
   mediaMap,
+  appState,
 }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState(initialData);
-  
+
   // Control de secciones
   const [openSections, setOpenSections] = useState({
     basicInfo: true,
@@ -138,6 +140,7 @@ const PromotionForm = ({
     redeemDates: false,
     tokenRules: false,
     rules: false,
+    jobPositionRule: false,
     limits: false,
     status: false,
   });
@@ -169,10 +172,10 @@ const PromotionForm = ({
         formData.reward_type === 'discount'
           ? formData.reward_details.discount > 0 && formData.reward_details.type !== '' && formData.menu_item_skus.length === 0 && formData.promotion_type === 'D'
           : formData.reward_type === 'product'
-          ? Array.isArray(formData.menu_item_skus) && formData.menu_item_skus.length > 0 && formData.promotion_type === 'P' && formData.reward_details.discount > 0
-          : formData.promotion_type === 'C'
-          ? formData.reward_details.discount > 0
-          : false,
+            ? Array.isArray(formData.menu_item_skus) && formData.menu_item_skus.length > 0 && formData.promotion_type === 'P' && formData.reward_details.discount > 0
+            : formData.promotion_type === 'C'
+              ? formData.reward_details.discount > 0
+              : false,
       locations: true,
       displayDates: formData.display.start !== '' && formData.display.end !== '',
       claimDates: formData.claim.start !== '' && formData.claim.end !== '',
@@ -180,12 +183,12 @@ const PromotionForm = ({
         formData.is_birthday_coupon
           ? formData.redeem.birthday_validity_days > 0
           : formData.redeem.validity !== '' &&
-            (formData.redeem.validity === 'forever' ||
-              (formData.redeem.validity === 'fixed' || formData.redeem.validity === 'period'
-                ? formData.redeem.valid_from !== '' && formData.redeem.valid_until !== ''
-                : true)),
-      tokenRules: true, 
-      rules: true, 
+          (formData.redeem.validity === 'forever' ||
+            (formData.redeem.validity === 'fixed' || formData.redeem.validity === 'period'
+              ? formData.redeem.valid_from !== '' && formData.redeem.valid_until !== ''
+              : true)),
+      tokenRules: true,
+      rules: true,
       limits: formData.max_coupon_per_table > 0 && formData.max_coupon_per_promo > 0 && formData.max_claims > 0,
     };
   }, [formData]);
@@ -221,12 +224,12 @@ const PromotionForm = ({
 
   return (
     <div className="max-w-3xl mx-auto pb-24">
-      
+
       {/* HEADER & PROGRESS (STICKY) */}
       <div className="sticky top-0 z-40    pt-6 pb-4 mb-6">
         <div className="flex justify-between items-end mb-3 px-1">
           <div>
-             <h2 className="text-2xl font-futurist font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">
+            <h2 className="text-2xl font-futurist font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">
               {isUpdate ? t('promotion.update') : t('promotion.create')}
             </h2>
             <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
@@ -237,7 +240,7 @@ const PromotionForm = ({
             {progress}%
           </span>
         </div>
-        
+
         {/* Progress Bar */}
         <div className="w-full bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-full h-1.5 overflow-hidden">
           <motion.div
@@ -268,7 +271,7 @@ const PromotionForm = ({
 
       {/* FORM SECTIONS STACK */}
       <div className="space-y-4">
-        
+
         <Accordion
           title={t('promotion.basic_info')}
           isOpen={openSections.basicInfo}
@@ -318,135 +321,149 @@ const PromotionForm = ({
 
         {/* Date Group */}
         <div className="space-y-4 pt-2">
-            <h3 className="text-xs font-bold uppercase text-light-text-secondary/60 dark:text-dark-text-secondary/60 tracking-widest px-2">
-              Calendario
-            </h3>
-            <Accordion
-              title={t('promotion.display_dates')}
-              isOpen={openSections.displayDates}
-              toggleOpen={() => toggleSection('displayDates')}
-              isComplete={sectionCompletion.displayDates}
-            >
-              <DateSection
-                section="display"
-                formData={formData}
-                handleChange={(e, sec, key) => handleChange(e, setFormData, setFormError, sec, key)}
-                handleSelectChange={(selected, sec, subfield) => handleSelectChange(selected, setFormData, setFormError, sec, subfield)}
-                addExcludedDate={() => addExcludedDate(setFormData, 'display')}
-                removeExcludedDate={(index) => removeExcludedDate(setFormData, 'display', index)}
-                updateExcludedDate={updateExcludedDate}
-                setFormData={setFormData}
-                isLoading={isLoading}
-                t={t}
-                customSelectStyles={customSelectStyles}
-                weekdays={weekdays}
-              />
-            </Accordion>
+          <h3 className="text-xs font-bold uppercase text-light-text-secondary/60 dark:text-dark-text-secondary/60 tracking-widest px-2">
+            Calendario
+          </h3>
+          <Accordion
+            title={t('promotion.display_dates')}
+            isOpen={openSections.displayDates}
+            toggleOpen={() => toggleSection('displayDates')}
+            isComplete={sectionCompletion.displayDates}
+          >
+            <DateSection
+              section="display"
+              formData={formData}
+              handleChange={(e, sec, key) => handleChange(e, setFormData, setFormError, sec, key)}
+              handleSelectChange={(selected, sec, subfield) => handleSelectChange(selected, setFormData, setFormError, sec, subfield)}
+              addExcludedDate={() => addExcludedDate(setFormData, 'display')}
+              removeExcludedDate={(index) => removeExcludedDate(setFormData, 'display', index)}
+              updateExcludedDate={updateExcludedDate}
+              setFormData={setFormData}
+              isLoading={isLoading}
+              t={t}
+              customSelectStyles={customSelectStyles}
+              weekdays={weekdays}
+            />
+          </Accordion>
 
-            <Accordion
-              title={t('promotion.claim_dates')}
-              isOpen={openSections.claimDates}
-              toggleOpen={() => toggleSection('claimDates')}
-              isComplete={sectionCompletion.claimDates}
-            >
-              <DateSection
-                section="claim"
-                formData={formData}
-                handleChange={(e, sec, key) => handleChange(e, setFormData, setFormError, sec, key)}
-                handleSelectChange={(selected, sec, subfield) => handleSelectChange(selected, setFormData, setFormError, sec, subfield)}
-                addExcludedDate={() => addExcludedDate(setFormData, 'claim')}
-                removeExcludedDate={(index) => removeExcludedDate(setFormData, 'claim', index)}
-                updateExcludedDate={updateExcludedDate}
-                setFormData={setFormData}
-                isLoading={isLoading}
-                t={t}
-                customSelectStyles={customSelectStyles}
-                weekdays={weekdays}
-              />
-            </Accordion>
+          <Accordion
+            title={t('promotion.claim_dates')}
+            isOpen={openSections.claimDates}
+            toggleOpen={() => toggleSection('claimDates')}
+            isComplete={sectionCompletion.claimDates}
+          >
+            <DateSection
+              section="claim"
+              formData={formData}
+              handleChange={(e, sec, key) => handleChange(e, setFormData, setFormError, sec, key)}
+              handleSelectChange={(selected, sec, subfield) => handleSelectChange(selected, setFormData, setFormError, sec, subfield)}
+              addExcludedDate={() => addExcludedDate(setFormData, 'claim')}
+              removeExcludedDate={(index) => removeExcludedDate(setFormData, 'claim', index)}
+              updateExcludedDate={updateExcludedDate}
+              setFormData={setFormData}
+              isLoading={isLoading}
+              t={t}
+              customSelectStyles={customSelectStyles}
+              weekdays={weekdays}
+            />
+          </Accordion>
 
-            <Accordion
-              title={t('promotion.redeem_dates')}
-              isOpen={openSections.redeemDates}
-              toggleOpen={() => toggleSection('redeemDates')}
-              isComplete={sectionCompletion.redeemDates}
-            >
-              <DateSection
-                section="redeem"
-                formData={formData}
-                handleChange={(e, sec, key) => handleChange(e, setFormData, setFormError, sec, key)}
-                handleSelectChange={(selected, sec, subfield) => handleSelectChange(selected, setFormData, setFormError, sec, subfield)}
-                handleValidityChange={(e, sec) => handleValidityChange(e, setFormData, sec)}
-                addExcludedDate={() => addExcludedDate(setFormData, 'redeem')}
-                removeExcludedDate={(index) => removeExcludedDate(setFormData, 'redeem', index)}
-                updateExcludedDate={updateExcludedDate}
-                setFormData={setFormData}
-                isLoading={isLoading}
-                t={t}
-                customSelectStyles={customSelectStyles}
-                weekdays={weekdays}
-                validityTypes={validityTypes}
-                isBirthdayCoupon={formData.is_birthday_coupon}
-                handleBirthdayToggle={(e) => handleBirthdayToggle(e, setFormData)}
-              />
-            </Accordion>
+          <Accordion
+            title={t('promotion.redeem_dates')}
+            isOpen={openSections.redeemDates}
+            toggleOpen={() => toggleSection('redeemDates')}
+            isComplete={sectionCompletion.redeemDates}
+          >
+            <DateSection
+              section="redeem"
+              formData={formData}
+              handleChange={(e, sec, key) => handleChange(e, setFormData, setFormError, sec, key)}
+              handleSelectChange={(selected, sec, subfield) => handleSelectChange(selected, setFormData, setFormError, sec, subfield)}
+              handleValidityChange={(e, sec) => handleValidityChange(e, setFormData, sec)}
+              addExcludedDate={() => addExcludedDate(setFormData, 'redeem')}
+              removeExcludedDate={(index) => removeExcludedDate(setFormData, 'redeem', index)}
+              updateExcludedDate={updateExcludedDate}
+              setFormData={setFormData}
+              isLoading={isLoading}
+              t={t}
+              customSelectStyles={customSelectStyles}
+              weekdays={weekdays}
+              validityTypes={validityTypes}
+              isBirthdayCoupon={formData.is_birthday_coupon}
+              handleBirthdayToggle={(e) => handleBirthdayToggle(e, setFormData)}
+            />
+          </Accordion>
         </div>
 
         {/* Rules Group */}
         <div className="space-y-4 pt-2">
-            <h3 className="text-xs font-bold uppercase text-light-text-secondary/60 dark:text-dark-text-secondary/60 tracking-widest px-2">
-              Reglas Avanzadas
-            </h3>
-            
-            <Accordion
-              title={t('promotion.token_rule')}
-              isOpen={openSections.tokenRules}
-              toggleOpen={() => toggleSection('tokenRules')}
-              isComplete={sectionCompletion.tokenRules}
-            >
-              <TokenRuleSection
-                formData={formData}
-                handleChange={(e) => handleChange(e, setFormData, setFormError)}
-                handleSelectChange={(selected, section, subfield, rules) => handleSelectChange(selected, setFormData, setFormError, section, subfield, rules)}
-                isLoading={isLoading}
-                t={t}
-                platformTokens={platformTokens}
-                tokenDecimals={tokenDecimals}
-                customSelectStyles={customSelectStyles}
-                setFormData={setFormData}
-                meritSegments={meritSegments}
-              />
-            </Accordion>
+          <h3 className="text-xs font-bold uppercase text-light-text-secondary/60 dark:text-dark-text-secondary/60 tracking-widest px-2">
+            Reglas Avanzadas
+          </h3>
 
-            <Accordion
-              title={t('promotion.rules_title')}
-              isOpen={openSections.rules}
-              toggleOpen={() => toggleSection('rules')}
-              isComplete={sectionCompletion.rules}
-            >
-              <RulesSection
-                formData={formData}
-                handleChange={(e) => handleChange(e, setFormData, setFormError)}
-                isLoading={isLoading}
-                t={t}
-                setFormData={setFormData}
-                meritRules={meritRules}
-              />
-            </Accordion>
+          <Accordion
+            title={t('promotion.token_rule')}
+            isOpen={openSections.tokenRules}
+            toggleOpen={() => toggleSection('tokenRules')}
+            isComplete={sectionCompletion.tokenRules}
+          >
+            <TokenRuleSection
+              formData={formData}
+              handleChange={(e) => handleChange(e, setFormData, setFormError)}
+              handleSelectChange={(selected, section, subfield, rules) => handleSelectChange(selected, setFormData, setFormError, section, subfield, rules)}
+              isLoading={isLoading}
+              t={t}
+              platformTokens={platformTokens}
+              tokenDecimals={tokenDecimals}
+              customSelectStyles={customSelectStyles}
+              setFormData={setFormData}
+              meritSegments={meritSegments}
+            />
+          </Accordion>
 
-            <Accordion
-              title={t('promotion.limits')}
-              isOpen={openSections.limits}
-              toggleOpen={() => toggleSection('limits')}
-              isComplete={sectionCompletion.limits}
-            >
-              <LimitsSection
-                formData={formData}
-                handleChange={(e) => handleChange(e, setFormData, setFormError)}
-                isLoading={isLoading}
-                t={t}
-              />
-            </Accordion>
+          <Accordion
+            title={t('promotion.rules_title')}
+            isOpen={openSections.rules}
+            toggleOpen={() => toggleSection('rules')}
+            isComplete={sectionCompletion.rules}
+          >
+            <RulesSection
+              formData={formData}
+              handleChange={(e) => handleChange(e, setFormData, setFormError)}
+              isLoading={isLoading}
+              t={t}
+              setFormData={setFormData}
+              meritRules={meritRules}
+            />
+          </Accordion>
+
+          <Accordion
+            title={t('admin.promotions.rules.require_job_position')}
+            isOpen={openSections.jobPositionRule}
+            toggleOpen={() => toggleSection('jobPositionRule')}
+            isComplete={true}
+          >
+            <JobPositionRuleSection
+              formData={formData}
+              setFormData={setFormData}
+              isLoading={isLoading}
+              appState={appState}
+            />
+          </Accordion>
+
+          <Accordion
+            title={t('promotion.limits')}
+            isOpen={openSections.limits}
+            toggleOpen={() => toggleSection('limits')}
+            isComplete={sectionCompletion.limits}
+          >
+            <LimitsSection
+              formData={formData}
+              handleChange={(e) => handleChange(e, setFormData, setFormError)}
+              isLoading={isLoading}
+              t={t}
+            />
+          </Accordion>
         </div>
 
         {/* UPDATE STATUS */}
@@ -482,7 +499,7 @@ const PromotionForm = ({
           {isUpdate ? t('promotion.update_button') : t('promotion.create_button')}
         </button>
       </div>
-      
+
     </div>
   );
 };

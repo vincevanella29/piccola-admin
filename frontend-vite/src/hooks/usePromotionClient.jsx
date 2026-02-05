@@ -17,7 +17,7 @@ export function usePromotionClient(appState, t) {
   const [errorCoupons, setErrorCoupons] = useState(null);
   const [tokenDecimals, setTokenDecimals] = useState({});
   const [burnBalances, setBurnBalances] = useState({});
-  const [tokenBalances, setTokenBalances] = useState({}); 
+  const [tokenBalances, setTokenBalances] = useState({});
   const [meritSegments, setMeritSegments] = useState([]);
   const [meritBalances, setMeritBalances] = useState({}); // { [segment_token_id]: { base: string, human: number } }
   const companyId = appState.companyId;
@@ -190,6 +190,13 @@ export function usePromotionClient(appState, t) {
       return met;
     }
 
+    // Validar regla de cargo/sección
+    // El backend ya filtra las promociones y solo envía las que el usuario puede reclamar,
+    // así que si llegó acá, es porque ya cumple con el cargo/sección requerido
+    if (rule.rule_type === 'require_job_position') {
+      return true;
+    }
+
     return false;
   };
 
@@ -270,10 +277,10 @@ export function usePromotionClient(appState, t) {
     const tokenAddresses = tokenAddress
       ? [tokenAddress]
       : [...new Set(promotions.flatMap((promo) =>
-          promo.rules
-            .filter((rule) => rule.rule_type === 'burn_tokens' && rule.token_address)
-            .map((rule) => rule.token_address)
-        ))];
+        promo.rules
+          .filter((rule) => rule.rule_type === 'burn_tokens' && rule.token_address)
+          .map((rule) => rule.token_address)
+      ))];
 
     await fetchBurnBalances(tokenAddresses, walletAddress, token);
   };
@@ -694,7 +701,7 @@ export function usePromotionClient(appState, t) {
       throw err;
     }
   };
-  
+
   return {
     promotions,
     myCoupons,

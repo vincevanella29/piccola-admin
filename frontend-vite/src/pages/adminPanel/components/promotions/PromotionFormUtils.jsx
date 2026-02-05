@@ -38,6 +38,7 @@ export const initialFormData = {
   max_coupon_per_table: 1,
   max_coupon_per_promo: 100,
   max_claims: 5,
+  max_claims_per_day: null,
   locations: [],
   is_birthday_coupon: false,
   rules: [],
@@ -262,6 +263,7 @@ export const preparePromotionData = (formData, isUpdate, tokenDecimals) => {
   promotionData.max_coupon_per_table = formData.max_coupon_per_table;
   promotionData.max_coupon_per_promo = formData.max_coupon_per_promo;
   promotionData.max_claims = formData.max_claims;
+  promotionData.max_claims_per_day = formData.max_claims_per_day || null;
   promotionData.locations = formData.locations;
   promotionData.is_birthday_coupon = formData.is_birthday_coupon;
 
@@ -337,8 +339,8 @@ export const customSelectStyles = {
     backgroundColor: state.isSelected
       ? 'rgba(var(--matrix-green-rgb), 0.3)'
       : state.isFocused
-      ? 'rgba(var(--matrix-green-rgb), 0.2)'
-      : 'transparent',
+        ? 'rgba(var(--matrix-green-rgb), 0.2)'
+        : 'transparent',
     color: 'var(--text-primary)',
     '&:hover': {
       backgroundColor: 'rgba(var(--matrix-green-rgb), 0.2)',

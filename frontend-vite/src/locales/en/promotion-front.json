@@ -122,5 +122,11 @@
   "month": "Month",
   "year": "Year",
   "merit_min_wallet": "Have at least {{required}} merit points in segment {{symbol}} ({{name}}). Current: {{balance}}.",
-  "merit_segment_default": "Merit segment"
+  "merit_segment_default": "Merit segment",
+  "require_job_position": "Requires specific position",
+  "require_job_section": "Requires belonging to section: {{section}}",
+  "require_job_position_detail": "Requires position: {{position}}",
+  "require_job_both": "Requires section {{section}} and position {{position}}",
+  "not_employee": "This promotion is for employees only",
+  "employee_inactive": "Your employee record is not active"
 }
