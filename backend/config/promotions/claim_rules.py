@@ -206,7 +206,7 @@ def validate_claim_rules(request: Dict, promotion: Dict, customer: Optional[Dict
         daily_claim_count = db.promotion_claims.count_documents({
             "promotion_id": request["promotion_id"],
             "wallet": request["wallet"].lower(),
-            "created_at": {"$gte": today_start, "$lte": today_end}
+            "timestamp": {"$gte": today_start, "$lte": today_end}
         })
         
         if daily_claim_count >= max_claims_per_day:
