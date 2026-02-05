@@ -71,8 +71,13 @@ async def verify_session(request: Request) -> dict:
                     sessions_collection.delete_one({"token": token})
                     raise HTTPException(status_code=401, detail="Session expired")
 
-                # Add role caching fields if not present
-                if "role_level" not in session:
+                # Re-validar roles cada 5 minutos (300 segundos)
+                ROLE_CACHE_TTL = 300
+                current_time = int(time.time())
+                last_verified = session.get("last_verified", 0)
+                needs_refresh = (current_time - last_verified) > ROLE_CACHE_TTL
+                
+                if "role_level" not in session or needs_refresh:
                     from config.roles.service import get_company_role_level
 
                     sessions_collection.update_one(
@@ -80,7 +85,7 @@ async def verify_session(request: Request) -> dict:
                         {"$set": {
                             "role_level": get_company_role_level(wallet),
                             "permissions": compute_permissions_for_identity(wallet),
-                            "last_verified": int(time.time())
+                            "last_verified": current_time
                         }}
                     )
                     session = sessions_collection.find_one({"_id": session["_id"]})
