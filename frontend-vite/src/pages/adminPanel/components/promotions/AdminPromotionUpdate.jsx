@@ -229,6 +229,7 @@ const mapToFormData = (promo) => ({
   max_coupon_per_table: promo.max_coupon_per_table || 1,
   max_coupon_per_promo: promo.max_coupon_per_promo || 100,
   max_claims: promo.max_claims || 5,
+  max_claims_per_day: promo.max_claims_per_day || null,
   locations: promo.locations || [],
   is_birthday_coupon: promo.is_birthday_coupon || false,
   rules: (promo.rules || []).map((rule) => {
