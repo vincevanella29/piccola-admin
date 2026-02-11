@@ -521,8 +521,8 @@ def require_admin_level(user: Dict[str, Any], role: str):
         allowed = (3, 4)
         deny_msg = "Solo niveles 3 o 4"
     elif role == "member":
-        allowed = (5,)
-        deny_msg = "Solo nivel 5"
+        allowed = (3, 4, 5)
+        deny_msg = "Solo niveles 3, 4 o 5"
     else:
         # Por defecto, cualquier miembro conocido
         allowed = (3, 4, 5)
