@@ -53,17 +53,12 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_
     """Get on-chain role level with 24h MongoDB cache.
     
     Resolution order:
-    1) MongoDB role cache (fast, 24h TTL)
+    1) MongoDB role cache (fast, 24h TTL — but -1 values only cached 60s)
     2) Blockchain call (authoritative, expensive)
-    3) MongoDB events fallback (if blockchain fails — derives from UserRegistered/UserRemoved events)
+    3) MongoDB events fallback (if blockchain returns -1 or fails)
     
-    Only calls the blockchain if:
-    - No cache exists for this wallet
-    - Cache is older than ROLE_CACHE_TTL (24h)
-    - force_refresh=True is passed (e.g., after assign/revoke)
+    NEVER caches -1 for more than 60s to avoid locking users out.
     """
-    # Si no es una dirección Ethereum válida (p.ej. did:privy:...), no intentamos
-    # llamar al contrato y devolvemos -1 silenciosamente.
     if not isinstance(wallet, str) or not w3.is_address(wallet):
         return -1
 
@@ -75,8 +70,22 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_
     if not force_refresh:
         try:
             cached = _role_cache_col.find_one({"wallet": wallet_lower, "company_id": cid})
-            if cached and (now - cached.get("cached_at", 0)) < ROLE_CACHE_TTL:
-                return cached.get("role_level", -1)
+            if cached:
+                cached_level = cached.get("role_level", -1)
+                cached_at = cached.get("cached_at", 0)
+                age = now - cached_at
+                
+                # Valid roles (3/4/5) → trust for full TTL (24h)
+                if cached_level in (3, 4, 5) and age < ROLE_CACHE_TTL:
+                    logger.debug(f"[ROLE] ✅ Cache hit for {wallet_lower}: level={cached_level} (age={age}s)")
+                    return cached_level
+                
+                # Negative results (-1/0) → only trust for 60s then retry
+                if cached_level <= 0 and age < 60:
+                    logger.debug(f"[ROLE] Cache hit (negative, short TTL) for {wallet_lower}: level={cached_level} (age={age}s)")
+                    return cached_level
+                
+                # Cache expired or negative cache stale → proceed to blockchain
         except Exception as e:
             logger.warning(f"[roles.service] Cache read error: {e}")
 
@@ -84,19 +93,28 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_
     role_level = None
     try:
         checksum = normalize_address(wallet)
-        role_level = launchpad_contract.functions.getCompanyLevel(checksum, cid).call()
-        if not isinstance(role_level, int) or role_level < 0 or role_level > 5:
-            role_level = -1
+        raw = launchpad_contract.functions.getCompanyLevel(checksum, cid).call()
+        if isinstance(raw, int) and 3 <= raw <= 5:
+            role_level = raw
+            logger.info(f"[ROLE] 🔗 Blockchain confirmed for {wallet_lower}: level={role_level}")
+        else:
+            # Blockchain returned 0 or invalid → treat as "not found", try events
+            logger.info(f"[ROLE] 🔗 Blockchain returned {raw} for {wallet_lower} (not a valid member level)")
+            role_level = None  # Will trigger events fallback
     except ContractLogicError as e:
-        logger.error(f"[roles.service] Contract error getCompanyLevel({wallet}): {e}")
-        role_level = None  # Mark as failed, try fallback
+        logger.error(f"[ROLE] ❌ Contract error getCompanyLevel({wallet_lower}): {e}")
+        role_level = None
     except Exception as e:
-        logger.error(f"[roles.service] Unexpected error getCompanyRoleLevel({wallet}): {e}")
-        role_level = None  # Mark as failed, try fallback
+        logger.error(f"[ROLE] ❌ Web3 error getCompanyLevel({wallet_lower}): {e}")
+        role_level = None
 
-    # 3) MongoDB events fallback (if blockchain failed)
+    # 3) MongoDB events fallback (if blockchain failed OR returned non-member)
     if role_level is None:
-        role_level = _role_from_events_fallback(wallet_lower, cid)
+        events_level = _role_from_events_fallback(wallet_lower, cid)
+        if events_level in (3, 4, 5):
+            role_level = events_level  # Events found a valid role!
+        else:
+            role_level = -1  # Truly no role
 
     # 4) Save to cache
     try:
