@@ -52,6 +52,11 @@ def is_member_level(level: int) -> bool:
 def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_refresh: bool = False) -> int:
     """Get on-chain role level with 24h MongoDB cache.
     
+    Resolution order:
+    1) MongoDB role cache (fast, 24h TTL)
+    2) Blockchain call (authoritative, expensive)
+    3) MongoDB events fallback (if blockchain fails — derives from UserRegistered/UserRemoved events)
+    
     Only calls the blockchain if:
     - No cache exists for this wallet
     - Cache is older than ROLE_CACHE_TTL (24h)
@@ -76,6 +81,7 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_
             logger.warning(f"[roles.service] Cache read error: {e}")
 
     # 2) Call blockchain (the expensive part)
+    role_level = None
     try:
         checksum = normalize_address(wallet)
         role_level = launchpad_contract.functions.getCompanyLevel(checksum, cid).call()
@@ -83,12 +89,16 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_
             role_level = -1
     except ContractLogicError as e:
         logger.error(f"[roles.service] Contract error getCompanyLevel({wallet}): {e}")
-        role_level = -1
+        role_level = None  # Mark as failed, try fallback
     except Exception as e:
         logger.error(f"[roles.service] Unexpected error getCompanyRoleLevel({wallet}): {e}")
-        role_level = -1
+        role_level = None  # Mark as failed, try fallback
 
-    # 3) Save to cache
+    # 3) MongoDB events fallback (if blockchain failed)
+    if role_level is None:
+        role_level = _role_from_events_fallback(wallet_lower, cid)
+
+    # 4) Save to cache
     try:
         _role_cache_col.update_one(
             {"wallet": wallet_lower, "company_id": cid},
@@ -99,6 +109,53 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_
         logger.warning(f"[roles.service] Cache write error: {e}")
 
     return role_level
+
+
+# Role name → level mapping for events fallback
+_EVENT_ROLE_MAP = {
+    "DOMINUS_SAPORIS": 3,
+    "CENTURIO_MENSARUM": 4,
+    "MILITES_CULINAE": 5,
+}
+
+
+def _role_from_events_fallback(wallet_lower: str, company_id: int) -> int:
+    """Derive role level from UserRegistered/UserRemoved events in MongoDB.
+    
+    This is the LAST RESORT when both cache and blockchain are unavailable.
+    It uses events already synced to MongoDB by the event listener.
+    """
+    try:
+        checksum = w3.to_checksum_address(wallet_lower)
+        events = list(db.company_events.find({
+            "event": {"$in": ["UserRegistered", "UserRemoved"]},
+            "args.companyId": company_id,
+            "args.wallet": checksum,
+        }).sort([("blockNumber", -1), ("logIndex", -1)]).limit(1))
+
+        if not events:
+            # Also try lowercase wallet (some events may store it differently)
+            events = list(db.company_events.find({
+                "event": {"$in": ["UserRegistered", "UserRemoved"]},
+                "args.companyId": company_id,
+                "args.wallet": wallet_lower,
+            }).sort([("blockNumber", -1), ("logIndex", -1)]).limit(1))
+
+        if events:
+            last = events[0]
+            if last["event"] == "UserRemoved":
+                logger.warning(f"🟡 [FALLBACK] Role for {wallet_lower} derived from events: REMOVED (level=-1)")
+                return -1
+            role_name = last.get("args", {}).get("role", "")
+            level = _EVENT_ROLE_MAP.get(role_name, -1)
+            logger.warning(f"🟡 [FALLBACK] Role for {wallet_lower} derived from events: {role_name}={level} (Web3 was unavailable)")
+            return level
+        else:
+            logger.warning(f"🟡 [FALLBACK] No events found for {wallet_lower} in company {company_id} — returning -1")
+            return -1
+    except Exception as e:
+        logger.error(f"🔴 [FALLBACK FAILED] Events fallback also failed for {wallet_lower}: {e}")
+        return -1
 
 
 def invalidate_role_cache(wallet: str, company_id: Optional[int] = None):

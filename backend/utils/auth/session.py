@@ -103,18 +103,30 @@ async def verify_session(request: Request) -> dict:
                 last_verified = session.get("last_verified", 0)
                 needs_refresh = (current_time - last_verified) > ROLE_CACHE_TTL
                 
-                if "role_level" not in session or needs_refresh:
+                if "role_level" not in session or session.get("role_level") is None or needs_refresh:
                     from config.roles.service import get_company_role_level
+
+                    try:
+                        new_role_level = get_company_role_level(wallet)
+                        new_permissions = compute_permissions_for_identity(wallet)
+                        logger.info(f"[SESSION] Role refreshed for {wallet}: level={new_role_level} (was {'missing' if 'role_level' not in session else session.get('role_level')})")
+                    except Exception as role_err:
+                        logger.warning(f"[SESSION] Role refresh failed for {wallet}: {role_err} — keeping existing cached role")
+                        # Keep existing role if refresh fails
+                        new_role_level = session.get("role_level", -1)
+                        new_permissions = session.get("permissions")
 
                     sessions_collection.update_one(
                         {"_id": session["_id"]},
                         {"$set": {
-                            "role_level": get_company_role_level(wallet),
-                            "permissions": compute_permissions_for_identity(wallet),
+                            "role_level": new_role_level,
+                            "permissions": new_permissions,
                             "last_verified": current_time
                         }}
                     )
                     session = sessions_collection.find_one({"_id": session["_id"]})
+                else:
+                    logger.debug(f"[SESSION] Using cached role for {wallet}: level={session.get('role_level')} (expires in {ROLE_CACHE_TTL - (current_time - last_verified)}s)")
 
                 result = {
                     "id": wallet,

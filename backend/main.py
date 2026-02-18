@@ -150,21 +150,37 @@ async def login_with_privy(request: Request):
         # Validar wallet
         checksum_wallet = w3.to_checksum_address(wallet)
         
-        # Guardar sesión con 24h expiration
+        # 🔑 Compute role + permissions AT LOGIN TIME and cache them in session
+        from config.roles.service import get_company_role_level
+        from config.roles.access import compute_permissions_for_identity
+        
+        wallet_lower = wallet.lower()
+        try:
+            role_level = get_company_role_level(wallet_lower)
+            permissions = compute_permissions_for_identity(wallet_lower)
+            logger.info(f"[LOGIN] Role computed for {wallet_lower}: level={role_level}")
+        except Exception as role_err:
+            logger.warning(f"[LOGIN] Role computation failed for {wallet_lower}: {role_err} — saving session with role_level=-1")
+            role_level = -1
+            permissions = None
+        
+        # Guardar sesión con 24h expiration + role + permissions
         now = int(time.time())
         SESSION_DURATION = int(os.getenv("SESSION_DURATION_SECONDS", 86400))  # 24h
         session_data = {
             "token": token,
-            "wallet": wallet.lower(),
+            "wallet": wallet_lower,
             "sub": payload.get("sub"),
             "exp": payload.get("exp"),
             "iat": payload.get("iat"),
             "sid": payload.get("sid"),
             "session_exp": now + SESSION_DURATION,
             "last_verified": now,
+            "role_level": role_level,
+            "permissions": permissions,
         }
         sessions_collection.update_one(
-            {"wallet": wallet.lower(), "sid": payload.get("sid")},
+            {"wallet": wallet_lower, "sid": payload.get("sid")},
             {"$set": session_data}, upsert=True
         )
         return {"success": True, "sub": payload.get("sub"), "wallet": wallet.lower()}
