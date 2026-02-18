@@ -3,7 +3,7 @@
 Event-driven reserve updater via WSS Sync events.
 
 100% WebSocket. ZERO polling.
-Fallback poll ONLY if WSS has been down for 10+ minutes.
+Fallback poll ONLY if WSS has been down for 10+ minutes
 
 Uses existing infra:
   - Pairs from db.token_pairs (synced by sync_token_pairs)
