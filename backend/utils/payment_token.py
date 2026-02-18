@@ -16,7 +16,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 
 def sync_payment_tokens():
     """
-    Cada 1 minuto revisa los eventos de payment tokens y guarda symbol, name, imagePath en la colección 'payment_tokens'.
+    Syncs payment tokens. Only makes Web3 calls for tokens whose
+    symbol/name is not already cached in MongoDB.
     """
     token_sale_events = db['token_sale_events']
     events = list(token_sale_events.find(
@@ -29,7 +30,15 @@ def sync_payment_tokens():
             continue
         last_event_by_token[token] = event
     active_tokens = [t for t, e in last_event_by_token.items() if e["event"] == "PaymentTokenAdded"]
+    
     for token in active_tokens:
+        # Check if we already have metadata cached
+        existing = db['payment_tokens'].find_one({"address": token})
+        if existing and existing.get("symbol") and existing.get("symbol") != "UNKNOWN":
+            # Already have good metadata, skip Web3 call
+            logger.debug(f"[sync_payment_tokens] Skipping {token}, metadata already cached: {existing.get('symbol')}")
+            continue
+
         symbol = None
         name = None
         imagePath = None

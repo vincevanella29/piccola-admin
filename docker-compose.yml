@@ -8,7 +8,7 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-root}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-example}
     ports:
-      - "${MONGO_HOST_PORT:-27018}:27017"  # Host:Container
+      - "${MONGO_HOST_PORT:-27018}:27017" # Host:Container
     volumes:
       - mongo_data:/data/db
 
@@ -16,7 +16,7 @@ services:
     image: redis:7
     restart: unless-stopped
     ports:
-      - "${REDIS_HOST_PORT:-6380}:6379"  # Host:Container
+      - "${REDIS_HOST_PORT:-6380}:6379" # Host:Container
     volumes:
       - redis_data:/data
 
@@ -37,6 +37,7 @@ services:
       - WEB3_INFURA_TOKEN=${WEB3_INFURA_TOKEN}
       - WEB3_ALCHEMY=${WEB3_ALCHEMY}
       - WEB3_ALCHEMY_WSS=${WEB3_ALCHEMY_WSS}
+      - WEB3_INFURA_WSS=${WEB3_INFURA_WSS}
       - WEB3AUTH_CLIENT_ID=${WEB3AUTH_CLIENT_ID}
       - WEB3AUTH_CLIENT_SECRET=${WEB3AUTH_CLIENT_SECRET}
       - PRIVY_JWT_PUBLIC_KEY=${PRIVY_JWT_PUBLIC_KEY}
@@ -113,6 +114,7 @@ services:
       - WEB3_INFURA_TOKEN=${WEB3_INFURA_TOKEN}
       - WEB3_ALCHEMY=${WEB3_ALCHEMY}
       - WEB3_ALCHEMY_WSS=${WEB3_ALCHEMY_WSS}
+      - WEB3_INFURA_WSS=${WEB3_INFURA_WSS}
       - CHAIN_ID=${CHAIN_ID}
       - REDIS_HOST=redis
       - REDIS_PORT=6379

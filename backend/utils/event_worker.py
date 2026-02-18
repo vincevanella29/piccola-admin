@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from pymongo.errors import DuplicateKeyError
 from utils.web3_utils import sync_company_data
 from utils.web3mongo import db
-from utils.companies_tokens import sync_token_pairs, update_pair_reserves
+from utils.companies_tokens import sync_token_pairs
 from utils.payment_token import sync_payment_tokens
 from utils.event_config import CONFIGS
 from utils.event_listener import listen_events
@@ -80,8 +80,8 @@ async def periodic_sync_companies():
             logger.info("[PERIODIC SYNC] sync_company_data completed for all companies.")
         except Exception as e:
             logger.error(f"[PERIODIC SYNC] Error: {e}\n{traceback.format_exc()}")
-        # Prevent tight loop hammering
-        await asyncio.sleep(60)
+        # Prevent tight loop hammering — sync only every 30 min (was 60s!)
+        await asyncio.sleep(1800)
 
 async def periodic_sync_token_pairs():
     while True:
@@ -89,15 +89,16 @@ async def periodic_sync_token_pairs():
             sync_token_pairs(logger=logger)
         except Exception as e:
             logger.error(f"[PERIODIC SYNC] Error in sync_token_pairs: {e}\n{traceback.format_exc()}")
-        await asyncio.sleep(60)
+        await asyncio.sleep(900)  # every 15 min (was 60s)
 
 async def periodic_update_pair_reserves():
-    while True:
-        try:
-            update_pair_reserves(logger=logger)
-        except Exception as e:
-            logger.error(f"[PERIODIC SYNC] Error in update_pair_reserves: {e}\n{traceback.format_exc()}")
-        await asyncio.sleep(10)
+    """Use WebSocket-only reserve updater (NO HTTP RPC calls)."""
+    try:
+        from utils.ws_reserve_updater import reserve_updater_loop
+        await reserve_updater_loop()
+    except Exception as e:
+        logger.error(f"[PERIODIC SYNC] Error in WS reserve updater: {e}\n{traceback.format_exc()}")
+        await asyncio.sleep(30)  # wait before retry
 
 async def periodic_sync_payment_tokens():
     while True:
@@ -105,7 +106,7 @@ async def periodic_sync_payment_tokens():
             sync_payment_tokens()
         except Exception as e:
             logger.error(f"[PERIODIC SYNC] Error in sync_payment_tokens: {e}\n{traceback.format_exc()}")
-        await asyncio.sleep(60)
+        await asyncio.sleep(3600)  # every 1 hour (was 60s)
 
 async def periodic_menu_data_worker():
     last_run_date = None  # 'YYYY-MM-DD' en Chile

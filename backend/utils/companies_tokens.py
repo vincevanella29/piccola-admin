@@ -1,6 +1,8 @@
 """
 companies_tokens.py
 Module to store and manage governance and utility tokens for all companies.
+Optimized: caches token metadata (symbol, name, decimals) in MongoDB to
+avoid redundant Web3 RPC calls on every sync cycle.
 """
 from utils.web3mongo import load_contract_abi, db, w3, launchpad_contract
 import logging
@@ -8,6 +10,65 @@ logger = logging.getLogger(__name__)
 logger.warning("HTTP-based update_pair_reserves is deprecated - use WebSocket version from ws_reserve_updater")
 
 companies_tokens_collection = db['companies_tokens']
+
+# In-memory metadata cache to avoid even MongoDB lookups within same process
+_token_metadata_cache = {}
+
+
+def _get_token_metadata(address: str) -> dict:
+    """Get token metadata (symbol, name, decimals) with MongoDB + in-memory cache.
+    Only calls Web3 if metadata is not already known."""
+    addr_lower = address.lower()
+    
+    # 1) In-memory cache
+    if addr_lower in _token_metadata_cache:
+        return _token_metadata_cache[addr_lower]
+    
+    # 2) MongoDB cache
+    cached = db['token_metadata_cache'].find_one({"address": addr_lower})
+    if cached and cached.get("symbol") and cached.get("symbol") != "UNKNOWN":
+        meta = {"symbol": cached["symbol"], "name": cached["name"], "decimals": cached.get("decimals", 18)}
+        _token_metadata_cache[addr_lower] = meta
+        return meta
+    
+    # 3) Web3 call (expensive — only happens once per token ever)
+    try:
+        erc20_contract = w3.eth.contract(
+            address=w3.to_checksum_address(address),
+            abi=[
+                {"constant":True,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"payable":False,"stateMutability":"view","type":"function"},
+                {"constant":True,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":False,"stateMutability":"view","type":"function"},
+                {"constant":True,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":False,"stateMutability":"view","type":"function"}
+            ]
+        )
+        decimals = erc20_contract.functions.decimals().call()
+        symbol = erc20_contract.functions.symbol().call()
+        name = erc20_contract.functions.name().call()
+    except Exception as e:
+        logger.warning(f"[_get_token_metadata] Web3 call failed for {address}: {e}")
+        decimals = 18
+        symbol = "UNKNOWN"
+        name = "UNKNOWN"
+    
+    if decimals is None:
+        decimals = 18
+    
+    meta = {"symbol": symbol, "name": name, "decimals": decimals}
+    
+    # Save to MongoDB cache
+    try:
+        db['token_metadata_cache'].update_one(
+            {"address": addr_lower},
+            {"$set": {"address": addr_lower, **meta}},
+            upsert=True
+        )
+    except Exception as e:
+        logger.warning(f"[_get_token_metadata] Cache write error: {e}")
+    
+    # Save to in-memory cache
+    _token_metadata_cache[addr_lower] = meta
+    return meta
+
 
 def upsert_company_tokens(company_id: int, governance_token: dict, utility_token: dict):
     """
@@ -40,6 +101,15 @@ def get_all_companies_tokens():
 NATIVE_TOKEN_ADDRESS = "0x0000000000000000000000000000000000001010"
 # Address de WMATIC (o WETH en mainnet). Cambia SOLO aquí para mainnet/testnet
 WMATIC_ADDRESS = "0x4bcd5FB3F9b6F73084C9B7A19Acbf0C1D2631fF8"
+
+# Image paths for known symbols
+_IMAGE_PATHS = {
+    "USDC": "/token-logos/usdc.png",
+    "WETH": "/token-logos/weth.png",
+    "WMATIC": "/token-logos/wmatic.png",
+    "MATIC": "/token-logos/matic.png",
+}
+
 
 def update_pair_reserves(logger=None):
     """
@@ -82,10 +152,33 @@ def update_pair_reserves(logger=None):
         logger.info(f"[update_pair_reserves] Actualizadas reserves en {updated} pares.")
     return updated
 
+
+# Cache for factory contract instance (created once, reused)
+_factory_contract_cache = {"instance": None}
+
+
+def _get_factory_contract():
+    """Get (or create & cache) the Uniswap factory contract instance."""
+    if _factory_contract_cache["instance"] is not None:
+        return _factory_contract_cache["instance"]
+    
+    swap_router = launchpad_contract.functions.getSwapRouter().call()
+    router_abi = load_contract_abi("IUniswapV2Router02")
+    router_contract = w3.eth.contract(address=swap_router, abi=router_abi)
+    factory_addr = router_contract.functions.factory().call()
+    factory_abi = load_contract_abi("UniswapV2Factory")
+    factory_contract = w3.eth.contract(address=factory_addr, abi=factory_abi)
+    _factory_contract_cache["instance"] = factory_contract
+    return factory_contract
+
+
 def sync_token_pairs(logger=None):
     """
     Sincroniza todos los pares posibles entre company tokens (governance y utility) y payment tokens activos.
     Chequea si el par existe en el factory del swap y guarda el resultado en la colección 'token_pairs'.
+    
+    OPTIMIZED: Uses cached metadata for tokens instead of calling Web3 for every sync cycle.
+    Factory contract is also cached.
     """
     # 1. Obtener payment tokens activos (igual que en /platform_tokens)
     token_sale_events = db['token_sale_events']
@@ -107,7 +200,7 @@ def sync_token_pairs(logger=None):
             except Exception:
                 payment_tokens_activos.add(token)
 
-    # 2. Obtener company tokens (governance y utility)
+    # 2. Obtener company tokens (governance y utility) — use cached metadata
     companies_tokens = list(companies_tokens_collection.find({}))
     company_tokens = []
     for c in companies_tokens:
@@ -115,32 +208,19 @@ def sync_token_pairs(logger=None):
         for token_type in ("governance_token", "utility_token"):
             tok = c.get(token_type)
             if tok and tok.get("address"):
-                token_doc = companies_tokens_collection.find_one({f"{token_type}.address": tok["address"]})
-                if not token_doc:
-                    # Token nuevo: obtener metadata y guardar
-                    try:
-                        erc20_contract = w3.eth.contract(address=w3.to_checksum_address(tok["address"]), abi=[{"constant":True,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"payable":False,"stateMutability":"view","type":"function"}, {"constant":True,"inputs":[],"name":"symbol","outputs":[{"name":"","type":"string"}],"payable":False,"stateMutability":"view","type":"function"}, {"constant":True,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":False,"stateMutability":"view","type":"function"}])
-                        decimals = erc20_contract.functions.decimals().call()
-                        symbol = erc20_contract.functions.symbol().call()
-                        name = erc20_contract.functions.name().call()
-                    except Exception as e:
-                        decimals = 18
-                        symbol = tok.get("symbol") or "UNKNOWN"
-                        name = tok.get("name") or "UNKNOWN"
-                    if decimals is None:
-                        decimals = 18
-                    tok["decimals"] = decimals
-                    tok["symbol"] = symbol
-                    tok["name"] = name
-                    # Guardar en DB
+                # Use cached metadata instead of Web3 call
+                if not tok.get("symbol") or not tok.get("decimals"):
+                    meta = _get_token_metadata(tok["address"])
+                    tok["decimals"] = meta["decimals"]
+                    tok["symbol"] = meta["symbol"]
+                    tok["name"] = meta["name"]
+                    # Save updated metadata back to DB
                     companies_tokens_collection.update_one(
                         {"companyId": company_id},
                         {"$set": {f"{token_type}": tok}},
                         upsert=True
                     )
-                else:
-                    # Token ya existe: usar metadata de la base
-                    tok = token_doc.get(token_type, tok)
+                    
                 company_tokens.append({
                     "address": tok["address"],
                     "symbol": tok.get("symbol"),
@@ -151,14 +231,9 @@ def sync_token_pairs(logger=None):
                     "decimals": tok.get("decimals")
                 })
 
-    # 3. Instanciar factory del swap usando loader centralizado de ABI
+    # 3. Instanciar factory del swap — CACHED
     try:
-        swap_router = launchpad_contract.functions.getSwapRouter().call()
-        router_abi = load_contract_abi("IUniswapV2Router02")
-        router_contract = w3.eth.contract(address=swap_router, abi=router_abi)
-        factory_addr = router_contract.functions.factory().call()
-        factory_abi = load_contract_abi("UniswapV2Factory")
-        factory_contract = w3.eth.contract(address=factory_addr, abi=factory_abi)
+        factory_contract = _get_factory_contract()
     except Exception as e:
         if logger:
             logger.error(f"[sync_token_pairs] Error instanciando factory: {str(e)}")
@@ -174,44 +249,38 @@ def sync_token_pairs(logger=None):
             if ptoken.lower() == NATIVE_TOKEN_ADDRESS.lower():
                 token_b_for_pair = WMATIC_ADDRESS
 
-            # Buscar el par en el factory SOLO con el address correcto (WMATIC si es nativo)
-            try:
-                pair_addr = factory_contract.functions.getPair(ctoken["address"], token_b_for_pair).call()
-                exists = pair_addr and pair_addr != "0x0000000000000000000000000000000000000000"
-            except Exception:
-                pair_addr = None
-                exists = False
+            # Check if we already know this pair exists in DB
+            existing_pair = pairs_collection.find_one({
+                "companyId": ctoken["companyId"],
+                "companyToken.address": ctoken["address"],
+                "paymentToken.address": ptoken
+            })
+            
+            # Only call getPair if we don't have it cached OR it was previously non-existent
+            if existing_pair and existing_pair.get("exists") and existing_pair.get("pairAddress"):
+                pair_addr = existing_pair["pairAddress"]
+                exists = True
+            else:
+                # Buscar el par en el factory (Web3 call — only for unknown pairs)
+                try:
+                    pair_addr = factory_contract.functions.getPair(ctoken["address"], token_b_for_pair).call()
+                    exists = pair_addr and pair_addr != "0x0000000000000000000000000000000000000000"
+                except Exception:
+                    pair_addr = None
+                    exists = False
 
-            # Obtener decimales del payment token
-            decimals = None
-            symbol = None
-            name = None
-            imagePath = None
+            # Get payment token metadata from cache (NO Web3 call)
+            ptoken_meta = _get_token_metadata(ptoken)
+            symbol = ptoken_meta["symbol"]
+            name = ptoken_meta["name"]
+            decimals = ptoken_meta["decimals"]
+            imagePath = _IMAGE_PATHS.get(symbol)
 
-            try:
-                erc20_contract = w3.eth.contract(address=w3.to_checksum_address(ptoken), abi=[
-                    {"constant": True, "inputs": [], "name": "decimals", "outputs": [{"name": "", "type": "uint8"}], "payable": False, "stateMutability": "view", "type": "function"},
-                    {"constant": True, "inputs": [], "name": "symbol", "outputs": [{"name": "", "type": "string"}], "payable": False, "stateMutability": "view", "type": "function"},
-                    {"constant": True, "inputs": [], "name": "name", "outputs": [{"name": "", "type": "string"}], "payable": False, "stateMutability": "view", "type": "function"},
-                ])
-                decimals = erc20_contract.functions.decimals().call()
-                symbol = erc20_contract.functions.symbol().call()
-                name = erc20_contract.functions.name().call()
-                if symbol == "USDC":
-                    imagePath = "/token-logos/usdc.png"
-                if symbol == "WETH":
-                    imagePath = "/token-logos/weth.png"
-                if symbol == "WMATIC":
-                    imagePath = "/token-logos/wmatic.png"
-            except Exception:
-                decimals = 18 
-                symbol = "UNKNOWN"
-                name = "UNKNOWN"
-                imagePath = None
-
-             # Obtener decimales del LP token (par)
+            # Obtener decimales del LP token (par) — use cached if available
             pair_decimals = None
-            if pair_addr and pair_addr != "0x0000000000000000000000000000000000000000":
+            if existing_pair and existing_pair.get("pairDecimals"):
+                pair_decimals = existing_pair["pairDecimals"]
+            elif pair_addr and pair_addr != "0x0000000000000000000000000000000000000000":
                 try:
                     erc20_lp = w3.eth.contract(address=w3.to_checksum_address(pair_addr), abi=[{"constant":True,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"payable":False,"stateMutability":"view","type":"function"}])
                     pair_decimals = erc20_lp.functions.decimals().call()

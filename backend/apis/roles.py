@@ -10,6 +10,7 @@ from config.roles.service import (
     get_company_role_level,
     verify_signature,
     validate_hierarchy,
+    invalidate_role_cache,
 )
 from config.roles.access import compute_permissions_for_identity
 
@@ -296,8 +297,8 @@ async def assign_company_role(request: Request, data: AssignRoleRequest, user: d
     if data.role_name not in ROLE_LEVELS or ROLE_LEVELS[data.role_name] != data.role_level:
         raise HTTPException(status_code=400, detail="Invalid role_name or role_level")
 
-    # Jerarquía caller (on-chain)
-    caller_level = get_company_role_level(caller_wallet)
+    # Jerarquía caller (on-chain) — force_refresh since this is a sensitive operation
+    caller_level = get_company_role_level(caller_wallet, force_refresh=True)
     if caller_level in (-1, 6, 5):
         # nivel 6 es offchain y no puede gestionar
         raise HTTPException(status_code=403, detail="Caller has no permission to assign roles")
@@ -324,6 +325,9 @@ async def assign_company_role(request: Request, data: AssignRoleRequest, user: d
             "gasPrice": w3.eth.gas_price,
             "chainId": CHAIN_ID
         })
+
+        # Invalidate cache for target wallet so next check fetches fresh on-chain data
+        invalidate_role_cache(target_address)
 
         return {
             "success": True,
@@ -357,14 +361,14 @@ async def revoke_company_role(request: Request, data: RevokeRoleRequest, user: d
     if not verify_signature(caller_wallet, data.plain_data, data.signature):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
-    # Jerarquía caller (on-chain)
-    caller_level = get_company_role_level(caller_wallet)
+    # Jerarquía caller (on-chain) — force_refresh since this is a sensitive operation
+    caller_level = get_company_role_level(caller_wallet, force_refresh=True)
     if caller_level in (-1, 6, 5):
         # nivel 6 es offchain y no puede gestionar
         raise HTTPException(status_code=403, detail="Caller has no permission to revoke roles")
 
     # Nivel del target (on-chain)
-    target_level = get_company_role_level(target_address)
+    target_level = get_company_role_level(target_address, force_refresh=True)
     if target_level == -1:
         raise HTTPException(status_code=400, detail="Target user has no role in this company")
 
@@ -391,6 +395,9 @@ async def revoke_company_role(request: Request, data: RevokeRoleRequest, user: d
             "gasPrice": w3.eth.gas_price,
             "chainId": CHAIN_ID
         })
+
+        # Invalidate cache for target wallet so next check fetches fresh on-chain data
+        invalidate_role_cache(target_address)
 
         return {
             "success": True,

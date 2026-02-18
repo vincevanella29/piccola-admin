@@ -268,10 +268,10 @@ def event_processor_consumer_persistent():
 # --- 🚀 Catálogo de Workers para el Enqueuer ---
 ALL_WORKERS = {
     # Tareas Periódicas
-    "sync_companies":       {"func": sync_companies_task,       "type": "io", "schedule": timedelta(minutes=5)},
-    "sync_token_pairs":     {"func": sync_token_pairs_task,     "type": "io", "schedule": timedelta(minutes=2)},
-    "update_pair_reserves": {"func": update_pair_reserves_task, "type": "io", "schedule": timedelta(seconds=10)},
-    "sync_payment_tokens":  {"func": sync_payment_tokens_task,  "type": "io", "schedule": timedelta(minutes=10)},
+    "sync_companies":       {"func": sync_companies_task,       "type": "io", "schedule": timedelta(minutes=30)},
+    "sync_token_pairs":     {"func": sync_token_pairs_task,     "type": "io", "schedule": timedelta(minutes=15)},
+    "update_pair_reserves": {"func": update_pair_reserves_task, "type": "io", "schedule": timedelta(seconds=30)},
+    "sync_payment_tokens":  {"func": sync_payment_tokens_task,  "type": "io", "schedule": timedelta(minutes=60)},
     
     # Tareas de Grupo Diarias (con ejecución opcional al arranque)
     "menu_data":            {"func": menu_data_task,            "type": "cpu", "schedule": "daily@08:00"},

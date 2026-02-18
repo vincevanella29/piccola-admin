@@ -25,6 +25,7 @@ WEB3_ALCHEMY = os.getenv("WEB3_ALCHEMY")
 WEB3_INFURA = os.getenv("WEB3_INFURA")
 WEB3_INFURA_TOKEN = os.getenv("WEB3_INFURA_TOKEN")
 WEB3_ALCHEMY_WSS = os.getenv("WEB3_ALCHEMY_WSS")
+WEB3_INFURA_WSS = os.getenv("WEB3_INFURA_WSS")
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -43,7 +44,18 @@ launchpad_events = db['launchpad_events']
 token_basic_data_cache = db['token_basic_data_cache']
 token_sale_events = db['token_sale_events']
 global_meritocracy_events = db['global_meritocracy_events']
-# (Nota: Se eliminó 'setup_event_collections_indexes' porque ya no se usa)
+
+def setup_event_collections_indexes(configs=None):
+    """Ensure indexes for event collections. Kept for backward compatibility."""
+    try:
+        if configs:
+            for config in configs:
+                col_name = getattr(config, 'collection_name', None)
+                if col_name:
+                    col = db[col_name]
+                    col.create_index([("transactionHash", 1), ("logIndex", 1)], unique=True, sparse=True)
+    except Exception as e:
+        logger.warning(f"setup_event_collections_indexes: {e}")
 
 
 # --- Web3 Setup (Core) ---

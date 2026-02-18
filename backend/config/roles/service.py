@@ -3,16 +3,20 @@ from __future__ import annotations
 
 import os
 import logging
+import time
 from typing import Optional
 
 from web3.exceptions import ContractLogicError
 from eth_account.messages import encode_defunct
 
-from utils.web3mongo import w3, launchpad_contract
+from utils.web3mongo import w3, launchpad_contract, db
 
 logger = logging.getLogger(__name__)
 
 COMPANY_ID: int = int(os.getenv("COMPANY_ID", "1"))
+
+# Cache TTL para role_level on-chain: 24 horas
+ROLE_CACHE_TTL = int(os.getenv("ROLE_CACHE_TTL_SECONDS", 86400))  # 24h default
 
 ROLE_LEVELS = {
     "DOMINUS_SAPORIS": 3,    # admin total
@@ -20,6 +24,16 @@ ROLE_LEVELS = {
     "MILITES_CULINAE": 5,    # miembro base
 }
 ROLE_NAMES = {v: k for k, v in ROLE_LEVELS.items()}
+
+# MongoDB cache collection for on-chain role levels
+_role_cache_col = db.role_level_cache
+
+# Ensure index for fast lookups (idempotent)
+try:
+    _role_cache_col.create_index([("wallet", 1), ("company_id", 1)], unique=True)
+except Exception:
+    pass
+
 
 def normalize_address(addr: str) -> str:
     if not isinstance(addr, str) or not w3.is_address(addr):
@@ -35,25 +49,66 @@ def get_level_by_role_name(role_name: str) -> Optional[int]:
 def is_member_level(level: int) -> bool:
     return level in (3, 4, 5)
 
-def get_company_role_level(wallet: str, company_id: Optional[int] = None) -> int:
+def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_refresh: bool = False) -> int:
+    """Get on-chain role level with 24h MongoDB cache.
+    
+    Only calls the blockchain if:
+    - No cache exists for this wallet
+    - Cache is older than ROLE_CACHE_TTL (24h)
+    - force_refresh=True is passed (e.g., after assign/revoke)
+    """
     # Si no es una dirección Ethereum válida (p.ej. did:privy:...), no intentamos
     # llamar al contrato y devolvemos -1 silenciosamente.
     if not isinstance(wallet, str) or not w3.is_address(wallet):
         return -1
 
+    wallet_lower = wallet.lower()
+    cid = int(company_id if company_id is not None else COMPANY_ID)
+    now = int(time.time())
+
+    # 1) Check MongoDB cache first (unless force_refresh)
+    if not force_refresh:
+        try:
+            cached = _role_cache_col.find_one({"wallet": wallet_lower, "company_id": cid})
+            if cached and (now - cached.get("cached_at", 0)) < ROLE_CACHE_TTL:
+                return cached.get("role_level", -1)
+        except Exception as e:
+            logger.warning(f"[roles.service] Cache read error: {e}")
+
+    # 2) Call blockchain (the expensive part)
     try:
         checksum = normalize_address(wallet)
-        cid = int(company_id if company_id is not None else COMPANY_ID)
         role_level = launchpad_contract.functions.getCompanyLevel(checksum, cid).call()
         if not isinstance(role_level, int) or role_level < 0 or role_level > 5:
-            return -1
-        return role_level
+            role_level = -1
     except ContractLogicError as e:
         logger.error(f"[roles.service] Contract error getCompanyLevel({wallet}): {e}")
-        return -1
+        role_level = -1
     except Exception as e:
         logger.error(f"[roles.service] Unexpected error getCompanyRoleLevel({wallet}): {e}")
-        return -1
+        role_level = -1
+
+    # 3) Save to cache
+    try:
+        _role_cache_col.update_one(
+            {"wallet": wallet_lower, "company_id": cid},
+            {"$set": {"role_level": role_level, "cached_at": now}},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.warning(f"[roles.service] Cache write error: {e}")
+
+    return role_level
+
+
+def invalidate_role_cache(wallet: str, company_id: Optional[int] = None):
+    """Invalidate cached role level (call after assign/revoke operations)."""
+    cid = int(company_id if company_id is not None else COMPANY_ID)
+    try:
+        _role_cache_col.delete_one({"wallet": wallet.lower(), "company_id": cid})
+    except Exception as e:
+        logger.warning(f"[roles.service] Cache invalidation error: {e}")
+
 
 def verify_signature(wallet: str, plain_data: str, signature: str) -> bool:
     """Verifica la firma de dos formas:

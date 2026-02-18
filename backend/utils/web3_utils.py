@@ -20,11 +20,14 @@ ERC20_ABI = [
     {"constant": True, "inputs": [], "name": "totalSupply", "outputs": [{"name": "", "type": "uint256"}], "type": "function"}
 ]
 
-async def sync_company_data(company_id: int):
+async def sync_company_data(company_id: int, force: bool = False):
     """
     Synchronizes all data for a company into db.companies, fetching from contracts if necessary.
     Includes presale data from token_sale_events and VanellixTokenSale contract.
     Returns the enriched company data.
+    
+    Optimization: If data already exists and is complete, skips Web3 calls entirely.
+    Pass force=True to bypass this cache.
     """
     try:
         # Check if the company has a governance token (CompanyTokenCreated)
@@ -43,6 +46,11 @@ async def sync_company_data(company_id: int):
             "companyId": company_id,
             "updated_at": datetime.now(timezone.utc)
         }
+
+        # OPTIMIZATION: If data is already populated, skip all Web3 calls
+        if not force and company_data.get("name") and company_data.get("governance_token"):
+            logger.debug(f"[sync_company_data] Company {company_id} already synced, skipping Web3 calls.")
+            return company_data
 
         # Fetch company info from contract if missing or incomplete
         if not company_data.get("raw_tuple") or not company_data.get("name"):

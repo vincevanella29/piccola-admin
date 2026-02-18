@@ -150,14 +150,18 @@ async def login_with_privy(request: Request):
         # Validar wallet
         checksum_wallet = w3.to_checksum_address(wallet)
         
-        # Guardar sesión
+        # Guardar sesión con 24h expiration
+        now = int(time.time())
+        SESSION_DURATION = int(os.getenv("SESSION_DURATION_SECONDS", 86400))  # 24h
         session_data = {
             "token": token,
             "wallet": wallet.lower(),
             "sub": payload.get("sub"),
             "exp": payload.get("exp"),
             "iat": payload.get("iat"),
-            "sid": payload.get("sid")
+            "sid": payload.get("sid"),
+            "session_exp": now + SESSION_DURATION,
+            "last_verified": now,
         }
         sessions_collection.update_one(
             {"wallet": wallet.lower(), "sid": payload.get("sid")},

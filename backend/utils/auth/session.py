@@ -11,6 +11,13 @@ logger = logging.getLogger(__name__)
 PRIVY_JWT_PUBLIC_KEY = os.getenv("PRIVY_JWT_PUBLIC_KEY", "").replace("\\n", "\n")
 PRIVY_APP_ID = os.getenv("PRIVY_APP_ID")
 
+# Session duration: 24 hours (overridable via env)
+SESSION_DURATION_SECONDS = int(os.getenv("SESSION_DURATION_SECONDS", 86400))  # 24h
+
+# Role cache refresh interval within a session — every 2 hours instead of 5 minutes
+# The on-chain role itself is cached 24h in MongoDB, so this just refreshes permissions
+ROLE_CACHE_TTL = int(os.getenv("SESSION_ROLE_CACHE_TTL", 7200))  # 2h
+
 _DEFAULT_ALLOWED = [
     "https://test.vanellix.com",
     "https://testing.lapiccolaitalia.cl",
@@ -67,13 +74,32 @@ async def verify_session(request: Request) -> dict:
                 session = sessions_collection.find_one({"token": token, "wallet": wallet})
                 if not session:
                     raise HTTPException(status_code=401, detail="No valid session")
-                if session.get("exp", 0) < int(time.time()):
-                    sessions_collection.delete_one({"token": token})
-                    raise HTTPException(status_code=401, detail="Session expired")
 
-                # Re-validar roles cada 5 minutos (300 segundos)
-                ROLE_CACHE_TTL = 300
+                # Use our 24h session duration instead of JWT exp
+                session_created = session.get("iat", session.get("created_at", 0))
                 current_time = int(time.time())
+                
+                # Check session expiration: 24 hours from creation
+                session_exp = session.get("session_exp", session.get("exp", 0))
+                if session_exp < current_time:
+                    # If no session_exp set yet (old sessions), calculate from iat
+                    if not session.get("session_exp") and session_created:
+                        session_exp = session_created + SESSION_DURATION_SECONDS
+                        if session_exp < current_time:
+                            sessions_collection.delete_one({"token": token})
+                            raise HTTPException(status_code=401, detail="Session expired")
+                        # Save the extended session_exp
+                        sessions_collection.update_one(
+                            {"_id": session["_id"]},
+                            {"$set": {"session_exp": session_exp}}
+                        )
+                    else:
+                        sessions_collection.delete_one({"token": token})
+                        raise HTTPException(status_code=401, detail="Session expired")
+
+                # Re-validate roles every ROLE_CACHE_TTL (2h) — the underlying
+                # get_company_role_level() now uses its own 24h MongoDB cache,
+                # so this is cheap (just a Mongo read + permissions compute).
                 last_verified = session.get("last_verified", 0)
                 needs_refresh = (current_time - last_verified) > ROLE_CACHE_TTL
                 
