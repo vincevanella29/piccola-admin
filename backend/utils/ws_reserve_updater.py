@@ -1,18 +1,14 @@
 # /backend/utils/ws_reserve_updater.py
 """
-Event-driven reserve updater.
+Event-driven reserve updater via WSS Sync events.
 
-Uses the EXISTING ws_event_listener infrastructure to subscribe to
-Sync events on pair contracts that are ALREADY in MongoDB (token_pairs collection).
+100% WebSocket. ZERO polling.
+Fallback poll ONLY if WSS has been down for 10+ minutes.
 
-Architecture:
-  - Reads pair addresses from db.token_pairs (synced by sync_token_pairs)
-  - Subscribes to Sync events via WSS using the same provider list as ws_event_listener
-  - Parses reserve0/reserve1 DIRECTLY from event data (zero eth_call)
-  - Updates db.token_pairs.reserves on each Sync event
-  - Safety-net poll (update_reserves_once) available as scheduler fallback
-
-Zero hardcoded topics — uses the UniswapV2Pair ABI already in contracts/.
+Uses existing infra:
+  - Pairs from db.token_pairs (synced by sync_token_pairs)
+  - Sync topic from UniswapV2Pair ABI in contracts/
+  - Providers from env vars (WEB3_ALCHEMY_WSS, WEB3_INFURA_WSS)
 """
 import asyncio
 import logging
@@ -29,7 +25,6 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-# Use existing infrastructure
 from utils.web3mongo import db, w3
 
 WEB3_ALCHEMY_WSS = os.getenv("WEB3_ALCHEMY_WSS")
@@ -37,46 +32,36 @@ WEB3_INFURA_WSS = os.getenv("WEB3_INFURA_WSS")
 WSS_PROVIDERS = [url for url in [WEB3_ALCHEMY_WSS, WEB3_INFURA_WSS] if url]
 
 PROVIDER_COOLDOWN = 300  # 5 min blacklist on 429
+FALLBACK_POLL_AFTER = 600  # 10 min — poll ONLY after this much WSS downtime
 _provider_blacklist: Dict[str, float] = {}
 _subscription_running = False
 
-
-# ─── Helpers ────────────────────────────────────────────────────────────────
 
 def _provider_name(url: str) -> str:
     if "alchemy" in url.lower(): return "Alchemy"
     if "infura" in url.lower(): return "Infura"
     return "Unknown"
 
-
 def _is_provider_healthy(url: str) -> bool:
     return time.time() >= _provider_blacklist.get(url, 0)
-
 
 def _blacklist_provider(url: str):
     _provider_blacklist[url] = time.time() + PROVIDER_COOLDOWN
     logger.warning(f"[RESERVES] ⛔ {_provider_name(url)} blacklisted for {PROVIDER_COOLDOWN}s")
 
-
 def _rpc(id_: str, method: str, params):
     return json.dumps({"jsonrpc": "2.0", "id": id_, "method": method, "params": params})
-
 
 def safe_mongo_int(val):
     return str(val) if abs(val) > 2**63 - 1 else int(val)
 
-
 def _get_active_pairs() -> list:
-    """Get active pair contracts from MongoDB (already synced by sync_token_pairs)."""
     return list(db['token_pairs'].find({
         "exists": True,
         "pairAddress": {"$nin": [None, "", "0x0000000000000000000000000000000000000000"]}
     }))
 
-
 def _build_sync_topic() -> str:
-    """Build Sync event topic hash from the UniswapV2Pair ABI in contracts/.
-    Falls back to manual keccak if ABI not found."""
     try:
         from utils.contracts.loader import load_contract_abi
         abi = load_contract_abi("UniswapV2Pair")
@@ -88,25 +73,19 @@ def _build_sync_topic() -> str:
                 logger.info(f"[RESERVES] Sync topic from ABI: {sig} → {topic}")
                 return topic
     except Exception as e:
-        logger.warning(f"[RESERVES] Could not load Sync topic from ABI: {e}")
-
-    # Fallback: compute manually
+        logger.warning(f"[RESERVES] Could not load Sync from ABI: {e}")
     topic = Web3.keccak(text="Sync(uint112,uint112)").hex()
     logger.info(f"[RESERVES] Sync topic (computed): {topic}")
     return topic
 
-
 def _parse_sync_data(data_hex: str) -> Optional[Dict]:
-    """Parse reserve0/reserve1 from Sync event data (ABI-encoded uint112s as uint256)."""
     try:
         raw = data_hex[2:] if data_hex.startswith("0x") else data_hex
         if len(raw) < 128:
             return None
-        reserve0 = int(raw[:64], 16)
-        reserve1 = int(raw[64:128], 16)
         return {
-            "reserve0": safe_mongo_int(reserve0),
-            "reserve1": safe_mongo_int(reserve1),
+            "reserve0": safe_mongo_int(int(raw[:64], 16)),
+            "reserve1": safe_mongo_int(int(raw[64:128], 16)),
             "timestamp": int(time.time()),
         }
     except Exception as e:
@@ -114,17 +93,16 @@ def _parse_sync_data(data_hex: str) -> Optional[Dict]:
         return None
 
 
-# ─── Event-Driven Subscription (PRIMARY) ────────────────────────────────────
+# ─── WSS Sync Subscription (THE ONLY METHOD) ───────────────────────────────
 
 async def _subscribe_sync_events(wss_url: str) -> None:
     """Subscribe to Sync events on all pair addresses from db.token_pairs."""
     provider = _provider_name(wss_url)
     sync_topic = _build_sync_topic()
 
-    # Build address → pair doc map from MongoDB
     pairs = _get_active_pairs()
     if not pairs:
-        logger.warning("[RESERVES] No active pairs in db.token_pairs — nothing to subscribe")
+        logger.warning("[RESERVES] No active pairs in db.token_pairs")
         return
 
     addr_map: Dict[str, dict] = {}
@@ -135,7 +113,6 @@ async def _subscribe_sync_events(wss_url: str) -> None:
 
     try:
         async with websockets.connect(wss_url, ping_interval=20, ping_timeout=10) as ws:
-            # Subscribe to Sync logs on all pair addresses
             sub_id = f"reserves-{int(time.time())}"
             await ws.send(_rpc(sub_id, "eth_subscribe", [
                 "logs",
@@ -145,9 +122,7 @@ async def _subscribe_sync_events(wss_url: str) -> None:
                 }
             ]))
 
-            logger.info(f"[RESERVES] 🟢 Subscribed to Sync events on {len(addr_map)} pairs via {provider}")
-            logger.info(f"[RESERVES] 📡 Mode: event-driven (zero polling, zero eth_call)")
-
+            logger.info(f"[RESERVES] 🟢 Subscribed to Sync on {len(addr_map)} pairs via {provider}")
             update_count = 0
 
             while True:
@@ -157,11 +132,8 @@ async def _subscribe_sync_events(wss_url: str) -> None:
                 except Exception:
                     continue
 
-                # ACK
                 if "id" in msg and "result" in msg:
-                    logger.debug(f"[RESERVES] Subscription confirmed: {msg.get('result')}")
                     continue
-
                 if msg.get("method") != "eth_subscription":
                     continue
 
@@ -206,58 +178,11 @@ async def _subscribe_sync_events(wss_url: str) -> None:
         raise
 
 
-async def reserve_subscription_loop():
-    """Persistent event-driven loop with auto-reconnect and provider failover."""
-    global _subscription_running
+# ─── Fallback Poll (ONLY after 10 min WSS downtime) ────────────────────────
 
-    if _subscription_running:
-        logger.warning("[RESERVES] ⚠️ Already running — skipping duplicate")
-        return
-
-    _subscription_running = True
-
-    if not WSS_PROVIDERS:
-        logger.error("[RESERVES] No WSS providers configured")
-        _subscription_running = False
-        return
-
-    logger.info("=" * 60)
-    logger.info("[RESERVES] 📡 Event-driven reserve updater starting")
-    logger.info(f"[RESERVES] Providers: {[_provider_name(u) for u in WSS_PROVIDERS]}")
-    logger.info(f"[RESERVES] Pairs source: db.token_pairs (synced by sync_token_pairs)")
-    logger.info(f"[RESERVES] Mode: Sync event subscription (ZERO polling)")
-    logger.info("=" * 60)
-
-    try:
-        while True:
-            healthy = [u for u in WSS_PROVIDERS if _is_provider_healthy(u)]
-            providers = healthy if healthy else WSS_PROVIDERS
-
-            if not healthy:
-                names = [_provider_name(u) for u in WSS_PROVIDERS]
-                logger.warning(f"[RESERVES] All providers blacklisted ({names}), retrying anyway...")
-
-            for wss_url in providers:
-                try:
-                    await _subscribe_sync_events(wss_url)
-                except Exception as e:
-                    logger.error(f"[RESERVES] {_provider_name(wss_url)} failed: {e}")
-                    await asyncio.sleep(5)
-                    continue
-
-            logger.warning("[RESERVES] All providers failed. Retrying in 30s...")
-            await asyncio.sleep(30)
-    finally:
-        _subscription_running = False
-
-
-# ─── Safety-Net Poll (BACKUP, called by scheduler every 5 min) ──────────────
-
-async def update_reserves_once() -> bool:
-    """One-shot poll of reserves via eth_call over WSS. Safety net only."""
-    if not WSS_PROVIDERS:
-        logger.error("[RESERVES] No WSS providers")
-        return False
+async def _fallback_poll() -> bool:
+    """One-shot poll via eth_call. ONLY called when WSS is down 10+ min."""
+    logger.warning("[RESERVES] 🔴 WSS down 10+ min — running ONE fallback poll")
 
     healthy = [u for u in WSS_PROVIDERS if _is_provider_healthy(u)]
     providers = healthy if healthy else WSS_PROVIDERS
@@ -276,14 +201,13 @@ async def update_reserves_once() -> bool:
                         call_id = str(int(time.time() * 1000))
                         await ws.send(_rpc(call_id, "eth_call", [{
                             "to": addr,
-                            "data": "0x0902f1ac"  # getReserves()
+                            "data": "0x0902f1ac"
                         }, "latest"]))
                         response = await asyncio.wait_for(ws.recv(), timeout=10)
                         data = json.loads(response)
                         if "error" in data:
                             continue
-                        result = data.get("result", "")
-                        reserves = _parse_sync_data(result)
+                        reserves = _parse_sync_data(data.get("result", ""))
                         if reserves:
                             db['token_pairs'].update_one(
                                 {"_id": pair["_id"]},
@@ -291,24 +215,88 @@ async def update_reserves_once() -> bool:
                             )
                             updated += 1
                     except Exception as e:
-                        logger.warning(f"[RESERVES] Safety poll failed for {addr}: {e}")
+                        logger.warning(f"[RESERVES] Fallback poll failed for {addr}: {e}")
 
-                logger.info(f"[RESERVES] 🔄 Safety poll: {updated}/{len(pairs)} pairs via {provider}")
+                logger.info(f"[RESERVES] 🔄 Fallback poll: {updated}/{len(pairs)} pairs via {provider}")
                 return True
         except Exception as e:
             err_str = str(e)
-            logger.error(f"[RESERVES] Safety poll {provider} error: {err_str}")
+            logger.error(f"[RESERVES] Fallback poll {provider} error: {err_str}")
             if "429" in err_str or "rejected" in err_str:
                 _blacklist_provider(wss_url)
 
-    logger.error("[RESERVES] Safety poll: all providers failed")
+    logger.error("[RESERVES] Fallback poll: all providers failed")
     return False
+
+
+# ─── Main Loop ──────────────────────────────────────────────────────────────
+
+async def reserve_subscription_loop():
+    """Persistent event-driven loop.
+    
+    100% WSS. Fallback poll ONLY after 10 min of continuous WSS failure.
+    """
+    global _subscription_running
+
+    if _subscription_running:
+        logger.warning("[RESERVES] ⚠️ Already running — skipping duplicate")
+        return
+
+    _subscription_running = True
+
+    if not WSS_PROVIDERS:
+        logger.error("[RESERVES] No WSS providers configured")
+        _subscription_running = False
+        return
+
+    logger.info("=" * 60)
+    logger.info("[RESERVES] 📡 Event-driven reserve updater (100% WSS)")
+    logger.info(f"[RESERVES] Providers: {[_provider_name(u) for u in WSS_PROVIDERS]}")
+    logger.info(f"[RESERVES] Fallback poll: ONLY after {FALLBACK_POLL_AFTER}s of WSS downtime")
+    logger.info("=" * 60)
+
+    ws_down_since: Optional[float] = None
+    last_fallback_poll: float = 0
+
+    try:
+        while True:
+            healthy = [u for u in WSS_PROVIDERS if _is_provider_healthy(u)]
+            providers = healthy if healthy else WSS_PROVIDERS
+
+            connected = False
+            for wss_url in providers:
+                try:
+                    await _subscribe_sync_events(wss_url)
+                    # If we get here, connection was made and then dropped
+                    ws_down_since = time.time()
+                    connected = True
+                except Exception as e:
+                    logger.error(f"[RESERVES] {_provider_name(wss_url)} failed: {e}")
+                    if ws_down_since is None:
+                        ws_down_since = time.time()
+
+            # All providers failed this round
+            if ws_down_since is None:
+                ws_down_since = time.time()
+
+            down_for = time.time() - ws_down_since
+            time_since_last_poll = time.time() - last_fallback_poll
+
+            # Fallback poll ONLY if WSS down 10+ min AND we haven't polled in last 10 min
+            if down_for >= FALLBACK_POLL_AFTER and time_since_last_poll >= FALLBACK_POLL_AFTER:
+                logger.warning(f"[RESERVES] WSS down for {int(down_for)}s — triggering fallback poll")
+                await _fallback_poll()
+                last_fallback_poll = time.time()
+
+            # Wait before retry (shorter if just disconnected, longer if all failing)
+            await asyncio.sleep(10 if connected else 30)
+    finally:
+        _subscription_running = False
 
 
 # ─── Entry Point ────────────────────────────────────────────────────────────
 
 def start_ws_reserve_updater():
-    """Start the event-driven reserve updater (blocking)."""
     asyncio.run(reserve_subscription_loop())
 
 if __name__ == "__main__":
