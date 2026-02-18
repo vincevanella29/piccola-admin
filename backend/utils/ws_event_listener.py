@@ -38,6 +38,36 @@ WS_HTTP_RECOVERY_WINDOW_BLOCKS = int(os.getenv("WS_HTTP_RECOVERY_WINDOW_BLOCKS",
 # Build WSS provider list (failover order: Alchemy -> Infura)
 WSS_PROVIDERS = [url for url in [WEB3_ALCHEMY_WSS, WEB3_INFURA_WSS] if url]
 
+# Shared provider blacklist — if ANY thread gets 429, ALL threads skip that provider
+import threading as _threading
+_provider_blacklist: Dict[str, float] = {}
+_blacklist_lock = _threading.Lock()
+PROVIDER_COOLDOWN = 300  # 5 min
+
+def _provider_name(url: str) -> str:
+    if "alchemy" in url.lower(): return "Alchemy"
+    if "infura" in url.lower(): return "Infura"
+    return "Unknown"
+
+def _blacklist_provider(url: str):
+    with _blacklist_lock:
+        _provider_blacklist[url] = time.time() + PROVIDER_COOLDOWN
+    logger.warning(f"[WS] ⛔ {_provider_name(url)} blacklisted for {PROVIDER_COOLDOWN}s (shared across all threads)")
+
+def _is_provider_healthy(url: str) -> bool:
+    with _blacklist_lock:
+        return time.time() >= _provider_blacklist.get(url, 0)
+
+def _get_best_provider() -> tuple:
+    """Returns (url, name) of best available provider. Skips blacklisted ones."""
+    for url in WSS_PROVIDERS:
+        if _is_provider_healthy(url):
+            return url, _provider_name(url)
+    # All blacklisted — use first one anyway (blacklist may have expired by connection time)
+    if WSS_PROVIDERS:
+        return WSS_PROVIDERS[0], _provider_name(WSS_PROVIDERS[0])
+    return None, "None"
+
 
 def _build_event_topic_map(contract_name: str):
     topic_map = {}
@@ -84,8 +114,8 @@ def _rpc(id_: str, method: str, params):
 
 
 async def _ws_loop_for_contract(contract_name: str, contract_address: str):
-    if not WEB3_ALCHEMY_WSS:
-        logger.error("WEB3_ALCHEMY_WSS no está seteado. No se puede usar WebSocket.")
+    if not WSS_PROVIDERS:
+        logger.error("[WS] No WSS providers available. Cannot listen.")
         return
 
     collection_name = CONTRACT_TO_COLLECTION_MAP.get(contract_name, "company_events")
@@ -97,16 +127,12 @@ async def _ws_loop_for_contract(contract_name: str, contract_address: str):
 
     logger.info(f"[WS] Iniciando listener WS para {contract_name} en {contract_address} desde bloque {last_tip}...")
 
-    # Try each WSS provider with failover
-    _current_provider_idx = 0
-
     while True:
-        wss_url = WSS_PROVIDERS[_current_provider_idx % len(WSS_PROVIDERS)] if WSS_PROVIDERS else None
+        # Use shared blacklist to pick best provider
+        wss_url, provider_name = _get_best_provider()
         if not wss_url:
             logger.error("[WS] No WSS providers available. Cannot listen.")
             return
-
-        provider_name = "Alchemy" if "alchemy" in wss_url.lower() else "Infura" if "infura" in wss_url.lower() else "Unknown"
 
         try:
             async with websockets.connect(wss_url, ping_interval=20, ping_timeout=10) as ws:
@@ -202,16 +228,14 @@ async def _ws_loop_for_contract(contract_name: str, contract_address: str):
                     except Exception as e:
                         logger.error(f"[WS][{contract_name}] Error procesando log: {e}")
         except Exception as e:
-            logger.error(f"[WS][❌ {provider_name}][{contract_name}] WebSocket error/desconexión: {e}")
+            err_str = str(e)
+            logger.error(f"[WS][❌ {provider_name}][{contract_name}] WebSocket error/desconexión: {err_str}")
             if ws_down_since is None:
                 ws_down_since = time.time()
 
-            # Try next WSS provider before falling back to HTTP
-            if len(WSS_PROVIDERS) > 1:
-                _current_provider_idx = (_current_provider_idx + 1) % len(WSS_PROVIDERS)
-                next_provider = WSS_PROVIDERS[_current_provider_idx]
-                next_name = "Alchemy" if "alchemy" in next_provider.lower() else "Infura"
-                logger.warning(f"[WS] Switching to {next_name} WSS for {contract_name}")
+            # Blacklist provider on 429 — shared across ALL threads
+            if "429" in err_str or "rejected" in err_str:
+                _blacklist_provider(wss_url)
 
             down_for = time.time() - ws_down_since
             if down_for >= WS_HTTP_FALLBACK_DELAY_SEC:
