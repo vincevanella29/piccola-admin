@@ -89,14 +89,20 @@ async def sync_token_pairs_task():
     return {"status": "completed"}
 
 async def update_pair_reserves_task():
-    logger.info("Iniciando tarea: update_pair_reserves_task (WebSocket)")
+    """Safety-net poll: runs every 5min to catch any missed Sync events."""
     try:
-        from utils.ws_reserve_updater import reserve_updater_loop
-        await reserve_updater_loop()
+        from utils.ws_reserve_updater import update_reserves_once
+        success = await update_reserves_once()
+        return {"status": "completed" if success else "failed"}
     except Exception as e:
-        logger.error(f"Error en WebSocket reserve updater: {e}")
+        logger.error(f"Error en reserve safety poll: {e}")
         raise
-    return {"status": "completed"}
+
+async def reserve_subscription_persistent():
+    """Persistent worker: subscribes to Sync events on all pairs via WSS.
+    This is the PRIMARY method — event-driven, zero polling."""
+    from utils.ws_reserve_updater import reserve_subscription_loop
+    await reserve_subscription_loop()
 
 async def sync_payment_tokens_task():
     logger.info("Iniciando tarea: sync_payment_tokens_task")
@@ -270,7 +276,7 @@ ALL_WORKERS = {
     # Tareas Periódicas
     "sync_companies":       {"func": sync_companies_task,       "type": "io", "schedule": timedelta(minutes=30)},
     "sync_token_pairs":     {"func": sync_token_pairs_task,     "type": "io", "schedule": timedelta(minutes=15)},
-    "update_pair_reserves": {"func": update_pair_reserves_task, "type": "io", "schedule": timedelta(seconds=30)},
+    "update_pair_reserves": {"func": update_pair_reserves_task, "type": "io", "schedule": timedelta(minutes=5)},
     "sync_payment_tokens":  {"func": sync_payment_tokens_task,  "type": "io", "schedule": timedelta(minutes=60)},
     
     # Tareas de Grupo Diarias (con ejecución opcional al arranque)
@@ -284,4 +290,5 @@ ALL_WORKERS = {
     # Workers Persistentes (corren constantemente)
     "event_listener":           {"func": event_listener_persistent,           "type": "persistent", "schedule": None},
     "event_processor_consumer": {"func": event_processor_consumer_persistent, "type": "persistent", "schedule": None},
+    "reserve_subscription":     {"func": reserve_subscription_persistent,     "type": "persistent", "schedule": None},
 }

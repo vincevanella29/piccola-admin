@@ -89,13 +89,16 @@ async def periodic_sync_token_pairs():
         await asyncio.sleep(900)  # every 15 min (was 60s)
 
 async def periodic_update_pair_reserves():
-    """Use WebSocket-only reserve updater (NO HTTP RPC calls)."""
-    try:
-        from utils.ws_reserve_updater import reserve_updater_loop
-        await reserve_updater_loop()
-    except Exception as e:
-        logger.error(f"[PERIODIC SYNC] Error in WS reserve updater: {e}\n{traceback.format_exc()}")
-        await asyncio.sleep(30)  # wait before retry
+    """Safety-net poll every 5 min. The PRIMARY reserves update is event-driven
+    via reserve_subscription_loop (Sync events). This catches any missed events.
+    """
+    while True:
+        try:
+            from utils.ws_reserve_updater import update_reserves_once
+            await update_reserves_once()
+        except Exception as e:
+            logger.error(f"[PERIODIC SYNC] Error in reserve safety poll: {e}\n{traceback.format_exc()}")
+        await asyncio.sleep(300)  # 5 min safety net
 
 async def periodic_sync_payment_tokens():
     while True:
