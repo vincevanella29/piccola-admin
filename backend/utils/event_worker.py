@@ -15,9 +15,8 @@ from utils.web3_utils import sync_company_data
 from utils.web3mongo import db
 from utils.companies_tokens import sync_token_pairs
 from utils.payment_token import sync_payment_tokens
-from utils.event_config import CONFIGS
-from utils.event_listener import listen_events
-from utils.web3mongo import setup_event_collections_indexes
+# NOTE: event_config/event_listener (HTTP polling) NO LONGER USED
+# All event listening is done via WebSocket (ws_event_listener.py)
 
 # --- Configuración de Redis ---
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")  # Por defecto, usa el nombre del servicio en Docker
@@ -32,10 +31,8 @@ RUN_GROUPS_ON_START = os.getenv("RUN_GROUPS_ON_START", "0") == "1"
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-def launch_listener_worker(config):
-    logger.info(f"[EVENT LISTENER WORKER] Starting listener for {getattr(config, 'contract_name', 'unknown')} ({getattr(config, 'event_names', [])})...")
-    # listen_events espera una lista de configs
-    listen_events([config])
+# NOTE: launch_listener_worker (HTTP polling) has been REMOVED.
+# All event listening uses WebSocket via ws_event_listener.py
 
 def get_current_mesano_chile() -> str:
     """Return current mesano (YYYYMM) in Chile timezone."""

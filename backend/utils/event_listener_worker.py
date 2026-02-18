@@ -1,22 +1,23 @@
-import threading
+"""
+event_listener_worker.py — WebSocket-only event listener launcher.
+
+🟢 MODE: WebSocket (eth_subscribe via WSS)
+🔴 HTTP polling (eth_getLogs) has been REMOVED.
+
+If WSS fails, ws_event_listener.py has built-in HTTP fallback
+that ONLY activates after 120s of WS downtime and logs it clearly.
+"""
 import logging
-from utils.event_config import CONFIGS
-from utils.event_listener import listen_events
-from utils.web3mongo import setup_event_collections_indexes
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-def launch_listener_worker(config):
-    logger.info(f"[EVENT LISTENER WORKER] Starting listener for {config.contract_name} ({config.event_names})...")
-    listen_events([config])
-
 if __name__ == "__main__":
-    setup_event_collections_indexes(CONFIGS)
-    threads = []
-    for config in CONFIGS:
-        t = threading.Thread(target=launch_listener_worker, args=(config,), daemon=True)
-        t.start()
-        threads.append(t)
-    for t in threads:
-        t.join()
+    logger.info("=" * 70)
+    logger.info("🟢 EVENT LISTENER WORKER: WebSocket mode (ZERO HTTP polling)")
+    logger.info("🔴 HTTP polling (eth_getLogs) is DISABLED")
+    logger.info("🟡 HTTP fallback: ONLY after 120s WS downtime (with explicit log)")
+    logger.info("=" * 70)
+
+    from utils.ws_event_listener import start_ws_listeners_for_all_contracts
+    start_ws_listeners_for_all_contracts()

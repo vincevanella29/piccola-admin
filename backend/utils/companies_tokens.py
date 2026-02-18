@@ -7,7 +7,6 @@ avoid redundant Web3 RPC calls on every sync cycle.
 from utils.web3mongo import load_contract_abi, db, w3, launchpad_contract
 import logging
 logger = logging.getLogger(__name__)
-logger.warning("HTTP-based update_pair_reserves is deprecated - use WebSocket version from ws_reserve_updater")
 
 companies_tokens_collection = db['companies_tokens']
 
@@ -113,44 +112,18 @@ _IMAGE_PATHS = {
 
 def update_pair_reserves(logger=None):
     """
-    Actualiza solo el campo 'reserves' de todos los pares existentes en la colección 'token_pairs'.
+    ⚠️  DEPRECATED — DO NOT USE.
+    HTTP-based reserve updates have been replaced by WebSocket.
+    Use ws_reserve_updater.reserve_updater_loop() instead.
+    This function exists only to avoid ImportError if someone imports it.
     """
-    token_pairs = list(db['token_pairs'].find({"exists": True}))
-    updated = 0
-    for pair in token_pairs:
-        pair_addr = pair.get('pairAddress')
-        if not pair_addr or pair_addr == "0x0000000000000000000000000000000000000000":
-            continue
-        try:
-            uniswap_pair_abi = [
-                {"constant": True, "inputs": [], "name": "getReserves", "outputs": [
-                    {"name": "_reserve0", "type": "uint112"},
-                    {"name": "_reserve1", "type": "uint112"},
-                    {"name": "_blockTimestampLast", "type": "uint32"}
-                ], "payable": False, "stateMutability": "view", "type": "function"},
-            ]
-            pair_contract = w3.eth.contract(address=w3.to_checksum_address(pair_addr), abi=uniswap_pair_abi)
-            reserves = pair_contract.functions.getReserves().call()
-            def safe_mongo_int(val):
-                if abs(val) > 2**63 - 1:
-                    return str(val)
-                return int(val)
-            reserves_data = {
-                "reserve0": safe_mongo_int(reserves[0]),
-                "reserve1": safe_mongo_int(reserves[1]),
-                "timestamp": int(reserves[2])
-            }
-            db['token_pairs'].update_one(
-                {"_id": pair["_id"]},
-                {"$set": {"reserves": reserves_data}}
-            )
-            updated += 1
-        except Exception as e:
-            if logger:
-                logger.warning(f"[update_pair_reserves] No se pudo actualizar reserves de {pair_addr}: {e}")
-    if logger:
-        logger.info(f"[update_pair_reserves] Actualizadas reserves en {updated} pares.")
-    return updated
+    _logger = logger or logging.getLogger(__name__)
+    _logger.warning("🔴 [DEPRECATED] update_pair_reserves HTTP called! This should NOT happen.")
+    _logger.warning("🔴 Use ws_reserve_updater.py for WebSocket-based reserve updates.")
+    _logger.warning("🔴 Stack trace for debugging:")
+    import traceback
+    _logger.warning(traceback.format_stack())
+    return 0
 
 
 # Cache for factory contract instance (created once, reused)

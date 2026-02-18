@@ -1,4 +1,8 @@
-# /utils/event_listener.py (V4 - El Fino)
+# /utils/event_listener.py (V4 - BACKUP ONLY)
+# ⚠️  THIS FILE IS NOT THE PRIMARY LISTENER.
+# ⚠️  Primary listener: ws_event_listener.py (WebSocket, zero HTTP polling)
+# ⚠️  This file is only imported for CONTRACT_TO_COLLECTION_MAP and helpers.
+# ⚠️  The listen_events() function is HTTP polling and should NOT be called directly.
 
 import logging
 import time

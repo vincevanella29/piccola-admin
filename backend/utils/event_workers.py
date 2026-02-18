@@ -22,7 +22,7 @@ from pymongo.errors import DuplicateKeyError
 import redis
 from utils.web3_utils import sync_company_data
 from utils.web3mongo import db
-from utils.companies_tokens import sync_token_pairs, update_pair_reserves
+from utils.companies_tokens import sync_token_pairs  # NOTE: update_pair_reserves HTTP removed, using WSS
 from utils.payment_token import sync_payment_tokens
 from utils.ws_event_listener import start_ws_listeners_for_all_contracts
 
