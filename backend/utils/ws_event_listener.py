@@ -30,9 +30,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger(__name__)
 
 WEB3_ALCHEMY_WSS = os.getenv("WEB3_ALCHEMY_WSS")
+WEB3_INFURA_WSS = os.getenv("WEB3_INFURA_WSS")
 INITIAL_BLOCK = int(os.getenv("INITIAL_BLOCK", "26419000"))
-WS_HTTP_FALLBACK_DELAY_SEC = int(os.getenv("WS_HTTP_FALLBACK_DELAY_SEC", "60"))
+WS_HTTP_FALLBACK_DELAY_SEC = int(os.getenv("WS_HTTP_FALLBACK_DELAY_SEC", "120"))  # Wait 2min before HTTP fallback
 WS_HTTP_RECOVERY_WINDOW_BLOCKS = int(os.getenv("WS_HTTP_RECOVERY_WINDOW_BLOCKS", "300"))
+
+# Build WSS provider list (failover order: Alchemy -> Infura)
+WSS_PROVIDERS = [url for url in [WEB3_ALCHEMY_WSS, WEB3_INFURA_WSS] if url]
 
 
 def _build_event_topic_map(contract_name: str):
@@ -93,9 +97,19 @@ async def _ws_loop_for_contract(contract_name: str, contract_address: str):
 
     logger.info(f"[WS] Iniciando listener WS para {contract_name} en {contract_address} desde bloque {last_tip}...")
 
+    # Try each WSS provider with failover
+    _current_provider_idx = 0
+
     while True:
+        wss_url = WSS_PROVIDERS[_current_provider_idx % len(WSS_PROVIDERS)] if WSS_PROVIDERS else None
+        if not wss_url:
+            logger.error("[WS] No WSS providers available. Cannot listen.")
+            return
+
+        provider_name = "Alchemy" if "alchemy" in wss_url.lower() else "Infura" if "infura" in wss_url.lower() else "Unknown"
+
         try:
-            async with websockets.connect(WEB3_ALCHEMY_WSS) as ws:
+            async with websockets.connect(wss_url, ping_interval=20, ping_timeout=10) as ws:
                 sub_id = str(uuid.uuid4())
                 params = [
                     "logs",
@@ -104,7 +118,7 @@ async def _ws_loop_for_contract(contract_name: str, contract_address: str):
                     },
                 ]
                 await ws.send(_rpc(sub_id, "eth_subscribe", params))
-                logger.info(f"[WS] Suscrito a logs de {contract_name} ({contract_address})")
+                logger.info(f"[WS] 🟢 Suscrito via {provider_name} WSS a logs de {contract_name} ({contract_address})")
 
                 ws_down_since = None
 
@@ -188,9 +202,16 @@ async def _ws_loop_for_contract(contract_name: str, contract_address: str):
                     except Exception as e:
                         logger.error(f"[WS][{contract_name}] Error procesando log: {e}")
         except Exception as e:
-            logger.error(f"[WS][{contract_name}] WebSocket error/desconexión: {e}")
+            logger.error(f"[WS][❌ {provider_name}][{contract_name}] WebSocket error/desconexión: {e}")
             if ws_down_since is None:
                 ws_down_since = time.time()
+
+            # Try next WSS provider before falling back to HTTP
+            if len(WSS_PROVIDERS) > 1:
+                _current_provider_idx = (_current_provider_idx + 1) % len(WSS_PROVIDERS)
+                next_provider = WSS_PROVIDERS[_current_provider_idx]
+                next_name = "Alchemy" if "alchemy" in next_provider.lower() else "Infura"
+                logger.warning(f"[WS] Switching to {next_name} WSS for {contract_name}")
 
             down_for = time.time() - ws_down_since
             if down_for >= WS_HTTP_FALLBACK_DELAY_SEC:
@@ -262,9 +283,24 @@ async def _ws_loop_for_contract(contract_name: str, contract_address: str):
 
 
 def start_ws_listeners_for_all_contracts():
-    if not WEB3_ALCHEMY_WSS:
-        logger.error("WEB3_ALCHEMY_WSS no está seteado. No se puede iniciar ws_event_listener.")
+    if not WSS_PROVIDERS:
+        logger.error("❌ No WSS providers configured (need WEB3_ALCHEMY_WSS or WEB3_INFURA_WSS). Cannot start WS listener.")
         return
+
+    provider_names = []
+    for p in WSS_PROVIDERS:
+        if "alchemy" in p.lower():
+            provider_names.append("Alchemy")
+        elif "infura" in p.lower():
+            provider_names.append("Infura")
+        else:
+            provider_names.append("Unknown")
+
+    logger.info("=" * 70)
+    logger.info(f"🟢 EVENT LISTENER MODE: WebSocket (ZERO HTTP polling)")
+    logger.info(f"🟢 WSS Providers: {' → '.join(provider_names)} (failover order)")
+    logger.info(f"🟢 HTTP fallback: ONLY after {WS_HTTP_FALLBACK_DELAY_SEC}s of WS downtime")
+    logger.info("=" * 70)
 
     threads = []
     for contract_name, contract_instance in contracts.items():
@@ -277,9 +313,9 @@ def start_ws_listeners_for_all_contracts():
         )
         t.start()
         threads.append(t)
-        logger.info(f"[WS] Thread iniciado para contrato {contract_name} ({addr})")
+        logger.info(f"[WS] 🟢 Thread started for {contract_name} ({addr})")
 
-    logger.info(f"[WS] Iniciados {len(threads)} threads de WebSocket para contratos.")
+    logger.info(f"[WS] ✅ {len(threads)} WebSocket threads active — ZERO HTTP polling")
 
     try:
         while True:

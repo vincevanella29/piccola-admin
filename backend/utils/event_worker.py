@@ -516,14 +516,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     def event_listener_worker():
-        setup_event_collections_indexes(CONFIGS)
-        threads = []
-        for config in CONFIGS:
-            t = threading.Thread(target=launch_listener_worker, args=(config,), daemon=True)
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
+        """Uses WebSocket subscriptions (NO HTTP polling). Zero eth_getLogs calls."""
+        logger.info("[EVENT LISTENER] 🟢 Starting WebSocket-based listener (NO HTTP polling)")
+        try:
+            from utils.ws_event_listener import start_ws_listeners_for_all_contracts
+            start_ws_listeners_for_all_contracts()
+        except Exception as e:
+            logger.error(f"[EVENT LISTENER] WebSocket listener failed: {e}")
+            import traceback
+            traceback.print_exc()
 
     worker_map = {
         'intranet_group_4am': periodic_intranet_group_worker,

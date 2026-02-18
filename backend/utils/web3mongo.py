@@ -224,7 +224,7 @@ def _wrap_provider(provider):
                     resp = target_provider._cached_chain_id
             elif method == "eth_blockNumber":
                 now = time.time()
-                ttl = 2.0
+                ttl = 30.0  # Cache block number for 30s (was 2s — saved ~90% eth_blockNumber calls)
                 last = getattr(target_provider, "_cached_block_number", None)
                 if last and (now - last.get("ts", 0)) < ttl:
                     resp = last["resp"]

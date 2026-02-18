@@ -28,13 +28,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURACIÓN DEL LISTENER V4 ---
-POLL_INTERVAL = 120
+POLL_INTERVAL = 300  # 5 minutes between scan cycles (was 120s — saved ~60% eth_getLogs)
 INITIAL_BLOCK = int(os.getenv("INITIAL_BLOCK", "26419000"))
-BLOCK_CHUNK_SIZE = 2000
+BLOCK_CHUNK_SIZE = 10000  # 10K blocks per query (was 2K — 5x fewer calls per catch-up)
 MAX_RETRIES = 3
 RETRY_DELAY = 5
 REDIS_LOCK_KEY = "vanellix_listener_lock_v4"
-REDIS_LOCK_TIMEOUT = 120
+REDIS_LOCK_TIMEOUT = 300  # Match POLL_INTERVAL
 
 # Mapeo de Nombres de Contrato a Colecciones de MongoDB
 CONTRACT_TO_COLLECTION_MAP = {
@@ -308,8 +308,8 @@ def listen_events(configs: List[Any] = None):
                     elif to_block >= active_events_checkpoints[event_name]:
                         update_last_processed_block(contract_address, event_name, to_block)
                 
-                # Pequeña pausa entre contratos para no ahogar el RPC
-                time.sleep(0.5) 
+                # Pausa entre contratos para no ahogar el RPC
+                time.sleep(2)
 
             logger.info("Scan cycle complete.")
 
