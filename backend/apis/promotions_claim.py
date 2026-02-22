@@ -307,15 +307,23 @@ async def get_active_promotions(user: Optional[dict] = Depends(optional_verify_s
             for addr in [t.get("address")]
         }
         for p in promos:
-            # Patch: Ensure date fields are datetime objects
+            # Patch: Ensure date fields are timezone-aware datetime objects
             for date_field in [
                 "display_start", "display_end", "claim_start", "claim_end"
             ]:
-                if date_field in p and isinstance(p[date_field], str):
+                val = p.get(date_field)
+                if isinstance(val, str):
                     try:
-                        p[date_field] = isoparse(p[date_field]).replace(tzinfo=chile_tz)
+                        val = isoparse(val)
+                        if val.tzinfo is None:
+                            # String without tz → admin-entered in Chile time
+                            val = val.replace(tzinfo=chile_tz)
+                        p[date_field] = val
                     except Exception:
-                        pass  # Ignore
+                        continue
+                elif isinstance(val, datetime) and val.tzinfo is None:
+                    # Naive datetime from MongoDB → stored as UTC
+                    p[date_field] = val.replace(tzinfo=ZoneInfo("UTC")).astimezone(chile_tz)
             print(f"🔥🔥🔥 [ACTIVE_PROMOS] Validating promo '{p.get('name')}' for wallet={wallet}, employee_scope={employee_scope}")
             logger.info(f"[ACTIVE_PROMOS] Validating promo '{p.get('name')}' for wallet={wallet}, employee_scope={employee_scope}")
             is_valid, reason = validate_display_rules(p, now, employee_scope)

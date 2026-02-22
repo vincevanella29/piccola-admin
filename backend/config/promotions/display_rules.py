@@ -27,6 +27,20 @@ def validate_display_rules(
     if now is None:
         now = datetime.now(ZoneInfo("America/Santiago"))
 
+    # Ensure date fields are timezone-aware before comparison
+    for date_field in ("display_start", "display_end"):
+        val = promotion.get(date_field)
+        if isinstance(val, str):
+            from dateutil.parser import isoparse
+            parsed = isoparse(val)
+            if parsed.tzinfo is None:
+                # String without tz → admin-entered in Chile time
+                parsed = parsed.replace(tzinfo=ZoneInfo("America/Santiago"))
+            promotion[date_field] = parsed
+        elif isinstance(val, datetime) and val.tzinfo is None:
+            # Naive datetime from MongoDB → stored as UTC
+            promotion[date_field] = val.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Santiago"))
+
     # Validate date range
     if not (promotion["display_start"] <= now <= promotion["display_end"]):
         return False, "Promotion not valid for current date"

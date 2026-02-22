@@ -174,17 +174,19 @@ def validate_claim_rules(request: Dict, promotion: Dict, customer: Optional[Dict
     if now is None:
         now = datetime.now(chile_tz)
 
-    # Add tzinfo to promotion dates assuming they are in Chile time
+    # Ensure claim date fields are timezone-aware
     from dateutil.parser import isoparse
-    def ensure_datetime(val):
-        if isinstance(val, str):
-            return isoparse(val)
-        return val
     for field in ["claim_start", "claim_end"]:
-        if field in promotion:
-            promotion[field] = ensure_datetime(promotion[field])
-            if promotion[field].tzinfo is None:
-                promotion[field] = promotion[field].replace(tzinfo=chile_tz)
+        val = promotion.get(field)
+        if isinstance(val, str):
+            val = isoparse(val)
+            if val.tzinfo is None:
+                # String without tz → admin-entered in Chile time
+                val = val.replace(tzinfo=chile_tz)
+            promotion[field] = val
+        elif isinstance(val, datetime) and val.tzinfo is None:
+            # Naive datetime from MongoDB → stored as UTC
+            promotion[field] = val.replace(tzinfo=ZoneInfo("UTC")).astimezone(chile_tz)
 
     # Validate max claims
     max_claims = promotion.get("max_claims", 0)

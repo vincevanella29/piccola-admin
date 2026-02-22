@@ -65,6 +65,21 @@ def validate_coupon_validity(coupon: Dict, now: datetime = None) -> tuple[bool, 
     elif validity in ["fixed", "period"]:
         start = coupon["valid_from"]
         end = coupon["valid_until"]
+        # Ensure dates are timezone-aware datetimes before comparison
+        from dateutil.parser import isoparse as _isoparse
+        def _ensure_aware(val):
+            if isinstance(val, str):
+                val = _isoparse(val)
+                if val.tzinfo is None:
+                    # String without tz → admin-entered in Chile time
+                    val = val.replace(tzinfo=ZoneInfo("America/Santiago"))
+                return val
+            if isinstance(val, datetime) and val.tzinfo is None:
+                # Naive datetime from MongoDB → stored as UTC
+                val = val.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Santiago"))
+            return val
+        start = _ensure_aware(start)
+        end = _ensure_aware(end)
         if not (start <= now <= end):
             return False, "Coupon not valid for current date and time"
         return True, ""
@@ -121,13 +136,15 @@ def validate_redeem_rules(request: Dict, coupon: Dict, promotion: Dict, customer
             try:
                 d = datetime.fromisoformat(dt)
                 if d.tzinfo is None:
+                    # String without tz → admin-entered in Chile time
                     d = d.replace(tzinfo=ZoneInfo("America/Santiago"))
                 return d
             except Exception:
                 return None
         if isinstance(dt, datetime):
             if dt.tzinfo is None:
-                return dt.replace(tzinfo=ZoneInfo("America/Santiago"))
+                # Naive datetime from MongoDB → stored as UTC
+                return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Santiago"))
         return dt
 
     # Parchea fechas de coupon
