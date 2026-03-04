@@ -128,5 +128,7 @@
   "require_job_position_detail": "Requer posição: {{position}}",
   "require_job_both": "Requer seção {{section}} e posição {{position}}",
   "not_employee": "Esta promoção é apenas para funcionários",
-  "employee_inactive": "Sua ficha de funcionário não está ativa"
+  "employee_inactive": "Sua ficha de funcionário não está ativa",
+  "create_wallet_cta": "Criar Minha Wallet",
+  "create_wallet_hint": "Para resgatar esta promoção você precisa de uma wallet. Crie uma em um segundo e comece a resgatar seus benefícios!"
 }

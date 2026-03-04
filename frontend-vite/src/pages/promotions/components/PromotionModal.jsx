@@ -12,7 +12,8 @@ import {
   FaTrophy,
   FaCheckCircle,
   FaClock,
-  FaFire
+  FaFire,
+  FaPlusCircle
 } from 'react-icons/fa';
 import RuleRequirement from './RuleRequirement';
 import CountdownTimer from './CountdownTimer';
@@ -65,7 +66,12 @@ const PromotionModal = ({
   }
 
   // --- Early Returns ---
-  if (!appState?.account || !appState?.token) {
+  // Only block fully unauthenticated users (no token at all).
+  // Authenticated users without a wallet will see the modal with a "Create Wallet" CTA.
+  const isAuthenticated = Boolean(appState?.token || appState?.isAuthenticated);
+  const hasWallet = Boolean(appState?.account);
+
+  if (!isAuthenticated) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
         <div className="bg-light-surface dark:bg-dark-surface p-8 rounded-2xl shadow-neon text-center">
@@ -414,7 +420,7 @@ const PromotionModal = ({
 
         {/* STICKY FOOTER ACTION */}
         <div className="p-6 pt-4 bg-light-surface/90 dark:bg-dark-surface/90 backdrop-blur-lg border-t border-light-border/10 dark:border-dark-border/10 z-30">
-          {!account ? (
+          {!isAuthenticated ? (
             <button
               className="w-full py-4 rounded-xl bg-light-text-primary dark:bg-white text-light-surface dark:text-black font-bold text-lg flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
               onClick={() => appState?.connectWallet?.()}
@@ -422,6 +428,32 @@ const PromotionModal = ({
               <FaWallet />
               {safeT('wallet.connect')}
             </button>
+          ) : !hasWallet ? (
+            /* Authenticated but no wallet — CTA to create wallet */
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-light-accent/10 dark:bg-dark-accent/10 border border-light-accent/20 dark:border-dark-accent/20">
+                <div className="p-2 rounded-full bg-light-accent/20 dark:bg-dark-accent/20 text-light-accent dark:text-dark-accent animate-pulse">
+                  <FaWallet size={16} />
+                </div>
+                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary leading-snug flex-1">
+                  {safeT('promotion-front.create_wallet_hint')}
+                </p>
+              </div>
+              <button
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-light-accent to-dark-accent text-white font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-light-accent/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                onClick={async () => {
+                  try {
+                    await appState?.createWalletOnDemand?.();
+                    appState?.openWalletModal?.();
+                  } catch (e) {
+                    console.error('Error creating wallet:', e);
+                  }
+                }}
+              >
+                <FaPlusCircle />
+                {safeT('promotion-front.create_wallet_cta')}
+              </button>
+            </div>
           ) : (
             <button
               className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg transition-all

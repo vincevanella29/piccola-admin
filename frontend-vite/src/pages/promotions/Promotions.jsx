@@ -78,20 +78,20 @@ const SegmentedTab = ({ activeTab, setActiveTab, t, badgeCount }) => {
 const Promotions = ({ appState }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  
+
   // Hooks Data
-  const { 
-    promotions, 
-    myCoupons, 
-    totalCoupons, 
-    isLoading, 
+  const {
+    promotions,
+    myCoupons,
+    totalCoupons,
+    isLoading,
     isLoadingCoupons,
     refreshBurnBalance,
-    fetchPromos, 
-    fetchMyCoupons, 
-    claim, 
-    burn, 
-    burnBalances, 
+    fetchPromos,
+    fetchMyCoupons,
+    claim,
+    burn,
+    burnBalances,
     tokenBalances,
     meritSegments,
     meritBalances,
@@ -137,12 +137,12 @@ const Promotions = ({ appState }) => {
     // Para brevedad en el refactoring visual, asumimos que esta función existe y funciona igual.
     // Usaré una versión simplificada aquí solo para que el código compile y muestre el UI, 
     // PERO DEBES PEGAR TU LÓGICA ORIGINAL COMPLETA AQUÍ PARA MANTENER LA FUNCIONALIDAD DE CUMPLEAÑOS.
-    
+
     // --- SIMPLIFICACIÓN PARA UI (Rellena con tu lógica original) ---
     let isValid = coupon.status === 'claimed';
     let countdownTarget = null;
     let expirationTarget = null;
-    
+
     if (validity.valid_until && new Date(validity.valid_until) < now) isValid = false;
     // -------------------------------------------------------------
 
@@ -173,7 +173,7 @@ const Promotions = ({ appState }) => {
 
   // Handler Helpers
   const handleOpenPromoModal = (promo) => {
-    if (!appState?.account) return alert(t('wallet.connect_wallet'));
+    if (!appState?.isAuthenticated) return alert(t('wallet.connect_wallet'));
     setSelectedPromoId(promo.id);
   };
 
@@ -204,12 +204,12 @@ const Promotions = ({ appState }) => {
       {/* 1. HEADER SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div className="w-full md:w-auto">
-           <h1 className="text-3xl font-futurist font-bold text-light-text-primary dark:text-dark-text-primary flex items-center gap-2">
-             <FaGift className="text-matrix-green" /> {t('promotion-front.title')}
-           </h1>
-           <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
-             {t('promotion-front.subtitle')}
-           </p>
+          <h1 className="text-3xl font-futurist font-bold text-light-text-primary dark:text-dark-text-primary flex items-center gap-2">
+            <FaGift className="text-matrix-green" /> {t('promotion-front.title')}
+          </h1>
+          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+            {t('promotion-front.subtitle')}
+          </p>
         </div>
         <button
           onClick={() => navigate('/app/club/bobeda-familiar')}
@@ -228,26 +228,26 @@ const Promotions = ({ appState }) => {
             exit={{ opacity: 0, y: -20, height: 0 }}
             className="mb-6"
           >
-            <div 
+            <div
               onClick={() => setActiveTab('coupons')}
               className="relative overflow-hidden bg-gradient-to-r from-matrix-green to-vanellix-cyan p-0.5 rounded-2xl cursor-pointer group shadow-neon"
             >
               <div className="bg-light-surface dark:bg-dark-surface rounded-[14px] p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                   <div className="bg-matrix-green/10 text-matrix-green p-3 rounded-full animate-pulse">
-                      <FaTicketAlt size={20} />
-                   </div>
-                   <div>
-                      <h4 className="font-bold text-lg text-light-text-primary dark:text-dark-text-primary leading-tight">
-                        {t('promotion-front.alert_active_coupons_title', { count: activeCouponsList.length })}
-                      </h4>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-                        {t('promotion-front.alert_active_coupons_desc')}
-                      </p>
-                   </div>
+                  <div className="bg-matrix-green/10 text-matrix-green p-3 rounded-full animate-pulse">
+                    <FaTicketAlt size={20} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg text-light-text-primary dark:text-dark-text-primary leading-tight">
+                      {t('promotion-front.alert_active_coupons_title', { count: activeCouponsList.length })}
+                    </h4>
+                    <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                      {t('promotion-front.alert_active_coupons_desc')}
+                    </p>
+                  </div>
                 </div>
                 <div className="bg-light-surface-secondary dark:bg-dark-surface-secondary p-2 rounded-full text-light-text-primary dark:text-dark-text-primary group-hover:bg-matrix-green group-hover:text-white transition-colors">
-                   <FaArrowRight />
+                  <FaArrowRight />
                 </div>
               </div>
             </div>
@@ -256,11 +256,11 @@ const Promotions = ({ appState }) => {
       </AnimatePresence>
 
       {/* 3. TABS */}
-      <SegmentedTab 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        t={t} 
-        badgeCount={activeCouponsList.length} 
+      <SegmentedTab
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        t={t}
+        badgeCount={activeCouponsList.length}
       />
 
       {/* 4. CONTENT AREA */}
@@ -273,31 +273,31 @@ const Promotions = ({ appState }) => {
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.3 }}
           >
-             {isLoading ? (
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {[1,2,3,4,5,6].map(i => (
-                   <div key={i} className="h-64 bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/20 rounded-2xl animate-pulse" />
-                 ))}
-               </div>
-             ) : (
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {promotions.map((promo) => (
-                    <PromotionCard
-                      key={promo.id}
-                      promo={promo}
-                      account={appState.account}
-                      onOpenModal={() => handleOpenPromoModal(promo)}
-                      t={t}
-                      profile={appState.profile}
-                      appState={appState}
-                      burnBalances={burnBalances}
-                      tokenBalances={tokenBalances}
-                      meritSegments={meritSegments}
-                      meritBalances={meritBalances}
-                    />
-                 ))}
-               </div>
-             )}
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} className="h-64 bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/20 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {promotions.map((promo) => (
+                  <PromotionCard
+                    key={promo.id}
+                    promo={promo}
+                    account={appState.account}
+                    onOpenModal={() => handleOpenPromoModal(promo)}
+                    t={t}
+                    profile={appState.profile}
+                    appState={appState}
+                    burnBalances={burnBalances}
+                    tokenBalances={tokenBalances}
+                    meritSegments={meritSegments}
+                    meritBalances={meritBalances}
+                  />
+                ))}
+              </div>
+            )}
           </motion.div>
         ) : (
           <motion.div
@@ -307,98 +307,98 @@ const Promotions = ({ appState }) => {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.3 }}
           >
-             {/* Sub-Tabs for Coupons */}
-             <div className="flex gap-2 overflow-x-auto pb-2 mb-4 no-scrollbar">
-                {[
-                  { id: 'active', label: t('promotion-front.active_coupons'), count: activeCouponsList.length },
-                  { id: 'future', label: t('promotion-front.future_coupons'), count: futureCouponsList.length },
-                  { id: 'past', label: t('promotion-front.past_coupons'), count: pastCouponsList.length }
-                ].map((subTab) => (
-                  <button
-                    key={subTab.id}
-                    onClick={() => setActiveCouponTab(subTab.id)}
-                    className={`
+            {/* Sub-Tabs for Coupons */}
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-4 no-scrollbar">
+              {[
+                { id: 'active', label: t('promotion-front.active_coupons'), count: activeCouponsList.length },
+                { id: 'future', label: t('promotion-front.future_coupons'), count: futureCouponsList.length },
+                { id: 'past', label: t('promotion-front.past_coupons'), count: pastCouponsList.length }
+              ].map((subTab) => (
+                <button
+                  key={subTab.id}
+                  onClick={() => setActiveCouponTab(subTab.id)}
+                  className={`
                       px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-all flex items-center gap-2
                       ${activeCouponTab === subTab.id
-                        ? 'bg-light-text-primary dark:bg-white text-light-surface dark:text-black shadow-md transform scale-105' 
-                        : 'bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary'
-                      }
+                      ? 'bg-light-text-primary dark:bg-white text-light-surface dark:text-black shadow-md transform scale-105'
+                      : 'bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary'
+                    }
                     `}
-                  >
-                    {subTab.label}
-                    {subTab.count > 0 && (
-                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeCouponTab === subTab.id ? 'bg-black/10 dark:bg-black/10' : 'bg-black/5 dark:bg-white/10'}`}>
-                        {subTab.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-             </div>
+                >
+                  {subTab.label}
+                  {subTab.count > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeCouponTab === subTab.id ? 'bg-black/10 dark:bg-black/10' : 'bg-black/5 dark:bg-white/10'}`}>
+                      {subTab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
 
-             {isLoadingCoupons ? (
-                <div className="text-center py-20 text-light-text-secondary animate-pulse">{t('promotion-front.loading')}</div>
-             ) : getCurrentCoupons().length === 0 ? (
-                <div className="text-center py-20 border-2 border-dashed border-light-border/20 dark:border-dark-border/20 rounded-2xl bg-light-surface/30 dark:bg-dark-surface/30">
-                   <div className="bg-light-surface-secondary dark:bg-dark-surface-secondary p-4 rounded-full w-20 h-20 mx-auto flex items-center justify-center mb-4 text-light-text-tertiary dark:text-dark-text-tertiary">
-                      <FaTicketAlt size={32} />
-                   </div>
-                   <h3 className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary">{t('promotion-front.no_coupons_title')}</h3>
-                   <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1 max-w-xs mx-auto">
-                     {activeCouponTab === 'active' 
-                       ? t('promotion-front.no_coupons_active_desc') 
-                       : t('promotion-front.no_coupons_history_desc')}
-                   </p>
-                   {activeCouponTab === 'active' && (
-                    <button onClick={() => setActiveTab('promotions')} className="mt-6 px-6 py-2 bg-matrix-green text-white rounded-lg font-bold hover:bg-matrix-green/90 transition-colors shadow-neon">
-                       {t('promotion-front.go_to_promotions')}
-                    </button>
-                   )}
+            {isLoadingCoupons ? (
+              <div className="text-center py-20 text-light-text-secondary animate-pulse">{t('promotion-front.loading')}</div>
+            ) : getCurrentCoupons().length === 0 ? (
+              <div className="text-center py-20 border-2 border-dashed border-light-border/20 dark:border-dark-border/20 rounded-2xl bg-light-surface/30 dark:bg-dark-surface/30">
+                <div className="bg-light-surface-secondary dark:bg-dark-surface-secondary p-4 rounded-full w-20 h-20 mx-auto flex items-center justify-center mb-4 text-light-text-tertiary dark:text-dark-text-tertiary">
+                  <FaTicketAlt size={32} />
                 </div>
-             ) : (
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {getCurrentCoupons().map((coupon) => {
-                    const info = validityInfos[coupon.coupon_code];
-                    const targetDate = activeCouponTab === 'past' ? null : (activeCouponTab === 'active' ? info.expirationTarget : info.countdownTarget);
-                    const isCountdown = activeCouponTab === 'future';
-                    let statusText;
-                    if (activeCouponTab === 'active') statusText = 'active';
-                    else if (activeCouponTab === 'future') statusText = 'upcoming';
-                    else statusText = coupon.status === 'redeemed' ? 'redeemed' : 'expired';
+                <h3 className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary">{t('promotion-front.no_coupons_title')}</h3>
+                <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1 max-w-xs mx-auto">
+                  {activeCouponTab === 'active'
+                    ? t('promotion-front.no_coupons_active_desc')
+                    : t('promotion-front.no_coupons_history_desc')}
+                </p>
+                {activeCouponTab === 'active' && (
+                  <button onClick={() => setActiveTab('promotions')} className="mt-6 px-6 py-2 bg-matrix-green text-white rounded-lg font-bold hover:bg-matrix-green/90 transition-colors shadow-neon">
+                    {t('promotion-front.go_to_promotions')}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {getCurrentCoupons().map((coupon) => {
+                  const info = validityInfos[coupon.coupon_code];
+                  const targetDate = activeCouponTab === 'past' ? null : (activeCouponTab === 'active' ? info.expirationTarget : info.countdownTarget);
+                  const isCountdown = activeCouponTab === 'future';
+                  let statusText;
+                  if (activeCouponTab === 'active') statusText = 'active';
+                  else if (activeCouponTab === 'future') statusText = 'upcoming';
+                  else statusText = coupon.status === 'redeemed' ? 'redeemed' : 'expired';
 
-                    return (
-                      <CouponCard 
-                        key={coupon.coupon_code} 
-                        coupon={coupon} 
-                        t={t} 
-                        onOpenModal={() => setSelectedCoupon(coupon)}
-                        statusText={statusText}
-                        targetDate={targetDate}
-                        isCountdown={isCountdown}
-                      />
-                    );
-                 })}
-               </div>
-             )}
-             
-             {/* Pagination (kept simple) */}
-             {totalCoupons > limit && (
-                <div className="flex justify-center mt-8 gap-4">
-                  <button
-                    onClick={() => setCouponPage(p => Math.max(1, p - 1))}
-                    disabled={couponPage === 1}
-                    className="px-4 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-lg disabled:opacity-50"
-                  >
-                    {t('promotion-front.previous_page')}
-                  </button>
-                  <button
-                    onClick={() => setCouponPage(p => Math.min(totalCouponPages, p + 1))}
-                    disabled={couponPage === totalCouponPages}
-                    className="px-4 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-lg disabled:opacity-50"
-                  >
-                    {t('promotion-front.next_page')}
-                  </button>
-                </div>
-             )}
+                  return (
+                    <CouponCard
+                      key={coupon.coupon_code}
+                      coupon={coupon}
+                      t={t}
+                      onOpenModal={() => setSelectedCoupon(coupon)}
+                      statusText={statusText}
+                      targetDate={targetDate}
+                      isCountdown={isCountdown}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Pagination (kept simple) */}
+            {totalCoupons > limit && (
+              <div className="flex justify-center mt-8 gap-4">
+                <button
+                  onClick={() => setCouponPage(p => Math.max(1, p - 1))}
+                  disabled={couponPage === 1}
+                  className="px-4 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-lg disabled:opacity-50"
+                >
+                  {t('promotion-front.previous_page')}
+                </button>
+                <button
+                  onClick={() => setCouponPage(p => Math.min(totalCouponPages, p + 1))}
+                  disabled={couponPage === totalCouponPages}
+                  className="px-4 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-lg disabled:opacity-50"
+                >
+                  {t('promotion-front.next_page')}
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -406,28 +406,28 @@ const Promotions = ({ appState }) => {
       {/* MODALS */}
       <AnimatePresence>
         {selectedPromoId && (() => {
-            const latestPromo = promotions.find(p => p.id === selectedPromoId);
-            if (!latestPromo) return null;
-            return (
-              <PromotionModal
-                promo={latestPromo}
-                onClose={() => setSelectedPromoId(null)}
-                onClaim={handleClaim}
-                onBurn={handleBurn}
-                t={t}
-                account={appState.account}
-                appState={appState}
-                open={!!selectedPromoId}
-                refreshBurnBalance={refreshBurnBalance}
-                tokenBalances={tokenBalances}
-                burnBalances={burnBalances}
-                meritSegments={meritSegments}
-                meritBalances={meritBalances}
-                meritos={meritos}
-                segmentMap={segmentMap}
-              />
-            );
-          })()}
+          const latestPromo = promotions.find(p => p.id === selectedPromoId);
+          if (!latestPromo) return null;
+          return (
+            <PromotionModal
+              promo={latestPromo}
+              onClose={() => setSelectedPromoId(null)}
+              onClaim={handleClaim}
+              onBurn={handleBurn}
+              t={t}
+              account={appState.account}
+              appState={appState}
+              open={!!selectedPromoId}
+              refreshBurnBalance={refreshBurnBalance}
+              tokenBalances={tokenBalances}
+              burnBalances={burnBalances}
+              meritSegments={meritSegments}
+              meritBalances={meritBalances}
+              meritos={meritos}
+              segmentMap={segmentMap}
+            />
+          );
+        })()}
         {selectedCoupon && (
           <CouponModal
             coupon={selectedCoupon}

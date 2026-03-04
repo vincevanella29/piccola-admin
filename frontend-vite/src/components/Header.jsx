@@ -20,7 +20,7 @@ const DOCK_GLASS = "backdrop-blur-xl bg-light-surface/85 dark:bg-dark-surface/85
 const DROPDOWN_GLASS = "backdrop-blur-xl bg-light-surface/95 dark:bg-dark-surface/95 border border-light-border dark:border-dark-border shadow-neon";
 
 // --- UTILS ---
-const haptics = (ms = 10) => { try { window?.navigator?.vibrate?.(ms); } catch (_) {} };
+const haptics = (ms = 10) => { try { window?.navigator?.vibrate?.(ms); } catch (_) { } };
 
 const Chip = ({ children }) => (
   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border border-light-border dark:border-dark-border bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wide">
@@ -51,7 +51,7 @@ const Toast = ({ open, onClose, children }) => (
       >
         <div className="pointer-events-auto max-w-md w-full rounded-2xl border border-light-border dark:border-dark-border bg-light-surface/90 dark:bg-dark-surface/90 backdrop-blur-md shadow-2xl px-4 py-3 flex items-center gap-3">
           <div className="p-2 rounded-full bg-light-accent/10 dark:bg-dark-accent/10 text-light-accent dark:text-dark-accent">
-             <Sparkles size={16} />
+            <Sparkles size={16} />
           </div>
           <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary flex-1">{children}</div>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-light-text-secondary">✕</button>
@@ -143,7 +143,7 @@ const CommandOverlay = ({ open, onClose, searchConfig, onNavigate }) => {
                           <div className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary truncate">{item.description}</div>
                         </div>
                         <div className="opacity-0 group-hover:opacity-100 text-light-text-tertiary transition-opacity">
-                           <Icons.FaChevronRight size={12} />
+                          <Icons.FaChevronRight size={12} />
                         </div>
                       </button>
                     );
@@ -170,12 +170,12 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
       {open && (
         <>
           {/* Backdrop */}
-          <motion.div 
-             className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm" 
-             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
-             onClick={onClose} 
+          <motion.div
+            className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
           />
-          
+
           {/* Container para centrar */}
           <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 pointer-events-none">
             <motion.div
@@ -187,7 +187,7 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
             >
               {/* Handle superior */}
               <div className="flex justify-center pt-3 pb-1 shrink-0 cursor-pointer" onClick={onClose}>
-                 <div className="w-12 h-1.5 rounded-full bg-light-border/50 dark:bg-dark-border/50" />
+                <div className="w-12 h-1.5 rounded-full bg-light-border/50 dark:bg-dark-border/50" />
               </div>
 
 
@@ -196,87 +196,111 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
                 {/* Header Profile */}
                 <div className="flex items-center gap-4 mb-6">
                   <div className="p-1 rounded-full border border-light-accent/30 dark:border-dark-accent/30">
-                     <Avatar url={profile?.profile_image_url} size={56} />
+                    <Avatar url={profile?.profile_image_url} size={56} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary truncate">
                       {profile?.name || (account ? 'Usuario' : t('header.no_wallet'))}
                     </div>
-                    {account && (
+                    {account ? (
                       <button onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent transition-colors">
-                        <span className="font-mono bg-light-surface-secondary dark:bg-dark-surface-secondary px-2 py-0.5 rounded-md">{account.slice(0,6)}...{account.slice(-4)}</span>
+                        <span className="font-mono bg-light-surface-secondary dark:bg-dark-surface-secondary px-2 py-0.5 rounded-md">{account.slice(0, 6)}...{account.slice(-4)}</span>
                         <Copy size={12} />
                       </button>
+                    ) : isAuthenticated ? (
+                      <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                        {t('header.wallet_not_created', 'Sin wallet — créala para acceder a todo')}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Create Wallet CTA — shown when authenticated but no wallet */}
+                {isAuthenticated && !account ? (
+                  <div className="mb-6 p-5 rounded-3xl bg-gradient-to-br from-light-accent/10 to-dark-accent/10 border border-light-accent/20 dark:border-dark-accent/20 flex flex-col items-center gap-4">
+                    <div className="p-4 rounded-full bg-light-accent/20 dark:bg-dark-accent/20 text-light-accent dark:text-dark-accent animate-pulse">
+                      <Wallet size={32} />
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-base font-bold text-light-text-primary dark:text-dark-text-primary mb-1">
+                        {t('header.create_wallet_title', '¡Crea tu Wallet!')}
+                      </h3>
+                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary leading-relaxed max-w-[260px]">
+                        {t('header.create_wallet_desc', 'Tu wallet te permite canjear promociones, recibir recompensas y acceder a todos los beneficios.')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { onViewWallet(); haptics(); }}
+                      className="w-full py-3.5 rounded-xl bg-light-accent dark:bg-dark-accent text-white font-bold text-sm shadow-lg shadow-light-accent/30 dark:shadow-dark-accent/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    >
+                      <Sparkles size={16} />
+                      {t('header.create_wallet_btn', 'Crear Mi Wallet')}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Action Grid — only when wallet exists */}
+                    <div className="grid grid-cols-3 gap-3 mb-6">
+                      <button onClick={() => { onViewWallet(); haptics(); }} className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all">
+                        <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Eye size={20} /></div>
+                        <span className="text-[10px] font-bold uppercase tracking-wide">
+                          {t('header.view_wallet', 'Ver')}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => { navigator.clipboard?.writeText(account); haptics(); }}
+                        className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all"
+                      >
+                        <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Copy size={20} /></div>
+                        <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.copy_address', 'Copiar')}</span>
+                      </button>
+                      <button
+                        onClick={() => { if (navigator.share) navigator.share({ text: account }); haptics(); }}
+                        className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all"
+                      >
+                        <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Share2 size={20} /></div>
+                        <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.share', 'Share')}</span>
+                      </button>
+                    </div>
+
+                    {/* QR Card */}
+                    {account && (
+                      <div className="mb-5 p-4 rounded-3xl bg-light-surface-secondary/30 dark:bg-black/20 border border-light-border/50 dark:border-dark-border/50 flex items-center gap-4">
+                        <div className="bg-white p-2 rounded-xl shadow-sm shrink-0">
+                          <QRCode value={account} size={70} level="M" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary font-medium uppercase tracking-wide mb-1">Balance</div>
+                          <div className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary truncate">
+                            {balancesLoading ? '...' : `${parseFloat(nativeBalance || 0).toFixed(4)} ${nativeSymbol}`}
+                          </div>
+                          <div className="text-[10px] text-light-text-secondary mt-1 flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Chain ID: {chainId || 'N/A'}
+                          </div>
+                        </div>
+                      </div>
                     )}
-                  </div>
-                </div>
-
-
-                {/* Action Grid */}
-                <div className="grid grid-cols-3 gap-3 mb-6">
-                  <button onClick={() => { onViewWallet(); haptics(); }} className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all">
-                    <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Eye size={20} /></div>
-                    <span className="text-[10px] font-bold uppercase tracking-wide">
-                      {account
-                        ? t('header.view_wallet', 'Ver')
-                        : t('header.create_wallet', 'Conectar Wallet')}
-                    </span>
-                  </button>
-                  <button 
-                     disabled={!account}
-                     onClick={() => { navigator.clipboard?.writeText(account); haptics(); }} 
-                     className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all disabled:opacity-50"
-                  >
-                    <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Copy size={20} /></div>
-                    <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.copy_address', 'Copiar')}</span>
-                  </button>
-                  <button 
-                     disabled={!account}
-                     onClick={() => { if(navigator.share) navigator.share({text: account}); haptics(); }}
-                     className="group flex flex-col items-center gap-2 p-3 rounded-2xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-accent hover:text-white dark:hover:bg-dark-accent transition-all disabled:opacity-50"
-                  >
-                    <div className="p-2 rounded-full bg-white/10 group-hover:bg-white/20"><Share2 size={20} /></div>
-                    <span className="text-[10px] font-bold uppercase tracking-wide">{t('wallet.share', 'Share')}</span>
-                  </button>
-                </div>
-
-
-                {/* QR Card */}
-                {account && (
-                  <div className="mb-5 p-4 rounded-3xl bg-light-surface-secondary/30 dark:bg-black/20 border border-light-border/50 dark:border-dark-border/50 flex items-center gap-4">
-                    <div className="bg-white p-2 rounded-xl shadow-sm shrink-0">
-                      <QRCode value={account} size={70} level="M" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                       <div className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary font-medium uppercase tracking-wide mb-1">Balance</div>
-                       <div className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary truncate">
-                          {balancesLoading ? '...' : `${parseFloat(nativeBalance || 0).toFixed(4)} ${nativeSymbol}`}
-                       </div>
-                       <div className="text-[10px] text-light-text-secondary mt-1 flex items-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> Chain ID: {chainId || 'N/A'}
-                       </div>
-                    </div>
-                  </div>
+                  </>
                 )}
 
 
                 {/* Menu Items (scrollables) */}
                 <div className="space-y-1">
-                   {menuItems.map((item) => {
-                      const Icon = Icons[item.icon] || Icons.FaCircle;
-                      const click = () => {
-                         haptics();
-                         if (item.isExternal) window.open(item.fullPath, item.newTab ? '_blank' : '_self');
-                         else { onClose(); item.__navigate?.(item.fullPath); }
-                      };
-                      return (
-                         <button key={item.fullPath} onClick={click} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary transition-colors">
-                            <Icon size={16} />
-                            <span className="flex-1 text-left">{item.label}</span>
-                            <Icons.FaChevronRight size={10} className="opacity-50" />
-                         </button>
-                      )
-                   })}
+                  {menuItems.map((item) => {
+                    const Icon = Icons[item.icon] || Icons.FaCircle;
+                    const click = () => {
+                      haptics();
+                      if (item.isExternal) window.open(item.fullPath, item.newTab ? '_blank' : '_self');
+                      else { onClose(); item.__navigate?.(item.fullPath); }
+                    };
+                    return (
+                      <button key={item.fullPath} onClick={click} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary transition-colors">
+                        <Icon size={16} />
+                        <span className="flex-1 text-left">{item.label}</span>
+                        <Icons.FaChevronRight size={10} className="opacity-50" />
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -325,7 +349,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
   const walletMenuConfig = useMemo(() => getWalletMenuConfig(appState.roleLevel, t), [appState.roleLevel, t]);
   const searchConfig = useMemo(() => getSearchConfig(appState.roleLevel, t), [appState.roleLevel, t]);
   const profile = appState?.profile;
-  
+
   // Kiosk Logic (para ocultar boton sidebar si es desktop)
   const isHorizontal = appState?.media?.orientationLogical === 'horizontal';
   const isKiosk = !!appState?.media?.isKiosk;
@@ -336,7 +360,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
   const onViewWallet = async () => {
     setWalletOpen(false);
     if (!appState?.account) {
-      try { await appState?.createWalletOnDemand?.(); } 
+      try { await appState?.createWalletOnDemand?.(); }
       finally { if (appState?.account) openWalletModal(); }
       return;
     }
@@ -350,7 +374,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
     const b = new Date(profile.birthdate);
     return today.getMonth() === b.getMonth() && today.getDate() === b.getDate();
   };
-  
+
   // Toast Birthday Effect
   useEffect(() => {
     if (isBirthday()) {
@@ -378,118 +402,118 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
     <>
       {/* --- HEADER FIXED CONTAINER (sin fondo propio, deja ver el del wrapper) --- */}
       <header className="fixed top-0 left-0 right-0 h-24 z-[50] pointer-events-none flex justify-center px-4">
-        
+
         <Toast open={toastOpen} onClose={() => setToastOpen(false)}>
-           🎉 ¡Feliz cumpleaños{profile?.name ? `, ${profile.name}` : ''}!
+          🎉 ¡Feliz cumpleaños{profile?.name ? `, ${profile.name}` : ''}!
         </Toast>
 
         {/* --- DOCK FLOTANTE REAL --- */}
-        <motion.div 
+        <motion.div
           initial={{ y: -100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 280, damping: 25 }}
           className={`pointer-events-auto mt-4 w-full max-w-7xl h-16 rounded-2xl flex items-center justify-between px-4 sm:px-6 ${DOCK_GLASS}`}
         >
-          
+
           {/* LEFT: Menu & Brand */}
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => { toggleSidebar(); haptics(); }}
               className={`${forceDesktopSidebar ? 'hidden' : 'lg:hidden'} p-2 rounded-xl text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-all active:scale-95`}
             >
               {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            
+
             <Link to="/" className="flex items-center gap-3 group" onClick={() => haptics()}>
-               {/* Reemplaza PiccolaIcon por tu SVG o componente */}
-               <PiccolaIcon className="h-8 w-auto drop-shadow-md group-hover:scale-105 transition-transform" />
-               <div className="hidden md:flex flex-col leading-none">
-                   {/* Opcional: Nombre de la app o versión */}
-               </div>
+              {/* Reemplaza PiccolaIcon por tu SVG o componente */}
+              <PiccolaIcon className="h-8 w-auto drop-shadow-md group-hover:scale-105 transition-transform" />
+              <div className="hidden md:flex flex-col leading-none">
+                {/* Opcional: Nombre de la app o versión */}
+              </div>
             </Link>
           </div>
 
           {/* CENTER: Navigation Pills (Desktop) */}
           <nav className="hidden lg:flex items-center gap-1">
-             {headerConfig.map((item) => {
-               const Icon = Icons[item.icon] || Icons.FaCircle;
-               return (
-                 <NavLink
-                   key={item.fullPath}
-                   to={item.fullPath}
-                   className={({ isActive }) => `
+            {headerConfig.map((item) => {
+              const Icon = Icons[item.icon] || Icons.FaCircle;
+              return (
+                <NavLink
+                  key={item.fullPath}
+                  to={item.fullPath}
+                  className={({ isActive }) => `
                      relative px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide transition-all duration-300 flex items-center gap-2
-                     ${isActive 
-                       ? 'text-light-text-primary dark:text-dark-text-primary bg-light-surface-secondary dark:bg-white/10 shadow-sm scale-105' 
-                       : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary hover:bg-light-surface-secondary/50 dark:hover:bg-white/5'}
+                     ${isActive
+                      ? 'text-light-text-primary dark:text-dark-text-primary bg-light-surface-secondary dark:bg-white/10 shadow-sm scale-105'
+                      : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary hover:bg-light-surface-secondary/50 dark:hover:bg-white/5'}
                    `}
-                 >
-                   <Icon size={12} />
-                   {item.label}
-                 </NavLink>
-               );
-             })}
+                >
+                  <Icon size={12} />
+                  {item.label}
+                </NavLink>
+              );
+            })}
           </nav>
 
           {/* RIGHT: Search & Wallet/Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
-             
-             {/* Search Trigger */}
-             <button 
-                onClick={() => { setCmdOpen(true); haptics(); }}
-                className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-all hover:text-light-accent dark:hover:text-dark-accent"
-                title="Buscar (Ctrl+K)"
-             >
-                <Search size={20} />
-             </button>
 
-             <div className="w-[1px] h-6 bg-light-border dark:bg-dark-border mx-1 hidden sm:block opacity-50" />
+            {/* Search Trigger */}
+            <button
+              onClick={() => { setCmdOpen(true); haptics(); }}
+              className="p-2 rounded-full text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-all hover:text-light-accent dark:hover:text-dark-accent"
+              title="Buscar (Ctrl+K)"
+            >
+              <Search size={20} />
+            </button>
 
-             {/* Wallet / Profile Button */}
-             {!appState?.isWalletDataReady ? (
-               <div className="h-9 w-24 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-full animate-pulse" />
-             ) : appState?.isAuthenticated ? (
-                <button 
-                  onClick={() => { setWalletOpen(true); haptics(); }}
-                  className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition-all duration-300 group
-                    ${walletOpen 
-                      ? 'bg-light-accent/10 border-light-accent dark:bg-dark-accent/10 dark:border-dark-accent' 
-                      : 'bg-transparent border-transparent hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary'}
+            <div className="w-[1px] h-6 bg-light-border dark:bg-dark-border mx-1 hidden sm:block opacity-50" />
+
+            {/* Wallet / Profile Button */}
+            {!appState?.isWalletDataReady ? (
+              <div className="h-9 w-24 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded-full animate-pulse" />
+            ) : appState?.isAuthenticated ? (
+              <button
+                onClick={() => { setWalletOpen(true); haptics(); }}
+                className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition-all duration-300 group
+                    ${walletOpen
+                    ? 'bg-light-accent/10 border-light-accent dark:bg-dark-accent/10 dark:border-dark-accent'
+                    : 'bg-transparent border-transparent hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary'}
                   `}
-                >
-                   <Avatar url={profile?.profile_image_url} size={32} />
-                   <div className="hidden sm:block text-left">
-                      <div className="text-xs font-bold text-light-text-primary dark:text-dark-text-primary truncate max-w-[100px]">
-                         {profile?.name || account?.slice(0,8) || 'Usuario'}
-                      </div>
-                      {isBirthday() && <div className="text-[9px] text-light-accent dark:text-dark-accent leading-none">🎂 Cumpleaños</div>}
-                   </div>
-                   <ChevronDown size={14} className="text-light-text-tertiary group-hover:text-light-text-primary dark:group-hover:text-dark-text-primary transition-colors" />
-                </button>
-             ) : (
-                <button 
-                   onClick={() => { handleLogin(); haptics(); }} 
-                   disabled={isConnecting}
-                   className="flex items-center gap-2 px-4 py-2 rounded-full bg-light-accent dark:bg-dark-accent text-white font-bold text-xs shadow-lg shadow-light-accent/20 hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
-                >
-                   {isConnecting ? <Icons.FaSpinner className="animate-spin" /> : <Wallet size={16} />}
-                   <span>{isConnecting ? 'Conectando...' : t('header.connect_wallet', 'Wallet')}</span>
-                </button>
-             )}
+              >
+                <Avatar url={profile?.profile_image_url} size={32} />
+                <div className="hidden sm:block text-left">
+                  <div className="text-xs font-bold text-light-text-primary dark:text-dark-text-primary truncate max-w-[100px]">
+                    {profile?.name || account?.slice(0, 8) || 'Usuario'}
+                  </div>
+                  {isBirthday() && <div className="text-[9px] text-light-accent dark:text-dark-accent leading-none">🎂 Cumpleaños</div>}
+                </div>
+                <ChevronDown size={14} className="text-light-text-tertiary group-hover:text-light-text-primary dark:group-hover:text-dark-text-primary transition-colors" />
+              </button>
+            ) : (
+              <button
+                onClick={() => { handleLogin(); haptics(); }}
+                disabled={isConnecting}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-light-accent dark:bg-dark-accent text-white font-bold text-xs shadow-lg shadow-light-accent/20 hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
+              >
+                {isConnecting ? <Icons.FaSpinner className="animate-spin" /> : <Wallet size={16} />}
+                <span>{isConnecting ? 'Conectando...' : t('header.connect_wallet', 'Wallet')}</span>
+              </button>
+            )}
 
           </div>
-          
+
         </motion.div>
       </header>
 
       {/* Overlays */}
-      <CommandOverlay 
-        open={cmdOpen} 
-        onClose={() => setCmdOpen(false)} 
-        searchConfig={searchConfig} 
-        onNavigate={navigateTo} 
+      <CommandOverlay
+        open={cmdOpen}
+        onClose={() => setCmdOpen(false)}
+        searchConfig={searchConfig}
+        onNavigate={navigateTo}
       />
-      
+
       <WalletSheet
         open={walletOpen}
         onClose={() => setWalletOpen(false)}

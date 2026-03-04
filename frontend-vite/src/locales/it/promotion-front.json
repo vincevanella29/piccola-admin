@@ -128,5 +128,7 @@
   "require_job_position_detail": "Richiede posizione: {{position}}",
   "require_job_both": "Richiede sezione {{section}} e posizione {{position}}",
   "not_employee": "Questa promozione è solo per dipendenti",
-  "employee_inactive": "La tua scheda dipendente non è attiva"
+  "employee_inactive": "La tua scheda dipendente non è attiva",
+  "create_wallet_cta": "Crea il Mio Wallet",
+  "create_wallet_hint": "Per riscattare questa promozione hai bisogno di un wallet. Crealo in un secondo e inizia a riscattare i tuoi benefici!"
 }

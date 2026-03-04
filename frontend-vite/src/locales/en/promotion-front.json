@@ -128,5 +128,7 @@
   "require_job_position_detail": "Requires position: {{position}}",
   "require_job_both": "Requires section {{section}} and position {{position}}",
   "not_employee": "This promotion is for employees only",
-  "employee_inactive": "Your employee record is not active"
+  "employee_inactive": "Your employee record is not active",
+  "create_wallet_cta": "Create My Wallet",
+  "create_wallet_hint": "You need a wallet to claim this promotion. Create one in a second and start redeeming your benefits!"
 }

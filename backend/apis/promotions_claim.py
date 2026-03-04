@@ -156,7 +156,13 @@ async def burn_for_promotion(request: BurnRequest, user: dict = Depends(verify_s
 async def claim_promotion(request: ClaimRequest, user: dict = Depends(verify_session)):
     now = datetime.now(chile_tz)
     try:
-        if user["wallet"].lower() != request.wallet.lower():
+        user_wallet = user.get("wallet")
+        if not user_wallet:
+            raise HTTPException(
+                status_code=400,
+                detail="Se requiere una wallet vinculada para reclamar promociones. Conecta tu wallet primero."
+            )
+        if user_wallet.lower() != request.wallet.lower():
             raise HTTPException(status_code=403, detail="Wallet does not match session")
         wallet = w3.to_checksum_address(request.wallet)
         promotion = db.promotions.find_one({"_id": ObjectId(request.promotion_id)})
@@ -519,7 +525,9 @@ async def get_my_coupons(
     try:
         wallet_raw = user.get("wallet")
         if not isinstance(wallet_raw, str) or not wallet_raw:
-            raise HTTPException(status_code=401, detail="Wallet session required for my coupons")
+            # User authenticated via Privy but has no linked wallet — return empty coupons
+            logger.info(f"[my-coupons] User sub={user.get('sub')} has no wallet, returning empty coupons")
+            return {"coupons": [], "total": 0}
         wallet = wallet_raw.lower()
         q = {"wallet": wallet}
         if status:
@@ -577,6 +585,8 @@ async def get_my_coupons(
             result.append(coupon_data)
         
         return {"coupons": result, "total": total}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching my coupons: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching coupons: {str(e)}")

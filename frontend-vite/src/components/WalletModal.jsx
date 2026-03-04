@@ -53,8 +53,82 @@ const WalletModal = React.memo(({ isOpen, onClose, isPrivyWalletActive, appState
   }, [isOpen, fetchPrices, balancesLoading, tokenAddresses, hasFetchedPrices]);
 
   // Early return after all hooks
-  if (!isOpen || !stableAppState?.isWalletDataReady || !stableAppState?.account) {
+  if (!isOpen || !stableAppState?.isWalletDataReady) {
     return null;
+  }
+
+  // Authenticated but no wallet — show Create Wallet CTA
+  if (!stableAppState?.account) {
+    const isAuthenticated = Boolean(stableAppState?.isAuthenticated || stableAppState?.token);
+    if (!isAuthenticated) return null;
+
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="fixed inset-0 z-50 flex items-center justify-center min-h-screen bg-light-background/95 dark:bg-dark-background/95 backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ scale: 0.95, y: -20, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.95, y: -20, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="relative w-full max-w-[95vw] mx-2 sm:mx-auto lg:w-[400px] flex flex-col items-center rounded-2xl shadow-modal border border-light-border dark:border-dark-border bg-light-background dark:bg-dark-background text-light-text-primary dark:text-dark-text-primary p-8"
+          >
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 rounded-full bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 hover:bg-light-error/20 text-light-text-secondary hover:text-light-error transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+
+            {/* Animated Wallet Icon */}
+            <div className="p-6 rounded-full bg-vanellix-cyan/10 text-vanellix-cyan mb-6">
+              <motion.svg
+                className="w-16 h-16"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-5zm-5 1a1 1 0 100-2 1 1 0 000 2z" />
+              </motion.svg>
+            </div>
+
+            {/* Text */}
+            <h2 className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary mb-2 text-center">
+              {t('wallet.create_title', '¡Crea tu Wallet!')}
+            </h2>
+            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary text-center leading-relaxed mb-8 max-w-[280px]">
+              {t('wallet.create_desc', 'Tu wallet te permite canjear promociones, recibir recompensas y acceder a todos los beneficios del sistema.')}
+            </p>
+
+            {/* CTA Button */}
+            <button
+              onClick={async () => {
+                try {
+                  await stableAppState?.createWalletOnDemand?.();
+                } catch (e) {
+                  console.error('Error creating wallet:', e);
+                }
+              }}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-vanellix-cyan to-matrix-green text-white font-bold text-lg shadow-lg shadow-vanellix-cyan/30 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              {t('wallet.create_btn', 'Crear Mi Wallet')}
+            </button>
+
+            {/* Secondary info */}
+            <p className="text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary mt-4 text-center">
+              {t('wallet.create_info', 'Es gratis e instantáneo. Tu wallet se crea de forma segura.')}
+            </p>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
   }
 
   // Combine tokens with metadata, balances, and prices

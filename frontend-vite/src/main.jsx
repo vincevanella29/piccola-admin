@@ -77,8 +77,8 @@ const MainContent = () => {
   const [language, setLanguage] = useState(i18n.language);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pageLoading, setPageLoading] = useState(false);
-  const [pageLoadingError, setPageLoadingError] = useState('');  
-  
+  const [pageLoadingError, setPageLoadingError] = useState('');
+
   const {
     account,
     profile,
@@ -102,7 +102,9 @@ const MainContent = () => {
     privyWallet,
     ensureCorrectNetwork,
     getSigner,
-    createWalletOnDemand
+    createWalletOnDemand,
+    privySub,
+    hasWallet
   } = useWallet({ provider, chainId, rpcUrl, blockExplorer, setError: globalStatus.setError, setSuccess: globalStatus.setSuccess, setPageLoading, firebase, vapidKey });
 
   // NUEVO: Declarar useAppData para obtener colors y userLevel
@@ -203,6 +205,8 @@ const MainContent = () => {
     isWalletDataReady,
     isAuthenticated,
     createWalletOnDemand,
+    hasWallet,
+    privySub,
     changeLanguage,
     accessToken,
     theme,
@@ -212,7 +216,7 @@ const MainContent = () => {
     provider,
     chainId,
     rpcUrl,
-    blockExplorer,    
+    blockExplorer,
     privyWallet,
     ensureCorrectNetwork,
     getSigner,

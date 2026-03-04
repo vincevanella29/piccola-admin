@@ -6,7 +6,7 @@ import { useSetActiveWallet } from '@privy-io/wagmi';
 import { BrowserProvider, ethers } from 'ethers';
 import appData from '../utils/appData.jsx';
 import { getContractInstance } from '../context/contracts.js';
- 
+
 
 export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, setPageLoading, firebase, vapidKey }) => {
   const { t } = useTranslation();
@@ -33,6 +33,7 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
   const privyWallet = setActiveWallet;
 
   const [account, setAccount] = useState(null);
+  const [privySub, setPrivySub] = useState(null);
   const [profile, setProfile] = useState(null);
   const [permission, setPermission] = useState(null);
   const [allowed, setAllowed] = useState(false);
@@ -126,7 +127,7 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
       // Activar y asegurar red
       const maybeWallet = wallets.find((w) => w.address?.toLowerCase() === newAddress.toLowerCase());
       if (maybeWallet) {
-        try { await setActiveWallet(maybeWallet); } catch {}
+        try { await setActiveWallet(maybeWallet); } catch { }
       }
       await ensureCorrectNetwork(newAddress);
 
@@ -237,7 +238,8 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
           setRoleLevel(res.role_level ?? -1);
           // Identificador lógico: usar sub/id de Privy cuando no hay wallet
           const logicalId = user?.id || user?.userId || null;
-          setAccount(logicalId);
+          setPrivySub(logicalId);
+          setAccount(null);
           setIsAuthenticated(true);
           hasAuthenticatedRef.current = true;
           setIsWalletDataReady(true);
@@ -250,8 +252,8 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
         let notificationToken = null;
         let permissionsGranted = false;
 
-        await appData.loginWithPrivy({ 
-          accessToken, 
+        await appData.loginWithPrivy({
+          accessToken,
           wallet: walletAddress.toLowerCase(),
           notification_token: notificationToken,
           device_type: 'web',
@@ -298,7 +300,8 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
         setIsWalletDataReady(true);
         setIsAuthenticated(true);
         const logicalId = user?.id || user?.userId || null;
-        setAccount(logicalId);
+        setPrivySub(logicalId);
+        setAccount(null);
         return;
       }
 
@@ -343,8 +346,8 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
         let notificationToken = null;
         let permissionsGranted = false;
 
-        await appData.loginWithPrivy({ 
-          accessToken, 
+        await appData.loginWithPrivy({
+          accessToken,
           wallet: walletAddress.toLowerCase(),
           notification_token: notificationToken,
           device_type: 'web',
@@ -495,6 +498,9 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
     }
   }, [logout, disconnect, t]);
 
+  // Helper: is 'account' a real Ethereum address?
+  const hasWallet = Boolean(account && /^0x[0-9a-fA-F]{40}$/.test(account));
+
   const signMessage = useCallback(
     async (message) => {
       if (!address && !user?.wallet?.address) setError(t('wallet.no_address'));
@@ -578,6 +584,8 @@ export const useWallet = ({ provider, chainId, rpcUrl, blockExplorer, setError, 
     ensureCorrectNetwork,
     getSigner, // Nueva función exportada
     createWalletOnDemand,
+    privySub,
+    hasWallet,
   };
 };
 
