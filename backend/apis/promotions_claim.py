@@ -332,7 +332,8 @@ async def get_active_promotions(user: Optional[dict] = Depends(optional_verify_s
                     p[date_field] = val.replace(tzinfo=ZoneInfo("UTC")).astimezone(chile_tz)
             print(f"🔥🔥🔥 [ACTIVE_PROMOS] Validating promo '{p.get('name')}' for wallet={wallet}, employee_scope={employee_scope}")
             logger.info(f"[ACTIVE_PROMOS] Validating promo '{p.get('name')}' for wallet={wallet}, employee_scope={employee_scope}")
-            is_valid, reason = validate_display_rules(p, now, employee_scope)
+            user_role_level = user.get("role_level", -1) if user else -1
+            is_valid, reason = validate_display_rules(p, now, employee_scope, role_level=user_role_level)
             print(f"🔥🔥🔥 [ACTIVE_PROMOS] Result: is_valid={is_valid}, reason='{reason}'")
             logger.info(f"[ACTIVE_PROMOS] Result: is_valid={is_valid}, reason='{reason}'")
             if is_valid:

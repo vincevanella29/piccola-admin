@@ -15,6 +15,7 @@ def validate_display_rules(
     promotion: Dict,
     now: datetime = None,
     employee: Optional[Dict[str, Any]] = None,
+    role_level: int = -1,
 ) -> tuple[bool, str]:
     """Valida reglas de display para una promoción.
 
@@ -69,15 +70,33 @@ def validate_display_rules(
             return False, f"Promotion not valid on excluded date: {current_date}"
 
     # --- Validate meritocracy scope (cargos / secciones) ---
-    # Si la promo tiene reglas MERIT_RULE_FULFILLED y tenemos info del empleado,
-    # revisamos el scope de la regla de gamificación y ocultamos la promo si el
-    # empleado está fuera de ese scope (igual que en mi_meritos).
-    if employee and promotion.get("rules"):
+    # Si la promo tiene reglas que requieren info de empleado, el usuario DEBE
+    # tener employee scope. Si no lo tiene, la promo se oculta.
+    rules = promotion.get("rules") or []
+    employee_required_types = {"merit_rule_fulfilled", "require_job_position"}
+    has_employee_rules = any(r.get("rule_type") in employee_required_types for r in rules)
+
+    if has_employee_rules and not employee:
+        # Super admins (role_level <= 5) can see all promos regardless
+        if isinstance(role_level, int) and role_level >= 0 and role_level <= 5:
+            logger.info(
+                f"[DISPLAY] Admin override (role_level={role_level}) for promo '{promotion.get('name')}': "
+                f"skipping employee scope check"
+            )
+        else:
+            # La promo requiere ser empleado pero no tenemos scope → ocultar
+            logger.info(
+                f"[DISPLAY] Hiding promo '{promotion.get('name')}': "
+                f"requires employee scope but employee=None (user has no wallet or no ficha)"
+            )
+            return False, "Promotion requires employee scope"
+
+    if employee and rules:
         cargo = (employee.get("cargo") or "").strip()
         emp_section_norm = str(employee.get("emp_section_norm") or "").strip().lower()
         print(f"🎯🎯🎯 [DISPLAY] Processing rules for {promotion.get('name')}, cargo='{cargo}', section='{emp_section_norm}'")
 
-        for rule in promotion.get("rules", []):
+        for rule in rules:
             rule_type = rule.get("rule_type")
             
             # Procesar reglas de merit_rule_fulfilled
