@@ -160,6 +160,16 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
             favorite_location = vpn_doc.get("sucursal") or None
             if role_level == -1:
                 role_level = 7
+
+            # 🔄 Sync oportunista: si empleados_usuarios tiene cargo/sección/wallet
+            # desincronizado respecto a trabajadores_vpn, corregirlo ahora.
+            if empleado:
+                try:
+                    from utils.auth.employee_sync import sync_employee_from_vpn_doc
+                    sync_employee_from_vpn_doc(empleado, vpn_doc, target_address, db)
+                except Exception as sync_err:
+                    logger.warning(f"[ROLE_SYNC] Employee sync failed (non-fatal): {sync_err}")
+
         if empleado:
             email = empleado.get("email") or email
 

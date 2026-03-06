@@ -150,11 +150,22 @@ async def login_with_privy(request: Request):
         # Validar wallet
         checksum_wallet = w3.to_checksum_address(wallet)
         
+        # 🔄 SYNC empleados_usuarios: si el empleado se registró con sub (did:privy:...)
+        # y ahora tiene wallet real, actualizarle la wallet + sincronizar cargo/sección
+        # desde trabajadores_vpn (la fuente de verdad de RRHH).
+        wallet_lower = wallet.lower()
+        sub = payload.get("sub")
+        try:
+            from utils.web3mongo import db as _db
+            from utils.auth.employee_sync import sync_employee_link
+            sync_employee_link(sub, wallet_lower, _db)
+        except Exception as sync_err:
+            logger.warning(f"[LOGIN] Employee link sync failed (non-fatal): {sync_err}")
+        
         # 🔑 Compute role + permissions AT LOGIN TIME and cache them in session
         from config.roles.service import get_company_role_level
         from config.roles.access import compute_permissions_for_identity
         
-        wallet_lower = wallet.lower()
         try:
             role_level = get_company_role_level(wallet_lower)
             permissions = compute_permissions_for_identity(wallet_lower)
