@@ -71,11 +71,30 @@ services:
       - URL_PICCOLA=${URL_PICCOLA}
       - DMENU5_API_TOKEN=${DMENU5_API_TOKEN}
       - URL_DMENU5=${URL_DMENU5}
-      # Telegram Bot / xAI (Grok)
+      # Telegram Bot / xAI (Grok) — Chat
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - XAI_API_KEY=${XAI_API_KEY}
-      - XAI_API_URL=${XAI_API_URL}
-      - XAI_MODEL=${XAI_MODEL}
+      - XAI_API_URL=${XAI_API_URL:-https://api.x.ai/v1/chat/completions}
+      - XAI_CHAT_URL=${XAI_CHAT_URL:-https://api.x.ai/v1/chat/completions}
+      - XAI_MODEL=${XAI_MODEL:-grok-2-latest}
+      # xAI (Grok) — AI Imagen & Video
+      - XAI_IMAGE_URL=${XAI_IMAGE_URL:-https://api.x.ai/v1/images/generations}
+      - XAI_IMAGE_EDIT_URL=${XAI_IMAGE_EDIT_URL:-https://api.x.ai/v1/images/edits}
+      - XAI_VIDEO_URL=${XAI_VIDEO_URL:-https://api.x.ai/v1/videos/generations}
+      - XAI_VIDEO_GET_URL=${XAI_VIDEO_GET_URL:-https://api.x.ai/v1/videos}
+      - XAI_VIDEO_POLL_URL=${XAI_VIDEO_POLL_URL:-https://api.x.ai/v1/video/generations}
+      - XAI_VIDEO_POLL_INTERVAL=${XAI_VIDEO_POLL_INTERVAL:-8}
+      - XAI_IMAGE_MODEL_PRO=${XAI_IMAGE_MODEL_PRO:-grok-imagine-image-pro}
+      - XAI_IMAGE_MODEL_STD=${XAI_IMAGE_MODEL_STD:-grok-imagine-image}
+      - XAI_VIDEO_MODEL=${XAI_VIDEO_MODEL:-grok-imagine-video}
+      - AI_IMAGEN_RATE_LIMIT_HOUR=${AI_IMAGEN_RATE_LIMIT_HOUR:-100}
+      - AI_VIDEO_RATE_LIMIT_HOUR=${AI_VIDEO_RATE_LIMIT_HOUR:-20}
+      # Public Catalog
+      - EXTERNAL_CATALOG_API_KEY=${EXTERNAL_CATALOG_API_KEY}
+      # Carta Digital — Sync trigger URLs & key
+      - CARTA_CATALOG_SYNC_URL=${CARTA_CATALOG_SYNC_URL:-https://frontcarta.lapiccolaitalia.cl/api/catalog/sync}
+      - CARTA_BANNERS_SYNC_URL=${CARTA_BANNERS_SYNC_URL:-https://frontcarta.lapiccolaitalia.cl/api/banners/sync}
+      - CARTA_SYNC_API_KEY=${CARTA_SYNC_API_KEY}
       # ONVIF / FFmpeg
       - ONVIF_WSDL_DIR=${ONVIF_WSDL_DIR}
       - ONVIF_PORT=${ONVIF_PORT}
@@ -162,6 +181,8 @@ services:
       - VITE_VAPID_KEY=${VITE_VAPID_KEY}
       - VITE_COMPANY_ID=${VITE_COMPANY_ID}
       - VITE_DRIP_ACCOUNT_ID=${VITE_DRIP_ACCOUNT_ID}
+      # R2 CDN — usado por nginx CSP para permitir imágenes generadas por AI Aurora
+      - R2_CDN_BASE=${R2_CDN_BASE}
     ports:
       - "${FRONTEND_HOST_PORT:-8082}:80"
     depends_on:

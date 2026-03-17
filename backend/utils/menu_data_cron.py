@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 MENU_WORKER_PATH = os.path.join(os.path.dirname(__file__), 'menu_data_worker.py')
 
 async def run_worker():
-    logger.info("[CRON] Ejecutando menu_data_worker.py...")
+    logger.info("[CRON] Sincronizador cron deshabilitado (ya no usa la API antigua).")
+    return
     proc = await asyncio.create_subprocess_exec('python3', MENU_WORKER_PATH)
     await proc.communicate()
     logger.info("[CRON] menu_data_worker.py terminado.")

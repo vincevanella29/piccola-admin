@@ -1,0 +1,30 @@
+{
+  "missing": {
+    "loading": "Caricamento catalogo MTZ…",
+    "error": "Impossibile caricare il catalogo MTZ.",
+    "no_carta": "prodotti non nel menù",
+    "units_3m": "unità (ultimi 3 mesi)",
+    "revenue_3m": "ricavi totali (3 mesi)",
+    "tab_active": "Attivi ({{count}})",
+    "tab_inactive": "Inattivi MTZ ({{count}})",
+    "all_families": "Tutte le famiglie",
+    "sort_units": "Più venduti",
+    "sort_revenue": "Maggiore ricavo",
+    "sort_price": "Prezzo MTZ",
+    "sort_name": "Nome A–Z",
+    "search_placeholder": "Cerca nome, codice, famiglia…",
+    "results": "risultato/i",
+    "products": "prodotti",
+    "no_family": "Senza famiglia",
+    "create": "Crea nel Menù",
+    "deactivate": "Segna inattivo",
+    "activate": "Riattiva",
+    "deactivate_family": "Disattiva famiglia",
+    "activate_family": "Riattiva famiglia",
+    "inactive": "Inattivo",
+    "inactive_desc": "Prodotti e famiglie contrassegnati come inattivi MTZ. Non generano avvisi nella dashboard.",
+    "inactive_warning": "{{count}} prodotto/i inattivo/i con vendite recenti. Valuta se reinserirli nel menù.",
+    "empty": "Nessun prodotto per questo filtro.",
+    "legend": "Barre = unità vendute in {{months}}"
+  }
+}

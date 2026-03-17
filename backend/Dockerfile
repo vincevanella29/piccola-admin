@@ -33,6 +33,10 @@ COPY . .
 # Expone el puerto de FastAPI (uvicorn)
 ENV PORT=8081
 ENV FFMPEG_BIN=/usr/bin/ffmpeg
+# xAI video — poll interval in seconds (overridable at runtime)
+ENV XAI_VIDEO_POLL_INTERVAL=8
+# Public catalog API key (set in .env / docker-compose for production)
+ENV EXTERNAL_CATALOG_API_KEY=""
 EXPOSE $PORT
 
 # Comando por defecto para correr el backend

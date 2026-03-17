@@ -39,6 +39,7 @@ const saveToCache = (data) => {
 const usePromotionsData = (appState) => {
   const [locations, setLocations] = useState([]);
   const [menus, setMenus] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -78,12 +79,16 @@ const usePromotionsData = (appState) => {
             codigo: String(menu.codigo || menu._id),
           })) || [];
 
+      const categoriesData = menusRes.categories || [];
+
       setLocations(locationsData);
       setMenus(menusData);
+      setCategories(categoriesData);
 
       saveToCache({
         locations: locationsData,
         menus: menusData,
+        categories: categoriesData,
       });
     } catch (e) {
       appState.setError(e.message);
@@ -99,6 +104,7 @@ const usePromotionsData = (appState) => {
   return {
     locations,
     menus,
+    categories,
     isLoading,
     error,
     refresh: () => fetchData(true),

@@ -50,12 +50,19 @@ class MenusResponse(BaseModel):
 
 
 class UpdateLocationRequest(BaseModel):
-    # Campos opcionales que se pueden actualizar/agregar
+    # Capacity / layout
     capacidad_personas: Optional[int] = None
     cantidad_mesas: Optional[int] = None
     cantidad_sillas: Optional[int] = None
+    # Descriptive
     descripcion: Optional[str] = None
-    media_urls: Optional[List[str]] = None  # para setear/overwrittear manualmente si se desea
+    commune: Optional[str] = None          # comuna / barrio
+    telephone: Optional[str] = None
+    direccion: Optional[str] = None
+    horario: Optional[str] = None          # "Lun-Dom 12:00–23:00"
+    # Media
+    cover_image_url: Optional[str] = None  # imagen principal del local
+    media_urls: Optional[List[str]] = None
 
 
 class UpdateLocationResponse(BaseModel):
@@ -347,6 +354,72 @@ async def upload_location_photos(location_id: str, files: List[UploadFile] = Fil
     except Exception as e:
         logger.error(f"Unexpected error in upload_location_photos: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error subiendo fotos: {str(e)}")
+
+
+@router.patch("/locations/{location_id}", response_model=UpdateLocationResponse)
+async def update_location(location_id: str, body: UpdateLocationRequest, user: dict = Depends(verify_session)):
+    """
+    Actualiza campos editables de un local (capacidad, comuna, imagen, etc.).
+    Solo persiste los campos que vienen en el body (no sobreescribe los que no se mandan).
+    """
+    require_admin_level(user, "member")
+    try:
+        set_fields = {}
+        if body.capacidad_personas is not None:
+            set_fields["capacidad_personas"] = body.capacidad_personas
+        if body.cantidad_mesas is not None:
+            set_fields["cantidad_mesas"] = body.cantidad_mesas
+        if body.cantidad_sillas is not None:
+            set_fields["cantidad_sillas"] = body.cantidad_sillas
+        if body.descripcion is not None:
+            set_fields["descripcion"] = body.descripcion
+        if body.commune is not None:
+            set_fields["commune"] = body.commune
+        if body.telephone is not None:
+            set_fields["telephone"] = body.telephone
+        if body.direccion is not None:
+            set_fields["direccion"] = body.direccion
+        if body.horario is not None:
+            set_fields["horario"] = body.horario
+        if body.cover_image_url is not None:
+            set_fields["cover_image_url"] = body.cover_image_url
+        if body.media_urls is not None:
+            set_fields["media_urls"] = body.media_urls
+
+        if not set_fields:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        set_fields["updated_at"] = datetime.utcnow().isoformat()
+
+        # Try _id as string first, then ObjectId
+        from bson import ObjectId as _ObjId
+        result = db.locations.find_one_and_update(
+            {"_id": location_id},
+            {"$set": set_fields},
+            return_document=True,
+        )
+        if result is None:
+            # Try ObjectId variant
+            try:
+                result = db.locations.find_one_and_update(
+                    {"_id": _ObjId(location_id)},
+                    {"$set": set_fields},
+                    return_document=True,
+                )
+            except Exception:
+                pass
+
+        if result is None:
+            raise HTTPException(status_code=404, detail="Location not found")
+
+        # Serialize
+        result["_id"] = str(result["_id"])
+        return UpdateLocationResponse(location=result, error=None)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in update_location: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error actualizando local: {str(e)}")
 
 
 @router.get("/menus_recipes", response_model=MenusResponse)

@@ -460,7 +460,8 @@ def upsert_data():
         raise
 
 def run_worker():
-    logger.info("Starting menu data worker...")
+    logger.info("El sincronizador automático del antiguo menú público ha sido deshabilitado porque ahora se utiliza la Carta Admin interactiva.")
+    return
     try:
         upsert_data()
         logger.info("Menu data worker finished successfully.")

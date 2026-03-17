@@ -1,0 +1,30 @@
+{
+  "missing": {
+    "loading": "Consultando catálogo MTZ…",
+    "error": "Não foi possível carregar o catálogo MTZ.",
+    "no_carta": "produtos fora do cardápio",
+    "units_3m": "unidades (últimos 3 meses)",
+    "revenue_3m": "receita total (3 meses)",
+    "tab_active": "Ativos ({{count}})",
+    "tab_inactive": "Inativos MTZ ({{count}})",
+    "all_families": "Todas as famílias",
+    "sort_units": "Mais vendidos",
+    "sort_revenue": "Maior receita",
+    "sort_price": "Preço MTZ",
+    "sort_name": "Nome A–Z",
+    "search_placeholder": "Buscar nome, código, família…",
+    "results": "resultado(s)",
+    "products": "produtos",
+    "no_family": "Sem família",
+    "create": "Criar no Cardápio",
+    "deactivate": "Marcar inativo",
+    "activate": "Reativar",
+    "deactivate_family": "Desativar família",
+    "activate_family": "Reativar família",
+    "inactive": "Inativo",
+    "inactive_desc": "Produtos e famílias marcados como inativos MTZ. Não geram alertas no painel.",
+    "inactive_warning": "{{count}} produto(s) inativo(s) com vendas recentes. Verifique se devem voltar ao cardápio.",
+    "empty": "Nenhum produto para este filtro.",
+    "legend": "Barras = unidades vendidas em {{months}}"
+  }
+}
