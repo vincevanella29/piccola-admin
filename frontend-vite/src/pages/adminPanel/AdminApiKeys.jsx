@@ -108,7 +108,7 @@ export const pageMetadata = {
   category: 'admin.category',
   minRoleLevel: 3,
   maxRoleLevel: 4,
-  order: 4,
+  order: 10,
   locations: ['sidebar'],
   description: 'apikeys.description',
   icon: 'FaKey',

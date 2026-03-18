@@ -413,6 +413,8 @@
       "sunday": "Sunday"
     }
   },
+  "heading_calendar": "Calendar",
+  "heading_rules": "Advanced Rules",
   "tools": {
     "category": "Tools",
     "description": "Tools for company management, process automation, swap and more."

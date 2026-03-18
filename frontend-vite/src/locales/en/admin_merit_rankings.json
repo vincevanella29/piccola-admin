@@ -1,0 +1,61 @@
+{
+  "merit_rankings": {
+    "page_title": "Merit Rankings Admin",
+    "page_desc": "Competition and sales ranking control",
+    "kpi_competitions": "Competitions",
+    "kpi_participants": "Participants",
+    "kpi_winners": "Winners",
+    "period_label": "Period",
+    "restricted_badge": "Only: {{local}}",
+    "no_rules_active": "No active competitions",
+    "toolbar": {
+      "search_placeholder": "Search employee, RUT...",
+      "filters": "Filters",
+      "refresh": "Refresh",
+      "reset": "Reset",
+      "apply": "Apply",
+      "competition_label": "Competition",
+      "competition_all": "All active",
+      "period_label": "Period",
+      "period_current": "Current month",
+      "local_label": "Branch",
+      "local_all": "All branches",
+      "cargo_label": "Role",
+      "cargo_all": "All roles"
+    },
+    "competitions": {
+      "section_title": "Competitions",
+      "show_historic": "View historic",
+      "show_active": "View active only",
+      "sales": "Sales",
+      "empresa": "Company",
+      "local": "Branch",
+      "top_label": "Top {{n}}",
+      "pts_label": "+{{n}} pts",
+      "winners_label": "{{n}} winners",
+      "participants_label": "{{n}} participants",
+      "no_data": "No data this period"
+    },
+    "leaderboard": {
+      "participants": "participants",
+      "col_rank_emp": "#Comp",
+      "col_rank_local": "#Branch",
+      "col_employee": "Employee",
+      "col_local": "Branch",
+      "col_sales": "Sales",
+      "col_avg_mesa": "$/Table",
+      "col_mesas": "Tables",
+      "col_status": "Status",
+      "status_won": "Won",
+      "status_competing": "Competing",
+      "no_data_title": "No data for this period",
+      "no_data_desc": "The worker hasn't processed this month yet or there are no eligible competitors",
+      "no_filter_match": "No results with those filters"
+    },
+    "stats": {
+      "winners": "Winners",
+      "competing": "Competing",
+      "pts_prize": "Prize pts"
+    }
+  }
+}

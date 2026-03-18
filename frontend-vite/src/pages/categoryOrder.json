@@ -1,6 +1,7 @@
 {
-  "analytics.Análisis": {"order": 1, "icon": "FaChartBar"},
-  "employees.profiles.category": {"order": 2, "icon": "FaUsers"},
-  "admin.category": {"order": 3, "icon": "FaCogs"},
-  "admin.tools.category": {"order": 4, "icon": "FaTools"}
+  "restaurant.category": { "order": 1, "icon": "FaUtensils" },
+  "employees.profiles.category": { "order": 2, "icon": "FaUsers" },
+  "analytics.Análisis": { "order": 3, "icon": "FaChartBar" },
+  "admin.category": { "order": 4, "icon": "FaShieldAlt" },
+  "admin.tools.category": { "order": 5, "icon": "FaTools" }
 }

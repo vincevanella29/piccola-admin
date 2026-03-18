@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box } from '@mui/material';
 import { useWorkersApi } from '../../hooks/useWorkersApi';
 import WorkersView from './components/WorkersView';
 
@@ -8,33 +7,33 @@ const Workers = ({ appState }) => {
   const { t } = useTranslation();
   const {
     workers,
+    workersMeta,
     isLoading,
     error,
     executionResults,
+    executionSummary,
     getWorkers,
     runWorkers,
   } = useWorkersApi(appState);
 
   useEffect(() => {
     getWorkers();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <Box
-      sx={{ width: '100%', p: 2 }}
-      className="text-light-text-primary dark:text-dark-text-primary min-h-[80vh] rounded-3xl shadow-neon"
-    >
+    <div className="w-full text-light-text-primary dark:text-dark-text-primary">
       <WorkersView
         t={t}
         workers={workers}
+        workersMeta={workersMeta}
         isLoading={isLoading}
         error={error}
         runWorkers={runWorkers}
         executionResults={executionResults}
-        isExecuteTab
+        executionSummary={executionSummary}
       />
-    </Box>
+    </div>
   );
 };
 
@@ -46,10 +45,10 @@ export const pageMetadata = {
   category: 'admin.tools.category',
   minRoleLevel: 3,
   maxRoleLevel: 4,
-  order: 2,
+  order: 1,
   locations: ['sidebar'],
   description: 'workers.description',
-  icon: 'FaTools',
+  icon: 'FaCogs',
   isMainPage: true,
   isSearchable: true,
 };

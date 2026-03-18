@@ -175,17 +175,14 @@ export default function DishesPage({ appState }) {
   );
 }
 
-// Metadata no cambia
 export const pageMetadata = {
   path: '/app/analytics/dishes',
   label: 'dishes.label',
   category: 'analytics.Análisis',
   minRoleLevel: 3,
-  maxRoleLevel: 4,
+  maxRoleLevel: 5,
   order: 2,
-  orderWalletMenu: 2,
-  orderFooter: 1,
-  locations: ['sidebar', 'footer', 'walletMenu'],
+  locations: ['sidebar'],
   description: 'dishes.description',
   icon: 'FaBrain',
   isMainPage: false,

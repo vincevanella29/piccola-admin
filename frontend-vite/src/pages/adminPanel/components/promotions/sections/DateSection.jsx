@@ -1,16 +1,143 @@
-// src/components/promotions/sections/rules/DateSection.jsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Select from 'react-select';
-import { 
-  CalendarDaysIcon, 
-  ClockIcon, 
-  XCircleIcon, 
-  PlusCircleIcon, 
-  NoSymbolIcon,
-  CakeIcon
-} from '@heroicons/react/24/outline';
 import { Switch } from '@headlessui/react';
+import {
+  CalendarDaysIcon,
+  ClockIcon,
+  XCircleIcon,
+  PlusCircleIcon,
+  NoSymbolIcon,
+  CakeIcon,
+  ArrowRightIcon,
+  ChevronDownIcon,
+} from '@heroicons/react/24/outline';
+
+// ─── Shared primitives ────────────────────────────────────────────────────────
+
+const inputClass =
+  'w-full px-3 py-2.5 bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 ' +
+  'border border-light-border/60 dark:border-dark-border/60 rounded-xl text-sm ' +
+  'text-light-text-primary dark:text-dark-text-primary ' +
+  'focus:outline-none focus:ring-2 focus:ring-matrix-green/30 focus:border-matrix-green/50 ' +
+  'transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+
+const Field = ({ label, required, children }) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-[10px] font-bold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary">
+      {label}{required && <span className="text-vanellix-purple ml-0.5">*</span>}
+    </label>
+    {children}
+  </div>
+);
+
+// ─── Compact date range display ───────────────────────────────────────────────
+
+const DateRangeRow = ({ startLabel, endLabel, startName, endName, startValue, endValue, onStartChange, onEndChange, isLoading }) => (
+  <div className="flex items-end gap-2">
+    <div className="flex-1">
+      <Field label={startLabel} required>
+        <input
+          type="datetime-local"
+          name={startName}
+          value={startValue}
+          onChange={onStartChange}
+          className={inputClass}
+          disabled={isLoading}
+        />
+      </Field>
+    </div>
+    <div className="flex items-center pb-2.5 shrink-0">
+      <ArrowRightIcon className="h-4 w-4 text-light-text-secondary/40 dark:text-dark-text-secondary/40" />
+    </div>
+    <div className="flex-1">
+      <Field label={endLabel} required>
+        <input
+          type="datetime-local"
+          name={endName}
+          value={endValue}
+          onChange={onEndChange}
+          className={inputClass}
+          disabled={isLoading}
+        />
+      </Field>
+    </div>
+  </div>
+);
+
+// ─── SegmentedControl ─────────────────────────────────────────────────────────
+
+const SegmentedControl = ({ options, value, onChange, disabled }) => (
+  <div className="inline-flex p-0.5 bg-light-surface-secondary/70 dark:bg-dark-surface-secondary/70 rounded-xl border border-light-border/40 dark:border-dark-border/40">
+    {options.map(opt => (
+      <button
+        key={opt.value}
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(opt.value)}
+        className={`px-4 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${
+          value === opt.value
+            ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm'
+            : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
+        }`}
+      >
+        {opt.label}
+      </button>
+    ))}
+  </div>
+);
+
+// ─── Collapsible card section ─────────────────────────────────────────────────
+
+const SectionCard = ({ icon: Icon, title, action, children, defaultOpen = false, accent }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-2xl border border-light-border/50 dark:border-dark-border/50 bg-light-surface dark:bg-dark-surface overflow-hidden">
+      {/* Header row: toggle area + optional action button (kept outside <button> to avoid nesting) */}
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className="flex-1 flex items-center gap-2.5 px-4 py-3 hover:bg-light-surface-secondary/30 dark:hover:bg-dark-surface-secondary/20 transition-colors text-left"
+        >
+          <div className={`w-7 h-7 rounded-xl flex items-center justify-center ${accent ?? 'bg-matrix-green/10'}`}>
+            <Icon className={`h-3.5 w-3.5 ${accent ? 'text-vanellix-purple' : 'text-matrix-green'}`} />
+          </div>
+          <span className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary">
+            {title}
+          </span>
+          <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="ml-auto">
+            <ChevronDownIcon className="h-4 w-4 text-light-text-secondary dark:text-dark-text-secondary" />
+          </motion.div>
+        </button>
+        {/* Action (e.g. "+ Add date") lives outside the toggle button */}
+        {action && (
+          <div className="pr-3 shrink-0">
+            {action}
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.04, 0.62, 0.23, 0.98] }}
+            className="overflow-visible"
+          >
+            <div className="px-4 pb-4 pt-1 border-t border-light-border/40 dark:border-dark-border/40 space-y-4">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 const DateSection = ({
   section,
@@ -30,35 +157,32 @@ const DateSection = ({
   handleBirthdayToggle,
   setFormData,
 }) => {
-  // State for day and time selection modes
-  const [dayMode, setDayMode] = useState(formData[section].days.length === 0 ? 'all' : 'specific');
+  const [dayMode, setDayMode] = useState(
+    formData[section].days.length === 0 ? 'all' : 'specific'
+  );
   const [timeMode, setTimeMode] = useState(
     formData[section].from_time === '' && formData[section].to_time === '' ? 'all' : 'specific'
   );
 
-  // --- Styles for Portal Select (Z-Index Fix) ---
   const portalStyles = {
     ...customSelectStyles,
-    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+    menuPortal: base => ({ ...base, zIndex: 9999 }),
   };
 
-  // --- Handlers ---
-  const handleDayModeChange = (mode) => {
+  const handleDayModeChange = mode => {
     setDayMode(mode);
-    if (mode === 'all') {
-      handleSelectChange([], section, 'days');
-    }
+    if (mode === 'all') handleSelectChange([], section, 'days');
   };
 
-  const handleTimeModeChange = (mode) => {
+  const handleTimeModeChange = mode => {
     setTimeMode(mode);
     if (mode === 'all') {
-      setFormData((prev) => ({
+      setFormData(prev => ({
         ...prev,
         [section]: { ...prev[section], from_time: '', to_time: '' },
       }));
     } else {
-      setFormData((prev) => ({
+      setFormData(prev => ({
         ...prev,
         [section]: {
           ...prev[section],
@@ -69,164 +193,128 @@ const DateSection = ({
     }
   };
 
-  // Helper for Input Classes
-  const inputClass = "w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-matrix-green/50 focus:border-matrix-green transition-all disabled:opacity-50 disabled:cursor-not-allowed";
-  const labelClass = "block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5";
+  const data = formData[section];
 
   return (
-    <section className="max-w-4xl mx-auto mt-6 space-y-6">
-      <h3 className="text-xl font-futurist text-neutral-900 dark:text-white px-1 flex items-center gap-2">
-        <CalendarDaysIcon className="h-6 w-6 text-matrix-green" />
-        {t(`admin.promotions.${section}_dates`)}
-      </h3>
+    <div className="space-y-3">
 
-      {/* CARD 1: MAIN TIMING CONFIGURATION */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-neutral-200 dark:border-neutral-800 overflow-visible p-6">
-        
-        {/* CASE A: DISPLAY or CLAIM (Simple Start/End) */}
+      {/* ── MAIN TIMING ──────────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-light-border/50 dark:border-dark-border/50 bg-light-surface dark:bg-dark-surface p-4 space-y-4">
+
+        {/* Header */}
+        <div className="flex items-center gap-2">
+          <CalendarDaysIcon className="h-4 w-4 text-matrix-green" />
+          <span className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary">
+            {t(`admin.promotions.${section}_dates`)}
+          </span>
+        </div>
+
+        {/* DISPLAY / CLAIM: compact start → end row */}
         {section !== 'redeem' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className={labelClass}>
-                {t(`admin.promotions.${section}_start`)} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="datetime-local"
-                name={`${section}.start`}
-                value={formData[section].start}
-                onChange={(e) => handleChange(e, section, 'start')}
-                className={inputClass}
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>
-                {t(`admin.promotions.${section}_end`)} <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="datetime-local"
-                name={`${section}.end`}
-                value={formData[section].end}
-                onChange={(e) => handleChange(e, section, 'end')}
-                className={inputClass}
-                disabled={isLoading}
-              />
-            </div>
-          </div>
+          <DateRangeRow
+            startLabel={t(`admin.promotions.${section}_start`)}
+            endLabel={t(`admin.promotions.${section}_end`)}
+            startName={`${section}.start`}
+            endName={`${section}.end`}
+            startValue={data.start}
+            endValue={data.end}
+            onStartChange={e => handleChange(e, section, 'start')}
+            onEndChange={e => handleChange(e, section, 'end')}
+            isLoading={isLoading}
+          />
         )}
 
-        {/* CASE B: REDEEM (Complex Validity) */}
+        {/* REDEEM: validity type + optional date range */}
         {section === 'redeem' && (
-          <div className="space-y-6">
-            {/* Birthday Toggle Row */}
-            <div className="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-neutral-200 dark:border-neutral-700/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-vanellix-purple/10 rounded-lg text-vanellix-purple">
-                  <CakeIcon className="h-5 w-5" />
+          <div className="space-y-4">
+
+            {/* Birthday toggle */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/40 border border-light-border/40 dark:border-dark-border/40">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-vanellix-purple/10 flex items-center justify-center">
+                  <CakeIcon className="h-3.5 w-3.5 text-vanellix-purple" />
                 </div>
                 <div>
-                  <span className="text-sm font-semibold text-neutral-900 dark:text-white block">
+                  <p className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary leading-none">
                     {t('admin.promotions.is_birthday_coupon')}
-                  </span>
-                  <span className="text-xs text-neutral-500 block">
-                    La validez dependerá del cumpleaños del usuario
-                  </span>
+                  </p>
+                  <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                    {t('admin.promotions.birthday_validity_days_note')}
+                  </p>
                 </div>
               </div>
               <Switch
                 checked={isBirthdayCoupon}
                 onChange={handleBirthdayToggle}
                 disabled={isLoading}
-                className={`${
-                  isBirthdayCoupon ? 'bg-matrix-green' : 'bg-neutral-200 dark:bg-neutral-700'
-                } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-matrix-green/50`}
+                className={`${isBirthdayCoupon ? 'bg-matrix-green' : 'bg-light-border dark:bg-dark-border'} relative inline-flex h-6 w-11 rounded-full transition-colors focus:outline-none`}
               >
-                <span className={`${isBirthdayCoupon ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+                <span className={`${isBirthdayCoupon ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 mt-1 transform rounded-full bg-white transition-transform shadow-sm`} />
               </Switch>
             </div>
 
             <AnimatePresence mode="wait">
               {isBirthdayCoupon ? (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <label className={labelClass}>
-                    {t('admin.promotions.birthday_validity_days')}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      name={`${section}.birthday_validity_days`}
-                      value={formData[section].birthday_validity_days}
-                      onChange={(e) => handleChange(e, section, 'birthday_validity_days')}
-                      min="0"
-                      className={`${inputClass} pl-4 pr-12`}
-                      disabled={isLoading}
-                    />
-                    <span className="absolute right-4 top-2.5 text-sm text-neutral-400">Días</span>
-                  </div>
-                  <p className="text-xs text-neutral-500 mt-2">
-                    {t('admin.promotions.birthday_validity_days_note')}
-                  </p>
+                <motion.div key="bday" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                  <Field label={t('admin.promotions.birthday_validity_days')}>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        name={`${section}.birthday_validity_days`}
+                        value={data.birthday_validity_days}
+                        onChange={e => handleChange(e, section, 'birthday_validity_days')}
+                        min="0"
+                        className={`${inputClass} pr-12`}
+                        disabled={isLoading}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-light-text-secondary dark:text-dark-text-secondary font-medium">
+                        {t('admin.loading') ? 'días' : 'días'}
+                      </span>
+                    </div>
+                  </Field>
                 </motion.div>
               ) : (
-                <motion.div
-                  className="space-y-6"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                >
-                  <div>
-                    <label className={labelClass}>
-                      {t('admin.promotions.validity')}
-                    </label>
+                <motion.div key="validity" className="space-y-3" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+
+                  <Field label={t('admin.promotions.validity')}>
                     <select
                       name={`${section}.validity`}
-                      value={formData[section].validity}
-                      onChange={(e) => handleValidityChange(e, section)}
+                      value={data.validity}
+                      onChange={e => handleValidityChange(e, section)}
                       className={inputClass}
                       disabled={isLoading}
                     >
-                      {validityTypes.map((type) => (
-                        <option key={type.value} value={type.value}>
-                          {type.label}
-                        </option>
+                      {validityTypes.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
                       ))}
                     </select>
-                  </div>
+                  </Field>
 
-                  {(formData.redeem.validity === 'fixed' || formData.redeem.validity === 'period') && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-neutral-50 dark:bg-neutral-800/30 rounded-xl border border-neutral-200 dark:border-neutral-700 border-dashed">
-                      <div>
-                        <label className={labelClass}>
-                          {t('admin.promotions.valid_from')}
-                        </label>
-                        <input
-                          type="datetime-local"
-                          name={`${section}.valid_from`}
-                          value={formData[section].valid_from}
-                          onChange={(e) => handleChange(e, section, 'valid_from')}
-                          className={inputClass}
-                          disabled={isLoading}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>
-                          {t('admin.promotions.valid_until')}
-                        </label>
-                        <input
-                          type="datetime-local"
-                          name={`${section}.valid_until`}
-                          value={formData[section].valid_until}
-                          onChange={(e) => handleChange(e, section, 'valid_until')}
-                          className={inputClass}
-                          disabled={isLoading}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  <AnimatePresence>
+                    {(data.validity === 'fixed' || data.validity === 'period') && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pt-1">
+                          <DateRangeRow
+                            startLabel={t('admin.promotions.valid_from')}
+                            endLabel={t('admin.promotions.valid_until')}
+                            startName={`${section}.valid_from`}
+                            endName={`${section}.valid_until`}
+                            startValue={data.valid_from}
+                            endValue={data.valid_until}
+                            onStartChange={e => handleChange(e, section, 'valid_from')}
+                            onEndChange={e => handleChange(e, section, 'valid_until')}
+                            isLoading={isLoading}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                 </motion.div>
               )}
             </AnimatePresence>
@@ -234,178 +322,152 @@ const DateSection = ({
         )}
       </div>
 
-      {/* CARD 2: RESTRICTIONS (Days & Hours) */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-neutral-200 dark:border-neutral-800 overflow-visible">
-        <div className="p-4 border-b border-neutral-100 dark:border-neutral-800">
-           <h4 className="text-sm font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
-             <ClockIcon className="h-4 w-4 text-neutral-500" />
-             Restricciones de Horario y Días
-           </h4>
-        </div>
-        
-        <div className="p-6 space-y-8">
-          {/* Days Selection */}
-          <div>
-            <label className={labelClass}>Días Permitidos</label>
-            <div className="flex p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg mb-4">
-              {['all', 'specific'].map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => handleDayModeChange(mode)}
-                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    dayMode === mode
-                      ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm'
-                      : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
-                  }`}
-                >
-                  {mode === 'all' ? t('admin.promotions.all_days') : t('admin.promotions.specific_days')}
-                </button>
-              ))}
-            </div>
-
-            <AnimatePresence>
-              {dayMode === 'specific' && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-visible" // Important for Select
-                >
-                  <Select
-                    isMulti
-                    options={weekdays}
-                    value={weekdays.filter((day) => formData[section].days.includes(day.value))}
-                    onChange={(selected) => handleSelectChange(selected, section, 'days')}
-                    styles={portalStyles}
-                    menuPortalTarget={document.body}
-                    menuPosition="fixed"
-                    isDisabled={isLoading}
-                    placeholder="Selecciona los días..."
-                    className="text-sm"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Hours Selection */}
-          <div className="pt-6 border-t border-neutral-100 dark:border-neutral-800">
-            <label className={labelClass}>Horario Permitido</label>
-            <div className="flex p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg mb-4">
-              {['all', 'specific'].map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => handleTimeModeChange(mode)}
-                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    timeMode === mode
-                      ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm'
-                      : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
-                  }`}
-                >
-                  {mode === 'all' ? t('admin.promotions.all_hours') : t('admin.promotions.specific_hours')}
-                </button>
-              ))}
-            </div>
-
-            <AnimatePresence>
-              {timeMode === 'specific' && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <label className="text-xs text-neutral-500 mb-1 block">{t('admin.promotions.from_time')}</label>
-                      <input
-                        type="time"
-                        name={`${section}.from_time`}
-                        value={formData[section].from_time}
-                        onChange={(e) => handleChange(e, section, 'from_time')}
-                        className={inputClass}
-                        disabled={isLoading}
-                      />
-                    </div>
-                    <span className="text-neutral-300 mt-5">-</span>
-                    <div className="flex-1">
-                      <label className="text-xs text-neutral-500 mb-1 block">{t('admin.promotions.to_time')}</label>
-                      <input
-                        type="time"
-                        name={`${section}.to_time`}
-                        value={formData[section].to_time}
-                        onChange={(e) => handleChange(e, section, 'to_time')}
-                        className={inputClass}
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-
-      {/* CARD 3: EXCLUDED DATES */}
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-        <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex justify-between items-center">
-            <h4 className="text-sm font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
-              <NoSymbolIcon className="h-4 w-4 text-red-500" />
-              {t('admin.promotions.excluded_dates')}
-            </h4>
-            <button
-              type="button"
-              onClick={() => addExcludedDate(setFormData, section)}
-              className="text-xs font-medium text-matrix-green hover:text-green-400 flex items-center gap-1 transition-colors disabled:opacity-50"
+      {/* ── SCHEDULE RESTRICTIONS (collapsible) ──────────────────────────── */}
+      <SectionCard
+        icon={ClockIcon}
+        title={t('promotion.all_hours') ? 'Horario y Días' : 'Schedule & Days'}
+      >
+        {/* Days */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">
+              {t('admin.promotions.all_days')}
+            </span>
+            <SegmentedControl
+              options={[
+                { value: 'all', label: t('admin.promotions.all_days') },
+                { value: 'specific', label: t('admin.promotions.specific_days') },
+              ]}
+              value={dayMode}
+              onChange={handleDayModeChange}
               disabled={isLoading}
-            >
-              <PlusCircleIcon className="h-4 w-4" />
-              Añadir Fecha
-            </button>
+            />
+          </div>
+          <AnimatePresence>
+            {dayMode === 'specific' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-visible"
+              >
+                <Select
+                  isMulti
+                  options={weekdays}
+                  value={weekdays.filter(d => data.days.includes(d.value))}
+                  onChange={selected => handleSelectChange(selected, section, 'days')}
+                  styles={portalStyles}
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                  isDisabled={isLoading}
+                  placeholder={t('admin.promotions.specific_days') + '...'}
+                  className="text-sm"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        
-        <div className="p-2 bg-neutral-50 dark:bg-neutral-800/20 min-h-[80px]">
-           {formData[section].excluded_dates.length === 0 ? (
-             <div className="h-full flex flex-col items-center justify-center py-6 text-neutral-400">
-                <span className="text-xs">No hay fechas excluidas</span>
-             </div>
-           ) : (
-             <div className="space-y-2">
-               <AnimatePresence>
-                  {formData[section].excluded_dates.map((date, index) => (
-                    <motion.div
-                      key={`${section}-excluded-date-${index}`}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="flex items-center gap-2 bg-white dark:bg-neutral-800 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700 shadow-sm"
-                    >
-                      <input
-                        type="date"
-                        value={date}
-                        onChange={(e) => updateExcludedDate(setFormData, section, index, e.target.value)}
-                        className="flex-1 bg-transparent border-none text-sm text-neutral-900 dark:text-white focus:ring-0 p-0"
-                        disabled={isLoading}
-                      />
-                      <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-700 mx-1"></div>
-                      <button
-                        type="button"
-                        onClick={() => removeExcludedDate(index)}
-                        className="text-neutral-400 hover:text-red-500 transition-colors"
-                        disabled={isLoading}
-                      >
-                        <XCircleIcon className="h-5 w-5" />
-                      </button>
-                    </motion.div>
-                  ))}
-               </AnimatePresence>
-             </div>
-           )}
+
+        {/* Hours */}
+        <div className="space-y-2 pt-3 border-t border-light-border/40 dark:border-dark-border/40">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">
+              {t('admin.promotions.all_hours')}
+            </span>
+            <SegmentedControl
+              options={[
+                { value: 'all', label: t('admin.promotions.all_hours') },
+                { value: 'specific', label: t('admin.promotions.specific_hours') },
+              ]}
+              value={timeMode}
+              onChange={handleTimeModeChange}
+              disabled={isLoading}
+            />
+          </div>
+          <AnimatePresence>
+            {timeMode === 'specific' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <div className="flex items-end gap-2 pt-1">
+                  <div className="flex-1">
+                    <Field label={t('promotion.from_time')}>
+                      <input type="time" name={`${section}.from_time`} value={data.from_time} onChange={e => handleChange(e, section, 'from_time')} className={inputClass} disabled={isLoading} />
+                    </Field>
+                  </div>
+                  <div className="pb-2.5 shrink-0">
+                    <ArrowRightIcon className="h-4 w-4 text-light-text-secondary/40 dark:text-dark-text-secondary/40" />
+                  </div>
+                  <div className="flex-1">
+                    <Field label={t('promotion.to_time')}>
+                      <input type="time" name={`${section}.to_time`} value={data.to_time} onChange={e => handleChange(e, section, 'to_time')} className={inputClass} disabled={isLoading} />
+                    </Field>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </div>
-    </section>
+      </SectionCard>
+
+      {/* ── EXCLUDED DATES (collapsible) ─────────────────────────────────── */}
+      <SectionCard
+        icon={NoSymbolIcon}
+        title={t('admin.promotions.excluded_dates')}
+        accent="bg-vanellix-purple/10"
+        action={
+          <button
+            type="button"
+            onClick={() => addExcludedDate(setFormData, section)}
+            disabled={isLoading}
+            className="flex items-center gap-1 text-[11px] font-semibold text-matrix-green hover:text-matrix-green/80 transition-colors disabled:opacity-40"
+          >
+            <PlusCircleIcon className="h-3.5 w-3.5" />
+            {t('admin.promotions.add_excluded_date')}
+          </button>
+        }
+      >
+        {data.excluded_dates.length === 0 ? (
+          <p className="text-xs text-center text-light-text-secondary dark:text-dark-text-secondary py-4">
+            {t('admin.promotions.excluded_dates_tooltip')}
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            <AnimatePresence>
+              {data.excluded_dates.map((date, idx) => (
+                <motion.div
+                  key={`${section}-excl-${idx}`}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex items-center gap-2 bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 px-3 py-2 rounded-xl border border-light-border/40 dark:border-dark-border/40"
+                >
+                  <CalendarDaysIcon className="h-3.5 w-3.5 text-vanellix-purple shrink-0" />
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={e => updateExcludedDate(setFormData, section, idx, e.target.value)}
+                    className="flex-1 bg-transparent border-none text-sm text-light-text-primary dark:text-dark-text-primary focus:ring-0 p-0 min-w-0"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeExcludedDate(idx)}
+                    disabled={isLoading}
+                    className="text-light-text-secondary/40 dark:text-dark-text-secondary/40 hover:text-vanellix-purple transition-colors"
+                  >
+                    <XCircleIcon className="h-4 w-4" />
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </SectionCard>
+
+    </div>
   );
 };
 

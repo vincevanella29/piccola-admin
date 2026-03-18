@@ -159,14 +159,13 @@ const AdminGamification = ({ appState }) => {
 
 export default AdminGamification;
 
-// El pageMetadata se mantiene igual, como pediste.
 export const pageMetadata = {
   path: '/app/admin/gamification',
   label: 'gamification.label',
   category: 'admin.category',
   minRoleLevel: 3,
   maxRoleLevel: 5,
-  order: 7,
+  order: 8,
   locations: ['sidebar'],
   description: 'gamification.description',
   icon: 'FaAward',

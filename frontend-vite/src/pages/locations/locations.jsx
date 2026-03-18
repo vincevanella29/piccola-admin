@@ -262,9 +262,9 @@ export default Locations;
 export const pageMetadata = {
     path: '/app/analytics/locations',
     label: 'club.locations',
-    category: 'analytics.Análisis',
+    category: 'restaurant.category',
     minRoleLevel: 3,
-    maxRoleLevel: 4,
+    maxRoleLevel: 5,
     order: 3,
     locations: ['sidebar', 'header'],
     description: 'location.description',

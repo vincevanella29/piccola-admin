@@ -129,5 +129,19 @@
   "not_employee": "Esta promoción es solo para empleados",
   "employee_inactive": "Tu ficha de empleado no está activa",
   "create_wallet_cta": "Crear Mi Wallet",
-  "create_wallet_hint": "Para reclamar esta promoción necesitas una wallet. ¡Créala en un segundo y empieza a canjear tus beneficios!"
+  "create_wallet_hint": "Para reclamar esta promoción necesitas una wallet. ¡Créala en un segundo y empieza a canjear tus beneficios!",
+  "ranking_period_current": "Periodo actual",
+  "ranking_period_last": "Periodo anterior",
+  "ranking_rule_label": "Regla de ranking: {{name}} ({{period}})",
+  "ranking_your_position": "Tu posición: #{{position}}",
+  "ranking_target": "Objetivo: {{target}}",
+  "ranking_position_exact": "Puesto {{position}}",
+  "ranking_position_range": "Puestos {{from}}-{{to}}",
+  "ranking_position_top": "Top {{n}}",
+  "ranking_scope_local": "Local {{location}}",
+  "ranking_scope_company": "Empresa",
+  "ranking_met": "Cumplida",
+  "ranking_not_met": "Aún no cumplida",
+  "ranking_pending": "Evaluando tu posición en el ranking...",
+  "ranking_eval_error": "Error al evaluar tu posición."
 }

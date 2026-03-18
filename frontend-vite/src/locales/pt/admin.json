@@ -418,5 +418,7 @@
   "tools": {
     "category": "Ferramentas",
     "description": "Ferramentas para a gestão da empresa, automatização de processos, troca e mais."
-  }
+  },
+  "heading_calendar": "Calendário",
+  "heading_rules": "Regras Avançadas"
 }

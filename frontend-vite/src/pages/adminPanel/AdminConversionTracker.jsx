@@ -108,8 +108,8 @@ export const pageMetadata = {
   category: 'admin.category',
   minRoleLevel: 3,
   maxRoleLevel: 5,
-  order: 2,
+  order: 7,
   locations: ['sidebar'],
   description: 'conversion_tracker.description',
-  icon: 'FaGauge',
+  icon: 'FaTachometerAlt',
 };

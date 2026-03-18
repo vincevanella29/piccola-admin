@@ -1,0 +1,61 @@
+{
+  "merit_rankings": {
+    "page_title": "Merit Rankings Admin",
+    "page_desc": "Controle de competições e ranking de vendas",
+    "kpi_competitions": "Competições",
+    "kpi_participants": "Participantes",
+    "kpi_winners": "Ganhadores",
+    "period_label": "Período",
+    "restricted_badge": "Apenas: {{local}}",
+    "no_rules_active": "Sem competições ativas",
+    "toolbar": {
+      "search_placeholder": "Buscar funcionário, RUT...",
+      "filters": "Filtros",
+      "refresh": "Atualizar",
+      "reset": "Resetar",
+      "apply": "Aplicar",
+      "competition_label": "Competição",
+      "competition_all": "Todas as ativas",
+      "period_label": "Período",
+      "period_current": "Mês atual",
+      "local_label": "Local",
+      "local_all": "Todos os locais",
+      "cargo_label": "Cargo",
+      "cargo_all": "Todos os cargos"
+    },
+    "competitions": {
+      "section_title": "Competições",
+      "show_historic": "Ver históricas",
+      "show_active": "Ver apenas ativas",
+      "sales": "Vendas",
+      "empresa": "Empresa",
+      "local": "Local",
+      "top_label": "Top {{n}}",
+      "pts_label": "+{{n}} pts",
+      "winners_label": "{{n}} ganhadores",
+      "participants_label": "{{n}} participantes",
+      "no_data": "Sem dados neste período"
+    },
+    "leaderboard": {
+      "participants": "participantes",
+      "col_rank_emp": "#Emp",
+      "col_rank_local": "#Local",
+      "col_employee": "Funcionário",
+      "col_local": "Local",
+      "col_sales": "Vendas",
+      "col_avg_mesa": "R$/Mesa",
+      "col_mesas": "Mesas",
+      "col_status": "Status",
+      "status_won": "Ganhou",
+      "status_competing": "Competindo",
+      "no_data_title": "Sem dados para este período",
+      "no_data_desc": "O worker ainda não processou este mês ou não há competidores elegíveis",
+      "no_filter_match": "Sem resultados com esses filtros"
+    },
+    "stats": {
+      "winners": "Ganhadores",
+      "competing": "Competindo",
+      "pts_prize": "Pts em jogo"
+    }
+  }
+}

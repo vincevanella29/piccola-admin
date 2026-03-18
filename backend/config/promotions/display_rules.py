@@ -43,7 +43,9 @@ def validate_display_rules(
             promotion[date_field] = val.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Santiago"))
 
     # Validate date range
-    if not (promotion["display_start"] <= now <= promotion["display_end"]):
+    ds = promotion.get("display_start")
+    de = promotion.get("display_end")
+    if not (ds <= now <= de):
         return False, "Promotion not valid for current date"
 
     # Validate recurring days

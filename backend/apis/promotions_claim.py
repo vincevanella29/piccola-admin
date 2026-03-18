@@ -435,14 +435,46 @@ async def get_active_promotions(user: Optional[dict] = Depends(optional_verify_s
                             # Progreso: usamos el mismo periodo que para la evaluación
                             # (periodo_for_rule), dejando que el template resuelva
                             # internamente month/year según params.period_mode.
-                            progress_data = None
+                            progress_list = None
                             progress_evaluator = progress_evaluators.get(template_key)
                             if progress_evaluator:
                                 try:
                                     progress_data = progress_evaluator(db, rule_for_eval, rut, periodo_for_rule)
+                                    # get_progress_data() devuelve {"progress": [...]}
+                                    # Desenvolvemos para darle la lista directa al frontend
+                                    progress_list = (
+                                        progress_data.get("progress")
+                                        if isinstance(progress_data, dict)
+                                        else progress_data
+                                    )
+                                    if progress_list:
+                                        entry = progress_list[0]
+                                        logger.info(
+                                            "[MERIT_PROGRESS] rule='%s' rut=%s periodo=%s "
+                                            "pos=%s target=%s scope=%s status=%s",
+                                            rule_name, rut, periodo_for_rule,
+                                            entry.get('current_position'),
+                                            entry.get('target_position'),
+                                            entry.get('scope'),
+                                            current_status
+                                        )
+                                        print(
+                                            f"[MERIT_PROGRESS] '{rule_name}' rut={rut} "
+                                            f"pos={entry.get('current_position')} / target={entry.get('target_position')} "
+                                            f"scope={entry.get('scope')} local={entry.get('local','')} "
+                                            f"status={current_status} periodo={periodo_for_rule}"
+                                        )
+                                    else:
+                                        logger.warning(
+                                            "[MERIT_PROGRESS] '%s' rut=%s periodo=%s -> sin datos de posicion",
+                                            rule_name, rut, periodo_for_rule
+                                        )
+                                        print(
+                                            f"[MERIT_PROGRESS] WARN '{rule_name}' rut={rut} periodo={periodo_for_rule} -> sin datos"
+                                        )
                                 except Exception as e:
-                                    logger.error(f"Error obteniendo progreso de ranking para '{rule_name}': {e}")
-                                    progress_data = {"error": "No se pudo calcular el progreso."}
+                                    logger.error("Error obteniendo progreso de ranking para '%s': %s", rule_name, e, exc_info=True)
+                                    progress_list = None
 
                             template_details = templates_map.get(template_key, {})
                             rule["merit_progress"] = {
@@ -451,7 +483,7 @@ async def get_active_promotions(user: Optional[dict] = Depends(optional_verify_s
                                 "params": rule_instance.get("params"),
                                 "segment_token_id": rule_instance.get("segment_token_id"),
                                 "description": template_details.get("description"),
-                                "progress": progress_data,
+                                "progress": progress_list,
                                 "ranking_period": ranking_period,
                                 "periodo_dash": periodo_for_rule,
                                 "progress_periodo_dash": periodo_for_rule,

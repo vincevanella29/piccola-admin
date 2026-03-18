@@ -16,6 +16,7 @@ trigger_public_sync():
 
 import logging
 import os
+import asyncio
 import requests
 
 from .helpers import get_ts  # noqa: F401 (imported for caller compat)
@@ -50,28 +51,32 @@ logger.info(
 async def trigger_public_sync() -> dict:
     """
     Tell the carta digital worker to re-read MongoDB and refresh its catalog.
+    Usa asyncio.to_thread para no bloquear el event loop del admin.
+    La carta responde inmediatamente con {status: accepted} — timeout 5s max.
     Returns { ok, status, detail }.
     """
     logger.info(f"[sync] Triggering carta digital worker → {_CATALOG_SYNC_URL}")
     try:
-        resp = requests.post(
-            _CATALOG_SYNC_URL,
-            headers={"X-API-Key": _EXTERNAL_API_KEY},
-            timeout=30,
-        )
+        def _do_post():
+            return requests.post(
+                _CATALOG_SYNC_URL,
+                headers={"X-API-Key": _EXTERNAL_API_KEY},
+                timeout=5,  # carta responde inmediato — si no responde en 5s, está caída
+            )
+        resp = await asyncio.to_thread(_do_post)
         logger.info(f"[sync] Worker response: {resp.status_code}")
         try:
             body = resp.json()
         except Exception:
             body = {"raw": resp.text[:300]}
 
-        ok = resp.ok
+        ok = resp.status_code in (200, 202)
         if not ok:
             logger.warning(f"[sync] Worker returned {resp.status_code}: {body}")
         return {"ok": ok, "status": resp.status_code, "detail": body}
 
-    except requests.exceptions.ConnectTimeout:
-        msg = f"Timeout conectando a {_CATALOG_SYNC_URL}"
+    except requests.exceptions.Timeout:
+        msg = f"Timeout (5s) conectando a {_CATALOG_SYNC_URL} — carta posiblemente caída"
         logger.error(f"[sync] {msg}")
         return {"ok": False, "status": 0, "detail": msg}
     except Exception as e:
@@ -81,30 +86,31 @@ async def trigger_public_sync() -> dict:
 
 async def trigger_banners_sync() -> dict:
     """
-    Notifica a la carta digital para que re-sincronice SOLO los banners
-    desde el admin (GET /api/public/banners).
-    Retorna { ok, status, detail }.
+    Notifica a la carta digital para que re-sincronice SOLO los banners.
+    Usa asyncio.to_thread — no bloquea el event loop.
     """
     logger.info(f"[sync] Triggering banner sync → {_BANNERS_SYNC_URL}")
     try:
-        resp = requests.post(
-            _BANNERS_SYNC_URL,
-            headers={"X-API-Key": _EXTERNAL_API_KEY},
-            timeout=45,
-        )
+        def _do_post():
+            return requests.post(
+                _BANNERS_SYNC_URL,
+                headers={"X-API-Key": _EXTERNAL_API_KEY},
+                timeout=5,
+            )
+        resp = await asyncio.to_thread(_do_post)
         logger.info(f"[sync] Banner worker response: {resp.status_code}")
         try:
             body = resp.json()
         except Exception:
             body = {"raw": resp.text[:300]}
 
-        ok = resp.ok
+        ok = resp.status_code in (200, 202)
         if not ok:
             logger.warning(f"[sync] Banner worker returned {resp.status_code}: {body}")
         return {"ok": ok, "status": resp.status_code, "detail": body}
 
-    except requests.exceptions.ConnectTimeout:
-        msg = f"Timeout conectando a {_BANNERS_SYNC_URL}"
+    except requests.exceptions.Timeout:
+        msg = f"Timeout (5s) conectando a {_BANNERS_SYNC_URL}"
         logger.error(f"[sync] {msg}")
         return {"ok": False, "status": 0, "detail": msg}
     except Exception as e:

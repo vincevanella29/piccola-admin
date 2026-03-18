@@ -416,6 +416,8 @@
       "sunday": "Domenica"
     }
   },
+  "heading_calendar": "Calendario",
+  "heading_rules": "Regole Avanzate",
   "tools": {
     "category": "Strumenti",
     "description": "Strumenti per la gestione della società, automatizzazione dei processi, scambio e altro."

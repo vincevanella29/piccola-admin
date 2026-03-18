@@ -135,8 +135,8 @@
     "select_merit_rule_title": "Select merit rule",
     "select_merit_rule_subtitle": "Filter and select a gamification rule",
     "no_merit_rules_filtered": "No merit rules found with current filters.",
-    "selected_rule_summary": "Selected rule summary",
-    "segment_short": "Segment #{{id}} ({{pts}} pts)"
+    "segment_short": "Segment #{{id}} ({{pts}} pts)",
+    "selected_rule_summary": "Summary"
   },
   "limits": "Limits",
   "yes": "Yes",
@@ -264,4 +264,3 @@
   "duration_forever_warning_suffix": "(No expiration)",
   "generate_first_token_help": "Generate your first API token above to start integrating your services."
 }
-

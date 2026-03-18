@@ -18,7 +18,6 @@ import {
 import RuleRequirement from './RuleRequirement';
 import CountdownTimer from './CountdownTimer';
 import InfoTooltip from '../../../components/common/Tools/InfoTooltip';
-import RuleCard from '../../mificha/components/tabs/rules/RuleCard';
 
 // --- Utility Functions ---
 const calculateDiscountedPrice = (price, discount, type) => {
@@ -109,16 +108,9 @@ const PromotionModal = ({
   const [showRequirements, setShowRequirements] = useState(true);
 
   // --- Merit / Ranking Logic ---
-  // Buscamos la regla de ranking para inyectarla correctamente en la lista
+  // La data de merit_progress viene directamente en rule.merit_progress del backend
   const rankingRuleIndex = (promo.rules || []).findIndex((r) => r.rule_type === 'merit_rule_fulfilled');
-  const rankingRule = rankingRuleIndex !== -1 ? promo.rules[rankingRuleIndex] : null;
-
-  const rankingMerits = meritos?.merits?.current_month || [];
-  const rankingMerit = rankingRule
-    ? rankingMerits.find(
-      (m) => m.rule_name === rankingRule.merit_rule_name || m.name === rankingRule.merit_rule_name
-    )
-    : null;
+  const rankingRule = rankingRuleIndex !== -1 ? promo.rules[rankingRuleIndex] : null; // eslint-disable-line no-unused-vars
 
   // --- Effects ---
   useEffect(() => {
@@ -303,29 +295,8 @@ const PromotionModal = ({
                     </p>
                   ) : (
                     promo.rules.map((rule, idx) => {
-                      // SPECIAL CASE: RANKING RULE (Visual Card)
-                      if (rule.rule_type === 'merit_rule_fulfilled') {
-                        return (
-                          <div key={idx} className="relative">
-                            {/* Connector Line if needed */}
-                            <RuleCard
-                              merit={rankingMerit || { rule_name: rule.merit_rule_name }}
-                              type="current"
-                              segmentMap={segmentMap || {}}
-                              compact={true} // Add a compact prop to RuleCard if you want it smaller
-                            />
-                            {/* Status Indicator Overlay */}
-                            <div className="absolute top-3 right-3">
-                              {promo.metStatus[idx] ? (
-                                <FaCheckCircle className="text-matrix-green bg-white dark:bg-black rounded-full" />
-                              ) : (
-                                <div className="w-4 h-4 rounded-full border-2 border-neutral-400 bg-neutral-800" />
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
-                      // STANDARD RULE
+                      // ALL RULES (including merit_rule_fulfilled) via RuleRequirement
+                      // merit_progress comes already populated in rule from the backend
                       return (
                         <RuleRequirement
                           key={idx}
@@ -341,6 +312,7 @@ const PromotionModal = ({
                           burnedBalance={rule.rule_type === 'burn_tokens' ? burnBalances?.[rule.token_address] : null}
                         />
                       );
+
                     })
                   )}
                 </motion.div>

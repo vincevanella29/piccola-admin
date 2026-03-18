@@ -141,7 +141,7 @@ export const pageMetadata = {
   category: 'admin.category',
   minRoleLevel: 3,
   maxRoleLevel: 4,
-  order: 1,
+  order: 2,
   locations: ['sidebar'],
   description: 'admin.notifications.description',
   icon: 'FaBell',

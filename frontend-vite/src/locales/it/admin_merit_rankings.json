@@ -1,0 +1,61 @@
+{
+  "merit_rankings": {
+    "page_title": "Merit Rankings Admin",
+    "page_desc": "Controllo competizioni e classifica vendite",
+    "kpi_competitions": "Competizioni",
+    "kpi_participants": "Partecipanti",
+    "kpi_winners": "Vincitori",
+    "period_label": "Periodo",
+    "restricted_badge": "Solo: {{local}}",
+    "no_rules_active": "Nessuna competizione attiva",
+    "toolbar": {
+      "search_placeholder": "Cerca dipendente, RUT...",
+      "filters": "Filtri",
+      "refresh": "Aggiorna",
+      "reset": "Reimposta",
+      "apply": "Applica",
+      "competition_label": "Competizione",
+      "competition_all": "Tutte le attive",
+      "period_label": "Periodo",
+      "period_current": "Mese corrente",
+      "local_label": "Locale",
+      "local_all": "Tutti i locali",
+      "cargo_label": "Ruolo",
+      "cargo_all": "Tutti i ruoli"
+    },
+    "competitions": {
+      "section_title": "Competizioni",
+      "show_historic": "Vedi storiche",
+      "show_active": "Solo attive",
+      "sales": "Vendite",
+      "empresa": "Azienda",
+      "local": "Locale",
+      "top_label": "Top {{n}}",
+      "pts_label": "+{{n}} pts",
+      "winners_label": "{{n}} vincitori",
+      "participants_label": "{{n}} partecipanti",
+      "no_data": "Nessun dato questo periodo"
+    },
+    "leaderboard": {
+      "participants": "partecipanti",
+      "col_rank_emp": "#Azien",
+      "col_rank_local": "#Locale",
+      "col_employee": "Dipendente",
+      "col_local": "Locale",
+      "col_sales": "Vendite",
+      "col_avg_mesa": "€/Tavolo",
+      "col_mesas": "Tavoli",
+      "col_status": "Stato",
+      "status_won": "Vinto",
+      "status_competing": "In gara",
+      "no_data_title": "Nessun dato per questo periodo",
+      "no_data_desc": "Il worker non ha ancora elaborato questo mese o non ci sono concorrenti idonei",
+      "no_filter_match": "Nessun risultato con questi filtri"
+    },
+    "stats": {
+      "winners": "Vincitori",
+      "competing": "In gara",
+      "pts_prize": "Punti in palio"
+    }
+  }
+}

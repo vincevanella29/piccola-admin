@@ -257,7 +257,7 @@ export const pageMetadata = {
   category: 'admin.category',
   minRoleLevel: 3,
   maxRoleLevel: 4,
-  order: 1,
+  order: 9,
   locations: ['sidebar'],
   description: 'admin.color_levels.description',
   icon: 'FaPalette',

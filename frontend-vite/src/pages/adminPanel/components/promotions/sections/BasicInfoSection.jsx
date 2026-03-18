@@ -1,88 +1,76 @@
-// src/components/promotions/sections/rules/BasicInfoSection.jsx
 import React, { useRef, useEffect } from 'react';
-import { 
-  InformationCircleIcon, 
-  PencilSquareIcon, 
-  DocumentTextIcon 
-} from '@heroicons/react/24/outline';
+import { PencilSquareIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+
+const inputBaseClass =
+  'w-full bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 ' +
+  'border border-light-border/60 dark:border-dark-border/60 rounded-xl ' +
+  'text-light-text-primary dark:text-dark-text-primary placeholder-light-text-secondary/40 dark:placeholder-dark-text-secondary/40 ' +
+  'focus:outline-none focus:ring-2 focus:ring-matrix-green/30 focus:border-matrix-green/50 ' +
+  'transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
 const BasicInfoSection = ({ formData, handleChange, isLoading, t }) => {
-  // Ref solo para la descripción, ya que el nombre suele ser una línea
-  const descriptionInputRef = useRef(null);
+  const descriptionRef = useRef(null);
 
-  // Auto-resize effect for description
   useEffect(() => {
-    const textarea = descriptionInputRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
+    const ta = descriptionRef.current;
+    if (ta) { ta.style.height = 'auto'; ta.style.height = `${ta.scrollHeight}px`; }
   }, [formData.description]);
 
-  // Estilos compartidos
-  const labelClass = "block text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2 flex items-center gap-2";
-  const inputBaseClass = "w-full bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-xl text-neutral-900 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-matrix-green/50 focus:border-matrix-green transition-all disabled:opacity-50 disabled:cursor-not-allowed";
+  const charCount = formData.description?.length ?? 0;
 
   return (
-    <section className="max-w-4xl mx-auto mt-6">
-      <h3 className="text-xl font-futurist text-neutral-900 dark:text-white px-1 mb-4 flex items-center gap-2">
-        <InformationCircleIcon className="h-6 w-6 text-matrix-green" />
-        {t('admin.promotions.basic_info')}
-      </h3>
+    <div className="space-y-4">
 
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-sm border border-neutral-200 dark:border-neutral-800 p-6 space-y-8">
-        
-        {/* Name Field */}
-        <div>
-          <label className={labelClass}>
-            <PencilSquareIcon className="h-4 w-4" />
-            {t('admin.promotions.name')}
-            <span className="text-red-500 ml-0.5">*</span>
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder={t('admin.promotions.name_placeholder')}
-              className={`${inputBaseClass} p-4 text-lg font-medium`}
-              disabled={isLoading}
-              autoComplete="off"
-            />
-          </div>
-          <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
-            Este nombre será visible para los usuarios en la aplicación.
-          </p>
-        </div>
-
-        {/* Description Field */}
-        <div>
-          <label className={labelClass}>
-            <DocumentTextIcon className="h-4 w-4" />
-            {t('admin.promotions.description')}
-            <span className="text-red-500 ml-0.5">*</span>
-          </label>
-          <div className="relative">
-            <textarea
-              ref={descriptionInputRef}
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder={t('admin.promotions.description_placeholder')}
-              className={`${inputBaseClass} p-4 min-h-[120px] resize-none leading-relaxed`}
-              disabled={isLoading}
-              rows={3}
-            />
-          </div>
-          <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500 flex justify-between">
-            <span>Describe los detalles, condiciones y beneficios.</span>
-            <span>{formData.description.length} caracteres</span>
-          </p>
-        </div>
-
+      {/* Name */}
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary">
+          <PencilSquareIcon className="h-3.5 w-3.5" />
+          {t('admin.promotions.name')}
+          <span className="text-vanellix-purple">*</span>
+        </label>
+        <input
+          type="text"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          placeholder={t('admin.promotions.name_placeholder')}
+          className={`${inputBaseClass} px-4 py-3 text-base font-medium`}
+          disabled={isLoading}
+          autoComplete="off"
+        />
+        <p className="text-[11px] text-light-text-secondary/60 dark:text-dark-text-secondary/60 pl-1">
+          {t('admin.promotions.name_tooltip')}
+        </p>
       </div>
-    </section>
+
+      {/* Description */}
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-light-text-secondary dark:text-dark-text-secondary">
+          <DocumentTextIcon className="h-3.5 w-3.5" />
+          {t('admin.promotions.descriptions')}
+          <span className="text-vanellix-purple">*</span>
+        </label>
+        <textarea
+          ref={descriptionRef}
+          name="description"
+          value={formData.description}
+          onChange={handleChange}
+          placeholder={t('admin.promotions.description_placeholder')}
+          className={`${inputBaseClass} px-4 py-3 min-h-[100px] resize-none leading-relaxed`}
+          disabled={isLoading}
+          rows={3}
+        />
+        <div className="flex justify-between items-center pl-1">
+          <p className="text-[11px] text-light-text-secondary/60 dark:text-dark-text-secondary/60">
+            {t('admin.promotions.description_tooltip')}
+          </p>
+          <span className={`text-[11px] font-mono tabular-nums ${charCount > 200 ? 'text-vanellix-purple' : 'text-light-text-secondary/50 dark:text-dark-text-secondary/50'}`}>
+            {charCount}
+          </span>
+        </div>
+      </div>
+
+    </div>
   );
 };
 
