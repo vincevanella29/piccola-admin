@@ -19,27 +19,59 @@ logger = logging.getLogger(__name__)
 
 COMPANY_ID = int(os.getenv("COMPANY_ID", 1))
 
+class BannerButtonConfig(BaseModel):
+    """Button displayed on the banner in the carta — fully configured from admin."""
+    visible: bool = False
+    text: str = ""
+    position: str = "bottom-right"  # bottom-left, bottom-right, bottom-center, center
+    style: str = "solid"            # solid, outline, glass
+    color: str = "#22c55e"          # hex color
+    text_color: str = "#ffffff"
+
 class BannerCreate(BaseModel):
     title: str
+    description: Optional[str] = ""
     image_url: str
     click_url: Optional[str] = ""
     target_type: str = Field(..., pattern="^(location|dish|global|category)$")
-
     target_ids: List[str] = []
+    location_ids: List[str] = []          # sucursales where this banner shows
     priority: int = 0
-    popup_duration_seconds: int = 0  # 0 to disable auto-close
+    popup_duration_seconds: int = 0       # 0 to disable auto-close
     display_delay_seconds: int = 0
+    # Image size / aspect
+    image_size: str = "3:1"               # 3:1, 2:1, 16:9, 1:1, 4:3
+    # Button config
+    button_config: Optional[dict] = None  # BannerButtonConfig as dict
+    # Schedule
+    schedule_start: Optional[str] = None  # ISO date YYYY-MM-DD
+    schedule_end: Optional[str] = None    # ISO date YYYY-MM-DD
+    schedule_days: Optional[List[int]] = None   # 0=Mon..6=Sun, None=every day
+    schedule_time_from: Optional[str] = None    # HH:MM
+    schedule_time_to: Optional[str] = None      # HH:MM
 
 class BannerUpdate(BaseModel):
     title: Optional[str] = None
+    description: Optional[str] = None
     image_url: Optional[str] = None
     click_url: Optional[str] = None
     target_type: Optional[str] = None
     target_ids: Optional[List[str]] = None
+    location_ids: Optional[List[str]] = None
     active: Optional[bool] = None
     priority: Optional[int] = None
     popup_duration_seconds: Optional[int] = None
     display_delay_seconds: Optional[int] = None
+    # Image size / aspect
+    image_size: Optional[str] = None
+    # Button config
+    button_config: Optional[dict] = None
+    # Schedule
+    schedule_start: Optional[str] = None
+    schedule_end: Optional[str] = None
+    schedule_days: Optional[List[int]] = None
+    schedule_time_from: Optional[str] = None
+    schedule_time_to: Optional[str] = None
 
 def make_serializable(doc):
     if not doc: return None
@@ -128,7 +160,8 @@ async def get_public_banners(
 @router.put("/banners/{banner_id}")
 async def update_banner(banner_id: str, data: BannerUpdate, user: dict = Depends(require_banners_role)):
     try:
-        update_data = {k: v for k, v in data.dict().items() if v is not None}
+        # exclude_unset=True → fields NOT sent are ignored, but explicit null IS saved (allows clearing)
+        update_data = data.dict(exclude_unset=True)
         update_data["updated_at"] = datetime.utcnow()
         
         result = db.banners.update_one(
@@ -168,6 +201,116 @@ async def upload_banner_image(file: UploadFile = File(...), user: dict = Depends
     except Exception as e:
         logger.error(f"Error uploading banner image: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── AI Banner Generation ──────────────────────────────────────────────────────
+
+class BannerAIGenerateRequest(BaseModel):
+    headline: str = ""
+    promo_text: str = ""
+    style: str = "promo_dark"
+    image_size: str = "3:1"            # aspect ratio for AI generation
+    product_ids: List[str] = []        # up to 4 product IDs to compose
+    product_images: List[str] = []     # up to 4 product image URLs (fallback)
+    location_name: str = ""
+    location_desc: str = ""
+    banner_id: Optional[str] = None    # link to existing banner
+    wallet: Optional[str] = None
+
+
+@router.post("/banners/ai-generate")
+async def generate_banner_ai(req: BannerAIGenerateRequest, user: dict = Depends(require_banners_role)):
+    """
+    Generate a promotional banner image with Aurora AI.
+    Composes up to 4 product images into a banner with text overlays.
+    """
+    from config.ai_image.aurora_client import AuroraClient, IMAGE_MODEL_PRO
+    from config.ai_image.aurora_banner_client import (
+        build_banner_prompt, upload_banner_ai_image,
+        save_banner_generation,
+    )
+
+    # Resolve product names and images from IDs
+    product_names = []
+    product_images = list(req.product_images)[:4]
+
+    if req.product_ids:
+        for pid in req.product_ids[:4]:
+            q = {"$or": [{"id": pid}]}
+            try:
+                q["$or"].append({"_id": __import__("bson").ObjectId(pid)})
+            except Exception:
+                pass
+            try:
+                q["$or"].append({"id": int(pid)})
+            except (ValueError, TypeError):
+                pass
+            doc = db.menus.find_one(q)
+            if doc:
+                product_names.append(doc.get("nombre", pid))
+                # Use product's main image if not passed
+                if len(product_images) < len(req.product_ids):
+                    img = doc.get("media_r2") or doc.get("media_url") or ""
+                    if img:
+                        product_images.append(img)
+
+    prompt = build_banner_prompt(
+        product_names=product_names,
+        product_images=product_images,
+        headline=req.headline,
+        promo_text=req.promo_text,
+        style=req.style,
+        image_size=req.image_size,
+        location_name=req.location_name,
+        location_desc=req.location_desc,
+    )
+
+    logger.info(f"[banners] AI GENERATE: products={product_names}, style={req.style}")
+
+    aurora = AuroraClient()
+
+    # If we have reference images, use the first one for image-to-image
+    ref_url = product_images[0] if product_images else None
+    image_bytes, revised = await aurora.generate_image_with_fallback(
+        prompt=prompt,
+        model=IMAGE_MODEL_PRO,
+        ref_url=ref_url,
+    )
+
+    image_url = upload_banner_ai_image(image_bytes, req.headline or "banner")
+    wallet = (req.wallet or user.get("wallet", "anonymous")).lower().strip()
+
+    generation_id = save_banner_generation(
+        banner_id=req.banner_id,
+        image_url=image_url,
+        prompt_headline=req.headline,
+        model=IMAGE_MODEL_PRO,
+        wallet=wallet,
+        product_names=product_names,
+        style=req.style,
+    )
+
+    return {
+        "generation_id": generation_id,
+        "image_url": image_url,
+        "revised_prompt": revised,
+        "model_used": IMAGE_MODEL_PRO,
+    }
+
+
+@router.get("/banners/ai-history")
+async def get_banner_ai_history(limit: int = 50, user: dict = Depends(require_banners_role)):
+    """Get AI banner generation history."""
+    from config.ai_image.aurora_banner_client import get_banner_generation_history
+    items = get_banner_generation_history(limit=limit)
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/banners/ai-styles")
+async def get_banner_ai_styles():
+    """Get available AI banner styles."""
+    from config.ai_image.aurora_banner_client import BANNER_STYLES
+    return {"styles": BANNER_STYLES}
 
 @router.post("/banners/trigger-sync")
 async def trigger_banners_sync(user: dict = Depends(require_banners_role)):

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Phone, Clock, Users, LayoutGrid, Armchair, Pencil, ChevronRight, ImageOff, UtensilsCrossed, Truck } from 'lucide-react';
+import { MapPin, Phone, Clock, Users, LayoutGrid, Armchair, Pencil, ChevronRight, ImageOff, UtensilsCrossed, Truck, QrCode, Eye } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const Pill = ({ icon: Icon, label, color = 'zinc' }) => (
@@ -84,7 +84,7 @@ function getServiceStatus(schedule, specialDates) {
 }
 
 // ── Card ──────────────────────────────────────────────────────────────────────
-const LocationCard = ({ location, onEdit, index = 0 }) => {
+const LocationCard = ({ location, onEdit, index = 0, liveVisitors = 0 }) => {
     const [imgError, setImgError] = useState(false);
 
     const cover    = (!imgError && (location.cover_image_url || (location.media_urls || [])[0] || location.media_r2)) || null;
@@ -139,6 +139,7 @@ const LocationCard = ({ location, onEdit, index = 0 }) => {
                     </div>
                 )}
 
+
                 {/* Edit button */}
                 <button
                     onClick={onEdit}
@@ -148,11 +149,29 @@ const LocationCard = ({ location, onEdit, index = 0 }) => {
                     <Pencil className="w-3.5 h-3.5" />
                 </button>
 
+                {/* QR badge */}
+                {location.qr_redirect_url && (
+                    <div className="absolute top-3 right-14">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm text-white text-[10px] font-semibold">
+                            <QrCode className="w-3 h-3" /> QR{location.qr_scan_count > 0 ? ` · ${location.qr_scan_count}` : ''}
+                        </span>
+                    </div>
+                )}
+
                 {/* Name at bottom of cover */}
-                <div className="absolute bottom-3 left-3 right-3">
+                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
                     <h3 className="text-base font-bold text-white leading-tight drop-shadow-lg truncate">
                         {location.nombre}
                     </h3>
+                    {liveVisitors > 0 && (
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/90 backdrop-blur-sm text-white text-[10px] font-bold">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                            </span>
+                            <Eye className="w-3 h-3" /> {liveVisitors} en línea
+                        </span>
+                    )}
                 </div>
             </div>
 

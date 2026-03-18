@@ -5,6 +5,7 @@ Thin route layer — all business logic lives in config.menus.*
 
 import logging
 from typing import Optional, List
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from pydantic import BaseModel
@@ -633,6 +634,143 @@ async def get_public_catalog(request: Request):
     raise HTTPException(status_code=401, detail="Missing API Key")
 
 
+# ═════════════════════════════════════════════
+# QR redirect — public, no auth required
+# ═════════════════════════════════════════════
+
+@router.get("/go/{slug}")
+async def qr_redirect(slug: str, request: Request):
+    """
+    Public redirect endpoint for QR codes.
+    Logs the scan event then redirects to the location's qr_redirect_url.
+    """
+    from starlette.responses import RedirectResponse
+
+    loc = location_svc.get_location_by_slug(slug)
+    if not loc:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    # Log the scan asynchronously-ish (fire & forget — still sync pymongo but fast insert)
+    try:
+        location_svc.log_qr_scan(
+            slug=slug,
+            location_id=loc.get("id", ""),
+            user_agent=request.headers.get("user-agent", ""),
+            ip=request.client.host if request.client else "",
+            referer=request.headers.get("referer", ""),
+        )
+    except Exception as e:
+        logger.warning(f"QR scan log failed: {e}")
+
+    redirect_url = (loc.get("qr_redirect_url") or "").strip()
+    if not redirect_url:
+        redirect_url = f"https://lapiccolaitalia.cl/local/{slug}"
+
+    return RedirectResponse(url=redirect_url, status_code=307)
+
+
+@router.get("/carta/qr-stats/{slug}")
+async def get_qr_stats(slug: str, user: dict = Depends(_require_catalog_or_token)):
+    """Return QR scan analytics for a location slug."""
+    try:
+        stats = location_svc.get_qr_scan_stats(slug)
+        # Also include live visitor count from Redis
+        try:
+            from fastapi_cache import FastAPICache
+            redis = FastAPICache.get_backend().redis
+            raw_keys = await redis.keys(f"visitor:{slug}:*")
+            stats["live_visitors"] = len(raw_keys)
+        except Exception:
+            stats["live_visitors"] = 0
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting QR stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═════════════════════════════════════════════
+# Visitor tracking — public heartbeat + admin counts
+# ═════════════════════════════════════════════
+
+@router.post("/public/heartbeat")
+async def visitor_heartbeat(request: Request):
+    """
+    Public endpoint — the carta digital pings this every 30s.
+    Body: { slug, session_id, device_type? }
+    Each session is a Redis key with 90s TTL (auto-expires if no ping).
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    slug = (body.get("slug") or "").strip()
+    session_id = (body.get("session_id") or "").strip()
+    if not slug or not session_id:
+        raise HTTPException(status_code=400, detail="slug and session_id required")
+
+    device_type = body.get("device_type", "unknown")
+    user_agent = request.headers.get("user-agent", "")[:200]
+
+    try:
+        from fastapi_cache import FastAPICache
+        redis = FastAPICache.get_backend().redis
+        key = f"visitor:{slug}:{session_id}"
+        # Store visitor info with 90s TTL — auto-expires if carta stops pinging
+        import json as _json
+        payload = _json.dumps({
+            "dt": device_type,
+            "ua": user_agent,
+            "t": datetime.now(timezone.utc).isoformat(),
+        })
+        await redis.set(key, payload, ex=90)
+        print(f"[HEARTBEAT] SET {key} → TTL=90s, device={device_type}")
+    except Exception as e:
+        logger.warning(f"Heartbeat redis error: {e}")
+
+    return {"ok": True}
+
+
+@router.get("/carta/live-visitors")
+async def get_live_visitors(user: dict = Depends(_require_catalog_or_token)):
+    """Return active visitor count per location slug."""
+    try:
+        from fastapi_cache import FastAPICache
+        import json as _json
+        redis = FastAPICache.get_backend().redis
+        raw_keys = await redis.keys("visitor:*")
+        print(f"[LIVE-VISITORS] Redis keys found: {len(raw_keys)} — raw sample: {raw_keys[:3]}")
+
+        # Parse: visitor:{slug}:{session_id}
+        counts = {}
+        details = {}
+        for raw_key in raw_keys:
+            # Redis may return bytes — decode to str
+            key_str = raw_key.decode("utf-8") if isinstance(raw_key, bytes) else str(raw_key)
+            parts = key_str.split(":", 2)
+            if len(parts) < 3:
+                print(f"[LIVE-VISITORS] Bad key format: {key_str}")
+                continue
+            slug = parts[1]
+            counts[slug] = counts.get(slug, 0) + 1
+            # Get device detail for this visitor
+            try:
+                raw = await redis.get(raw_key)
+                if raw:
+                    val_str = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+                    info = _json.loads(val_str)
+                    if slug not in details:
+                        details[slug] = {"mobile": 0, "desktop": 0, "tablet": 0, "unknown": 0}
+                    dt = info.get("dt", "unknown")
+                    details[slug][dt] = details[slug].get(dt, 0) + 1
+            except Exception:
+                pass
+
+        print(f"[LIVE-VISITORS] Result: counts={counts}, total={sum(counts.values())}")
+        return {"counts": counts, "details": details, "total": sum(counts.values())}
+    except Exception as e:
+        logger.error(f"Error getting live visitors: {e}")
+        return {"counts": {}, "details": {}, "total": 0}
 
 
 # ═════════════════════════════════════════════

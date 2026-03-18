@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { MapPin, RefreshCw, Search, Filter, X, Building2, Globe } from 'lucide-react';
 import useRestaurantData from '../../hooks/useRestaurantData';
 import LocationCard from './components/LocationCard';
 import LocationModal from './components/LocationModal';
-import { triggerPublicSync } from '../../utils/cartaData';
+import { triggerPublicSync, fetchLiveVisitors as apiFetchLiveVisitors } from '../../utils/cartaData';
 
 const Locations = ({ appState }) => {
     const { t } = useTranslation();
@@ -15,6 +15,21 @@ const Locations = ({ appState }) => {
     const [communeFilter, setCommuneFilter] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [syncState, setSyncState] = useState('idle'); // idle | loading | ok | error
+    const [liveVisitors, setLiveVisitors] = useState({ counts: {}, total: 0 }); // { counts: {slug: count}, total }}
+
+    // Poll live visitors every 15s
+    const pollLiveVisitors = useCallback(async () => {
+        try {
+            const data = await apiFetchLiveVisitors({ token: appState?.token, account: appState?.account });
+            setLiveVisitors({ counts: data.counts || {}, total: data.total || 0 });
+        } catch {}
+    }, [appState?.token, appState?.account]);
+
+    useEffect(() => {
+        pollLiveVisitors();
+        const iv = setInterval(pollLiveVisitors, 15000);
+        return () => clearInterval(iv);
+    }, [pollLiveVisitors]);
 
     // All unique communes for the filter
     const communes = useMemo(() => {
@@ -238,6 +253,7 @@ const Locations = ({ appState }) => {
                                             location={location}
                                             index={idx}
                                             onEdit={() => setSelectedLocation(location)}
+                                            liveVisitors={(liveVisitors.counts?.[location.permalink_slug] || 0) + (liveVisitors.counts?.general || 0)}
                                         />
                                     ))}
                                 </div>
@@ -251,6 +267,7 @@ const Locations = ({ appState }) => {
                     isOpen={!!selectedLocation}
                     onClose={() => setSelectedLocation(null)}
                     appState={appState}
+                    liveVisitors={liveVisitors}
                 />
             </div>
         </div>

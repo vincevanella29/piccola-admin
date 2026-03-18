@@ -433,3 +433,23 @@ export const linkModifierToProduct = async ({ token, account, optionId, productI
         withCredentials: true,
     });
 };
+
+// ── QR stats ───────────────────────────────────────
+export const fetchQrStats = async ({ token, account, slug }) => {
+    return api({
+        method: 'GET',
+        endpoint: `/carta/qr-stats/${slug}`,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+// ── Live visitors ──────────────────────────────────
+export const fetchLiveVisitors = async ({ token, account }) => {
+    return api({
+        method: 'GET',
+        endpoint: '/carta/live-visitors',
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};

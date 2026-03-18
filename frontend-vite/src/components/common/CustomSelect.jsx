@@ -6,7 +6,7 @@ const CustomSelect = ({ styles, ...props }) => {
     const { theme } = useTheme();
     const isDark = theme === 'dark';
 
-    const customStyles = {
+    const internalStyles = {
         control: (provided, state) => ({
             ...provided,
             backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.8)',
@@ -117,10 +117,22 @@ const CustomSelect = ({ styles, ...props }) => {
                 color: '#CE2B37',
             },
         }),
-        ...styles,
     };
 
-    return <Select styles={customStyles} {...props} />;
+    // Merge external styles ON TOP of internal styles (compose, don't replace)
+    const mergedStyles = { ...internalStyles };
+    if (styles) {
+        for (const [key, fn] of Object.entries(styles)) {
+            if (typeof fn === 'function' && internalStyles[key]) {
+                const internal = internalStyles[key];
+                mergedStyles[key] = (base, state) => fn(internal(base, state), state);
+            } else {
+                mergedStyles[key] = fn;
+            }
+        }
+    }
+
+    return <Select styles={mergedStyles} {...props} />;
 };
 
 export default CustomSelect;

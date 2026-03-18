@@ -63,6 +63,12 @@ class UpdateLocationRequest(BaseModel):
     # Media
     cover_image_url: Optional[str] = None  # imagen principal del local
     media_urls: Optional[List[str]] = None
+    # Structured schedules
+    opening_hours: Optional[dict] = None   # { dinein: {...}, delivery: {...} }
+    special_dates: Optional[list] = None   # [{date, label, closed, open, close}]
+    # QR
+    qr_url: Optional[str] = None           # auto-generated QR URL
+    qr_redirect_url: Optional[str] = None  # user-chosen redirect URL
 
 
 class UpdateLocationResponse(BaseModel):
@@ -183,6 +189,14 @@ async def get_menus(user: dict = Depends(verify_session)):
                     }
                 else:
                     menu["rentabilidad"][label] = None
+            # Also set sales_units from the same rentabilidad data
+            menu["sales_units"] = {
+                lbl: (renta_idx.get(cod, {}).get(per) or {}).get("cantidad")
+                for lbl, per in zip(
+                    ["actual", "anterior", "antepasado", "anio_anterior", "anterior_anio_anterior"],
+                    [periodo_actual, periodo_anterior, periodo_antepasado, periodo_anio_anterior, periodo_anterior_anio_anterior],
+                )
+            }
 
         # Limpia _id y convierte fechas a string ISO en categorías
         for cat in categories:
@@ -385,6 +399,16 @@ async def update_location(location_id: str, body: UpdateLocationRequest, user: d
             set_fields["cover_image_url"] = body.cover_image_url
         if body.media_urls is not None:
             set_fields["media_urls"] = body.media_urls
+        # Structured schedules
+        if body.opening_hours is not None:
+            set_fields["opening_hours"] = body.opening_hours
+        if body.special_dates is not None:
+            set_fields["special_dates"] = body.special_dates
+        # QR — always persist (even empty string) so user can clear redirect
+        if body.qr_url is not None:
+            set_fields["qr_url"] = body.qr_url
+        if body.qr_redirect_url is not None:
+            set_fields["qr_redirect_url"] = body.qr_redirect_url
 
         if not set_fields:
             raise HTTPException(status_code=400, detail="No fields to update")

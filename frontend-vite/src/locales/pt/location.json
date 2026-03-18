@@ -1,6 +1,6 @@
 {
   "adminTitle": "{{base}} — Admin",
-  "description": "Location management (capacity, tables, chairs, photos)",
+  "description": "Gestão de filiais (capacidade, mesas, cadeiras, fotos)",
   "searchPlaceholder": "Buscar por nome, endereço ou distrito…",
   "newBranch": "Nova filial",
   "comingSoon": "Em breve",
@@ -9,20 +9,71 @@
   "modal": {
     "close": "Fechar",
     "editTitle": "Editar: {{name}}",
-    "capacity": "Capacidade (pessoas)",
-    "tables": "Mesas",
-    "chairs": "Cadeiras",
-    "description": "Descrição / Observações",
-    "capacityPlaceholder": "ex. 120",
-    "tablesPlaceholder": "ex. 35",
-    "chairsPlaceholder": "ex. 140",
-    "notesPlaceholder": "Notas internas da filial…",
-    "currentPhotos": "Fotos atuais",
-    "noPhotos": "Sem fotos ainda.",
-    "uploadPhotos": "Enviar novas fotos",
-    "selectFiles": "Selecionar arquivos",
-    "filesSelected": "{{count}} arquivo(s) selecionado(s)",
-    "noneSelected": "Nenhum selecionado",
+    "tabs": {
+      "info": "Informações",
+      "schedule": "Horários",
+      "media": "Fotos",
+      "qr": "QR"
+    },
+    "info": {
+      "address": "Endereço",
+      "addressPlaceholder": "Rua Principal 123",
+      "commune": "Bairro / Distrito",
+      "communePlaceholder": "Centro",
+      "phone": "Telefone",
+      "phonePlaceholder": "+55 11 1234 5678",
+      "schedule": "Horário (texto livre)",
+      "schedulePlaceholder": "Seg-Dom 12:00 – 23:00",
+      "people": "Pessoas",
+      "tables": "Mesas",
+      "chairs": "Cadeiras",
+      "description": "Descrição / Notas internas",
+      "descriptionPlaceholder": "Notas sobre o local, características especiais, etc."
+    },
+    "schedule": {
+      "dinein": "Dine-in (Salão)",
+      "delivery": "Delivery",
+      "dineinHint": "Configure os horários de **Dine-in** e **Delivery** separadamente para cada dia. Você também pode adicionar fechamentos ou datas especiais.",
+      "copyMon": "Copiar horário Seg → todos",
+      "daysActive_one": "{{count}} dia ativo",
+      "daysActive_other": "{{count}} dias ativos",
+      "closed": "Fechado",
+      "specialDates": "Datas especiais / Fechamentos",
+      "addDate": "Adicionar data",
+      "noSpecialDates": "Sem datas especiais configuradas",
+      "datePlaceholder": "Ex: Natal, Ano novo…",
+      "closedDay": "Fechado neste dia",
+      "specialHours": "Aberto com horário especial"
+    },
+    "media": {
+      "coverTitle": "Imagem de capa",
+      "changeCover": "Alterar imagem",
+      "newCover": "Nova",
+      "uploadCover": "Clique para enviar imagem de capa",
+      "galleryTitle": "Galeria ({{count}} fotos)",
+      "addPhotos": "Adicionar fotos",
+      "noPhotos": "Sem fotos ainda"
+    },
+    "qr": {
+      "codeTab": "Código QR",
+      "metricsTab": "Métricas",
+      "qrUrl": "URL do QR",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "destination": "Destino de redirecionamento",
+      "destinationPlaceholder": "https://maps.google.com/...",
+      "destinationHint": "Se vazio → {{fallback}}",
+      "noSlug": "Este local precisa de um permalink_slug para gerar QR.",
+      "noSlugMetrics": "Sem slug configurado",
+      "live": "live",
+      "scans": "scans",
+      "last7": "Últimos 7 dias",
+      "hourly": "Atividade por hora",
+      "recent": "Recentes",
+      "noScans": "Sem scans ainda",
+      "error": "Erro: {{msg}}"
+    },
+    "cancel": "Cancelar",
     "saving": "Salvando…",
     "saveChanges": "Salvar alterações"
   },
@@ -31,6 +82,7 @@
     "tables": "Mesas",
     "chairs": "Cadeiras",
     "telPrefix": "Tel:",
-    "edit": "Editar"
+    "edit": "Editar",
+    "online": "online"
   }
 }

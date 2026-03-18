@@ -302,6 +302,9 @@ def get_public_catalog(api_key: str) -> dict:
             # Structured schedules
             "opening_hours":  s.get("opening_hours", {}),
             "special_dates":  s.get("special_dates", []),
+            # QR
+            "qr_url":          s.get("qr_url", ""),
+            "qr_redirect_url": s.get("qr_redirect_url", ""),
             "created_at":     s.get("created_at"),
             "updated_at":     s.get("updated_at"),
         })
