@@ -139,6 +139,16 @@ export const bulkDeleteProducts = async ({ token, account, ids }) => {
     });
 };
 
+export const reorderProducts = async ({ token, account, items }) => {
+    return api({
+        method: 'POST',
+        endpoint: '/carta/products/reorder',
+        data: { items },
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
 // ── Categories ─────────────────────────────────────
 export const fetchCategories = async ({ token, account, only_active } = {}) => {
     const params = {};
@@ -186,6 +196,45 @@ export const bulkDeleteCategories = async ({ token, account, ids }) => {
         method: 'POST',
         endpoint: '/carta/categories/bulk-delete',
         data: { ids },
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+// ── Menu Types ─────────────────────────────────────
+export const fetchMenuTypes = async ({ token, account } = {}) => {
+    return api({
+        method: 'GET',
+        endpoint: '/carta/menu-types',
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const createMenuType = async ({ token, account, data }) => {
+    return api({
+        method: 'POST',
+        endpoint: '/carta/menu-types',
+        data,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const updateMenuType = async ({ token, account, slug, data }) => {
+    return api({
+        method: 'PUT',
+        endpoint: `/carta/menu-types/${slug}`,
+        data,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const deleteMenuType = async ({ token, account, slug }) => {
+    return api({
+        method: 'DELETE',
+        endpoint: `/carta/menu-types/${slug}`,
         headers: authHeaders(token, account),
         withCredentials: true,
     });

@@ -55,7 +55,7 @@ const ProductThumb = ({ p }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-const CategoryModal = ({ category, onClose, onSave, products = [] }) => {
+const CategoryModal = ({ category, onClose, onSave, products = [], menuTypes = [] }) => {
     const { t } = useTranslation();
     const isEdit = !!category?.id;
 
@@ -66,6 +66,7 @@ const CategoryModal = ({ category, onClose, onSave, products = [] }) => {
         alias:     category?.alias     || '',
         estado:    category?.estado    ?? true,
         prioridad: category?.prioridad ?? 0,
+        menu_type: category?.menu_type || 'carta',
     });
 
     // menu_ids = product IDs linked to this category
@@ -112,6 +113,7 @@ const CategoryModal = ({ category, onClose, onSave, products = [] }) => {
                 estado:    form.estado,
                 prioridad: form.prioridad !== '' ? parseInt(form.prioridad, 10) : 0,
                 menu_ids:  [...linkedIds],
+                menu_type: form.menu_type || 'carta',
             });
             onClose();
         } catch (err) {
@@ -207,6 +209,32 @@ const CategoryModal = ({ category, onClose, onSave, products = [] }) => {
                                             </button>
                                         </Field>
                                     </div>
+                                    {menuTypes.length > 0 && (
+                                        <div className="col-span-2">
+                                            <Field label="Tipo de menú">
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {menuTypes.map(mt => (
+                                                        <button key={mt.slug} type="button"
+                                                            onClick={() => set('menu_type', mt.slug)}
+                                                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                                                                form.menu_type === mt.slug
+                                                                    ? 'shadow-sm'
+                                                                    : 'border-light-border dark:border-dark-border hover:border-light-accent/30 dark:hover:border-dark-accent/30'
+                                                            }`}
+                                                            style={form.menu_type === mt.slug ? {
+                                                                backgroundColor: `${mt.color}18`,
+                                                                borderColor: `${mt.color}40`,
+                                                                color: mt.color,
+                                                            } : undefined}
+                                                        >
+                                                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: mt.color }} />
+                                                            {mt.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </Field>
+                                        </div>
+                                    )}
                                 </div>
                             </motion.div>
                         )}

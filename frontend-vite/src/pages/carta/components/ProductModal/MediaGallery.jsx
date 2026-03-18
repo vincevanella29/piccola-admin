@@ -47,11 +47,24 @@ const MediaGallery = ({ images, video, updatedAt, onRemove, onVideoRemove, onReo
     const handleDrop = (e, toIdx) => {
         e.preventDefault();
         const fromIdx = dragRef.current;
-        if (fromIdx === null || fromIdx === toIdx) { setDragOver(null); return; }
+        if (fromIdx === null || fromIdx === undefined || fromIdx === toIdx) {
+            setDragOver(null);
+            return;
+        }
+        // Clamp toIdx to valid range — don't allow gaps
+        const clampedTo = Math.min(toIdx, images.length - 1);
+        if (fromIdx === clampedTo) { setDragOver(null); return; }
         const next = [...images];
         const [moved] = next.splice(fromIdx, 1);
-        next.splice(toIdx, 0, moved);
-        if (onReorder) onReorder(next);
+        next.splice(clampedTo, 0, moved);
+        // Deduplicate — safety net
+        const seen = new Set();
+        const deduped = next.filter(url => {
+            if (seen.has(url)) return false;
+            seen.add(url);
+            return true;
+        });
+        if (onReorder) onReorder(deduped);
         setDragFrom(null); setDragOver(null); dragRef.current = null;
     };
 
@@ -106,8 +119,12 @@ const MediaGallery = ({ images, video, updatedAt, onRemove, onVideoRemove, onReo
                         </div>
                     );
 
+                    // Stable key: use a hash of the URL instead of url+index
+                    // This prevents React from confusing elements on reorder
+                    const stableKey = `slot-${url}`;
+
                     return (
-                        <div key={busted(url) + i}
+                        <div key={stableKey}
                             draggable
                             onDragStart={e => handleDragStart(e, i)}
                             onDragEnter={() => setDragOver(i)}

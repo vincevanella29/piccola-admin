@@ -265,6 +265,9 @@ def get_public_catalog(api_key: str) -> dict:
         cat_menus = [menus_by_id[mid] for mid in menu_ids if mid in menus_by_id]
         cat_menus.sort(key=lambda x: int(x.get("prioridad") or 0))
         c_out["menus"] = cat_menus
+        # Ensure menu_type is always present (defaults to 'carta')
+        if "menu_type" not in c_out or not c_out.get("menu_type"):
+            c_out["menu_type"] = "carta"
         categories_out.append(c_out)
 
     # Build locations output with ALL rich fields from the DB document

@@ -266,7 +266,15 @@ async def organize_media(product_id: str, images: List[str], video_url: Optional
       images[1] → menu_images/{product_id}-2.webp
       ...
     """
-    images = (images or [])[:4]
+    # Deduplicate images (strip query params for comparison, keep first occurrence)
+    raw_imgs = (images or [])[:4]
+    seen_bases = set()
+    images = []
+    for url in raw_imgs:
+        base = url.split("?")[0] if url else ""
+        if base and base not in seen_bases:
+            seen_bases.add(base)
+            images.append(url)
     if not images:
         raise ValueError("Debe haber al menos una imagen")
 

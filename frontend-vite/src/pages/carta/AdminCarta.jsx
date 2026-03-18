@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Package, Tags, Search, Loader2, Trash2, CheckCircle, SlidersHorizontal, Zap, BookOpen, Database, Layers } from 'lucide-react';
+import { Package, Tags, Search, Loader2, Trash2, CheckCircle, SlidersHorizontal, Zap, BookOpen, Database, Layers, Plus, X, Clock, Wine } from 'lucide-react';
 
 import useCartaAdmin from '../../hooks/useCartaAdmin';
 import ProductModal from './components/ProductModal';
@@ -14,6 +14,10 @@ import LocationButtonsManager from './components/LocationButtonsManager';
 import AIImagenModal from './components/AIImagenModal';
 import MtzMissingTable from './components/MtzMissingTable';
 import MenuOptionsManager from './components/MenuOptionsManager';
+
+// Icon resolver for menu types
+const ICON_MAP = { BookOpen, Zap, Clock, Wine, Package, Tags, Layers, Database, SlidersHorizontal };
+const resolveIcon = (name) => ICON_MAP[name] || BookOpen;
 
 // ── Segmented Tab ─────────────────────────────────────────────────────────────
 const SegmentedTab = ({ id, active, onClick, icon: Icon, label, count }) => (
@@ -33,22 +37,113 @@ const SegmentedTab = ({ id, active, onClick, icon: Icon, label, count }) => (
     </button>
 );
 
+// ── Menu Type Pill ────────────────────────────────────────────────────────────
+const MenuTypePill = ({ mt, active, count, onClick }) => {
+    const Icon = resolveIcon(mt.icon);
+    return (
+        <button onClick={onClick}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${active
+                ? 'shadow-sm'
+                : 'border-transparent hover:border-light-border dark:hover:border-dark-border/40'
+            }`}
+            style={active ? {
+                backgroundColor: `${mt.color}18`,
+                borderColor: `${mt.color}40`,
+                color: mt.color,
+            } : undefined}
+        >
+            <Icon className="w-3 h-3" style={active ? { color: mt.color } : undefined} />
+            <span className={active ? '' : 'text-light-text-secondary dark:text-dark-text-secondary'}>{mt.name}</span>
+            {count > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] leading-none font-bold ${
+                    active
+                        ? 'bg-white/40 dark:bg-black/20'
+                        : 'bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'
+                }`}>{count}</span>
+            )}
+        </button>
+    );
+};
+
+// ── Create Menu Type Mini Modal ─────────────────────────────────────────────
+const COLOR_PRESETS = ['#4CAF50', '#FF9800', '#9C27B0', '#E91E63', '#2196F3', '#607D8B', '#FF5722', '#00BCD4'];
+
+const CreateMenuTypeInline = ({ onSave, onCancel }) => {
+    const [slug, setSlug] = useState('');
+    const [name, setName] = useState('');
+    const [color, setColor] = useState('#607D8B');
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        if (!slug.trim() || !name.trim()) return;
+        setSaving(true);
+        try {
+            await onSave({ slug: slug.trim().toLowerCase().replace(/\s+/g, '_'), name: name.trim(), color, icon: 'BookOpen' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -8 }}
+            className="absolute left-0 top-full mt-2 z-50 bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-2xl shadow-xl p-4 w-72 space-y-3"
+        >
+            <p className="text-xs font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">Nuevo tipo de menú</p>
+            <input
+                value={name}
+                onChange={e => { setName(e.target.value); if (!slug || slug === name.toLowerCase().replace(/\s+/g, '_')) setSlug(e.target.value.toLowerCase().replace(/\s+/g, '_')); }}
+                placeholder="Nombre (ej: Happy Hour)"
+                className="w-full px-3 py-2 text-sm rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
+                autoFocus
+            />
+            <input
+                value={slug}
+                onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                placeholder="slug (ej: happy_hour)"
+                className="w-full px-3 py-2 text-xs font-mono rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
+            />
+            <div className="flex gap-1.5 flex-wrap">
+                {COLOR_PRESETS.map(c => (
+                    <button key={c} onClick={() => setColor(c)}
+                        className={`w-6 h-6 rounded-full border-2 transition-all ${color === c ? 'border-light-text-primary dark:border-dark-text-primary scale-110' : 'border-transparent hover:scale-105'}`}
+                        style={{ backgroundColor: c }}
+                    />
+                ))}
+            </div>
+            <div className="flex gap-2">
+                <button onClick={onCancel} className="flex-1 py-2 rounded-xl border border-light-border dark:border-dark-border text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-colors">
+                    Cancelar
+                </button>
+                <button onClick={handleSave} disabled={!slug.trim() || !name.trim() || saving}
+                    className="flex-1 py-2 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-xs font-bold hover:opacity-90 transition-opacity disabled:opacity-40">
+                    {saving ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Crear'}
+                </button>
+            </div>
+        </motion.div>
+    );
+};
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AdminCarta = ({ appState }) => {
     const { t } = useTranslation();
     const {
-        products, categories, locations, menuOptions, isLoading, isSyncing,
+        products, categories, locations, menuOptions, menuTypes, isLoading, isSyncing,
         fetchAll, refresh, patchProduct, updateProduct, createProduct, updateCategory, createCategory,
         uploadProductImage, triggerPublicSync, cleanDatabaseDuplicates,
         deleteProduct, deleteCategory, bulkDeleteProducts, bulkDeleteCategories,
-        fetchLocations, updateLocationButtons,
+        fetchLocations, updateLocationButtons, createMenuType, deleteMenuType, reorderProducts,
     } = useCartaAdmin(appState);
 
     // ── UI State ───────────────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState('products');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
+    const [selectedMenuType, setSelectedMenuType] = useState('');  // '' = all
     const [editingProduct, setEditingProduct] = useState(null);
     const [editingCategory, setEditingCategory] = useState(null);
     const [selectedProductIds, setSelectedProductIds] = useState([]);
@@ -56,10 +151,21 @@ const AdminCarta = ({ appState }) => {
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [isDeleting, setIsDeleting]   = useState(false);
     const [aiImagenProduct, setAiImagenProduct] = useState(null);
-    const [syncMsg, setSyncMsg]         = useState(null);  // { type: 'success'|'error', text }
+    const [syncMsg, setSyncMsg]         = useState(null);
     const [isSyncingLocal, setIsSyncingLocal] = useState(false);
+    const [showCreateMenuType, setShowCreateMenuType] = useState(false);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
+
+    // ── Menu type counts ──────────────────────────────────────────────────────
+    const menuTypeCounts = useMemo(() => {
+        const counts = {};
+        for (const cat of categories) {
+            const mt = cat.menu_type || 'carta';
+            counts[mt] = (counts[mt] || 0) + 1;
+        }
+        return counts;
+    }, [categories]);
 
     // ── Filtered Lists ─────────────────────────────────────────────────────────
     const filteredProducts = useMemo(() => {
@@ -73,8 +179,12 @@ const AdminCarta = ({ appState }) => {
 
     const filteredCategories = useMemo(() => {
         const q = searchQuery.toLowerCase();
-        return categories.filter(c => !q || c.nombre?.toLowerCase().includes(q) || c.alias?.toLowerCase().includes(q));
-    }, [categories, searchQuery]);
+        return categories.filter(c => {
+            const matchSearch = !q || c.nombre?.toLowerCase().includes(q) || c.alias?.toLowerCase().includes(q);
+            const matchType = !selectedMenuType || (c.menu_type || 'carta') === selectedMenuType;
+            return matchSearch && matchType;
+        });
+    }, [categories, searchQuery, selectedMenuType]);
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleSaveProduct = async (id, payload) => {
@@ -134,6 +244,36 @@ const AdminCarta = ({ appState }) => {
             setTimeout(() => setSyncMsg(null), 6000);
         }
     };
+
+    const handleCreateMenuType = useCallback(async (data) => {
+        try {
+            await createMenuType(data);
+            refresh();
+            setShowCreateMenuType(false);
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        }
+    }, [createMenuType, refresh]);
+
+    const handleMoveCategory = useCallback(async (categoryId, newMenuType) => {
+        try {
+            await updateCategory(categoryId, { menu_type: newMenuType });
+            refresh();
+        } catch (err) {
+            alert(`Error moviendo categoría: ${err.message}`);
+        }
+    }, [updateCategory, refresh]);
+
+    const handleBulkMoveCategories = useCallback(async (categoryIds, newMenuType) => {
+        try {
+            await Promise.all(categoryIds.map(id => updateCategory(id, { menu_type: newMenuType })));
+            setSelectedCategoryIds([]);
+            refresh();
+        } catch (err) {
+            alert(`Error moviendo categorías: ${err.message}`);
+        }
+    }, [updateCategory, refresh]);
+
     const toggleProduct = (id) => setSelectedProductIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
     const toggleCategory = (id) => setSelectedCategoryIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
@@ -177,7 +317,6 @@ const AdminCarta = ({ appState }) => {
                                     <span className="hidden sm:inline">{t('carta.sync_web')}</span>
                                 </button>
                             </div>
-                            {/* Feedback toast (inline below buttons) */}
                             {syncMsg && (
                                 <div className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl ${
                                     syncMsg.type === 'success'
@@ -206,6 +345,49 @@ const AdminCarta = ({ appState }) => {
                             <SegmentedTab id="mtz-missing" active={activeTab === 'mtz-missing'} onClick={setActiveTab} icon={Database}         label="MTZ" />
                         </div>
                     </div>
+
+                    {/* Row 1.5: Menu Type pills — categories tab only */}
+                    <AnimatePresence>
+                        {activeTab === 'categories' && menuTypes.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="relative flex items-center gap-1 flex-wrap">
+                                    <MenuTypePill
+                                        mt={{ slug: '', name: 'Todas', icon: 'Tags', color: '#607D8B' }}
+                                        active={!selectedMenuType}
+                                        count={categories.length}
+                                        onClick={() => setSelectedMenuType('')}
+                                    />
+                                    {menuTypes.map(mt => (
+                                        <MenuTypePill
+                                            key={mt.slug}
+                                            mt={mt}
+                                            active={selectedMenuType === mt.slug}
+                                            count={menuTypeCounts[mt.slug] || 0}
+                                            onClick={() => setSelectedMenuType(selectedMenuType === mt.slug ? '' : mt.slug)}
+                                        />
+                                    ))}
+                                    <button
+                                        onClick={() => setShowCreateMenuType(v => !v)}
+                                        className="flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent dark:hover:text-dark-accent transition-colors"
+                                        title="Crear nuevo tipo de menú"
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                    </button>
+                                    <AnimatePresence>
+                                        {showCreateMenuType && (
+                                            <CreateMenuTypeInline
+                                                onSave={handleCreateMenuType}
+                                                onCancel={() => setShowCreateMenuType(false)}
+                                            />
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     {/* Row 2: Search + Category filter + CTA */}
                     <div className="flex flex-wrap items-center gap-2">
@@ -243,7 +425,7 @@ const AdminCarta = ({ appState }) => {
                             </button>
                         )}
                         {activeTab === 'categories' && (
-                            <button onClick={() => setEditingCategory({})}
+                            <button onClick={() => setEditingCategory(selectedMenuType ? { menu_type: selectedMenuType } : {})}
                                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-sm font-semibold shadow-neon hover:opacity-90 transition-all shrink-0">
                                 <Tags className="w-4 h-4" />
                                 <span className="hidden sm:inline">{t('carta.new_category')}</span>
@@ -273,13 +455,18 @@ const AdminCarta = ({ appState }) => {
                                     selectedIds={selectedProductIds} onToggle={toggleProduct} onToggleAll={setSelectedProductIds}
                                     onEdit={setEditingProduct} onDelete={(id, name) => handleDeleteIndividual('products', id, name)}
                                     onAIImagen={setAiImagenProduct}
+                                    onReorder={reorderProducts}
                                 />
                             )}
                             {activeTab === 'categories' && (
                                 <CategoriesTable categories={filteredCategories}
                                     products={products}
+                                    menuTypes={menuTypes}
                                     selectedIds={selectedCategoryIds} onToggle={toggleCategory} onToggleAll={setSelectedCategoryIds}
-                                    onEdit={setEditingCategory} onDelete={(id, name) => handleDeleteIndividual('categories', id, name)} />
+                                    onEdit={setEditingCategory} onDelete={(id, name) => handleDeleteIndividual('categories', id, name)}
+                                    onMoveCategory={handleMoveCategory}
+                                    onBulkMoveCategories={handleBulkMoveCategories}
+                                />
                             )}
                             {activeTab === 'locations' && (
                                 <LocationButtonsManager locations={locations} fetchLocations={fetchLocations}
@@ -322,6 +509,7 @@ const AdminCarta = ({ appState }) => {
                 {editingCategory !== null && (
                     <CategoryModal category={editingCategory}
                         products={products}
+                        menuTypes={menuTypes}
                         onClose={() => setEditingCategory(null)} onSave={handleSaveCategory} />
                 )}
                 {confirmDelete && (
@@ -336,9 +524,8 @@ const AdminCarta = ({ appState }) => {
                         account={appState?.account}
                         onClose={() => { setAiImagenProduct(null); refresh(); }}
                         onUpdated={(productId, fields) => {
-                            // Actualiza reactivamente el array en memoria SIN re-fetch
                             if (fields) patchProduct(productId, fields);
-                            else refresh(); // fallback: re-fetch si no hay fields
+                            else refresh();
                         }}
                     />
                 )}

@@ -63,6 +63,14 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to connect to Redis at {redis_url}: {e}")
         logger.warning("Falling back to in-memory cache. API performance will be degraded.")
         FastAPICache.init(InMemoryBackend(), prefix="fastapi-cache")
+
+    # Ensure menu_types defaults + migrate categories
+    try:
+        from config.menus.menu_types import ensure_defaults as _ensure_menu_types
+        _ensure_menu_types()
+    except Exception as e:
+        logger.warning(f"[startup] menu_types ensure_defaults failed (non-fatal): {e}")
+
     yield
     # --- shutdown ---
 

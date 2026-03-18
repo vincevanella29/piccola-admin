@@ -7,6 +7,12 @@ import path from "path";
 
 export default defineConfig({
   base: '/',
+  resolve: {
+    alias: {
+      react: path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+    },
+  },
   optimizeDeps: {
     exclude: ["analytics.js", "ajs-destination"],
   },

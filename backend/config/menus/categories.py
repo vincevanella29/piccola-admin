@@ -14,10 +14,12 @@ from .helpers import serialize, get_id_query, sync_to_frontend
 logger = logging.getLogger(__name__)
 
 
-def list_categories(only_active: bool = False) -> list:
+def list_categories(only_active: bool = False, menu_type: str = None) -> list:
     query: dict[str, Any] = {}
     if only_active:
         query["estado"] = True
+    if menu_type:
+        query["menu_type"] = menu_type
     categories = list(db.categories.find(query).sort("prioridad", 1))
     return [serialize(c) for c in categories]
 
@@ -30,6 +32,8 @@ def get_category(category_id: str) -> dict:
 async def create_category(doc: dict) -> str:
     doc["created_at"] = datetime.now(timezone.utc)
     doc["updated_at"] = doc["created_at"]
+    if "menu_type" not in doc or not doc["menu_type"]:
+        doc["menu_type"] = "carta"
     result = db.categories.insert_one(doc)
     db.categories.update_one({"_id": result.inserted_id}, {"$set": {"id": str(result.inserted_id)}})
     await sync_to_frontend()

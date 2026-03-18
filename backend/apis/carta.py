@@ -18,6 +18,9 @@ from config.menus import mtz as mtz_svc
 from config.menus import sync as sync_svc
 from config.menus import public_catalog as catalog_svc
 from config.menus import locations as location_svc
+from config.menus import menu_types as menu_type_svc
+from config.menus.helpers import get_id_query
+from utils.web3mongo import db
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -53,6 +56,7 @@ class CategoryUpdate(BaseModel):
     prioridad: Optional[int] = None
     menu_ids: Optional[List[str]] = None
     location_ids: Optional[List[str]] = None
+    menu_type: Optional[str] = None
 
 
 class LocationButtonsUpdate(BaseModel):
@@ -99,6 +103,7 @@ class CategoryCreate(BaseModel):
     prioridad: Optional[int] = 0
     menu_ids: Optional[List[str]] = []
     location_ids: Optional[List[str]] = []
+    menu_type: Optional[str] = "carta"
 
 
 class BulkDeleteRequest(BaseModel):
@@ -265,6 +270,30 @@ async def bulk_delete_products(data: BulkDeleteRequest, user: dict = Depends(_re
     return {"success": True, "deleted_count": deleted}
 
 
+class ReorderItem(BaseModel):
+    id: str
+    prioridad: int
+
+class ReorderRequest(BaseModel):
+    items: List[ReorderItem]
+
+@router.post("/carta/products/reorder")
+async def reorder_products(data: ReorderRequest, user: dict = Depends(_require_catalog_access)):
+    """Bulk update product priorities for drag-and-drop reordering."""
+    from pymongo import UpdateOne
+    ops = [
+        UpdateOne(
+            get_id_query(item.id),
+            {"$set": {"prioridad": item.prioridad}}
+        )
+        for item in data.items
+    ]
+    if ops:
+        result = db.menus.bulk_write(ops, ordered=False)
+        logger.info(f"[carta] Reordered {result.modified_count}/{len(ops)} products")
+    return {"success": True, "updated": len(ops)}
+
+
 @router.post("/carta/products/upload-image")
 async def upload_product_image(file: UploadFile = File(...), user: dict = Depends(_require_catalog_access)):
     try:
@@ -309,8 +338,8 @@ async def organize_product_media(product_id: str, req: OrganizeMediaRequest, use
 # ═════════════════════════════════════════════
 
 @router.get("/carta/categories")
-async def list_categories(only_active: bool = False, user: dict = Depends(_require_catalog_access)):
-    return category_svc.list_categories(only_active)
+async def list_categories(only_active: bool = False, menu_type: Optional[str] = None, user: dict = Depends(_require_catalog_access)):
+    return category_svc.list_categories(only_active, menu_type=menu_type)
 
 
 @router.get("/carta/categories/{category_id}")
@@ -350,6 +379,60 @@ async def delete_category(category_id: str, user: dict = Depends(_require_catalo
 async def bulk_delete_categories(data: BulkDeleteRequest, user: dict = Depends(_require_catalog_access)):
     deleted = await category_svc.bulk_delete_categories(data.ids)
     return {"success": True, "deleted_count": deleted}
+
+
+# ═════════════════════════════════════════════
+# Menu Types (carta, promociones, bar, etc.)
+# ═════════════════════════════════════════════
+
+class MenuTypeCreate(BaseModel):
+    slug: str
+    name: str
+    icon: Optional[str] = "BookOpen"
+    color: Optional[str] = "#607D8B"
+    priority: Optional[int] = 99
+
+class MenuTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    priority: Optional[int] = None
+
+
+@router.get("/carta/menu-types")
+async def list_menu_types(user: dict = Depends(_require_catalog_access)):
+    return menu_type_svc.list_menu_types()
+
+
+@router.post("/carta/menu-types")
+async def create_menu_type(data: MenuTypeCreate, user: dict = Depends(_require_catalog_access)):
+    try:
+        slug = menu_type_svc.create_menu_type(data.dict())
+        return {"success": True, "slug": slug}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/carta/menu-types/{slug}")
+async def update_menu_type(slug: str, data: MenuTypeUpdate, user: dict = Depends(_require_catalog_access)):
+    fields = data.dict(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    matched = menu_type_svc.update_menu_type(slug, fields)
+    if matched == 0:
+        raise HTTPException(status_code=404, detail="Menu type not found")
+    return {"success": True}
+
+
+@router.delete("/carta/menu-types/{slug}")
+async def delete_menu_type(slug: str, user: dict = Depends(_require_catalog_access)):
+    result = menu_type_svc.delete_menu_type(slug)
+    if not result.get("deleted"):
+        if result.get("error") == "not_found":
+            raise HTTPException(status_code=404, detail="Menu type not found")
+        if result.get("error") == "cannot_delete_default":
+            raise HTTPException(status_code=400, detail="Cannot delete the default menu type")
+    return {"success": True, "moved_categories": result.get("moved_categories", 0)}
 
 
 # ═════════════════════════════════════════════

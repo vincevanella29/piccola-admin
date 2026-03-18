@@ -9,6 +9,7 @@ const useCartaAdmin = (appState) => {
     const [categories, setCategories] = useState([]);
     const [locations, setLocations] = useState([]);
     const [menuOptions, setMenuOptions] = useState([]);
+    const [menuTypes, setMenuTypes] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [error, setError] = useState(null);
@@ -19,16 +20,18 @@ const useCartaAdmin = (appState) => {
         setIsLoading(true);
         setError(null);
         try {
-            const [cats, prods, locs, opts] = await Promise.all([
+            const [cats, prods, locs, opts, mTypes] = await Promise.all([
                 cartaApi.fetchCategories({ token, account }),
                 cartaApi.fetchProducts({ token, account, ...params }),
                 cartaApi.fetchLocations({ token, account }),
                 cartaApi.fetchMenuOptions({ token, account }),
+                cartaApi.fetchMenuTypes({ token, account }),
             ]);
             setCategories(Array.isArray(cats) ? cats : []);
             setProducts(Array.isArray(prods) ? prods : []);
             setLocations(Array.isArray(locs) ? locs : []);
             setMenuOptions(Array.isArray(opts) ? opts : []);
+            setMenuTypes(Array.isArray(mTypes) ? mTypes : []);
             hasFetched.current = true;
         } catch (err) {
             setError(err.message);
@@ -151,11 +154,24 @@ const useCartaAdmin = (appState) => {
         return await cartaApi.moveMenuOptionValue({ token, account, optionId, valueId, targetOptionId });
     }, [token, account]);
 
+    const createNewMenuType = useCallback(async (data) => {
+        return await cartaApi.createMenuType({ token, account, data });
+    }, [token, account]);
+
+    const deleteOneMenuType = useCallback(async (slug) => {
+        return await cartaApi.deleteMenuType({ token, account, slug });
+    }, [token, account]);
+
+    const reorder = useCallback(async (items) => {
+        await cartaApi.reorderProducts({ token, account, items });
+    }, [token, account]);
+
     return {
         products,
         categories,
         locations,
         menuOptions,
+        menuTypes,
         isLoading,
         isSyncing,
         error,
@@ -180,6 +196,9 @@ const useCartaAdmin = (appState) => {
         fetchMtzMissingProducts: loadMtzMissingProducts,
         updateProductEspecial: updateEspecial,
         moveMenuOptionValue: moveOptionValue,
+        createMenuType: createNewMenuType,
+        deleteMenuType: deleteOneMenuType,
+        reorderProducts: reorder,
     };
 };
 

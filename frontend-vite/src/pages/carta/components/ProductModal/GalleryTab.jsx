@@ -177,11 +177,22 @@ const GalleryTab = ({
     const aiImages  = history.items.filter(i => !isVideoItem(i) && !isDescItem(i) && i.image_url);
     const aiVideos  = history.items.filter(i => isVideoItem(i) && i.video_url);
 
-    const gallerySet = new Set(images);
+    // Strip query params for comparison to avoid cache-bust mismatches
+    const stripQs = (url) => {
+        if (!url) return '';
+        try { return url.split('?')[0]; } catch { return url; }
+    };
+
+    const gallerySet = new Set(images.map(stripQs));
 
     // Add AI image to product gallery
     const handleAddToGallery = (url) => {
-        if (images.length >= 4 || gallerySet.has(url)) return;
+        if (images.length >= 4) return;
+        const baseUrl = stripQs(url);
+        // Check if already in gallery (compare without cache-bust params)
+        if (gallerySet.has(baseUrl)) return;
+        // Also check exact match
+        if (images.includes(url)) return;
         onReorder([...images, url]);
     };
 
@@ -272,7 +283,7 @@ const GalleryTab = ({
                                     key={item.image_url || item.id || item._id || idx}
                                     item={item}
                                     onAddToGallery={handleAddToGallery}
-                                    inGallery={gallerySet.has(item.image_url)}
+                                    inGallery={gallerySet.has(stripQs(item.image_url))}
                                 />
                             ))}
                         </div>
