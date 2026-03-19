@@ -236,26 +236,11 @@ def get_public_catalog(api_key: str) -> dict:
             menus_by_id[mid] = serialize(p)
 
     # Embed options + normalize media + attach sales_units on every product
-    _logged_sample = False
     for mid in menus_by_id:
         prod = _embed_options_and_media(menus_by_id[mid], by_codigo, by_menu_id)
         codigo = str(prod.get("codigo") or "").strip()
         prod["sales_units"] = sales_idx.get(codigo)  # {mesano, total, por_local} or None
         menus_by_id[mid] = prod
-
-        # Log the first product that has at least one option
-        if not _logged_sample and prod.get("options"):
-            _logged_sample = True
-            import json as _json
-            sample_opts = [
-                {k: v for k, v in o.items() if k in ("id", "option_id", "option_name", "option_type", "display_type", "menu_id")}
-                for o in prod["options"]
-            ]
-            logger.info(
-                f"[public_catalog] SAMPLE product with options:\n"
-                f"  id={prod.get('id') or prod.get('_id')}  nombre={prod.get('nombre')}  codigo={prod.get('codigo')}\n"
-                f"  options={_json.dumps(sample_opts, ensure_ascii=False, indent=2)}"
-            )
 
     # Build category output with nested menus
     categories_out = []

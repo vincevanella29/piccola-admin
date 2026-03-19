@@ -5,12 +5,15 @@ FROM node:20-alpine AS build
 
 WORKDIR /frontend-vite
 
-# Copia los archivos de dependencias primero para aprovechar el cache
-COPY package*.json ./
-COPY . .
+# Limitar memoria de Node para evitar OOM en builds paralelos
+ENV NODE_OPTIONS="--max-old-space-size=512"
 
-# Instala dependencias y construye el proyecto
+# 1) Copiar SOLO archivos de dependencias → cache de npm se mantiene si no cambian
+COPY package*.json ./
 RUN npm ci --legacy-peer-deps
+
+# 2) Copiar el código fuente (esta capa se invalida en cada push, pero npm ci ya está cacheado)
+COPY . .
 RUN npm run build
 
 # Etapa de producción: sirve archivos estáticos con Nginx

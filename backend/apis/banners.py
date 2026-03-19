@@ -265,7 +265,7 @@ async def generate_banner_ai(req: BannerAIGenerateRequest, user: dict = Depends(
         location_desc=req.location_desc,
     )
 
-    logger.info(f"[banners] AI GENERATE: products={product_names}, style={req.style}")
+    logger.debug(f"[banners] AI GENERATE: products={product_names}, style={req.style}")
 
     aurora = AuroraClient()
 
