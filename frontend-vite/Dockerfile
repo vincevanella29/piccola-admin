@@ -6,7 +6,7 @@ FROM node:20-alpine AS build
 WORKDIR /frontend-vite
 
 # Limitar memoria de Node para evitar OOM en builds paralelos
-ENV NODE_OPTIONS="--max-old-space-size=512"
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 
 # 1) Copiar SOLO archivos de dependencias → cache de npm se mantiene si no cambian
 COPY package*.json ./
