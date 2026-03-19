@@ -98,7 +98,7 @@ const MediaGallery = ({ images, video, updatedAt, onRemove, onVideoRemove, onReo
                     const isOver      = dragOver === i && dragFrom !== i;
 
                     if (!url) return (
-                        <div key={`empty-${i}`}
+                        <div key={`slot-${i}`}
                             onDragOver={e => { e.preventDefault(); setDragOver(i); }}
                             onDragLeave={() => setDragOver(null)}
                             onDrop={e => handleDrop(e, i)}
@@ -119,12 +119,9 @@ const MediaGallery = ({ images, video, updatedAt, onRemove, onVideoRemove, onReo
                         </div>
                     );
 
-                    // Stable key: use a hash of the URL instead of url+index
-                    // This prevents React from confusing elements on reorder
-                    const stableKey = `slot-${url}`;
-
+                    // Index-based key prevents React from shuffling DOM nodes on reorder
                     return (
-                        <div key={stableKey}
+                        <div key={`slot-${i}`}
                             draggable
                             onDragStart={e => handleDragStart(e, i)}
                             onDragEnter={() => setDragOver(i)}

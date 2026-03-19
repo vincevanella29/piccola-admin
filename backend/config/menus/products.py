@@ -406,20 +406,20 @@ async def organize_media(product_id: str, images: List[str], video_url: Optional
     principal = final_urls[0]
 
     # Update product in MongoDB
-    q = {"$or": [{"id": product_id}]}
-    try:
-        q["$or"].append({"_id": ObjectId(product_id)})
-    except Exception:
-        pass
+    q = get_id_query(product_id)
 
     now_ts = datetime.now(timezone.utc)
-    db.menus.update_one(q, {"$set": {
+    update_result = db.menus.update_one(q, {"$set": {
         "media_r2": principal,
         "media_url": principal,
         "media_images": final_urls,
         "media_video": video_url or "",
         "updated_at": now_ts,
     }})
+
+    if update_result.matched_count == 0:
+        logger.error(f"[organize] ⚠️ Product {product_id} NOT FOUND in MongoDB — images uploaded but NOT saved!")
+        raise ValueError(f"Producto {product_id} no encontrado en la base de datos")
 
     await sync_to_frontend()
 

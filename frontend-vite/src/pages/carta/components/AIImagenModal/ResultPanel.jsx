@@ -14,9 +14,16 @@ import {
     Loader2, X, GripVertical, LayoutGrid, Film, Type,
 } from 'lucide-react';
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const busted = (url, updatedAt) => {
+    if (!url || typeof url !== 'string' || url.includes('?')) return url;
+    if (updatedAt) return `${url}?v=${new Date(updatedAt).getTime()}`;
+    return `${url}?v=${Date.now()}`;
+};
+
 // ── Mini gallery organizer (drag & drop) ──────────────────────────────────────
 
-const MiniGalleryOrganizer = ({ images, onReorder }) => {
+const MiniGalleryOrganizer = ({ images, onReorder, updatedAt }) => {
     const { t } = useTranslation();
     const [dragFrom, setDragFrom] = useState(null);
     const [dragOver, setDragOver] = useState(null);
@@ -54,7 +61,7 @@ const MiniGalleryOrganizer = ({ images, onReorder }) => {
                     const isPrincipal = i === 0;
 
                     if (!url) return (
-                        <div key={`empty-${i}`}
+                        <div key={`slot-${i}`}
                             onDragOver={(e) => { e.preventDefault(); setDragOver(i); }}
                             onDragLeave={() => setDragOver(null)}
                             onDrop={(e) => handleDrop(e, i)}
@@ -66,7 +73,7 @@ const MiniGalleryOrganizer = ({ images, onReorder }) => {
                     );
 
                     return (
-                        <div key={url + i}
+                        <div key={`slot-${i}`}
                             draggable
                             onDragStart={(e) => handleDragStart(e, i)}
                             onDragEnter={() => setDragOver(i)}
@@ -80,7 +87,7 @@ const MiniGalleryOrganizer = ({ images, onReorder }) => {
                                         ? 'border-amber-400/70 shadow-md shadow-amber-400/15'
                                         : 'border-white/10 hover:border-emerald-400/40'
                             } ${dragFrom === i ? 'opacity-40' : ''}`}>
-                            <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" />
+                            <img src={busted(url, updatedAt)} alt="" className="w-full h-full object-cover pointer-events-none" />
                             <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${
                                 isPrincipal ? 'bg-amber-400 text-black' : 'bg-black/60 text-white'
                             }`}>
@@ -105,7 +112,7 @@ const MiniGalleryOrganizer = ({ images, onReorder }) => {
     );
 };
 
-// ── Shared feedback buttons ───────────────────────────────────────────────────
+// ── Shared feedback buttons (desc / video — simple accept/reject) ─────────────
 
 const FeedbackButtons = ({ feedbackStatus, feedbackSent, onFeedback, acceptLabel, rejectLabel, pendingQuestion }) => {
     const { t } = useTranslation();
@@ -121,7 +128,7 @@ const FeedbackButtons = ({ feedbackStatus, feedbackSent, onFeedback, acceptLabel
                 </motion.div>
             )}
 
-            {feedbackStatus === 'saved' && (
+            {(feedbackStatus === 'saved' || feedbackStatus === 'saved_main' || feedbackStatus === 'saved_gallery') && (
                 <motion.div key="saved"
                     initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
                     className="flex flex-col gap-1 py-3 px-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
@@ -176,13 +183,110 @@ const FeedbackButtons = ({ feedbackStatus, feedbackSent, onFeedback, acceptLabel
     );
 };
 
+// ── Image feedback buttons (3 options: Main / Gallery / Reject) ───────────────
+
+const ImageFeedbackButtons = ({ feedbackStatus, feedbackSent, onFeedback, galleryCount }) => {
+    const { t } = useTranslation();
+    const canAddToGallery = galleryCount < 4;
+    const isSaved = feedbackStatus === 'saved_main' || feedbackStatus === 'saved_gallery';
+
+    return (
+        <AnimatePresence mode="wait">
+            {feedbackStatus === 'saving' && (
+                <motion.div key="saving"
+                    initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-violet-300 text-sm font-medium">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t('carta.aurora_status_saving')}
+                </motion.div>
+            )}
+
+            {feedbackStatus === 'saved_main' && (
+                <motion.div key="saved-main"
+                    initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+                    className="flex flex-col gap-1 py-3 px-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="flex items-center gap-2 text-emerald-400 text-sm font-semibold">
+                        <Star className="w-4 h-4 fill-emerald-400 shrink-0" />
+                        {t('carta.aurora_status_saved_main')}
+                    </div>
+                    <p className="text-[11px] text-emerald-400/60">{t('carta.aurora_status_saved_hint')}</p>
+                </motion.div>
+            )}
+
+            {feedbackStatus === 'saved_gallery' && (
+                <motion.div key="saved-gallery"
+                    initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+                    className="flex flex-col gap-1 py-3 px-4 rounded-2xl bg-violet-500/10 border border-violet-500/20">
+                    <div className="flex items-center gap-2 text-violet-400 text-sm font-semibold">
+                        <CheckCircle className="w-4 h-4 shrink-0" />
+                        {t('carta.aurora_status_saved_gallery')}
+                    </div>
+                    <p className="text-[11px] text-violet-400/60">{t('carta.aurora_status_saved_hint')}</p>
+                </motion.div>
+            )}
+
+            {feedbackStatus === 'rejected' && (
+                <motion.div key="rejected"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="flex items-center gap-2 py-3 px-4 rounded-2xl bg-white/5 border border-white/8 text-white/50 text-sm">
+                    <X className="w-4 h-4 text-red-400 shrink-0" />
+                    {t('carta.aurora_status_rejected')}
+                </motion.div>
+            )}
+
+            {feedbackStatus === 'error' && (
+                <motion.div key="error"
+                    initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="flex items-center gap-2 py-3 px-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    {t('carta.aurora_status_error')}
+                </motion.div>
+            )}
+
+            {feedbackStatus === 'idle' && !feedbackSent && (
+                <motion.div key="buttons"
+                    initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="space-y-2.5">
+                    <p className="text-xs text-center text-white/40">
+                        {t('carta.aurora_img_feedback_question')}
+                    </p>
+                    <div className="space-y-2">
+                        {/* Row 1: Main + Gallery */}
+                        <div className={`grid gap-2 ${canAddToGallery ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            <button onClick={() => onFeedback('main')}
+                                className="flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white text-sm font-bold shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.97]">
+                                <Star className="w-4 h-4 fill-white" />
+                                {t('carta.aurora_btn_save_main')}
+                            </button>
+                            {canAddToGallery && (
+                                <button onClick={() => onFeedback('gallery')}
+                                    className="flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-gradient-to-r from-violet-500/80 to-indigo-500/80 hover:from-violet-500 hover:to-indigo-500 text-white text-sm font-bold shadow-lg shadow-violet-500/20 transition-all active:scale-[0.97]">
+                                    <ImageIcon className="w-4 h-4" />
+                                    {t('carta.aurora_btn_add_gallery')}
+                                </button>
+                            )}
+                        </div>
+                        {/* Row 2: Reject */}
+                        <button onClick={() => onFeedback(false)}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/60 text-xs font-medium border border-white/8 transition-all active:scale-[0.98]">
+                            <ThumbsDown className="w-3.5 h-3.5" />
+                            {t('carta.aurora_btn_reject')}
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    );
+};
+
 // ── Image result ──────────────────────────────────────────────────────────────
 
 const ImageResult = ({
     result, beforeUrl, feedbackSent, feedbackStatus, onFeedback,
-    galleryImages, onReorderGallery,
+    galleryImages, onReorderGallery, updatedAt, galleryCount = 0,
 }) => {
     const { t } = useTranslation();
+    const isSaved = feedbackStatus === 'saved_main' || feedbackStatus === 'saved_gallery';
 
     return (
         <>
@@ -209,14 +313,22 @@ const ImageResult = ({
                     <div className="relative">
                         <img src={result.image_url} alt=""
                             className={`w-full aspect-square rounded-2xl object-cover border-2 shadow-lg transition-all ${
-                                feedbackStatus === 'saved'
+                                feedbackStatus === 'saved_main'
                                     ? 'border-emerald-500 shadow-emerald-500/20'
-                                    : 'border-violet-500/30 shadow-violet-500/10'
+                                    : feedbackStatus === 'saved_gallery'
+                                        ? 'border-violet-500 shadow-violet-500/20'
+                                        : 'border-violet-500/30 shadow-violet-500/10'
                             }`} />
-                        {feedbackStatus === 'saved' && (
+                        {feedbackStatus === 'saved_main' && (
                             <motion.div initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
                                 className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg bg-emerald-500 text-white text-[9px] font-bold shadow">
-                                <Star className="w-2.5 h-2.5 fill-white" />
+                                <Star className="w-2.5 h-2.5 fill-white" /> Principal
+                            </motion.div>
+                        )}
+                        {feedbackStatus === 'saved_gallery' && (
+                            <motion.div initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
+                                className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg bg-violet-500 text-white text-[9px] font-bold shadow">
+                                <CheckCircle className="w-2.5 h-2.5" /> Galería
                             </motion.div>
                         )}
                         <button onClick={() => window.open(result.image_url, '_blank')}
@@ -227,21 +339,19 @@ const ImageResult = ({
                 </div>
             </div>
 
-            {/* Feedback */}
-            <FeedbackButtons
+            {/* Feedback — 3 options for images */}
+            <ImageFeedbackButtons
                 feedbackStatus={feedbackStatus}
                 feedbackSent={feedbackSent}
                 onFeedback={onFeedback}
-                acceptLabel={t('carta.aurora_btn_accept')}
-                rejectLabel={t('carta.aurora_btn_reject')}
-                pendingQuestion={t('carta.aurora_feedback_question')}
+                galleryCount={galleryCount}
             />
 
             {/* Post-accept gallery organizer */}
-            {feedbackStatus === 'saved' && galleryImages && galleryImages.length > 1 && (
+            {isSaved && galleryImages && galleryImages.length > 1 && (
                 <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
                     className="p-3 rounded-2xl bg-white/5 border border-white/8">
-                    <MiniGalleryOrganizer images={galleryImages} onReorder={onReorderGallery} />
+                    <MiniGalleryOrganizer images={galleryImages} onReorder={onReorderGallery} updatedAt={updatedAt} />
                 </motion.div>
             )}
         </>
@@ -331,7 +441,7 @@ const ErrorPanel = ({ error }) => {
 const ResultPanel = ({
     result, error, step, beforeUrl,
     feedbackSent, feedbackStatus = 'idle', onFeedback,
-    galleryImages, onReorderGallery,
+    galleryImages, onReorderGallery, updatedAt, galleryCount = 0,
 }) => {
     if (step === 'error' && error) return <ErrorPanel error={error} />;
     if (!result) return null;
@@ -343,6 +453,7 @@ const ResultPanel = ({
                     result={result} beforeUrl={beforeUrl}
                     feedbackSent={feedbackSent} feedbackStatus={feedbackStatus} onFeedback={onFeedback}
                     galleryImages={galleryImages} onReorderGallery={onReorderGallery}
+                    updatedAt={updatedAt} galleryCount={galleryCount}
                 />
             )}
             {result.type === 'description' && (

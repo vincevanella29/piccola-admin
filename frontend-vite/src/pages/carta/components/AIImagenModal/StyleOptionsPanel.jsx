@@ -1,10 +1,13 @@
 /**
- * StyleOptionsPanel — Opciones de estilo Aurora para generación de imagen
- * Apple style · i18n · Tailwind dark-glass
+ * StyleOptionsPanel — Aurora AI Studio · Style Controls
+ * Premium dark-glass · All options toggleable on/off
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, Settings2 } from 'lucide-react';
+import {
+    Sparkles, Settings2, Palette, ChefHat,
+    Camera, Gem, Stamp, Eye, EyeOff
+} from 'lucide-react';
 
 const PALETA_FONDO = [
     { key: 'negro_absoluto', label_key: 'Negro',    swatch: '#050505' },
@@ -28,9 +31,10 @@ const PALETA_RECIPIENTE = [
 ];
 
 // ── Color chip ─────────────────────────────────────────────────────────────────
-const ColorChip = ({ label, swatch, border, active, onClick }) => (
-    <button onClick={onClick}
+const ColorChip = ({ label, swatch, border, active, onClick, disabled }) => (
+    <button onClick={onClick} disabled={disabled}
         className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl border text-left transition-all ${
+            disabled ? 'opacity-30 cursor-not-allowed' :
             active
                 ? 'border-violet-500 bg-violet-500/15 shadow-sm shadow-violet-500/15'
                 : 'border-white/10 hover:border-violet-500/30 hover:bg-white/5'
@@ -48,30 +52,44 @@ const ColorChip = ({ label, swatch, border, active, onClick }) => (
     </button>
 );
 
-// ── Toggle chip ────────────────────────────────────────────────────────────────
-const ToggleChip = ({ label, active, onClick }) => (
+// ── Toggle chip (enhanced with icon) ───────────────────────────────────────────
+const ToggleChip = ({ label, icon: Icon, active, onClick, hint }) => (
     <button onClick={onClick}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-medium transition-all ${
+        title={hint || ''}
+        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-medium transition-all ${
             active
                 ? 'border-violet-500/40 bg-violet-500/12 text-violet-300'
                 : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white/60'
         }`}>
+        {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? 'text-violet-400' : 'text-white/25'}`} />}
         <span className={`w-1.5 h-1.5 rounded-full transition-colors ${active ? 'bg-violet-400' : 'bg-white/20'}`} />
         {label}
     </button>
 );
 
-// ── Section label ──────────────────────────────────────────────────────────────
-const SectionLabel = ({ label }) => (
-    <div className="flex items-center gap-1.5">
-        <Settings2 className="w-3 h-3 text-white/25" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-white/35">{label}</span>
+// ── Section with toggle ────────────────────────────────────────────────────────
+const SectionToggle = ({ label, icon: Icon, enabled, onToggle, children }) => (
+    <div className={`space-y-2 transition-opacity duration-200 ${!enabled ? 'opacity-50' : ''}`}>
+        <button onClick={onToggle}
+            className="flex items-center gap-1.5 group w-full text-left">
+            {Icon && <Icon className="w-3 h-3 text-white/25" />}
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-white/35 flex-1">{label}</span>
+            {enabled
+                ? <Eye className="w-3 h-3 text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                : <EyeOff className="w-3 h-3 text-white/25" />
+            }
+        </button>
+        {enabled && children}
     </div>
 );
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 const StyleOptionsPanel = ({ options, onSet, onToggle, selectedRefUrl }) => {
     const { t } = useTranslation();
+
+    // Section-level enables: fondo and recipiente can be toggled off
+    const fondoEnabled = options.color_fondo !== false;
+    const recipienteEnabled = options.color_recipiente !== false;
 
     return (
         <div className="space-y-4">
@@ -91,42 +109,67 @@ const StyleOptionsPanel = ({ options, onSet, onToggle, selectedRefUrl }) => {
                 </ul>
             </div>
 
-            {/* Fondo */}
-            <div className="space-y-2">
-                <SectionLabel label={t('carta.aurora_style_bg_label')} />
+            {/* ── Fondo ─────────────────────────────────────────────────── */}
+            <SectionToggle
+                label={t('carta.aurora_style_bg_label')}
+                icon={Palette}
+                enabled={fondoEnabled}
+                onToggle={() => onSet('color_fondo', fondoEnabled ? false : 'negro_absoluto')}
+            >
                 <div className="flex flex-wrap gap-1.5">
                     {PALETA_FONDO.map(({ key, label_key, swatch }) => (
                         <ColorChip key={key} label={label_key} swatch={swatch}
                             active={options.color_fondo === key}
+                            disabled={!fondoEnabled}
                             onClick={() => onSet('color_fondo', key)} />
                     ))}
                 </div>
-            </div>
+            </SectionToggle>
 
-            {/* Plato */}
-            <div className="space-y-2">
-                <SectionLabel label={t('carta.aurora_style_plate_label')} />
+            {/* ── Plato / recipiente ─────────────────────────────────── */}
+            <SectionToggle
+                label={t('carta.aurora_style_plate_label')}
+                icon={ChefHat}
+                enabled={recipienteEnabled}
+                onToggle={() => onSet('color_recipiente', recipienteEnabled ? false : null)}
+            >
                 <div className="flex flex-wrap gap-1.5">
                     {PALETA_RECIPIENTE.map(({ key, label_key, swatch, border }) => (
                         <ColorChip key={String(key)} label={label_key} swatch={swatch} border={border}
                             active={options.color_recipiente === key}
+                            disabled={!recipienteEnabled}
                             onClick={() => onSet('color_recipiente', key)} />
                     ))}
                 </div>
-                {options.color_recipiente === null && (
+                {options.color_recipiente === null && recipienteEnabled && (
                     <p className="text-[10px] text-white/30">{t('carta.aurora_style_original_hint')}</p>
                 )}
-            </div>
+            </SectionToggle>
 
-            {/* Toggles */}
-            <div className="flex flex-wrap gap-1.5">
-                {[
-                    { key: 'mejorar_texturas',  tKey: 'aurora_style_texture' },
-                    { key: 'agregar_garnitura', tKey: 'aurora_style_garnish' },
-                    { key: 'agregar_branding',  tKey: 'aurora_style_branding' },
-                ].map(({ key, tKey }) => (
-                    <ToggleChip key={key} label={t(`carta.${tKey}`)} active={options[key]} onClick={() => onToggle(key)} />
-                ))}
+            {/* ── Enhancement toggles ───────────────────────────────── */}
+            <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                    <Settings2 className="w-3 h-3 text-white/25" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                        {t('carta.aurora_style_enhancements')}
+                    </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                    {[
+                        { key: 'mejorar_texturas',        tKey: 'aurora_style_texture',      icon: Gem,      hint: t('carta.aurora_style_texture_hint') },
+                        { key: 'agregar_garnitura',       tKey: 'aurora_style_garnish',      icon: ChefHat,  hint: t('carta.aurora_style_garnish_hint') },
+                        { key: 'decorar_producto',        tKey: 'aurora_style_decorate',     icon: Sparkles, hint: t('carta.aurora_style_decorate_hint') },
+                        { key: 'calidad_cinematografica', tKey: 'aurora_style_cinematic',    icon: Camera,   hint: t('carta.aurora_style_cinematic_hint') },
+                        { key: 'agregar_branding',        tKey: 'aurora_style_branding',     icon: Stamp,    hint: t('carta.aurora_style_branding_hint') },
+                    ].map(({ key, tKey, icon, hint }) => (
+                        <ToggleChip key={key}
+                            label={t(`carta.${tKey}`)}
+                            icon={icon}
+                            active={!!options[key]}
+                            onClick={() => onToggle(key)}
+                            hint={hint} />
+                    ))}
+                </div>
             </div>
         </div>
     );

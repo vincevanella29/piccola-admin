@@ -167,6 +167,32 @@ _PROMPT_GARNITURA = (
     'de polvo de oro comestible o una garnitura fresca perfecta (ej. una hoja de menta vibrante)."'
 )
 
+_PROMPT_DECORACION = (
+    '[decoracion_contextual]\n'
+    'estilo = "Adornar el entorno INMEDIATO del plato con elementos decorativos ELEGANTES '
+    'directamente relacionados con los ingredientes del producto. '
+    'Ej: si es un coctel con limon, rodajas de limon artísticas alrededor; '
+    'si es una pasta, hojas de albahaca y pimienta recién molida espolvoreada; '
+    'si es un postre de chocolate, trozos de chocolate y cacao en polvo decorativo; '
+    'si es un sour, cáscara de limón en espiral."\n'
+    'regla = "Los adornos deben COMPLEMENTAR al producto, nunca opacarlo. '
+    'Mantener elegancia premium, no saturar. Máximo 3-4 elementos decorativos."\n'
+    'restriccion = "NO modificar la mesa, el recipiente ni el fondo. Solo agregar elementos '
+    'decorativos sueltos alrededor del plato que realcen la presentación."'
+)
+
+_PROMPT_CINEMATOGRAFICO = (
+    '[calidad_cinematografica]\n'
+    'post_processing = "Aplicar corrección de color cinematográfica estilo Kodak Gold/Portra. '
+    'Elevar la profundidad de campo con bokeh sutil en los bordes. '
+    'Agregar bloom suave en los puntos de luz especular. '
+    'Micro-contraste elevado para resaltar cada textura sin alterar los colores naturales."\n'
+    'lens = "Simular lente prime 85mm f/1.4 con compresión de perspectiva natural."\n'
+    'restriccion = "NO modificar la composicion, la mesa, el recipiente ni el fondo. '
+    'Solo mejorar la CALIDAD VISUAL y el aspecto cinematográfico de la imagen EXISTENTE. '
+    'Preservar absolutamente todos los elementos como están."'
+)
+
 _PROMPT_DETALLES = (
     '[detalles_finales]\n'
     'limpieza_extrema = "Perfecta simetria y limpieza total de los bordes del producto para una '
@@ -281,6 +307,8 @@ def build_image_prompt(
     color_recipiente: Optional[str] = None,
     mejorar_texturas: bool = True,
     agregar_garnitura: bool = True,
+    decorar_producto: bool = False,
+    calidad_cinematografica: bool = False,
     agregar_branding: bool = False,
 ) -> str:
     """Construye el prompt de imagen dinámicamente según los parámetros de estilo."""
@@ -316,12 +344,17 @@ def build_image_prompt(
 
     parts.append(_PROMPT_ILUMINACION)
 
+    if calidad_cinematografica:
+        parts.append(_PROMPT_CINEMATOGRAFICO)
+
     if agregar_branding:
         parts.append(_PROMPT_BRANDING.format(nombre=nombre or "Producto", categoria=categoria or "Menú"))
 
     detalles = _PROMPT_DETALLES
     if agregar_garnitura:
         detalles = detalles + "\n" + _PROMPT_GARNITURA
+    if decorar_producto:
+        parts.append(_PROMPT_DECORACION)
     parts.append(detalles)
 
     return "\n\n".join(parts).strip()

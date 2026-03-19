@@ -18,25 +18,24 @@ import HistoryPanel from './AIImagenModal/HistoryPanel';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STEPS = { IDLE: 'idle', LOADING: 'loading', RESULT: 'result', ERROR: 'error' };
-const MODES  = [
-    { id: 'image',       tKey: 'aurora_mode_image',       icon: Sparkles },
+const MODES = [
+    { id: 'image', tKey: 'aurora_mode_image', icon: Sparkles },
     { id: 'description', tKey: 'aurora_mode_description', icon: Type },
-    { id: 'video',       tKey: 'aurora_mode_video',       icon: Film },
-    { id: 'history',     tKey: 'aurora_mode_history',     icon: History },
+    { id: 'video', tKey: 'aurora_mode_video', icon: Film },
+    { id: 'history', tKey: 'aurora_mode_history', icon: History },
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 const ModeTab = ({ mode, active, onClick }) => {
     const { t } = useTranslation();
-    const Icon  = mode.icon;
+    const Icon = mode.icon;
     return (
         <button onClick={() => onClick(mode.id)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                active
-                    ? 'bg-white/15 text-white shadow-sm'
-                    : 'text-white/40 hover:text-white/65'
-            }`}>
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${active
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-white/40 hover:text-white/65'
+                }`}>
             <Icon className="w-3.5 h-3.5" />
             {t(`carta.${mode.tKey}`)}
         </button>
@@ -47,9 +46,9 @@ const ModeTab = ({ mode, active, onClick }) => {
 const GeneratingScreen = ({ mode }) => {
     const { t } = useTranslation();
     const msgs = {
-        image:       ['Encuadrando la toma…', 'Iluminación de estudio…', 'Aurora generando…', 'Ajustando detalles…'],
+        image: ['Encuadrando la toma…', 'Iluminación de estudio…', 'Aurora generando…', 'Ajustando detalles…'],
         description: ['Analizando el plato…', 'Escribiendo descripción…'],
-        video:       ['Preparando la escena…', 'Renderizando cinemática…', 'Aurora Video…'],
+        video: ['Preparando la escena…', 'Renderizando cinemática…', 'Aurora Video…'],
     };
     const [msgIdx, setMsgIdx] = React.useState(0);
     const messages = msgs[mode] || msgs.image;
@@ -62,9 +61,9 @@ const GeneratingScreen = ({ mode }) => {
         <div className="py-14 flex flex-col items-center gap-6">
             <div className="relative">
                 <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-xl">
-                    {mode === 'video'       ? <Film className="w-9 h-9 text-white" /> :
-                     mode === 'description' ? <Type className="w-9 h-9 text-white" /> :
-                                             <Sparkles className="w-9 h-9 text-white animate-pulse" />}
+                    {mode === 'video' ? <Film className="w-9 h-9 text-white" /> :
+                        mode === 'description' ? <Type className="w-9 h-9 text-white" /> :
+                            <Sparkles className="w-9 h-9 text-white animate-pulse" />}
                 </div>
                 <div className="absolute inset-0 rounded-3xl bg-violet-500 opacity-25 blur-xl animate-pulse" />
             </div>
@@ -127,11 +126,11 @@ const IdleContent = ({ mode, product, options, selectedRefUrl, onSetStyle, onTog
 
 const AIImagenModal = ({ product: initialProduct, categories, token, account, onClose, onUpdated }) => {
     const { t } = useTranslation();
-    const [product, setProduct]         = useState(initialProduct);
-    const [mode, setMode]               = useState('image');
-    const [step, setStep]               = useState(STEPS.IDLE);
-    const [result, setResult]           = useState(null);
-    const [error, setError]             = useState(null);
+    const [product, setProduct] = useState(initialProduct);
+    const [mode, setMode] = useState('image');
+    const [step, setStep] = useState(STEPS.IDLE);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
     const [feedbackSent, setFeedbackSent] = useState(false);
     // 'idle' | 'saving' | 'saved' | 'rejected' | 'error'
     const [feedbackStatus, setFeedbackStatus] = useState('idle');
@@ -140,7 +139,7 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
     const [generationRefUrl, setGenerationRefUrl] = useState(null);
 
     // Post-accept gallery organizer state
-    const [postGallery, setPostGallery]     = useState(null);   // null = no visible aún
+    const [postGallery, setPostGallery] = useState(null);   // null = no visible aún
     const [isSavingGallery, setIsSavingGallery] = useState(false);
     const [isSavingOrder, setIsSavingOrder] = useState(false);
 
@@ -152,13 +151,16 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
     const history = useAIHistory({ token, account, productId: product.id });
 
     // Cargar historial al montar
-    useEffect(() => { history.reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Load history on mount and when product changes
+    useEffect(() => { history.reload(); }, [product.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const [styleOptions, setStyleOptions] = useState({
-        color_recipiente: null,            // null = sin cambio (original)
-        color_fondo: 'negro_absoluto',
+        color_recipiente: null,            // null = original | false = disabled section | string = color key
+        color_fondo: 'negro_absoluto',     // false = disabled | string = color key
         mejorar_texturas: true,
         agregar_garnitura: true,
+        decorar_producto: false,           // contextual decorations related to the dish
+        calidad_cinematografica: false,    // cinematic quality enhancement only
         agregar_branding: false,
     });
     const onSetStyle = (k, v) => setStyleOptions(o => ({ ...o, [k]: v }));
@@ -258,6 +260,7 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
         else if (mode === 'video') handleGenerateVideo();
     };
 
+    // accepted: 'main' | 'gallery' | true (legacy, treated as main) | false (reject)
     const handleFeedback = useCallback(async (accepted) => {
         if (!result?.generation_id || feedbackSent) return;
         setFeedbackSent(true);
@@ -265,9 +268,19 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
         try {
             // ── IMAGEN ────────────────────────────────────────────────────────────
             if (result.type === 'image') {
-                if (accepted && result.image_url && product.id) {
+                const isAccept = accepted === 'main' || accepted === 'gallery' || accepted === true;
+
+                if (isAccept && result.image_url && product.id) {
                     const currentGallery = (product.media_images || []).filter(u => u !== result.image_url);
-                    const orderedImages = [...currentGallery.slice(0, 3), result.image_url];
+                    let orderedImages;
+                    if (accepted === 'gallery') {
+                        // Append at end — keep current main
+                        orderedImages = [...currentGallery, result.image_url].slice(0, 4);
+                    } else {
+                        // 'main' or true → put FIRST → becomes principal
+                        orderedImages = [result.image_url, ...currentGallery].slice(0, 4);
+                    }
+
                     let updatedFields = null;
                     try {
                         const res = await cartaApi.organizeProductMedia({
@@ -277,17 +290,17 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
                             videoUrl: product.media_video || null,
                         });
                         updatedFields = {
-                            media_r2:     res.principal,
-                            media_url:    res.principal,
+                            media_r2: res.principal,
+                            media_url: res.principal,
                             media_images: res.images || orderedImages,
-                            media_video:  product.media_video || '',
-                            updated_at:   res.updated_at,
+                            media_video: product.media_video || '',
+                            updated_at: res.updated_at,
                         };
                     } catch (organizeErr) {
                         console.error('[AIModal] organize-media error:', organizeErr);
                         updatedFields = {
-                            media_r2:     result.image_url,
-                            media_url:    result.image_url,
+                            media_r2: orderedImages[0],
+                            media_url: orderedImages[0],
                             media_images: orderedImages,
                         };
                     }
@@ -296,12 +309,12 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
                         payload: { generation_id: result.generation_id, product_id: product.id, accepted: true, image_url: result.image_url, wallet: account || null },
                     });
                     setProduct(p => ({ ...p, ...updatedFields }));
-                    setFeedbackStatus('saved');
+                    setFeedbackStatus(accepted === 'main' || accepted === true ? 'saved_main' : 'saved_gallery');
                     setPostGallery(updatedFields.media_images || []);
                     setPendingAI(prev => prev.filter(u => u !== result.image_url));
                     if (onUpdated) onUpdated(product.id, updatedFields);
 
-                } else if (!accepted) {
+                } else if (!isAccept) {
                     await cartaApi.sendAIImagenFeedback({
                         token, account,
                         payload: { generation_id: result.generation_id, product_id: product.id, accepted: false, image_url: result.image_url, wallet: account || null },
@@ -314,7 +327,7 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
                     if (onUpdated) onUpdated(product.id, rejectedFields);
                 }
 
-            // ── DESCRIPCIÓN ───────────────────────────────────────────────────────
+                // ── DESCRIPCIÓN ───────────────────────────────────────────────────────
             } else if (result.type === 'description') {
                 if (accepted) {
                     // Guardar descripción en el producto (solo ahora, al aceptar)
@@ -339,7 +352,7 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
                     setFeedbackStatus('rejected');
                 }
 
-            // ── VIDEO ─────────────────────────────────────────────────────────────
+                // ── VIDEO ─────────────────────────────────────────────────────────────
             } else if (result.type === 'video') {
                 if (accepted) {
                     // Asignar video al producto (solo al aceptar)
@@ -397,10 +410,10 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
                 videoUrl: product.media_video || null,
             });
             const updatedFields = {
-                media_r2:     res.principal,
-                media_url:    res.principal,
+                media_r2: res.principal,
+                media_url: res.principal,
                 media_images: res.images || newOrder,
-                updated_at:   res.updated_at,
+                updated_at: res.updated_at,
             };
             setProduct(p => ({ ...p, ...updatedFields }));
             if (onUpdated) onUpdated(product.id, updatedFields);
@@ -425,17 +438,11 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
     // Se agrega AL FINAL de las fotos del producto sin alterar el principal
     // Si la galería está llena (4), reemplaza la última foto
     // Si la galería está llena (4), y no es principal, reemplaza la última foto
-    const handleAcceptHistory = useCallback(async (item, setMain = false) => {
+    const handleAcceptHistory = useCallback(async (item) => {
         if (!item?.image_url || !product.id) return;
-        // Construir nueva galería
+        // Construir nueva galería — imagen aceptada va PRIMERO (principal)
         const currentGallery = (product.media_images || []).filter(u => u !== item.image_url);
-        
-        let orderedImages;
-        if (setMain) {
-            orderedImages = [item.image_url, ...currentGallery].slice(0, 4);
-        } else {
-            orderedImages = [...currentGallery.slice(0, 3), item.image_url];
-        }
+        const orderedImages = [item.image_url, ...currentGallery].slice(0, 4);
         try {
             const res = await cartaApi.organizeProductMedia({
                 token, account,
@@ -444,10 +451,10 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
                 videoUrl: product.media_video || null,
             });
             const updatedFields = {
-                media_r2:     res.principal,
-                media_url:    res.principal,
+                media_r2: res.principal,
+                media_url: res.principal,
                 media_images: res.images || orderedImages,
-                updated_at:   res.updated_at,
+                updated_at: res.updated_at,
             };
             setProduct(p => ({ ...p, ...updatedFields }));
             // Registrar feedback aceptado
@@ -495,10 +502,10 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
                 videoUrl: product.media_video || null,
             });
             const updatedFields = {
-                media_r2:     res.principal,
-                media_url:    res.principal,
+                media_r2: res.principal,
+                media_url: res.principal,
                 media_images: res.images || orderedImages,
-                updated_at:   res.updated_at,
+                updated_at: res.updated_at,
             };
             setProduct(p => ({ ...p, ...updatedFields }));
             if (onUpdated) onUpdated(product.id, updatedFields);
@@ -566,11 +573,19 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
         } catch (e) { console.error('[AIModal] handleRejectHistoryDesc:', e); }
     }, [product, token, account, history]);
 
-// Removed handleSaveAcceptedOrder as we want to use handleReorderGallery directly
+    // Removed handleSaveAcceptedOrder as we want to use handleReorderGallery directly
 
     const handleModeChange = (newMode) => {
-        setMode(newMode); setStep(STEPS.IDLE); setResult(null); setError(null); setFeedbackSent(false);
-        if (newMode === 'video' && gallery.length > 0) setSelectedRefUrl(gallery[0]);
+        setMode(newMode);
+        setStep(STEPS.IDLE);
+        setResult(null);
+        setError(null);
+        setFeedbackSent(false);
+        setFeedbackStatus('idle');
+        setPostGallery(null);
+        if (newMode === 'video' && gallery.length > 0 && !selectedRefUrl) {
+            setSelectedRefUrl(gallery[0]);
+        }
     };
 
     const canGenerate = !(
@@ -658,39 +673,41 @@ const AIImagenModal = ({ product: initialProduct, categories, token, account, on
                             onRejectHistoryDesc={handleRejectHistoryDesc}
                         />
                     ) : (
-                    <div className="p-5">
-                        <AnimatePresence mode="wait">
-                            {step === STEPS.IDLE && (
-                                <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                    <IdleContent
-                                        mode={mode} product={product}
-                                        options={styleOptions} selectedRefUrl={selectedRefUrl}
-                                        onSetStyle={onSetStyle} onToggleStyle={onToggleStyle}
-                                    />
-                                </motion.div>
-                            )}
-                            {mode !== 'history' && step === STEPS.LOADING && (
-                                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                    <GeneratingScreen mode={mode} />
-                                </motion.div>
-                            )}
-                            {mode !== 'history' && (step === STEPS.RESULT || step === STEPS.ERROR) && (
-                                <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                                     <ResultPanel
-                                         result={result}
-                                         error={error}
-                                         step={step}
-                                         beforeUrl={generationRefUrl}
-                                         feedbackSent={feedbackSent}
-                                         feedbackStatus={feedbackStatus}
-                                         onFeedback={handleFeedback}
-                                         galleryImages={postGallery}
-                                         onReorderGallery={handleReorderGallery}
-                                     />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                        <div className="p-5">
+                            <AnimatePresence mode="wait">
+                                {step === STEPS.IDLE && (
+                                    <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        <IdleContent
+                                            mode={mode} product={product}
+                                            options={styleOptions} selectedRefUrl={selectedRefUrl}
+                                            onSetStyle={onSetStyle} onToggleStyle={onToggleStyle}
+                                        />
+                                    </motion.div>
+                                )}
+                                {mode !== 'history' && step === STEPS.LOADING && (
+                                    <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        <GeneratingScreen mode={mode} />
+                                    </motion.div>
+                                )}
+                                {mode !== 'history' && (step === STEPS.RESULT || step === STEPS.ERROR) && (
+                                    <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                                        <ResultPanel
+                                            result={result}
+                                            error={error}
+                                            step={step}
+                                            beforeUrl={generationRefUrl}
+                                            feedbackSent={feedbackSent}
+                                            feedbackStatus={feedbackStatus}
+                                            onFeedback={handleFeedback}
+                                            galleryImages={postGallery}
+                                            onReorderGallery={handleReorderGallery}
+                                            updatedAt={product.updated_at}
+                                            galleryCount={gallery.length}
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     )}
                 </div>
 

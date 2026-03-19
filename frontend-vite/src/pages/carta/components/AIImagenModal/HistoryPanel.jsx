@@ -96,9 +96,10 @@ const AcceptedCard = ({
     item, index, total,
     isDragOver, isDragging,
     onDragStart, onDragEnter, onDragLeave, onDragOver, onDrop, onDragEnd,
-    onMoveUp, onMoveDown,
+    onMoveUp, onMoveDown, onSetMain,
     isMain, actionLoading,
 }) => {
+    const { t } = useTranslation();
     const isFirst = index === 0;
     const isLast  = index === total - 1;
 
@@ -161,14 +162,14 @@ const AcceptedCard = ({
                     <ArrowDown className="w-3.5 h-3.5 text-white" />
                 </button>
                 {/* Set main */}
-                {!isMain && (
+                {!isMain && onSetMain && (
                     <button onClick={(e) => { e.stopPropagation(); onSetMain(item); }}
                         disabled={!!actionLoading}
-                        title={btnSetMain}
+                        title={t('carta.aurora_history_btn_set_main')}
                         className="flex-1 flex items-center justify-center gap-0.5 h-7 rounded-xl bg-amber-400/85 backdrop-blur-sm text-black text-[9px] font-bold hover:bg-amber-400 transition-colors disabled:opacity-50 active:scale-95">
                         {actionLoading === item.generation_id
                             ? <Loader2 className="w-3 h-3 animate-spin" />
-                            : <><Star className="w-3 h-3 fill-black" />{btnSetMain}</>
+                            : <><Star className="w-3 h-3 fill-black" />{t('carta.aurora_history_btn_set_main')}</>
                         }
                     </button>
                 )}
@@ -395,7 +396,7 @@ const HistoryPanel = ({
         next.splice(to, 0, moved);
         setAcceptedOrder(next.map(a => a.generation_id));
         setDragFrom(null); setDragOver(null); dragRef.current = null;
-        if (onSaveAcceptedOrder) onSaveAcceptedOrder(next);
+        if (onSaveAcceptedOrder) onSaveAcceptedOrder(next.map(a => a.image_url).filter(Boolean));
     };
     const hdDragEnd    = ()    => { setDragFrom(null); setDragOver(null); dragRef.current = null; };
 
@@ -404,14 +405,14 @@ const HistoryPanel = ({
         const next = [...displayAccepted];
         [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
         setAcceptedOrder(next.map(a => a.generation_id));
-        if (onSaveAcceptedOrder) onSaveAcceptedOrder(next);
+        if (onSaveAcceptedOrder) onSaveAcceptedOrder(next.map(a => a.image_url).filter(Boolean));
     };
     const handleMoveDown = (idx) => {
         if (idx === displayAccepted.length - 1) return;
         const next = [...displayAccepted];
         [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
         setAcceptedOrder(next.map(a => a.generation_id));
-        if (onSaveAcceptedOrder) onSaveAcceptedOrder(next);
+        if (onSaveAcceptedOrder) onSaveAcceptedOrder(next.map(a => a.image_url).filter(Boolean));
     };
 
     const handleAccept = async (item) => {
@@ -534,6 +535,17 @@ const HistoryPanel = ({
                                                     onDragEnd={hdDragEnd}
                                                     onMoveUp={() => handleMoveUp(idx)}
                                                     onMoveDown={() => handleMoveDown(idx)}
+                                                    onSetMain={(it) => {
+                                                        // Move to position 0
+                                                        const next = [...displayAccepted];
+                                                        const curIdx = next.findIndex(a => a.generation_id === it.generation_id);
+                                                        if (curIdx > 0) {
+                                                            const [moved] = next.splice(curIdx, 1);
+                                                            next.unshift(moved);
+                                                            setAcceptedOrder(next.map(a => a.generation_id));
+                                                            if (onSaveAcceptedOrder) onSaveAcceptedOrder(next.map(a => a.image_url).filter(Boolean));
+                                                        }
+                                                    }}
                                                     isMain={idx === 0}
                                                     actionLoading={actionLoading}
                                                 />

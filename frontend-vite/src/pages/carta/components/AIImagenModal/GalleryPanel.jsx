@@ -193,10 +193,10 @@ const GalleryPanel = ({
                     const url = gallery[i];
                     return (
                         <Slot
-                            key={url ? url + i : `empty-${i}`}
+                            key={`slot-${i}`}
                             url={url} index={i}
                             selected={(mode === 'image' || mode === 'video') && selectedRefUrl === url}
-                            isMain={url === mainImage}
+                            isMain={i === 0 && !!url}
                             isDragOver={dragOver === i && dragFrom !== i}
                             mode={mode}
                             updatedAt={updatedAt}

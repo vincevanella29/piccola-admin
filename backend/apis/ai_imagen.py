@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
+from config.menus.helpers import get_id_query
 
 from config.ai_image.aurora_client import (
     AuroraClient,
@@ -117,11 +118,13 @@ class ImageStyleOptions(BaseModel):
     color_recipiente: None = mantener plato original | key de COLORES_RECIPIENTE = transformar
     color_fondo:      key de COLORES_FONDO (default negro_absoluto)
     """
-    color_recipiente:  Optional[str] = None
-    color_fondo:       str           = "negro_absoluto"
-    mejorar_texturas:  bool          = True
-    agregar_garnitura: bool          = True
-    agregar_branding:  bool          = False
+    color_recipiente:       Optional[str] = None
+    color_fondo:             str           = "negro_absoluto"
+    mejorar_texturas:        bool          = True
+    agregar_garnitura:       bool          = True
+    decorar_producto:        bool          = False
+    calidad_cinematografica: bool          = False
+    agregar_branding:        bool          = False
 
 
 class GenerateImageRequest(BaseModel):
@@ -227,10 +230,12 @@ async def generate_product_image(req: GenerateImageRequest, user: dict = Depends
         descripcion=req.descripcion or "",
         categoria=req.categoria or "",
         precio=req.precio,
-        color_fondo=style.color_fondo,
-        color_recipiente=style.color_recipiente,
+        color_fondo=style.color_fondo if style.color_fondo else "negro_absoluto",
+        color_recipiente=style.color_recipiente if style.color_recipiente else None,
         mejorar_texturas=style.mejorar_texturas,
         agregar_garnitura=style.agregar_garnitura,
+        decorar_producto=style.decorar_producto,
+        calidad_cinematografica=style.calidad_cinematografica,
         agregar_branding=style.agregar_branding,
     )
 
@@ -412,11 +417,7 @@ async def save_imagen_feedback(req: FeedbackRequest, user: dict = Depends(verify
     })
 
     if not req.accepted and req.product_id and req.image_url:
-        q: dict = {"$or": [{"id": req.product_id}]}
-        try:
-            q["$or"].append({"_id": ObjectId(req.product_id)})
-        except Exception:
-            pass
+        q = get_id_query(req.product_id)
         db.menus.update_one(q, {"$pull": {"media_images": req.image_url}})
         doc = db.menus.find_one(q)
         if doc and doc.get("media_r2") == req.image_url:
