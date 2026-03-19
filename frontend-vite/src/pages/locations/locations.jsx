@@ -253,7 +253,7 @@ const Locations = ({ appState }) => {
                                             location={location}
                                             index={idx}
                                             onEdit={() => setSelectedLocation(location)}
-                                            liveVisitors={(liveVisitors.counts?.[location.permalink_slug] || 0) + (liveVisitors.counts?.general || 0)}
+                                            liveVisitors={liveVisitors.counts?.[location.permalink_slug] || 0}
                                         />
                                     ))}
                                 </div>

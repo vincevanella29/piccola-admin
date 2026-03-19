@@ -274,6 +274,24 @@ const AdminCarta = ({ appState }) => {
         }
     }, [updateCategory, refresh]);
 
+    const handleCopyCategory = useCallback(async (categoryId, targetMenuType) => {
+        try {
+            const sourceCat = categories.find(c => c.id === categoryId);
+            if (!sourceCat) return;
+            await createCategory({
+                nombre:    sourceCat.nombre,
+                alias:     sourceCat.alias || '',
+                estado:    sourceCat.estado ?? true,
+                prioridad: sourceCat.prioridad ?? 0,
+                menu_ids:  sourceCat.menu_ids || [],
+                menu_type: targetMenuType,
+            });
+            refresh();
+        } catch (err) {
+            alert(`Error copiando categoría: ${err.message}`);
+        }
+    }, [categories, createCategory, refresh]);
+
     const toggleProduct = (id) => setSelectedProductIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
     const toggleCategory = (id) => setSelectedCategoryIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
@@ -466,6 +484,7 @@ const AdminCarta = ({ appState }) => {
                                     onEdit={setEditingCategory} onDelete={(id, name) => handleDeleteIndividual('categories', id, name)}
                                     onMoveCategory={handleMoveCategory}
                                     onBulkMoveCategories={handleBulkMoveCategories}
+                                    onCopyCategory={handleCopyCategory}
                                 />
                             )}
                             {activeTab === 'locations' && (

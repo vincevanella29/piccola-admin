@@ -199,7 +199,7 @@ const LocationModal = ({ location, isOpen, onClose, appState, liveVisitors = {} 
                             {activeTab === 'qr' && (
                                 <QrTab location={location} form={form} handleChange={handleChange}
                                     appState={appState} copied={copied} setCopied={setCopied}
-                                    liveVisitors={(liveVisitors.counts?.[location?.permalink_slug] || 0) + (liveVisitors.counts?.general || 0)} />
+                                    liveVisitors={liveVisitors.counts?.[location?.permalink_slug] || 0} />
                             )}
                         </div>
 

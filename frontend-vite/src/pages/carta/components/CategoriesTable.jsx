@@ -1,6 +1,6 @@
 /**
  * CategoriesTable — Apple-style category table with product preview thumbnails
- * and "Move to menu" functionality.
+ * and "Move to" / "Copy products to" functionality.
  *
  * Each row shows:
  *   - Name + alias
@@ -8,15 +8,16 @@
  *   - Up to 3 product thumbnail images (stacked)
  *   - Real product count
  *   - Priority + Status
- *   - Edit / Move / Delete actions
+ *   - Edit / Move / Copy / Delete actions
  */
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
     Edit2, Trash2, CheckSquare, Square, MinusSquare,
-    Tags, ImageIcon, Package, ArrowRightLeft, ChevronDown, Loader2,
+    Tags, ImageIcon, Package,
 } from 'lucide-react';
+import { MoveToDropdown, CopyToDropdown, BulkMoveDropdown } from './CategoryDropdowns';
 
 const CheckBtn = ({ checked, indeterminate, onClick }) => (
     <button onClick={onClick}
@@ -96,117 +97,6 @@ const MenuTypeBadge = ({ menuType, menuTypes = [] }) => {
     );
 };
 
-// ── "Move to" dropdown ────────────────────────────────────────────────────────
-const MoveToDropdown = ({ currentType, menuTypes, onMove, loading, align = 'right' }) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef(null);
-
-    useEffect(() => {
-        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, []);
-
-    const otherTypes = menuTypes.filter(mt => mt.slug !== currentType);
-    if (otherTypes.length === 0) return null;
-
-    return (
-        <div className="relative" ref={ref}>
-            <button
-                onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
-                disabled={loading}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:text-blue-500 dark:hover:text-blue-400 hover:border-blue-400/30 text-xs font-semibold transition-all shadow-sm disabled:opacity-50"
-                title="Mover a otra carta"
-            >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
-                <span className="hidden lg:inline">Mover</span>
-                <ChevronDown className="w-3 h-3" />
-            </button>
-
-            <AnimatePresence>
-                {open && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                        transition={{ duration: 0.12 }}
-                        className={`absolute z-50 ${align === 'left' ? 'left-0' : 'right-0'} top-full mt-1 min-w-[160px] bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-xl shadow-xl shadow-black/10 dark:shadow-black/30 py-1 overflow-hidden`}
-                    >
-                        <p className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-light-text-secondary/60 dark:text-dark-text-secondary/60">
-                            Mover a…
-                        </p>
-                        {otherTypes.map(mt => (
-                            <button
-                                key={mt.slug}
-                                onClick={(e) => { e.stopPropagation(); onMove(mt.slug); setOpen(false); }}
-                                className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs font-semibold text-light-text-primary dark:text-dark-text-primary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-colors"
-                            >
-                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: mt.color }} />
-                                {mt.name}
-                            </button>
-                        ))}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-};
-
-// ── Bulk move dropdown (in header) ────────────────────────────────────────────
-const BulkMoveDropdown = ({ menuTypes, count, onBulkMove, loading }) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef(null);
-
-    useEffect(() => {
-        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, []);
-
-    if (count === 0 || menuTypes.length <= 1) return null;
-
-    return (
-        <div className="relative" ref={ref}>
-            <button
-                onClick={() => setOpen(o => !o)}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 dark:bg-blue-500/15 border border-blue-400/30 text-blue-600 dark:text-blue-400 text-xs font-bold transition-all hover:bg-blue-500/15 disabled:opacity-50"
-            >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
-                Mover {count} a…
-                <ChevronDown className="w-3 h-3" />
-            </button>
-
-            <AnimatePresence>
-                {open && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                        transition={{ duration: 0.12 }}
-                        className="absolute z-50 left-0 top-full mt-1 min-w-[180px] bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-xl shadow-xl shadow-black/10 dark:shadow-black/30 py-1 overflow-hidden"
-                    >
-                        <p className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-light-text-secondary/60 dark:text-dark-text-secondary/60">
-                            Mover {count} categorías a…
-                        </p>
-                        {menuTypes.map(mt => (
-                            <button
-                                key={mt.slug}
-                                onClick={() => { onBulkMove(mt.slug); setOpen(false); }}
-                                className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs font-semibold text-light-text-primary dark:text-dark-text-primary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-colors"
-                            >
-                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: mt.color }} />
-                                {mt.name}
-                            </button>
-                        ))}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-};
-
-
 // ─────────────────────────────────────────────────────────────────────────────
 const CategoriesTable = ({
     categories,
@@ -214,23 +104,23 @@ const CategoriesTable = ({
     menuTypes = [],
     selectedIds, onToggle, onToggleAll,
     onEdit, onDelete,
-    onMoveCategory,      // (categoryId, newMenuType) => Promise
-    onBulkMoveCategories, // (categoryIds, newMenuType) => Promise
+    onMoveCategory,        // (categoryId, newMenuType) => Promise
+    onBulkMoveCategories,  // (categoryIds, newMenuType) => Promise
+    onCopyCategory,        // (categoryId, targetMenuType) => Promise
 }) => {
     const { t } = useTranslation();
     const allSelected  = categories.length > 0 && selectedIds.length === categories.length;
     const someSelected = selectedIds.length > 0 && selectedIds.length < categories.length;
-    const [movingId, setMovingId] = useState(null);     // single move loading
-    const [bulkMoving, setBulkMoving] = useState(false); // bulk move loading
+    const [movingId, setMovingId] = useState(null);
+    const [bulkMoving, setBulkMoving] = useState(false);
+    const [copyingId, setCopyingId] = useState(null);
 
-    // Build product lookup by ID for each category's menu_ids
     const productById = useMemo(() => {
         const map = {};
         for (const p of products) map[p.id || p._id] = p;
         return map;
     }, [products]);
 
-    // Also build category_ids reverse index: catId → products[]
     const catProducts = useMemo(() => {
         const map = {};
         for (const cat of categories) {
@@ -261,6 +151,13 @@ const CategoriesTable = ({
         finally { setBulkMoving(false); }
     };
 
+    const handleCopy = async (catId, targetMenuType) => {
+        if (!onCopyCategory) return;
+        setCopyingId(catId);
+        try { await onCopyCategory(catId, targetMenuType); }
+        finally { setCopyingId(null); }
+    };
+
     if (categories.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-24 gap-4 rounded-3xl border-2 border-dashed border-light-border dark:border-dark-border">
@@ -274,7 +171,7 @@ const CategoriesTable = ({
 
     return (
         <div className="bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border shadow-sm overflow-hidden">
-            {/* Header info */}
+            {/* Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-light-border dark:border-dark-border bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/20">
                 <div className="flex items-center gap-3">
                     <CheckBtn
@@ -287,20 +184,13 @@ const CategoriesTable = ({
                             ? `${selectedIds.length} de ${categories.length} seleccionadas`
                             : `${categories.length} ${t('carta.tab_categories').toLowerCase()}`}
                     </span>
-
-                    {/* Bulk move button — visible when items are selected */}
                     {(someSelected || allSelected) && menuTypes.length > 1 && (
-                        <BulkMoveDropdown
-                            menuTypes={menuTypes}
-                            count={selectedIds.length}
-                            onBulkMove={handleBulkMove}
-                            loading={bulkMoving}
-                        />
+                        <BulkMoveDropdown menuTypes={menuTypes} count={selectedIds.length} onBulkMove={handleBulkMove} loading={bulkMoving} />
                     )}
                 </div>
             </div>
 
-            {/* ── Desktop table ── */}
+            {/* Desktop table */}
             <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                     <thead>
@@ -319,41 +209,25 @@ const CategoriesTable = ({
                                 <motion.tr key={c.id}
                                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.02 }}
                                     className={`group border-b border-light-border/40 dark:border-dark-border/40 last:border-0 transition-colors duration-100 ${
-                                        isSelected
-                                            ? 'bg-light-accent/5 dark:bg-dark-accent/8'
-                                            : 'hover:bg-light-surface-secondary/30 dark:hover:bg-dark-surface-secondary/15'
+                                        isSelected ? 'bg-light-accent/5 dark:bg-dark-accent/8' : 'hover:bg-light-surface-secondary/30 dark:hover:bg-dark-surface-secondary/15'
                                     }`}>
-                                    <td className="pl-4 pr-2 py-3">
-                                        <CheckBtn checked={isSelected} onClick={() => onToggle(c.id)} />
-                                    </td>
+                                    <td className="pl-4 pr-2 py-3"><CheckBtn checked={isSelected} onClick={() => onToggle(c.id)} /></td>
                                     <td className="px-4 py-3">
                                         <div className="font-semibold text-light-text-primary dark:text-dark-text-primary">{c.nombre}</div>
                                         {c.alias && <div className="text-[11px] font-mono text-light-text-secondary dark:text-dark-text-secondary mt-0.5">{c.alias}</div>}
                                     </td>
-                                    <td className="px-4 py-3 font-mono text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                                        {c.alias || '—'}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <MenuTypeBadge menuType={c.menu_type} menuTypes={menuTypes} />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <ProductStack products={prods} />
-                                    </td>
-                                    <td className="px-4 py-3 text-light-text-secondary dark:text-dark-text-secondary text-sm font-medium">
-                                        {c.prioridad ?? '—'}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <StatusPill active={c.estado} t={t} />
-                                    </td>
+                                    <td className="px-4 py-3 font-mono text-xs text-light-text-secondary dark:text-dark-text-secondary">{c.alias || '—'}</td>
+                                    <td className="px-4 py-3"><MenuTypeBadge menuType={c.menu_type} menuTypes={menuTypes} /></td>
+                                    <td className="px-4 py-3"><ProductStack products={prods} /></td>
+                                    <td className="px-4 py-3 text-light-text-secondary dark:text-dark-text-secondary text-sm font-medium">{c.prioridad ?? '—'}</td>
+                                    <td className="px-4 py-3"><StatusPill active={c.estado} t={t} /></td>
                                     <td className="px-4 py-3 pr-5">
                                         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
                                             {menuTypes.length > 1 && (
-                                                <MoveToDropdown
-                                                    currentType={c.menu_type || 'carta'}
-                                                    menuTypes={menuTypes}
-                                                    onMove={(newType) => handleMove(c.id, newType)}
-                                                    loading={movingId === c.id}
-                                                />
+                                                <MoveToDropdown currentType={c.menu_type || 'carta'} menuTypes={menuTypes} onMove={(nt) => handleMove(c.id, nt)} loading={movingId === c.id} />
+                                            )}
+                                            {menuTypes.length > 1 && (
+                                                <CopyToDropdown currentType={c.menu_type || 'carta'} menuTypes={menuTypes} onCopy={(mt) => handleCopy(c.id, mt)} loading={copyingId === c.id} />
                                             )}
                                             <button onClick={() => onEdit(c)}
                                                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent dark:hover:text-dark-accent hover:border-light-accent/30 text-xs font-semibold transition-all shadow-sm">
@@ -372,7 +246,7 @@ const CategoriesTable = ({
                 </table>
             </div>
 
-            {/* ── Mobile card list ── */}
+            {/* Mobile card list */}
             <div className="sm:hidden divide-y divide-light-border/40 dark:divide-dark-border/40">
                 {categories.map((c, idx) => {
                     const isSelected = selectedIds.includes(c.id);
@@ -380,9 +254,7 @@ const CategoriesTable = ({
                     return (
                         <motion.div key={c.id}
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: idx * 0.03 }}
-                            className={`flex items-center gap-3 px-4 py-3.5 transition-colors ${
-                                isSelected ? 'bg-light-accent/5 dark:bg-dark-accent/8' : ''
-                            }`}>
+                            className={`flex items-center gap-3 px-4 py-3.5 transition-colors ${isSelected ? 'bg-light-accent/5 dark:bg-dark-accent/8' : ''}`}>
                             <CheckBtn checked={isSelected} onClick={() => onToggle(c.id)} />
                             <div className="flex-1 min-w-0">
                                 <div className="font-semibold text-sm text-light-text-primary dark:text-dark-text-primary">{c.nombre}</div>
@@ -394,13 +266,10 @@ const CategoriesTable = ({
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                                 {menuTypes.length > 1 && (
-                                    <MoveToDropdown
-                                        currentType={c.menu_type || 'carta'}
-                                        menuTypes={menuTypes}
-                                        onMove={(newType) => handleMove(c.id, newType)}
-                                        loading={movingId === c.id}
-                                        align="right"
-                                    />
+                                    <MoveToDropdown currentType={c.menu_type || 'carta'} menuTypes={menuTypes} onMove={(nt) => handleMove(c.id, nt)} loading={movingId === c.id} align="right" />
+                                )}
+                                {menuTypes.length > 1 && (
+                                    <CopyToDropdown currentType={c.menu_type || 'carta'} menuTypes={menuTypes} onCopy={(mt) => handleCopy(c.id, mt)} loading={copyingId === c.id} align="right" />
                                 )}
                                 <button onClick={() => onEdit(c)}
                                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-light-border dark:border-dark-border text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent hover:border-light-accent/30 transition-all">
