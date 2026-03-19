@@ -1,10 +1,8 @@
 import React from 'react';
-import { Box, Chip, Tooltip, Typography } from '@mui/material';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import { ChevronRight } from 'lucide-react';
 import EmployeeAvatar from './EmployeeAvatar';
 import DeltaPill from '../../../../components/ui/DeltaPill';
 
-// --- formato compacto ---
 const fmtCLPFull = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
 function compactNumber(n) {
   const abs = Math.abs(n);
@@ -19,20 +17,9 @@ function fmtCLPCompact(n = 0) {
   return `$${compactNumber(n)}`;
 }
 
-const Stat = ({ label, value }) => (
-  <Box className="inline-flex items-baseline gap-1">
-    <span className="text-light-text-secondary dark:text-dark-text-secondary text-[11px]">{label}:</span>
-    <Tooltip title={fmtCLPFull.format(Number(value || 0))} arrow>
-      <span className="text-[13px] font-semibold">{fmtCLPCompact(Number(value || 0))}</span>
-    </Tooltip>
-  </Box>
-);
-
-// DeltaPill now imported from shared UI
-
 const MobileEmployeeCard = ({ emp, onClick, t }) => {
   const name =
-    [emp?.nombres, emp?.apellidopaterno, emp?.apellidomaterno].filter(Boolean).map((s) => String(s).trim()).join(' ') ||
+    [emp?.nombres, emp?.apellidopaterno, emp?.apellidomaterno].filter(Boolean).map(s => String(s).trim()).join(' ') ||
     t('employees.table.unknown');
 
   const prevNet = Number(emp?.payroll?.previous?.net || 0);
@@ -46,61 +33,60 @@ const MobileEmployeeCard = ({ emp, onClick, t }) => {
       className="w-full text-left focus:outline-none group"
       aria-label={`${name} - ${t('employees.table.rut')}: ${emp?.rut ?? '-'}`}
     >
-      <Box
-        className="relative rounded-3xl border border-light-accent/25 dark:border-dark-accent/25 bg-light-surface/70 dark:bg-dark-surface/70 backdrop-blur-md shadow-neon hover:shadow-neon hover:bg-light-surface/80 dark:hover:bg-dark-surface/80 transition"
-        sx={{ p: 1.0 }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <div className="relative rounded-2xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-light-surface-secondary/30 dark:hover:bg-dark-surface-secondary/20 transition p-3">
+        <div className="flex items-center gap-3">
           <EmployeeAvatar emp={emp} size={44} />
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            {/* fila superior: nombre + delta */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="body1" className="font-semibold truncate tracking-tight">
+          <div className="flex-1 min-w-0">
+            {/* Name + delta */}
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-sm text-light-text-primary dark:text-dark-text-primary truncate">
                 {name}
-              </Typography>
-              <Box sx={{ flex: 1 }} />
+              </span>
+              <div className="flex-1" />
               <DeltaPill value={delta} t={t} />
-            </Box>
+            </div>
 
-            {/* subinfo: RUT y mini-stats en línea */}
-            <Box className="mt-0.5 flex items-center justify-between gap-2">
-              <Typography variant="caption" className="text-light-text-secondary dark:text-dark-text-secondary truncate">
+            {/* RUT + chevron */}
+            <div className="flex items-center justify-between gap-2 mt-0.5">
+              <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
                 {t('employees.table.rut')}: {emp?.rut ?? '—'}
-              </Typography>
-              <ChevronRightIcon className="opacity-70 group-hover:translate-x-[2px] transition" />
-            </Box>
+              </span>
+              <ChevronRight className="w-4 h-4 text-light-text-secondary/60 dark:text-dark-text-secondary/60 group-hover:translate-x-0.5 transition" />
+            </div>
 
-            {/* stats compactas */}
-            <Box className="mt-1 flex items-center gap-3">
-              <Stat label={t('employees.payroll.columns.total_paid') || 'Total sueldo'} value={totalPaid} />
-              <span className="text-light-text-secondary dark:text-dark-text-secondary">•</span>
-              <Stat label={t('employees.payroll.columns.net_previous') || 'Líquido (anterior)'} value={prevNet} />
-            </Box>
+            {/* Stats */}
+            <div className="mt-1.5 flex items-center gap-3 text-xs">
+              <span className="text-light-text-secondary dark:text-dark-text-secondary">
+                {t('employees.payroll.columns.total_paid')}:{' '}
+                <span className="font-semibold text-light-text-primary dark:text-dark-text-primary" title={fmtCLPFull.format(totalPaid)}>
+                  {fmtCLPCompact(totalPaid)}
+                </span>
+              </span>
+              <span className="text-light-border dark:text-dark-border">·</span>
+              <span className="text-light-text-secondary dark:text-dark-text-secondary">
+                {t('employees.payroll.columns.net_previous')}:{' '}
+                <span className="font-semibold text-light-text-primary dark:text-dark-text-primary" title={fmtCLPFull.format(prevNet)}>
+                  {fmtCLPCompact(prevNet)}
+                </span>
+              </span>
+            </div>
 
-            {/* meta chips ultra compactas (una línea como máximo) */}
-            <Box className="mt-1 flex items-center gap-1 overflow-hidden">
-              {emp?.cargo ? (
-                <Chip
-                  size="small"
-                  label={emp.cargo}
-                  className="text-light-text-secondary dark:text-dark-text-secondary bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30"
-                  sx={{ height: 20, maxWidth: '40%', '& .MuiChip-label': { px: 1 } }}
-                />
-              ) : null}
-              {emp?.sucursal ? (
-                <Chip
-                  size="small"
-                  label={emp.sucursal}
-                  variant="outlined"
-                  className="text-light-text-secondary dark:text-dark-text-secondary"
-                  sx={{ height: 20, maxWidth: '40%', '& .MuiChip-label': { px: 1 } }}
-                />
-              ) : null}
-              {/* no mostramos ingreso para mantener altura ultra-compacta */}
-            </Box>
-          </Box>
-        </Box>
-      </Box>
+            {/* Meta chips */}
+            <div className="mt-1.5 flex items-center gap-1.5 overflow-hidden">
+              {emp?.cargo && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 text-light-text-secondary dark:text-dark-text-secondary truncate max-w-[40%]">
+                  {emp.cargo}
+                </span>
+              )}
+              {emp?.sucursal && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary truncate max-w-[40%]">
+                  {emp.sucursal}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </button>
   );
 };

@@ -61,7 +61,7 @@ const usePromotionsData = (appState) => {
       const token = appState?.token;
 
       const [locationsRes, menusRes] = await Promise.all([
-        fetchLocations(),
+        fetchLocations(walletAddress, token),
         fetchMenus(walletAddress, token),
       ]);
 

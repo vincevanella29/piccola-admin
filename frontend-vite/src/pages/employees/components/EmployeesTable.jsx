@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import useEmpleadosCache from '../../../hooks/useEmpleadosCache';
 import EmployeeDetailModal from './EmployeeDetailModal';
@@ -227,9 +226,9 @@ const EmployeesTable = ({ appState }) => {
   }, [filteredRows]);
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }} className="text-light-text-primary dark:text-dark-text-primary">
+    <div className="w-full max-w-full overflow-x-hidden text-light-text-primary dark:text-dark-text-primary">
       {/* KPIs enriquecidos: Género, Edades, Totales sueldo, Headcount */}
-      <Box className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
         {/* KPI Género */}
         <GenderDonutWidget
           title={t('employees.profile.gender') || 'Género'}
@@ -271,7 +270,7 @@ const EmployeesTable = ({ appState }) => {
           avgSalaryPerBranch={branchStats.avgSalaryPerBranch}
           formatCurrency={(n) => fmtCLP.format(n)}
         />
-      </Box>
+      </div>
       <EmployeesToolbar
         t={t}
         q={q}
@@ -318,7 +317,7 @@ const EmployeesTable = ({ appState }) => {
         emp={selected}
         appState={appState}
       />
-    </Box>
+    </div>
   );
 };
 

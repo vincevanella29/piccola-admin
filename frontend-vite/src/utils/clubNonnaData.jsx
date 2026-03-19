@@ -16,10 +16,15 @@ export async function fetchColorLevels() {
   });
 }
 
-export async function fetchLocations() {
+export async function fetchLocations(walletAddress, token) {
   return api({
     method: 'GET',
     endpoint: '/locations',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+    withCredentials: true,
   });
 }
 

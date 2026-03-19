@@ -1,6 +1,5 @@
 import React from 'react';
-import { Box, Paper, Stack, Select, MenuItem, IconButton, Tooltip, Chip, Typography } from '@mui/material';
-import SwapVertIcon from '@mui/icons-material/SwapVert';
+import { ArrowUpDown } from 'lucide-react';
 import MobileEmployeeCard from './MobileEmployeeCard';
 
 const collator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
@@ -14,49 +13,36 @@ function getDeltaPct(emp) {
 
 function valueFor(emp, key) {
   switch (key) {
-    case 'total':
-      return Number(emp?.payroll?.totals?.total || 0);
-    case 'prev':
-      return Number(emp?.payroll?.previous?.net || 0);
-    case 'delta':
-      return getDeltaPct(emp);
-    case 'sucursal':
-      return String(emp?.sucursal || '');
-    default:
-      return null;
+    case 'total': return Number(emp?.payroll?.totals?.total || 0);
+    case 'prev': return Number(emp?.payroll?.previous?.net || 0);
+    case 'delta': return getDeltaPct(emp);
+    case 'sucursal': return String(emp?.sucursal || '');
+    default: return null;
   }
 }
 
 function cmp(a, b, key, dir) {
   const av = valueFor(a, key);
   const bv = valueFor(b, key);
-
-  // null/NaN al final siempre
   const aBad = av == null || (typeof av === 'number' && !isFinite(av));
   const bBad = bv == null || (typeof bv === 'number' && !isFinite(bv));
   if (aBad && bBad) return 0;
   if (aBad) return 1;
   if (bBad) return -1;
-
   let res = 0;
-  if (key === 'sucursal') {
-    res = collator.compare(av, bv);
-  } else {
-    res = av === bv ? 0 : (av > bv ? 1 : -1);
-  }
+  if (key === 'sucursal') res = collator.compare(av, bv);
+  else res = av === bv ? 0 : (av > bv ? 1 : -1);
   return dir === 'asc' ? res : -res;
 }
 
 const MobileEmployeesList = ({ items = [], onSelect, t }) => {
-  const [sortBy, setSortBy] = React.useState('total');   // 'total' | 'sucursal' | 'prev' | 'delta'
-  const [sortDir, setSortDir] = React.useState('desc');  // 'asc' | 'desc'
-  // incremental loading
+  const [sortBy, setSortBy] = React.useState('total');
+  const [sortDir, setSortDir] = React.useState('desc');
   const BATCH = 20;
   const [visibleCount, setVisibleCount] = React.useState(BATCH);
   const sentinelRef = React.useRef(null);
 
   const sorted = React.useMemo(() => {
-    // stable sort con índice como desempate
     return [...items]
       .map((it, i) => ({ it, i }))
       .sort((a, b) => {
@@ -66,21 +52,15 @@ const MobileEmployeesList = ({ items = [], onSelect, t }) => {
       .map(({ it }) => it);
   }, [items, sortBy, sortDir]);
 
-  // reset visible items when data or sort changes
-  React.useEffect(() => {
-    setVisibleCount(BATCH);
-  }, [items, sortBy, sortDir]);
+  React.useEffect(() => { setVisibleCount(BATCH); }, [items, sortBy, sortDir]);
 
-  // observe sentinel to load more when approaching bottom
   React.useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting) {
-          setVisibleCount((c) => Math.min(c + BATCH, sorted.length));
-        }
+        if (entry.isIntersecting) setVisibleCount(c => Math.min(c + BATCH, sorted.length));
       },
       { root: null, rootMargin: '200px', threshold: 0.01 }
     );
@@ -89,66 +69,46 @@ const MobileEmployeesList = ({ items = [], onSelect, t }) => {
   }, [sorted.length]);
 
   return (
-    <Box sx={{ width: '100%' }}>
-      {/* Barra de orden compacta estilo exchange */}
-      <Paper
-        variant="outlined"
-        className="bg-light-surface/70 dark:bg-dark-surface/70 border border-light-accent/30 dark:border-dark-accent/30 rounded-2xl backdrop-blur-md"
-        sx={{ p: 1, mb: 1 }}
-      >
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <Typography variant="caption" className="text-light-text-secondary dark:text-dark-text-secondary">
-            {t?.('common.sort') || 'Ordenar'}
-          </Typography>
+    <div className="w-full">
+      {/* Sort bar */}
+      <div className="bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-2xl p-2.5 mb-3 flex items-center gap-2">
+        <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t?.('common.sort') || 'Ordenar'}</span>
 
-          <Select
-            size="small"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            variant="outlined"
-            sx={{
-              height: 30,
-              '& .MuiSelect-select': { py: 0.5, fontSize: 12, fontWeight: 600 },
-              minWidth: 170,
-            }}
-          >
-            <MenuItem value="total">{t?.('employees.payroll.columns.total_paid') || 'Total sueldos'}</MenuItem>
-            <MenuItem value="prev">{t?.('employees.payroll.columns.net_previous') || 'Sueldo anterior'}</MenuItem>
-            <MenuItem value="delta">{t?.('employees.common.change_pct') || '% cambio'}</MenuItem>
-            <MenuItem value="sucursal">{t?.('employees.table.sucursal') || 'Sucursal'}</MenuItem>
-          </Select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="px-2 py-1 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-xs font-semibold text-light-text-primary dark:text-dark-text-primary min-w-[170px]"
+        >
+          <option value="total">{t?.('employees.payroll.columns.total_paid') || 'Total sueldos'}</option>
+          <option value="prev">{t?.('employees.payroll.columns.net_previous') || 'Sueldo anterior'}</option>
+          <option value="delta">{t?.('employees.common.change_pct') || '% cambio'}</option>
+          <option value="sucursal">{t?.('employees.table.sucursal') || 'Sucursal'}</option>
+        </select>
 
-          <Tooltip title={sortDir === 'desc' ? (t?.('common.desc') || 'Descendente') : (t?.('common.asc') || 'Ascendente')}>
-            <IconButton
-              size="small"
-              onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
-              className="text-light-text-secondary dark:text-dark-text-secondary"
-              aria-label="toggle-sort"
-            >
-              <SwapVertIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+        <button
+          onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+          title={sortDir === 'desc' ? (t?.('common.desc') || 'Descendente') : (t?.('common.asc') || 'Ascendente')}
+          className="p-1.5 rounded-lg hover:bg-light-surface-secondary/50 dark:hover:bg-dark-surface-secondary/30 transition text-light-text-secondary dark:text-dark-text-secondary"
+        >
+          <ArrowUpDown className="w-3.5 h-3.5" />
+        </button>
 
-          <Box sx={{ flex: 1 }} />
-          <Chip
-            size="small"
-            label={`${t?.('employees.payroll.records') || 'registros'}: ${items.length}`}
-            className="bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 text-light-text-secondary dark:text-dark-text-secondary"
-            sx={{ height: 22 }}
-          />
-        </Stack>
-      </Paper>
+        <div className="flex-1" />
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 text-light-text-secondary dark:text-dark-text-secondary">
+          {t?.('employees.payroll.records') || 'registros'}: {items.length}
+        </span>
+      </div>
 
-      {/* Lista ordenada con carga incremental */}
-      <Stack spacing={0.75}>
-        {sorted.slice(0, visibleCount).map((emp) => (
+      {/* Card list */}
+      <div className="space-y-2">
+        {sorted.slice(0, visibleCount).map(emp => (
           <MobileEmployeeCard key={String(emp?._id || emp?.rut)} emp={emp} onClick={() => onSelect?.(emp)} t={t} />
         ))}
         {visibleCount < sorted.length && (
           <div ref={sentinelRef} style={{ height: 1 }} aria-hidden />
         )}
-      </Stack>
-    </Box>
+      </div>
+    </div>
   );
 };
 

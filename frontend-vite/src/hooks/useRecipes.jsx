@@ -115,7 +115,7 @@ const useRecipes = (appState = {}) => {
         : Promise.resolve({ menus: [], categories: [], menu_options: [] });
 
       const [locationsRes, menusRes] = await Promise.all([
-        fetchLocations(),
+        fetchLocations(appState.account, appState.token),
         menusPromise,
       ]);
 

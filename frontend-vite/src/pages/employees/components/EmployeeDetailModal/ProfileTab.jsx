@@ -1,40 +1,12 @@
 import React from 'react';
 import {
-  Box,
-  Paper,
-  Stack,
-  Typography,
-  Chip,
-  Divider,
-  Tooltip,
-  Tabs,
-  Tab,
-  Grid,
-} from '@mui/material';
-import {
-  Person,
-  Email,
-  Phone,
-  LocationOn,
-  Work,
-  CalendarToday,
-  Height,
-  Scale,
-  Checkroom,
-  DirectionsRun,
-  Business,
-  Badge,
-} from '@mui/icons-material';
+  User, Mail, Phone, MapPin, Briefcase, Calendar, Ruler,
+  Weight, Shirt, Footprints, Building2, IdCard,
+} from 'lucide-react';
 
 const isBlank = (v) => v === null || v === undefined || v === '' || v === 0;
 const display = (v) => (isBlank(v) ? '—' : String(v));
-
-const fmtCLP = (n) =>
-  new Intl.NumberFormat('es-CL', {
-    style: 'currency',
-    currency: 'CLP',
-    maximumFractionDigits: 0,
-  }).format(Number(n || 0));
+const fmtCLP = (n) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(n || 0));
 
 const compactNumber = (n) => {
   const abs = Math.abs(n);
@@ -46,83 +18,52 @@ const compactNumber = (n) => {
 };
 const money = (n = 0) => `$${compactNumber(Number(n) || 0)}`;
 
+// ── Reusable Row ─────────────────────────────────────────────────────────────
 const ProfileRow = ({ label, value, tooltip, icon: Icon }) => (
-  <Stack
-    direction="row"
-    alignItems="center"
-    spacing={1}
-    sx={{ py: 0.75, transition: 'background 0.2s', '&:hover': { background: 'rgba(255,255,255,0.05)' } }}
-  >
-    <Icon fontSize="small" className="text-light-text-secondary dark:text-dark-text-secondary" />
-    <Typography
-      variant="body2"
-      className="text-light-text-secondary dark:text-dark-text-secondary flex-1"
-    >
-      {label}
-    </Typography>
+  <div className="flex items-center gap-3 py-2 px-1 rounded-lg hover:bg-light-surface-secondary/30 dark:hover:bg-dark-surface-secondary/20 transition group">
+    <div className="w-8 h-8 rounded-lg bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 flex items-center justify-center shrink-0">
+      <Icon className="w-4 h-4 text-light-text-secondary dark:text-dark-text-secondary" />
+    </div>
+    <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary flex-1">{label}</span>
     {tooltip ? (
-      <Tooltip title={tooltip} arrow>
-        <Typography
-          variant="body2"
-          fontWeight={600}
-          className="text-light-text-primary dark:text-dark-text-primary"
-        >
-          {display(value)}
-        </Typography>
-      </Tooltip>
-    ) : (
-      <Typography
-        variant="body2"
-        fontWeight={600}
-        className="text-light-text-primary dark:text-dark-text-primary"
-      >
+      <span className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary cursor-help" title={tooltip}>
         {display(value)}
-      </Typography>
+      </span>
+    ) : (
+      <span className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary">{display(value)}</span>
     )}
-  </Stack>
+  </div>
 );
 
-const SectionTitle = ({ children }) => (
-  <Typography
-    variant="h6"
-    fontWeight={800}
-    className="text-light-text-primary dark:text-dark-text-primary font-futurist tracking-wide"
-    sx={{ letterSpacing: 0.5 }}
-  >
-    {children}
-  </Typography>
-);
-
-const StatusChip = ({ label, color = 'default' }) => (
-  <Chip
-    size="small"
-    label={label}
-    className={`${
-      color === 'success'
-        ? 'text-matrix-green bg-matrix-green/20'
-        : color === 'error'
-        ? 'text-vanellix-purple bg-vanellix-purple/20'
-        : 'text-light-text-secondary dark:text-dark-text-secondary bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30'
-    }`}
-    sx={{ height: 22, borderRadius: '9999px', fontWeight: 600 }}
-  />
-);
-
-const MobileSection = ({ title, children }) => (
-  <Box className="rounded-2xl border border-light-accent/25 dark:border-dark-accent/25 bg-light-surface/60 dark:bg-dark-surface/60 shadow-neon">
-    <Box sx={{ p: 2 }}>
-      <SectionTitle>{title}</SectionTitle>
-      <Divider sx={{ my: 1, opacity: 0.25 }} />
+// ── Section Card ─────────────────────────────────────────────────────────────
+const Section = ({ title, children }) => (
+  <div className="bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border overflow-hidden">
+    <div className="px-4 py-2.5 border-b border-light-border/50 dark:border-dark-border/50">
+      <h3 className="text-xs font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">{title}</h3>
+    </div>
+    <div className="px-3 py-1">
       {children}
-    </Box>
-  </Box>
+    </div>
+  </div>
 );
 
+// ── Status Badge ─────────────────────────────────────────────────────────────
+const Badge = ({ label, variant = 'default' }) => {
+  const colors = {
+    success: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    error: 'bg-red-500/10 text-red-500',
+    default: 'bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 text-light-text-secondary dark:text-dark-text-secondary',
+  };
+  return (
+    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold ${colors[variant]}`}>
+      {label}
+    </span>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 const ProfileTab = ({ t, emp }) => {
-  const name =
-    [emp?.nombres, emp?.apellidopaterno, emp?.apellidomaterno]
-      .filter(Boolean)
-      .join(' ') || t('employees.table.unknown');
+  const name = [emp?.nombres, emp?.apellidopaterno, emp?.apellidomaterno].filter(Boolean).join(' ') || t('employees.table.unknown');
   const rut = emp?.rut_str || emp?.rut || '—';
   const sexoMap = {
     f: t('employees.profile.gender.female') || 'Femenino',
@@ -133,526 +74,117 @@ const ProfileTab = ({ t, emp }) => {
   const netAnte = emp?.payroll?.anteprevious?.net || 0;
   const delta = netAnte > 0 ? ((netPrev - netAnte) / netAnte) * 100 : netPrev > 0 ? 100 : null;
 
-  const [tab, setTab] = React.useState(0);
-
   return (
-    <Paper
-      variant="outlined"
-      className="bg-light-surface/60 dark:bg-dark-surface/60 border border-light-accent/30 dark:border-dark-accent/30 rounded-3xl p-4 shadow-neon"
-    >
-      {/* Header Card */}
-      <Box
-        className="rounded-2xl bg-gradient-to-r from-light-accent/10 to-dark-accent/10 p-3 mb-3"
-        sx={{ border: '1px solid rgba(255,255,255,0.1)' }}
-      >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-          <Typography
-            variant="h5"
-            fontWeight={800}
-            className="text-light-text-primary dark:text-dark-text-primary font-futurist tracking-wide"
-          >
-            {name}
-          </Typography>
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ gap: 0.5 }}>
-            {emp?.activo ? (
-              <StatusChip label={t('employees.profile.active') || 'Activo'} color="success" />
-            ) : (
-              <StatusChip label={t('employees.profile.inactive') || 'Inactivo'} />
-            )}
-            {emp?.nongrata ? (
-              <StatusChip label={t('employees.profile.blacklisted') || 'No grata'} color="error" />
-            ) : null}
-            {emp?.rutbloqueado ? (
-              <StatusChip label={t('employees.profile.rut_blocked') || 'RUT bloqueado'} color="error" />
-            ) : null}
-            {emp?.ficha_privada ? (
-              <StatusChip label={t('employees.profile.private_file') || 'Ficha privada'} />
-            ) : null}
-          </Stack>
-        </Stack>
-        <Stack direction="row" alignItems="center" spacing={2} flexWrap="wrap" sx={{ gap: 1 }}>
-          <Typography
-            variant="caption"
-            className="text-light-text-secondary dark:text-dark-text-secondary"
-          >
-            {t('employees.payroll.columns.total_paid') || 'Total sueldo'}:
-          </Typography>
-          <Typography
-            variant="subtitle1"
-            fontWeight={800}
-            className="text-matrix-green font-futurist"
-          >
-            {money(emp?.payroll?.totals?.total || 0)}
-          </Typography>
-          <Divider flexItem orientation="vertical" sx={{ mx: 1, opacity: 0.3 }} />
-          <Typography
-            variant="caption"
-            className="text-light-text-secondary dark:text-dark-text-secondary"
-          >
-            {t('employees.payroll.columns.net_previous') || 'Líquido (anterior)'}:
-          </Typography>
-          <Tooltip title={fmtCLP(netPrev)} arrow>
-            <Typography
-              variant="subtitle1"
-              fontWeight={600}
-              className="text-light-text-primary dark:text-dark-text-primary"
-            >
-              {money(netPrev)}
-            </Typography>
-          </Tooltip>
-          {delta !== null && (
-            <>
-              <Divider flexItem orientation="vertical" sx={{ mx: 1, opacity: 0.3 }} />
-              <Chip
-                size="small"
-                label={`${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1).replace(/\.0$/, '')}%`}
-                className={`${
-                  delta >= 0 ? 'text-matrix-green bg-matrix-green/20' : 'text-vanellix-purple bg-vanellix-purple/20'
-                } font-futurist font-bold`}
-                sx={{ height: 22, borderRadius: '9999px' }}
-              />
-            </>
-          )}
-        </Stack>
-      </Box>
+    <div className="space-y-4">
+      {/* Hero summary */}
+      <div className="bg-gradient-to-r from-light-accent/5 to-light-accent/10 dark:from-dark-accent/5 dark:to-dark-accent/10 rounded-2xl border border-light-border dark:border-dark-border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary">{name}</h3>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              {emp?.activo && <Badge label={t('employees.profile.active')} variant="success" />}
+              {!emp?.activo && <Badge label={t('employees.profile.inactive')} />}
+              {emp?.nongrata && <Badge label={t('employees.profile.blacklisted')} variant="error" />}
+              {emp?.rutbloqueado && <Badge label={t('employees.profile.rut_blocked')} variant="error" />}
+              {emp?.ficha_privada && <Badge label={t('employees.profile.private_file')} />}
+            </div>
+          </div>
 
-      {/* Desktop Layout */}
-      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <MobileSection title={t('employees.profile.section.personal') || 'Personal'}>
-              <ProfileRow
-                label={t('employees.table.name') || 'Nombre'}
-                value={name}
-                icon={Person}
-              />
-              <ProfileRow
-                label={t('employees.table.rut') || 'RUT'}
-                value={rut}
-                icon={Badge}
-              />
-              <ProfileRow
-                label={t('employees.profile.gender') || 'Sexo'}
-                value={sexo}
-                icon={Person}
-              />
-              <ProfileRow
-                label={t('employees.profile.nationality') || 'Nacionalidad'}
-                value={emp?.nacionalidad}
-                icon={LocationOn}
-              />
-              <ProfileRow
-                label={t('employees.profile.birthdate') || 'Nacimiento'}
-                value={emp?.fechanacimiento}
-                icon={CalendarToday}
-              />
-              <ProfileRow
-                label={t('employees.profile.civil_status') || 'Estado civil'}
-                value={emp?.estadocivil}
-                icon={Person}
-              />
-            </MobileSection>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <MobileSection title={t('employees.profile.section.contact') || 'Contacto'}>
-              <ProfileRow
-                label={t('employees.profile.email') || 'Email'}
-                value={emp?.email || emp?.correo}
-                icon={Email}
-              />
-              <ProfileRow
-                label={t('employees.profile.phone1') || 'Teléfono 1'}
-                value={emp?.telefonouno && emp?.telefonouno !== 0 ? emp.telefonouno : '—'}
-                icon={Phone}
-              />
-              <ProfileRow
-                label={t('employees.profile.phone2') || 'Teléfono 2'}
-                value={emp?.telefonodos && emp?.telefonodos !== 0 ? emp.telefonodos : '—'}
-                icon={Phone}
-              />
-              <ProfileRow
-                label={t('employees.profile.address') || 'Dirección'}
-                value={emp?.direccion}
-                icon={LocationOn}
-              />
-              <ProfileRow
-                label={t('employees.profile.district') || 'Comuna'}
-                value={emp?.comuna}
-                icon={LocationOn}
-              />
-              <ProfileRow
-                label={t('employees.profile.city') || 'Ciudad'}
-                value={emp?.ciudad}
-                icon={LocationOn}
-              />
-            </MobileSection>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <MobileSection title={t('employees.profile.section.employment') || 'Laboral'}>
-              <ProfileRow
-                label={t('employees.table.cargo') || 'Cargo'}
-                value={emp?.cargo}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.table.sucursal') || 'Sucursal'}
-                value={emp?.sucursal}
-                icon={Business}
-              />
-              <ProfileRow
-                label={t('employees.table.ingreso') || 'Ingreso'}
-                value={emp?.fechaingreso}
-                icon={CalendarToday}
-              />
-              <ProfileRow
-                label={t('employees.profile.exit') || 'Retiro'}
-                value={emp?.fecharetiro}
-                icon={CalendarToday}
-              />
-              <ProfileRow
-                label={t('employees.profile.salary') || 'Sueldo'}
-                value={money(emp?.sueldo)}
-                tooltip={fmtCLP(emp?.sueldo)}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.profile.afp') || 'AFP'}
-                value={emp?.afp}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.profile.isapre') || 'Isapre'}
-                value={emp?.isapre}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.profile.with_contract') || 'Con contrato'}
-                value={emp?.concontrato ? (t('common.yes') || 'Sí') : (t('common.no') || 'No')}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.profile.with_payroll') || 'Con liquidación'}
-                value={emp?.conliquidacion ? (t('common.yes') || 'Sí') : (t('common.no') || 'No')}
-                icon={Work}
-              />
-              <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                {emp?.centro_costo_cod ? (
-                  <Chip
-                    size="small"
-                    label={`${t('employees.profile.cost_center_prefix') || 'CC'} ${emp.centro_costo_cod}`}
-                    className="bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 text-light-text-secondary dark:text-dark-text-secondary"
-                    sx={{ height: 22, borderRadius: '9999px' }}
-                  />
-                ) : null}
-                {emp?.centro_costo ? (
-                  <Chip
-                    size="small"
-                    label={emp.centro_costo}
-                    className="bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 text-light-text-secondary dark:text-dark-text-secondary"
-                    sx={{ height: 22, borderRadius: '9999px' }}
-                  />
-                ) : null}
-              </Box>
-            </MobileSection>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <MobileSection title={t('employees.profile.section.status') || 'Estado'}>
-              <ProfileRow
-                label={t('employees.profile.created_at') || 'Creación'}
-                value={emp?.fechacreacion}
-                icon={CalendarToday}
-              />
-              <ProfileRow
-                label={t('employees.profile.company_id') || 'ID empresa'}
-                value={emp?.id_empresa}
-                icon={Business}
-              />
-              <ProfileRow
-                label={t('employees.profile.internal_id') || 'ID interno'}
-                value={emp?.id}
-                icon={Badge}
-              />
-            </MobileSection>
-            <Box sx={{ mt: 2 }} />
-            <MobileSection title={t('employees.profile.section.measurements') || 'Medidas'}>
-              <ProfileRow
-                label={t('employees.profile.height') || 'Estatura'}
-                value={emp?.estatura}
-                icon={Height}
-              />
-              <ProfileRow
-                label={t('employees.profile.weight') || 'Peso'}
-                value={emp?.peso}
-                icon={Scale}
-              />
-              <ProfileRow
-                label={t('employees.profile.size') || 'Talla'}
-                value={emp?.talla}
-                icon={Checkroom}
-              />
-              <ProfileRow
-                label={t('employees.profile.shoe') || 'Zapato'}
-                value={emp?.zapato}
-                icon={DirectionsRun}
-              />
-            </MobileSection>
-          </Grid>
-        </Grid>
-      </Box>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase">
+                {t('employees.payroll.columns.total_paid')}
+              </p>
+              <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                {money(emp?.payroll?.totals?.total || 0)}
+              </p>
+            </div>
+            <div className="w-px h-10 bg-light-border dark:bg-dark-border" />
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase">
+                {t('employees.payroll.columns.net_previous')}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary" title={fmtCLP(netPrev)}>
+                  {money(netPrev)}
+                </p>
+                {delta !== null && (
+                  <span className={`text-xs font-bold ${delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1).replace(/\.0$/, '')}%
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      {/* Mobile Layout with Tabs */}
-      <Box sx={{ display: { xs: 'block', md: 'none' }, mb: 2 }}>
-        <Box
-          className="rounded-2xl border border-light-accent/25 dark:border-dark-accent/25 bg-light-surface/60 dark:bg-dark-surface/60 shadow-neon"
-          sx={{ mb: 1 }}
-        >
-          <Tabs
-            value={tab}
-            onChange={(_, v) => setTab(v)}
-            variant="scrollable"
-            allowScrollButtonsMobile
-            TabIndicatorProps={{ sx: { backgroundColor: 'var(--light-accent, #009246)' } }}
-            sx={{
-              '& .MuiTab-root': { minHeight: 36, px: 1, color: 'var(--light-text-secondary, #999)' },
-              '& .Mui-selected': { color: 'var(--light-text-primary, #fff) !important' },
-            }}
-          >
-            <Tab
-              label={
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Person fontSize="small" />
-                  <Typography variant="caption" className="font-futurist">
-                    {t('employees.profile.section.personal') || 'Personal'}
-                  </Typography>
-                </Stack>
-              }
-            />
-            <Tab
-              label={
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Email fontSize="small" />
-                  <Typography variant="caption" className="font-futurist">
-                    {t('employees.profile.section.contact') || 'Contacto'}
-                  </Typography>
-                </Stack>
-              }
-            />
-            <Tab
-              label={
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Work fontSize="small" />
-                  <Typography variant="caption" className="font-futurist">
-                    {t('employees.profile.section.employment') || 'Laboral'}
-                  </Typography>
-                </Stack>
-              }
-            />
-            <Tab
-              label={
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Badge fontSize="small" />
-                  <Typography variant="caption" className="font-futurist">
-                    {t('employees.profile.section.status') || 'Estado'}
-                  </Typography>
-                </Stack>
-              }
-            />
-            <Tab
-              label={
-                <Stack direction="row" alignItems="center" spacing={0.5}>
-                  <Height fontSize="small" />
-                  <Typography variant="caption" className="font-futurist">
-                    {t('employees.profile.section.measurements') || 'Medidas'}
-                  </Typography>
-                </Stack>
-              }
-            />
-          </Tabs>
-        </Box>
+      {/* Grid sections */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Personal */}
+        <Section title={t('employees.profile.section.personal')}>
+          <ProfileRow label={t('employees.table.name')} value={name} icon={User} />
+          <ProfileRow label={t('employees.table.rut')} value={rut} icon={IdCard} />
+          <ProfileRow label={t('employees.profile.gender')} value={sexo} icon={User} />
+          <ProfileRow label={t('employees.profile.nationality')} value={emp?.nacionalidad} icon={MapPin} />
+          <ProfileRow label={t('employees.profile.birthdate')} value={emp?.fechanacimiento} icon={Calendar} />
+          <ProfileRow label={t('employees.profile.civil_status')} value={emp?.estadocivil} icon={User} />
+        </Section>
 
-        <Stack spacing={1}>
-          {tab === 0 && (
-            <MobileSection title={t('employees.profile.section.personal') || 'Personal'}>
-              <ProfileRow
-                label={t('employees.table.name') || 'Nombre'}
-                value={name}
-                icon={Person}
-              />
-              <ProfileRow
-                label={t('employees.table.rut') || 'RUT'}
-                value={rut}
-                icon={Badge}
-              />
-              <ProfileRow
-                label={t('employees.profile.gender') || 'Sexo'}
-                value={sexo}
-                icon={Person}
-              />
-              <ProfileRow
-                label={t('employees.profile.nationality') || 'Nacionalidad'}
-                value={emp?.nacionalidad}
-                icon={LocationOn}
-              />
-              <ProfileRow
-                label={t('employees.profile.birthdate') || 'Nacimiento'}
-                value={emp?.fechanacimiento}
-                icon={CalendarToday}
-              />
-              <ProfileRow
-                label={t('employees.profile.civil_status') || 'Estado civil'}
-                value={emp?.estadocivil}
-                icon={Person}
-              />
-            </MobileSection>
+        {/* Contact */}
+        <Section title={t('employees.profile.section.contact')}>
+          <ProfileRow label={t('employees.profile.email')} value={emp?.email || emp?.correo} icon={Mail} />
+          <ProfileRow label={t('employees.profile.phone1')} value={emp?.telefonouno && emp?.telefonouno !== 0 ? emp.telefonouno : '—'} icon={Phone} />
+          <ProfileRow label={t('employees.profile.phone2')} value={emp?.telefonodos && emp?.telefonodos !== 0 ? emp.telefonodos : '—'} icon={Phone} />
+          <ProfileRow label={t('employees.profile.address')} value={emp?.direccion} icon={MapPin} />
+          <ProfileRow label={t('employees.profile.district')} value={emp?.comuna} icon={MapPin} />
+          <ProfileRow label={t('employees.profile.city')} value={emp?.ciudad} icon={MapPin} />
+        </Section>
+
+        {/* Employment */}
+        <Section title={t('employees.profile.section.employment')}>
+          <ProfileRow label={t('employees.table.cargo')} value={emp?.cargo} icon={Briefcase} />
+          <ProfileRow label={t('employees.table.sucursal')} value={emp?.sucursal} icon={Building2} />
+          <ProfileRow label={t('employees.table.ingreso')} value={emp?.fechaingreso} icon={Calendar} />
+          <ProfileRow label={t('employees.profile.exit')} value={emp?.fecharetiro} icon={Calendar} />
+          <ProfileRow label={t('employees.profile.salary')} value={money(emp?.sueldo)} tooltip={fmtCLP(emp?.sueldo)} icon={Briefcase} />
+          <ProfileRow label={t('employees.profile.afp')} value={emp?.afp} icon={Briefcase} />
+          <ProfileRow label={t('employees.profile.isapre')} value={emp?.isapre} icon={Briefcase} />
+          <ProfileRow label={t('employees.profile.with_contract')} value={emp?.concontrato ? (t('common.yes') || 'Sí') : (t('common.no') || 'No')} icon={Briefcase} />
+          <ProfileRow label={t('employees.profile.with_payroll')} value={emp?.conliquidacion ? (t('common.yes') || 'Sí') : (t('common.no') || 'No')} icon={Briefcase} />
+          {(emp?.centro_costo_cod || emp?.centro_costo) && (
+            <div className="flex flex-wrap gap-1.5 px-1 py-2">
+              {emp?.centro_costo_cod && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 text-light-text-secondary dark:text-dark-text-secondary">
+                  {t('employees.profile.cost_center_prefix')} {emp.centro_costo_cod}
+                </span>
+              )}
+              {emp?.centro_costo && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 text-light-text-secondary dark:text-dark-text-secondary">
+                  {emp.centro_costo}
+                </span>
+              )}
+            </div>
           )}
-          {tab === 1 && (
-            <MobileSection title={t('employees.profile.section.contact') || 'Contacto'}>
-              <ProfileRow
-                label={t('employees.profile.email') || 'Email'}
-                value={emp?.email || emp?.correo}
-                icon={Email}
-              />
-              <ProfileRow
-                label={t('employees.profile.phone1') || 'Teléfono 1'}
-                value={emp?.telefonouno && emp?.telefonouno !== 0 ? emp.telefonouno : '—'}
-                icon={Phone}
-              />
-              <ProfileRow
-                label={t('employees.profile.phone2') || 'Teléfono 2'}
-                value={emp?.telefonodos && emp?.telefonodos !== 0 ? emp.telefonodos : '—'}
-                icon={Phone}
-              />
-              <ProfileRow
-                label={t('employees.profile.address') || 'Dirección'}
-                value={emp?.direccion}
-                icon={LocationOn}
-              />
-              <ProfileRow
-                label={t('employees.profile.district') || 'Comuna'}
-                value={emp?.comuna}
-                icon={LocationOn}
-              />
-              <ProfileRow
-                label={t('employees.profile.city') || 'Ciudad'}
-                value={emp?.ciudad}
-                icon={LocationOn}
-              />
-            </MobileSection>
-          )}
-          {tab === 2 && (
-            <MobileSection title={t('employees.profile.section.employment') || 'Laboral'}>
-              <ProfileRow
-                label={t('employees.table.cargo') || 'Cargo'}
-                value={emp?.cargo}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.table.sucursal') || 'Sucursal'}
-                value={emp?.sucursal}
-                icon={Business}
-              />
-              <ProfileRow
-                label={t('employees.table.ingreso') || 'Ingreso'}
-                value={emp?.fechaingreso}
-                icon={CalendarToday}
-              />
-              <ProfileRow
-                label={t('employees.profile.exit') || 'Retiro'}
-                value={emp?.fecharetiro}
-                icon={CalendarToday}
-              />
-              <ProfileRow
-                label={t('employees.profile.salary') || 'Sueldo'}
-                value={money(emp?.sueldo)}
-                tooltip={fmtCLP(emp?.sueldo)}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.profile.afp') || 'AFP'}
-                value={emp?.afp}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.profile.isapre') || 'Isapre'}
-                value={emp?.isapre}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.profile.with_contract') || 'Con contrato'}
-                value={emp?.concontrato ? (t('common.yes') || 'Sí') : (t('common.no') || 'No')}
-                icon={Work}
-              />
-              <ProfileRow
-                label={t('employees.profile.with_payroll') || 'Con liquidación'}
-                value={emp?.conliquidacion ? (t('common.yes') || 'Sí') : (t('common.no') || 'No')}
-                icon={Work}
-              />
-              <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                {emp?.centro_costo_cod ? (
-                  <Chip
-                    size="small"
-                    label={`${t('employees.profile.cost_center_prefix') || 'CC'} ${emp.centro_costo_cod}`}
-                    className="bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 text-light-text-secondary dark:text-dark-text-secondary"
-                    sx={{ height: 22, borderRadius: '9999px' }}
-                  />
-                ) : null}
-                {emp?.centro_costo ? (
-                  <Chip
-                    size="small"
-                    label={emp.centro_costo}
-                    className="bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 text-light-text-secondary dark:text-dark-text-secondary"
-                    sx={{ height: 22, borderRadius: '9999px' }}
-                  />
-                ) : null}
-              </Box>
-            </MobileSection>
-          )}
-          {tab === 3 && (
-            <MobileSection title={t('employees.profile.section.status') || 'Estado'}>
-              <ProfileRow
-                label={t('employees.profile.created_at') || 'Creación'}
-                value={emp?.fechacreacion}
-                icon={CalendarToday}
-              />
-              <ProfileRow
-                label={t('employees.profile.company_id') || 'ID empresa'}
-                value={emp?.id_empresa}
-                icon={Business}
-              />
-              <ProfileRow
-                label={t('employees.profile.internal_id') || 'ID interno'}
-                value={emp?.id}
-                icon={Badge}
-              />
-            </MobileSection>
-          )}
-          {tab === 4 && (
-            <MobileSection title={t('employees.profile.section.measurements') || 'Medidas'}>
-              <ProfileRow
-                label={t('employees.profile.height') || 'Estatura'}
-                value={emp?.estatura}
-                icon={Height}
-              />
-              <ProfileRow
-                label={t('employees.profile.weight') || 'Peso'}
-                value={emp?.peso}
-                icon={Scale}
-              />
-              <ProfileRow
-                label={t('employees.profile.size') || 'Talla'}
-                value={emp?.talla}
-                icon={Checkroom}
-              />
-              <ProfileRow
-                label={t('employees.profile.shoe') || 'Zapato'}
-                value={emp?.zapato}
-                icon={DirectionsRun}
-              />
-            </MobileSection>
-          )}
-        </Stack>
-      </Box>
-    </Paper>
+        </Section>
+
+        {/* Status + Measurements */}
+        <div className="space-y-4">
+          <Section title={t('employees.profile.section.status')}>
+            <ProfileRow label={t('employees.profile.created_at')} value={emp?.fechacreacion} icon={Calendar} />
+            <ProfileRow label={t('employees.profile.company_id')} value={emp?.id_empresa} icon={Building2} />
+            <ProfileRow label={t('employees.profile.internal_id')} value={emp?.id} icon={IdCard} />
+          </Section>
+
+          <Section title={t('employees.profile.section.measurements')}>
+            <ProfileRow label={t('employees.profile.height')} value={emp?.estatura} icon={Ruler} />
+            <ProfileRow label={t('employees.profile.weight')} value={emp?.peso} icon={Weight} />
+            <ProfileRow label={t('employees.profile.size')} value={emp?.talla} icon={Shirt} />
+            <ProfileRow label={t('employees.profile.shoe')} value={emp?.zapato} icon={Footprints} />
+          </Section>
+        </div>
+      </div>
+    </div>
   );
 };
 

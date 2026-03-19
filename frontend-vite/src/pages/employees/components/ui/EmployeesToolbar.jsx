@@ -1,143 +1,102 @@
 import React from 'react';
-import { Box, Chip, FormControl, InputLabel, MenuItem, Select, TextField, IconButton, Tooltip, InputAdornment } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SearchIcon from '@mui/icons-material/Search';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import { Search, X, RefreshCw, Loader2 } from 'lucide-react';
 
 const EmployeesToolbar = ({
   t,
-  q,
-  setQ,
-  sucursal,
-  setSucursal,
-  sucursalOptions,
-  cargo,
-  setCargo,
-  cargoOptions,
-  seccion,
-  setSeccion,
-  seccionOptions,
-  loading,
-  error,
-  onRefresh,
+  q, setQ,
+  sucursal, setSucursal, sucursalOptions,
+  cargo, setCargo, cargoOptions,
+  seccion, setSeccion, seccionOptions,
+  loading, error, onRefresh,
 }) => {
-  const clearSearch = () => setQ('');
   return (
-    <Box
-      className="rounded-3xl border border-light-accent/25 dark:border-dark-accent/25 bg-light-surface/70 dark:bg-dark-surface/70 backdrop-blur-md shadow-neon mb-4"
-      sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, p: 1.25 }}
-    >
-      <TextField
-        size="small"
-        label={t('employees.filters.search')}
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        sx={{
-          flex: '2 1 240px',
-          minWidth: 0,
-          '& .MuiInputBase-input': { color: 'inherit' },
-          '& .MuiInputLabel-root': { color: 'inherit' },
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
-          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.35)' },
-          '& .MuiSvgIcon-root': { color: 'inherit' },
-        }}
-        InputLabelProps={{ className: 'text-light-text-primary dark:text-dark-text-primary' }}
-        InputProps={{
-          className: 'text-light-text-primary dark:text-dark-text-primary',
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon fontSize="small" />
-            </InputAdornment>
-          ),
-          endAdornment: q ? (
-            <InputAdornment position="end">
-              <IconButton size="small" onClick={clearSearch} aria-label="clear">
-                <CloseRoundedIcon fontSize="small" />
-              </IconButton>
-            </InputAdornment>
-          ) : null,
-        }}
-      />
+    <div className="bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border p-3 mb-4 flex flex-wrap items-center gap-2.5">
+      {/* Search */}
+      <div className="relative flex-[2_1_240px] min-w-0">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-light-text-secondary dark:text-dark-text-secondary" />
+        <input
+          type="text"
+          placeholder={t('employees.filters.search')}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="w-full pl-9 pr-8 py-2 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-sm text-light-text-primary dark:text-dark-text-primary placeholder:text-light-text-secondary/60 dark:placeholder:text-dark-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-light-accent/30 dark:focus:ring-dark-accent/30 transition"
+        />
+        {q && (
+          <button onClick={() => setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-light-surface-secondary/50 dark:hover:bg-dark-surface-secondary/30 transition">
+            <X className="w-3.5 h-3.5 text-light-text-secondary dark:text-dark-text-secondary" />
+          </button>
+        )}
+      </div>
 
-      <FormControl size="small" sx={{
-        minWidth: { xs: 140, sm: 180 },
-        flex: '1 1 160px',
-        '& .MuiInputLabel-root': { color: 'inherit' },
-        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
-        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.35)' },
-        '& .MuiSvgIcon-root': { color: 'inherit' },
-      }}>
-        <InputLabel className="text-light-text-primary dark:text-dark-text-primary">{t('employees.filters.sucursal')}</InputLabel>
-        <Select
-          value={sucursal}
-          label={t('employees.filters.sucursal')}
-          onChange={(e) => setSucursal(e.target.value)}
-          className="text-light-text-primary dark:text-dark-text-primary"
-          MenuProps={{ PaperProps: { className: 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary' } }}
-          sx={{ color: 'inherit' }}
+      {/* Sucursal */}
+      <select
+        value={sucursal}
+        onChange={(e) => setSucursal(e.target.value)}
+        className="flex-[1_1_160px] px-3 py-2 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-sm font-semibold text-light-text-primary dark:text-dark-text-primary"
+      >
+        <option value="">{t('employees.filters.all_f')} — {t('employees.filters.sucursal')}</option>
+        {sucursalOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+      </select>
+
+      {/* Cargo */}
+      <select
+        value={cargo}
+        onChange={(e) => setCargo(e.target.value)}
+        className="flex-[1_1_160px] px-3 py-2 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-sm font-semibold text-light-text-primary dark:text-dark-text-primary"
+      >
+        <option value="">{t('employees.filters.all')} — {t('employees.filters.cargo')}</option>
+        {cargoOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+
+      {/* Sección */}
+      <select
+        value={seccion}
+        onChange={(e) => setSeccion(e.target.value)}
+        className="flex-[1_1_160px] px-3 py-2 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-sm font-semibold text-light-text-primary dark:text-dark-text-primary"
+      >
+        <option value="">{t('employees.filters.all')} — {t('employees.filters.seccion')}</option>
+        {seccionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+      </select>
+
+      {/* Active filter chips + actions */}
+      <div className="flex items-center gap-1.5 ml-auto">
+        {sucursal && (
+          <button onClick={() => setSucursal('')} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-light-accent/10 dark:bg-dark-accent/10 text-xs font-semibold text-light-accent dark:text-dark-accent hover:bg-light-accent/20 dark:hover:bg-dark-accent/20 transition">
+            {sucursal} <X className="w-3 h-3" />
+          </button>
+        )}
+        {cargo && (
+          <button onClick={() => setCargo('')} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-light-accent/10 dark:bg-dark-accent/10 text-xs font-semibold text-light-accent dark:text-dark-accent hover:bg-light-accent/20 dark:hover:bg-dark-accent/20 transition">
+            {cargo} <X className="w-3 h-3" />
+          </button>
+        )}
+        {seccion && (
+          <button onClick={() => setSeccion('')} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-light-accent/10 dark:bg-dark-accent/10 text-xs font-semibold text-light-accent dark:text-dark-accent hover:bg-light-accent/20 dark:hover:bg-dark-accent/20 transition">
+            {seccion} <X className="w-3 h-3" />
+          </button>
+        )}
+
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          title={t('employees.actions.refresh')}
+          className="p-2 rounded-xl hover:bg-light-surface-secondary/50 dark:hover:bg-dark-surface-secondary/30 transition text-light-text-secondary dark:text-dark-text-secondary disabled:opacity-50"
         >
-          <MenuItem value=""><em>{t('employees.filters.all_f')}</em></MenuItem>
-          {sucursalOptions.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-        </Select>
-      </FormControl>
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+        </button>
 
-      <FormControl size="small" sx={{
-        minWidth: { xs: 140, sm: 180 },
-        flex: '1 1 160px',
-        '& .MuiInputLabel-root': { color: 'inherit' },
-        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
-        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.35)' },
-        '& .MuiSvgIcon-root': { color: 'inherit' },
-      }}>
-        <InputLabel className="text-light-text-primary dark:text-dark-text-primary">{t('employees.filters.cargo')}</InputLabel>
-        <Select
-          value={cargo}
-          label={t('employees.filters.cargo')}
-          onChange={(e) => setCargo(e.target.value)}
-          className="text-light-text-primary dark:text-dark-text-primary"
-          MenuProps={{ PaperProps: { className: 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary' } }}
-          sx={{ color: 'inherit' }}
-        >
-          <MenuItem value=""><em>{t('employees.filters.all')}</em></MenuItem>
-          {cargoOptions.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-        </Select>
-      </FormControl>
-
-      <FormControl size="small" sx={{
-        minWidth: { xs: 140, sm: 180 },
-        flex: '1 1 160px',
-        '& .MuiInputLabel-root': { color: 'inherit' },
-        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.2)' },
-        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.35)' },
-        '& .MuiSvgIcon-root': { color: 'inherit' },
-      }}>
-        <InputLabel className="text-light-text-primary dark:text-dark-text-primary">{t('employees.filters.seccion') || 'Sección'}</InputLabel>
-        <Select
-          value={seccion}
-          label={t('employees.filters.seccion') || 'Sección'}
-          onChange={(e) => setSeccion(e.target.value)}
-          className="text-light-text-primary dark:text-dark-text-primary"
-          MenuProps={{ PaperProps: { className: 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary' } }}
-          sx={{ color: 'inherit' }}
-        >
-          <MenuItem value=""><em>{t('employees.filters.all') || 'Todos'}</em></MenuItem>
-          {seccionOptions.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-        </Select>
-      </FormControl>
-
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
-        {sucursal && <Chip size="small" onDelete={() => setSucursal('')} label={`${t('employees.filters.sucursal')}: ${sucursal}`} />}
-        {cargo && <Chip size="small" onDelete={() => setCargo('')} label={`${t('employees.filters.cargo')}: ${cargo}`} />}
-        {seccion && <Chip size="small" onDelete={() => setSeccion('')} label={`${t('employees.filters.seccion') || 'Sección'}: ${seccion}`} />}
-        <Tooltip title={t('employees.actions.refresh')}>
-          <span>
-            <IconButton onClick={onRefresh} disabled={loading}><RefreshIcon /></IconButton>
+        {loading && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-500">
+            {t('employees.status.loading')}
           </span>
-        </Tooltip>
-        {loading && <Chip size="small" color="info" label={t('employees.status.loading')} />}
-        {error && <Chip size="small" color="error" label={error?.message || t('employees.status.error')} />}
-      </Box>
-    </Box>
+        )}
+        {error && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-500">
+            {error?.message || t('employees.status.error')}
+          </span>
+        )}
+      </div>
+    </div>
   );
 };
 

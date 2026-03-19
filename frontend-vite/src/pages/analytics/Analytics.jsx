@@ -1,7 +1,7 @@
 // src/pages/analytics/Analytics.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Tabs, Tab } from '@mui/material';
+
 import dayjs from 'dayjs';
 import minMax from 'dayjs/plugin/minMax';
 dayjs.extend(minMax);
@@ -279,21 +279,31 @@ const Analytics = ({ appState }) => {
 
   // (auto-aplicar manejado en handleEmpresaSelect para evitar carreras)
 
+  const tabs = [
+    { id: 0, label: t('analytics.dashboard'), icon: '📊' },
+    { id: 1, label: t('analytics.projection'), icon: '📈' },
+    { id: 2, label: t('analytics.valuation'), icon: '🏢' },
+  ];
+
   return (
-    <Box
-      sx={{ width: '100%', p: 2 }}
-      className="text-light-text-primary dark:text-dark-text-primary min-h-[80vh] rounded-3xl shadow-neon"
-    >
-      <Tabs
-        className="bg-light-surface dark:bg-dark-surface rounded-3xl p-4 shadow-modal"
-        value={tab}
-        onChange={(_, v) => setTab(v)}
-        sx={{ mb: 2 }}
-      >
-        <Tab className="text-light-text-primary dark:text-dark-text-primary" label={t('analytics.dashboard')} />
-        <Tab className="text-light-text-primary dark:text-dark-text-primary" label={t('analytics.projection')} />
-        <Tab className="text-light-text-primary dark:text-dark-text-primary" label={t('analytics.valuation')} />
-      </Tabs>
+    <div className="w-full p-4 text-light-text-primary dark:text-dark-text-primary min-h-[80vh]">
+      {/* Tabs */}
+      <div className="bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border p-1.5 mb-5 flex gap-1">
+        {tabs.map(tb => (
+          <button
+            key={tb.id}
+            onClick={() => setTab(tb.id)}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
+              tab === tb.id
+                ? 'bg-light-accent dark:bg-dark-accent text-white shadow-sm'
+                : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary hover:bg-light-surface-secondary/50 dark:hover:bg-dark-surface-secondary/30'
+            }`}
+          >
+            <span>{tb.icon}</span>
+            {tb.label}
+          </button>
+        ))}
+      </div>
 
       {tab === 0 && (
         <AnalyticsView
@@ -308,15 +318,12 @@ const Analytics = ({ appState }) => {
           handleApply={handleApply}
           quickRange={quickRange}
           setQuickRange={setQuickRange}
-          // comparación
           pendingConfig={pendingConfig}
           appliedConfig={appliedConfig}
           handlePendingConfigChange={handlePendingConfigChange}
-          // empresa
           empresaOptions={empresas}
           selectedEmpresaId={selectedEmpresaId}
           onSelectEmpresa={handleEmpresaSelect}
-          // sucursales
           sucursalOptions={(Array.isArray(selectedEmpresa?.sucursales) ? selectedEmpresa.sucursales : []).map((s) => ({
             id: s?.id_sucursal,
             sigla: s?.sigla,
@@ -329,10 +336,8 @@ const Analytics = ({ appState }) => {
             return Array.from(new Set([...base, ...EXCLUDED_CUENTAS]));
           })()}
           excludedResumen2={Array.isArray(selectedEmpresa?.resumen2_exclude) ? selectedEmpresa.resumen2_exclude.map((r) => String(r).toLowerCase()) : []}
-          // estado
           isLoading={isLoading}
           error={error}
-          // data
           gastos={gastos}
           gastoComparison={gastoComparison}
           ventas={ventas}
@@ -341,13 +346,31 @@ const Analytics = ({ appState }) => {
       )}
 
       {tab === 1 && (
-        <ProjectionTab appState={appState} />
+        <ProjectionTab
+          appState={appState}
+          empresas={empresas}
+          selectedEmpresaId={selectedEmpresaId}
+          selectedEmpresa={selectedEmpresa}
+          selectedSucursalIds={selectedSucursalIds}
+          excludedCuentas={EXCLUDED_CUENTAS}
+          onSelectEmpresa={handleEmpresaSelect}
+          onSelectSucursales={setSelectedSucursalIds}
+        />
       )}
 
       {tab === 2 && (
-        <ValuationTab appState={appState} />
+        <ValuationTab
+          appState={appState}
+          empresas={empresas}
+          selectedEmpresaId={selectedEmpresaId}
+          selectedEmpresa={selectedEmpresa}
+          selectedSucursalIds={selectedSucursalIds}
+          excludedCuentas={EXCLUDED_CUENTAS}
+          onSelectEmpresa={handleEmpresaSelect}
+          onSelectSucursales={setSelectedSucursalIds}
+        />
       )}
-    </Box>
+    </div>
   );
 };
 

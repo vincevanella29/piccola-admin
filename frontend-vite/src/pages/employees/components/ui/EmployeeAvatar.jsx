@@ -1,5 +1,4 @@
 import React from 'react';
-import { Avatar } from '@mui/material';
 
 function initialsFrom(emp) {
   const parts = [emp?.nombres, emp?.apellidopaterno, emp?.apellidomaterno]
@@ -8,7 +7,7 @@ function initialsFrom(emp) {
   const name = parts.join(' ').trim();
   if (!name) return '??';
   const tokens = name.split(/\s+/);
-  return (tokens[0]?.[0] || '') + (tokens[1]?.[0] || '');
+  return ((tokens[0]?.[0] || '') + (tokens[1]?.[0] || '')).toUpperCase();
 }
 
 function getPhotoUrl(emp) {
@@ -18,8 +17,28 @@ function getPhotoUrl(emp) {
 const EmployeeAvatar = ({ emp, size = 36 }) => {
   const src = getPhotoUrl(emp);
   const label = `${emp?.nombres || ''} ${emp?.apellidopaterno || ''}`.trim() || emp?.rut || '';
-  if (src) return <Avatar src={src} alt={label} sx={{ width: size, height: size }} />;
-  return <Avatar sx={{ width: size, height: size }}>{initialsFrom(emp)}</Avatar>;
+
+  const style = { width: size, height: size };
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={label}
+        style={style}
+        className="rounded-xl object-cover"
+      />
+    );
+  }
+
+  return (
+    <div
+      style={style}
+      className="rounded-xl bg-light-accent/10 dark:bg-dark-accent/10 flex items-center justify-center text-xs font-bold text-light-accent dark:text-dark-accent shrink-0"
+    >
+      {initialsFrom(emp)}
+    </div>
+  );
 };
 
 export default EmployeeAvatar;

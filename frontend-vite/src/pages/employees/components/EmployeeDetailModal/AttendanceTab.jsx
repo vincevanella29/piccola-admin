@@ -1,19 +1,15 @@
 import React from 'react';
-import { Box, Paper, Typography, Chip, Stack, LinearProgress } from '@mui/material';
 import dayjs from 'dayjs';
 import { summarizeAttendance, pctDelta, DAY_WORKED_BY_MOV } from '../../../../utils/attendanceMetrics';
 import DeltaPill from '../../../../components/ui/DeltaPill';
 import HoloChip from '../../../../components/ui/HoloChip';
 import CategoricalDonutWidget from '../../../../components/widgets/CategoricalDonutWidget';
 
-// ---------- utils ----------
 const clamp = (n, a = 0, b = 100) => Math.max(a, Math.min(b, Number(n || 0)));
-const n1 = (n) => `${Number(n||0)}`;
 
-// barra neon minimal
 const Bar = ({ valuePct = 0, faint = false }) => (
-  <div className={`h-2 rounded bg-light-surface/60 dark:bg-dark-surface/60 overflow-hidden ${faint ? 'opacity-70' : ''}`}>
-    <div className="h-2 bg-light-accent/90 dark:bg-dark-accent/90" style={{ width: `${clamp(valuePct)}%` }} />
+  <div className={`h-2 rounded-full bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 overflow-hidden ${faint ? 'opacity-60' : ''}`}>
+    <div className="h-2 rounded-full bg-light-accent/80 dark:bg-dark-accent/80 transition-all" style={{ width: `${clamp(valuePct)}%` }} />
   </div>
 );
 
@@ -40,17 +36,15 @@ const movementLabel = (t, code) => {
   return map[code] || code;
 };
 
-// tier gamer S/A/B/C/D según % asistencia
 function gradeFromPct(p) {
   const v = clamp(p);
-  if (v >= 98) return { tier: 'S', color: 'text-matrix-green' };
-  if (v >= 95) return { tier: 'A', color: 'text-matrix-green' };
+  if (v >= 98) return { tier: 'S', color: 'text-emerald-500' };
+  if (v >= 95) return { tier: 'A', color: 'text-emerald-500' };
   if (v >= 90) return { tier: 'B', color: 'text-light-text-primary dark:text-dark-text-primary' };
-  if (v >= 85) return { tier: 'C', color: 'text-vanellix-purple' };
-  return { tier: 'D', color: 'text-vanellix-purple' };
+  if (v >= 85) return { tier: 'C', color: 'text-amber-500' };
+  return { tier: 'D', color: 'text-red-500' };
 }
 
-// streaks (racha actual y máxima en el rango)
 function computeStreaks(items = [], start, end) {
   const workedSet = new Set();
   for (const it of items) {
@@ -63,41 +57,29 @@ function computeStreaks(items = [], start, end) {
   }
   const s = start ? dayjs(start).startOf('day') : (items[0]?.fecha_trabajada ? dayjs(items[0].fecha_trabajada) : dayjs());
   const e = end ? dayjs(end).endOf('day') : dayjs();
-  let best = 0, current = 0, cur = 0;
+  let best = 0, cur = 0;
   for (let d = s.clone(); d.isSame(e, 'day') || d.isBefore(e, 'day'); d = d.add(1, 'day')) {
-    const key = d.format('YYYY-MM-DD');
-    if (workedSet.has(key)) {
-      cur += 1;
-      best = Math.max(best, cur);
-    } else {
-      cur = 0;
-    }
+    if (workedSet.has(d.format('YYYY-MM-DD'))) { cur += 1; best = Math.max(best, cur); } else { cur = 0; }
   }
   let streak = 0;
   for (let d = e.clone().startOf('day'); d.isSame(s, 'day') || d.isAfter(s, 'day'); d = d.subtract(1, 'day')) {
-    const key = d.format('YYYY-MM-DD');
-    if (workedSet.has(key)) streak += 1;
-    else break;
+    if (workedSet.has(d.format('YYYY-MM-DD'))) streak += 1; else break;
   }
-  current = streak;
-  return { best, current };
+  return { best, current: streak };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
 const AttendanceTab = ({ t, attData, attPrev, comparisonWindow }) => {
-  // ventanas
   const start = comparisonWindow?.start ?? null;
-  const end   = comparisonWindow?.end   ?? null;
+  const end = comparisonWindow?.end ?? null;
 
-  // KPI asistencia y breakdown
   const cur = summarizeAttendance(attData || [], start, end);
   const prev = summarizeAttendance(attPrev || [], start, end);
   const deltaPct = (attPrev && attPrev.length) ? pctDelta(cur.pct, prev.pct) : null;
 
-  // streaks gamer
   const streaks = computeStreaks(attData || [], start, end);
 
-  // días por movimiento (destacados)
-  const sumOf = (obj, keys) => keys.reduce((a,k)=>a+(obj?.[k]||0),0);
+  const sumOf = (obj, keys) => keys.reduce((a,k) => a+(obj?.[k]||0), 0);
   const CUR = {
     PTE: cur.breakdown.PTE || 0,
     LBR: cur.breakdown.LBR || 0,
@@ -107,185 +89,148 @@ const AttendanceTab = ({ t, attData, attPrev, comparisonWindow }) => {
   };
   const grade = gradeFromPct(cur.pct);
 
-  // Data para donut único (colores legibles en claro/oscuro)
   const donutData = [
-    { key: 'PTE', label: movementLabel(t,'PTE'), count: CUR.PTE, color: '#22c55e' },   // green-500
-    { key: 'LBR', label: movementLabel(t,'LBR'), count: CUR.LBR, color: '#0ea5e9' },   // sky-500
-    { key: 'VAC', label: movementLabel(t,'VAC'), count: CUR.VAC, color: '#f59e0b' },   // amber-500
-    { key: 'LIC', label: movementLabel(t,'LIC'), count: CUR.LIC, color: '#a78bfa' },   // violet-400
-    { key: 'AUS', label: movementLabel(t,'AUS'), count: CUR.AUS, color: '#ef4444' },   // red-500
+    { key: 'PTE', label: movementLabel(t,'PTE'), count: CUR.PTE, color: '#22c55e' },
+    { key: 'LBR', label: movementLabel(t,'LBR'), count: CUR.LBR, color: '#0ea5e9' },
+    { key: 'VAC', label: movementLabel(t,'VAC'), count: CUR.VAC, color: '#f59e0b' },
+    { key: 'LIC', label: movementLabel(t,'LIC'), count: CUR.LIC, color: '#a78bfa' },
+    { key: 'AUS', label: movementLabel(t,'AUS'), count: CUR.AUS, color: '#ef4444' },
   ];
 
   return (
-    <Box sx={{ width: '100%', overflowX: 'hidden' }}>
-      {/* HUD top: rango + quick info */}
-      <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: 'wrap' }}>
-        <PeriodBadge title={t('employees.payroll.period_current') || 'Periodo actual'} start={start} end={end} />
-        {attPrev?.length ? <HoloChip label={`${t('employees.attendance.previous') || 'Anterior'}: ${Math.round(prev.pct)}%`} /> : null}
+    <div className="w-full overflow-x-hidden space-y-3">
+      {/* Top badge bar */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <PeriodBadge title={t('employees.payroll.period_current')} start={start} end={end} />
+        {attPrev?.length ? <HoloChip label={`${t('employees.attendance.previous')}: ${Math.round(prev.pct)}%`} /> : null}
         <HoloChip label={t('employees.attendance.worked_ratio', { worked: cur.worked, total: cur.totalDays })} />
-        <HoloChip label={`${t('employees.attendance.days') || 'días'}: ${cur.totalDays}`} />
+        <HoloChip label={`${t('employees.attendance.days')}: ${cur.totalDays}`} />
         <DeltaPill value={deltaPct} goodWhenUp t={t} />
-      </Stack>
+      </div>
 
-      {/* Row 1: Player card + comparación de % */}
-      <Box className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-1">
-        <Box>
-          <Paper
-            variant="outlined"
-            className="rounded-3xl p-3 bg-light-surface/60 dark:bg-dark-surface/60 border border-light-accent/30 dark:border-dark-accent/30 shadow-neon"
-          >
-            <Stack spacing={1}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Typography
-                  variant="subtitle2"
-                  fontWeight={800}
-                  className="text-light-text-primary dark:text-dark-text-primary font-futurist tracking-wide"
-                >
-                  {t('employees.attendance.title') || 'Asistencia · HUD'}
-                </Typography>
-                <Chip
-                  size="small"
-                  label={`Tier ${grade.tier} · ${Math.round(clamp(cur.pct))}%`}
-                  className={`${grade.color} bg-light-surface/60 dark:bg-dark-surface/60`}
-                  sx={{ height: 24, borderRadius: '9999px', fontWeight: 800 }}
-                />
-              </Stack>
+      {/* Row 1: HUD card + comparison */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Player card */}
+        <div className="rounded-2xl p-4 bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">
+              {t('employees.attendance.title')}
+            </h4>
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${grade.color} bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/20`}>
+              Tier {grade.tier} · {Math.round(clamp(cur.pct))}%
+            </span>
+          </div>
 
-              <Typography variant="caption" className="text-light-text-secondary dark:text-dark-text-secondary">
-                {t('employees.merit.title')}
-              </Typography>
-              <LinearProgress variant="determinate" value={clamp(cur.pct)} />
+          <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mb-1">{t('employees.merit.title')}</p>
+          <div className="h-2 rounded-full bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 overflow-hidden">
+            <div className="h-2 rounded-full bg-light-accent dark:bg-dark-accent transition-all" style={{ width: `${clamp(cur.pct)}%` }} />
+          </div>
 
-              <Stack direction="row" spacing={1} mt={1}>
-                <Box className="flex-1 rounded-2xl p-2 bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30">
-                  <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{t('employees.attendance.streak_current') || 'Racha actual'}</div>
-                  <div className="text-lg font-semibold">{streaks.current} {t('employees.attendance.days') || 'días'}</div>
-                </Box>
-                <Box className="flex-1 rounded-2xl p-2 bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30">
-                  <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{t('employees.attendance.streak_best') || 'Mejor racha'}</div>
-                  <div className="text-lg font-semibold">{streaks.best} {t('employees.attendance.days') || 'días'}</div>
-                </Box>
-              </Stack>
-            </Stack>
-          </Paper>
-        </Box>
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <div className="rounded-xl p-2.5 bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/15">
+              <div className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{t('employees.attendance.streak_current')}</div>
+              <div className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary">{streaks.current} <span className="text-xs font-normal">{t('employees.attendance.days')}</span></div>
+            </div>
+            <div className="rounded-xl p-2.5 bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/15">
+              <div className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{t('employees.attendance.streak_best')}</div>
+              <div className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary">{streaks.best} <span className="text-xs font-normal">{t('employees.attendance.days')}</span></div>
+            </div>
+          </div>
+        </div>
 
-        <Box>
-          <Paper
-            variant="outlined"
-            className="rounded-3xl p-3 bg-light-surface/60 dark:bg-dark-surface/60 border border-light-accent/30 dark:border-dark-accent/30 shadow-neon"
-          >
-            <Stack spacing={1}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle2" fontWeight={800} className="text-light-text-primary dark:text-dark-text-primary font-futurist tracking-wide">
-                  {t('employees.attendance.comparison')}
-                </Typography>
-                <DeltaPill value={deltaPct} goodWhenUp t={t} />
-              </Stack>
+        {/* Comparison card */}
+        <div className="rounded-2xl p-4 bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">
+              {t('employees.attendance.comparison')}
+            </h4>
+            <DeltaPill value={deltaPct} goodWhenUp t={t} />
+          </div>
 
-              <Box>
+          <div>
+            <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+              {t('employees.attendance.current')}: <b className="text-light-text-primary dark:text-dark-text-primary">{Math.round(clamp(cur.pct))}%</b>
+            </div>
+            <Bar valuePct={cur.pct} />
+            {attPrev?.length ? (
+              <div className="mt-2">
                 <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
-                  {t('employees.attendance.current')}: <b>{Math.round(clamp(cur.pct))}%</b>
+                  {t('employees.attendance.previous')}: <b className="text-light-text-primary dark:text-dark-text-primary">{Math.round(clamp(prev.pct))}%</b>
                 </div>
-                <Bar valuePct={cur.pct} />
-                {attPrev?.length ? (
-                  <div className="mt-1">
-                    <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
-                      {t('employees.attendance.previous')}: <b>{Math.round(clamp(prev.pct))}%</b>
-                    </div>
-                    <Bar valuePct={prev.pct} faint />
-                  </div>
-                ) : null}
-              </Box>
+                <Bar valuePct={prev.pct} faint />
+              </div>
+            ) : null}
+          </div>
 
-              <Typography variant="caption" className="text-light-text-secondary dark:text-dark-text-secondary">
-                {t('employees.attendance.merit_hint')}
-              </Typography>
-            </Stack>
-          </Paper>
-        </Box>
-      </Box>
+          <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-3">
+            {t('employees.attendance.merit_hint')}
+          </p>
+        </div>
+      </div>
 
-      {/* Row 2: **Donut único** distribución por tipo (limpio y entendible) */}
-      <Box className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-2">
+      {/* Row 2: Donut */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <CategoricalDonutWidget
-          title={t('employees.attendance.by_type') || 'Distribución por tipo'}
+          title={t('employees.attendance.by_type')}
           total={cur.totalDays}
           data={donutData}
           size={92}
           stroke={10}
         />
-      </Box>
+      </div>
 
-      {/* Row 3: Logros + Breakdown compacto */}
-      <Box className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-1">
-        <Box className="md:col-span-5">
-          <Paper
-            variant="outlined"
-            className="rounded-3xl p-3 bg-light-surface/60 dark:bg-dark-surface/60 border border-light-accent/30 dark:border-dark-accent/30"
-          >
-            <Typography variant="caption" className="text-light-text-secondary dark:text-dark-text-secondary">
-              {t('employees.attendance.achievements') || 'Logros'}
-            </Typography>
-            <Stack direction="row" spacing={0.75} flexWrap="wrap" mt={1}>
+      {/* Row 3: Achievements + Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+        <div className="md:col-span-5">
+          <div className="rounded-2xl p-4 bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border">
+            <h4 className="text-[10px] font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-2">
+              {t('employees.attendance.achievements')}
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
               {(() => {
                 const achievements = [
                   CUR.AUS === 0 ? (t('employees.attendance.achievement.no_absences') || 'Sin ausencias') : null,
                   streaks.best >= 7 ? (t('employees.attendance.achievement.perfect_week') || 'Semana perfecta') : null,
                   streaks.current >= 5 ? (t('employees.attendance.achievement.on_fire') || 'En racha') : null,
                   CUR.VAC > 0 ? (t('employees.attendance.achievement.vacation_taken') || 'Vacaciones en periodo') : null,
-                  deltaPct!=null && deltaPct > 5 ? (t('employees.attendance.achievement.comeback') || 'Remontada') : null,
+                  deltaPct != null && deltaPct > 5 ? (t('employees.attendance.achievement.comeback') || 'Remontada') : null,
                 ].filter(Boolean);
                 return achievements.length ? achievements.map((txt, i) => (
-                  <Chip key={i} size="small" label={txt} className="bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40" />
+                  <span key={i} className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/30 text-light-text-secondary dark:text-dark-text-secondary">
+                    {txt}
+                  </span>
                 )) : (
-                  <Typography variant="body2" className="text-light-text-secondary dark:text-dark-text-secondary">
-                    {t('employees.attendance.no_data')}
-                  </Typography>
+                  <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{t('employees.attendance.no_data')}</p>
                 );
               })()}
-            </Stack>
-          </Paper>
-        </Box>
+            </div>
+          </div>
+        </div>
 
-        <Box className="md:col-span-7">
-          <Paper
-            variant="outlined"
-            className="rounded-3xl p-3 bg-light-surface/60 dark:bg-dark-surface/60 border border-light-accent/30 dark:border-dark-accent/30"
-          >
-            <Typography variant="caption" className="text-light-text-secondary dark:text-dark-text-secondary">
+        <div className="md:col-span-7">
+          <div className="rounded-2xl p-4 bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border">
+            <h4 className="text-[10px] font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-2">
               {t('employees.attendance.daily_summary')}
-            </Typography>
-            <Stack spacing={0.5} mt={1}>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-light-text-secondary dark:text-dark-text-secondary">{t('employees.attendance.days')}</span>
-                <span className="font-semibold">{cur.totalDays}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-light-text-secondary dark:text-dark-text-secondary">{movementLabel(t,'PTE')}</span>
-                <span className="font-semibold">{CUR.PTE}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-light-text-secondary dark:text-dark-text-secondary">{movementLabel(t,'LBR')}</span>
-                <span className="font-semibold">{CUR.LBR}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-light-text-secondary dark:text-dark-text-secondary">{movementLabel(t,'VAC')}</span>
-                <span className="font-semibold">{CUR.VAC}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-light-text-secondary dark:text-dark-text-secondary">{movementLabel(t,'LIC')}</span>
-                <span className="font-semibold">{CUR.LIC}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-light-text-secondary dark:text-dark-text-secondary">{t('employees.attendance.absences') || 'Ausencias'}</span>
-                <span className="font-semibold">{CUR.AUS}</span>
-              </div>
-            </Stack>
-          </Paper>
-        </Box>
-      </Box>
-    </Box>
+            </h4>
+            <div className="space-y-1">
+              {[
+                { label: t('employees.attendance.days'), value: cur.totalDays },
+                { label: movementLabel(t, 'PTE'), value: CUR.PTE },
+                { label: movementLabel(t, 'LBR'), value: CUR.LBR },
+                { label: movementLabel(t, 'VAC'), value: CUR.VAC },
+                { label: movementLabel(t, 'LIC'), value: CUR.LIC },
+                { label: t('employees.attendance.absences'), value: CUR.AUS },
+              ].map(row => (
+                <div key={row.label} className="flex items-center justify-between py-0.5 text-sm">
+                  <span className="text-light-text-secondary dark:text-dark-text-secondary">{row.label}</span>
+                  <span className="font-semibold text-light-text-primary dark:text-dark-text-primary">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

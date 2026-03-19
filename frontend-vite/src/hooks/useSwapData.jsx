@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useBalance } from 'wagmi';
 import { ethers, parseUnits } from 'ethers';
 import { useTokenMetadata } from '../hooks/useTokenMetadata';
-import debounce from 'lodash.debounce'; // Install lodash: npm install lodash
+import { debounce } from 'lodash';
 
 export function useSwapData(appState, useSwap) {
   const [showInputDropdown, setShowInputDropdown] = useState(false);
