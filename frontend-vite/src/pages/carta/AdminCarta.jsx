@@ -86,11 +86,12 @@ const CreateMenuTypeInline = ({ onSave, onCancel }) => {
 
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -8 }}
-            className="absolute left-0 top-full mt-2 z-50 bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-2xl shadow-xl p-4 w-72 space-y-3"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden w-full"
         >
+            <div className="bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-2xl shadow-xl p-4 w-full max-w-sm space-y-3 mt-2">
             <p className="text-xs font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">Nuevo tipo de menú</p>
             <input
                 value={name}
@@ -121,6 +122,7 @@ const CreateMenuTypeInline = ({ onSave, onCancel }) => {
                     className="flex-1 py-2 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-xs font-bold hover:opacity-90 transition-opacity disabled:opacity-40">
                     {saving ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Crear'}
                 </button>
+            </div>
             </div>
         </motion.div>
     );
@@ -366,18 +368,20 @@ const AdminCarta = ({ appState }) => {
 
                     {/* Row 1.5: Menu Type pills — categories tab only */}
                     <AnimatePresence>
-                        {activeTab === 'categories' && menuTypes.length > 0 && (
+                        {activeTab === 'categories' && (
                             <motion.div
                                 initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                                 className="overflow-hidden"
                             >
                                 <div className="relative flex items-center gap-1 flex-wrap">
-                                    <MenuTypePill
-                                        mt={{ slug: '', name: 'Todas', icon: 'Tags', color: '#607D8B' }}
-                                        active={!selectedMenuType}
-                                        count={categories.length}
-                                        onClick={() => setSelectedMenuType('')}
-                                    />
+                                    {menuTypes.length > 0 && (
+                                        <MenuTypePill
+                                            mt={{ slug: '', name: 'Todas', icon: 'Tags', color: '#607D8B' }}
+                                            active={!selectedMenuType}
+                                            count={categories.length}
+                                            onClick={() => setSelectedMenuType('')}
+                                        />
+                                    )}
                                     {menuTypes.map(mt => (
                                         <MenuTypePill
                                             key={mt.slug}
@@ -392,18 +396,18 @@ const AdminCarta = ({ appState }) => {
                                         className="flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent dark:hover:text-dark-accent transition-colors"
                                         title="Crear nuevo tipo de menú"
                                     >
-                                        <Plus className="w-3 h-3" />
+                                        {showCreateMenuType ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                                     </button>
-                                    <AnimatePresence>
-                                        {showCreateMenuType && (
-                                            <CreateMenuTypeInline
-                                                onSave={handleCreateMenuType}
-                                                onCancel={() => setShowCreateMenuType(false)}
-                                            />
-                                        )}
-                                    </AnimatePresence>
                                 </div>
                             </motion.div>
+                        )}
+                    </AnimatePresence>
+                    <AnimatePresence>
+                        {activeTab === 'categories' && showCreateMenuType && (
+                            <CreateMenuTypeInline
+                                onSave={handleCreateMenuType}
+                                onCancel={() => setShowCreateMenuType(false)}
+                            />
                         )}
                     </AnimatePresence>
 
