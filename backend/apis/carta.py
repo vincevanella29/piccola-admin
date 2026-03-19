@@ -140,6 +140,8 @@ class MoveOptionValueRequest(BaseModel):
 
 
 class OptionValueInput(BaseModel):
+    id: Optional[str] = None
+    option_value_id: Optional[str] = None
     name: str
     codigo: Optional[str] = ""
     price: Optional[float] = 0.0
@@ -155,7 +157,9 @@ class CreateOptionGroupRequest(BaseModel):
     min_selected: Optional[int] = 0
     max_selected: Optional[int] = 1
     menu_id: Optional[str] = ""                     # parent product _id (modifier) or "" (product-group)
+    menu_ids: Optional[List[str]] = []              # multi product linking
     option_id: Optional[str] = None                 # canonical type id (optional)
+    option_type: Optional[str] = None               # 'modifier' | 'product_group'
     values: Optional[List[OptionValueInput]] = []   # initial values
 
 
@@ -470,6 +474,35 @@ async def create_menu_option_group(
     payload["values"] = raw_values
     new_id = option_svc.create_option_group(payload)
     return {"success": True, "id": new_id}
+
+
+@router.put("/carta/menu-options/{option_id}")
+async def update_menu_option_group(
+    option_id: str,
+    data: CreateOptionGroupRequest,
+    user: dict = Depends(_require_catalog_access),
+):
+    """Update an existing option group (modifier or product group)."""
+    payload = data.dict()
+    import uuid
+    raw_values = []
+    for i, v in enumerate(payload.get("values") or []):
+        raw_values.append({
+            "id": v.get("id") or str(uuid.uuid4().int)[:8],
+            "option_value_id": v.get("option_value_id") or str(i + 1),
+            "name": v["name"],
+            "codigo": v.get("codigo") or "",
+            "price": v.get("price") or 0,
+            "priority": v.get("priority") or i,
+            "is_default": v.get("is_default") or False,
+            "stock_qty": 0,
+            "location_ids": [],
+        })
+    payload["values"] = raw_values
+    matched = option_svc.update_option_group(option_id, payload)
+    if not matched:
+        raise HTTPException(status_code=404, detail="Option group not found")
+    return {"success": True, "id": option_id}
 
 
 @router.put("/carta/menu-options/{option_id}/values/{value_id}")

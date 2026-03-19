@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
     Edit2, Trash2, CheckSquare, Square, MinusSquare,
-    Tags, ImageIcon, Package,
+    Tags, ImageIcon, Package, Loader2,
 } from 'lucide-react';
 import { MoveToDropdown, CopyToDropdown, BulkMoveDropdown } from './CategoryDropdowns';
 
@@ -30,15 +30,18 @@ const CheckBtn = ({ checked, indeterminate, onClick }) => (
     </button>
 );
 
-const StatusPill = ({ active, t }) => (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-        active
-            ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
-            : 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'
-    }`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-red-500'}`} />
-        {active ? t('carta.active_f') : t('carta.inactive_f')}
-    </span>
+const StatusToggle = ({ active, loading, onToggle }) => (
+    <button onClick={e => { e.stopPropagation(); onToggle(); }} disabled={loading}
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+            active ? 'bg-light-success dark:bg-dark-success' : 'bg-light-surface-secondary dark:bg-dark-surface-secondary'
+        }`}
+        role="switch" aria-checked={active}>
+        {loading
+            ? <Loader2 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-white" />
+            : <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform duration-200 ease-in-out ${
+                active ? 'translate-x-5' : 'translate-x-0.5'
+            }`} />}
+    </button>
 );
 
 // ── Product thumbnail stack ───────────────────────────────────────────────────
@@ -104,9 +107,10 @@ const CategoriesTable = ({
     menuTypes = [],
     selectedIds, onToggle, onToggleAll,
     onEdit, onDelete,
-    onMoveCategory,        // (categoryId, newMenuType) => Promise
-    onBulkMoveCategories,  // (categoryIds, newMenuType) => Promise
-    onCopyCategory,        // (categoryId, targetMenuType) => Promise
+    onToggleStatus,            // (categoryId, newEstado) => Promise
+    onMoveCategory,            // (categoryId, newMenuType) => Promise
+    onBulkMoveCategories,      // (categoryIds, newMenuType) => Promise
+    onCopyCategory,            // (categoryId, targetMenuType) => Promise
 }) => {
     const { t } = useTranslation();
     const allSelected  = categories.length > 0 && selectedIds.length === categories.length;
@@ -114,6 +118,14 @@ const CategoriesTable = ({
     const [movingId, setMovingId] = useState(null);
     const [bulkMoving, setBulkMoving] = useState(false);
     const [copyingId, setCopyingId] = useState(null);
+    const [togglingId, setTogglingId] = useState(null);
+
+    const handleToggleStatus = async (catId, currentEstado) => {
+        if (!onToggleStatus) return;
+        setTogglingId(catId);
+        try { await onToggleStatus(catId, !currentEstado); }
+        finally { setTogglingId(null); }
+    };
 
     const productById = useMemo(() => {
         const map = {};
@@ -220,7 +232,9 @@ const CategoriesTable = ({
                                     <td className="px-4 py-3"><MenuTypeBadge menuType={c.menu_type} menuTypes={menuTypes} /></td>
                                     <td className="px-4 py-3"><ProductStack products={prods} /></td>
                                     <td className="px-4 py-3 text-light-text-secondary dark:text-dark-text-secondary text-sm font-medium">{c.prioridad ?? '—'}</td>
-                                    <td className="px-4 py-3"><StatusPill active={c.estado} t={t} /></td>
+                                    <td className="px-4 py-3">
+                                        <StatusToggle active={c.estado} loading={togglingId === c.id} onToggle={() => handleToggleStatus(c.id, c.estado)} />
+                                    </td>
                                     <td className="px-4 py-3 pr-5">
                                         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
                                             {menuTypes.length > 1 && (
@@ -260,7 +274,7 @@ const CategoriesTable = ({
                                 <div className="font-semibold text-sm text-light-text-primary dark:text-dark-text-primary">{c.nombre}</div>
                                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                                     <MenuTypeBadge menuType={c.menu_type} menuTypes={menuTypes} />
-                                    <StatusPill active={c.estado} t={t} />
+                                    <StatusToggle active={c.estado} loading={togglingId === c.id} onToggle={() => handleToggleStatus(c.id, c.estado)} />
                                     <ProductStack products={prods} limit={2} />
                                 </div>
                             </div>

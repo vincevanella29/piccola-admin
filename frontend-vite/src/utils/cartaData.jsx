@@ -409,6 +409,17 @@ export const createMenuOptionGroup = async ({ token, account, data }) => {
     });
 };
 
+// ── Update option group ────────────────────────────────────────────────────────
+export const updateMenuOptionGroup = async ({ token, account, optionId, data }) => {
+    return api({
+        method: 'PUT',
+        endpoint: `/carta/menu-options/${optionId}`,
+        data,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
 // ── Modifier ↔ Product linking ─────────────────────────────────────────────────
 /** Get all modifier groups linked to a product (menu_id == product._id) */
 export const fetchProductModifiers = async ({ token, account, productId }) => {

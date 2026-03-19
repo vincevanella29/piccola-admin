@@ -67,14 +67,18 @@ const CheckBtn = ({ checked, indeterminate, onClick, className = '' }) => (
     </button>
 );
 
-const StatusPill = ({ active, t }) => (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${active
-            ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
-            : 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'
-        }`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-red-500'}`} />
-        {active ? t('carta.active') : t('carta.inactive')}
-    </span>
+const StatusToggle = ({ active, loading, onToggle }) => (
+    <button onClick={e => { e.stopPropagation(); onToggle?.(); }} disabled={loading}
+        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+            active ? 'bg-light-success dark:bg-dark-success' : 'bg-light-surface-secondary dark:bg-dark-surface-secondary'
+        }`}
+        role="switch" aria-checked={active}>
+        {loading
+            ? <Loader2 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 animate-spin text-white" />
+            : <span className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition-transform duration-200 ease-in-out ${
+                active ? 'translate-x-4' : 'translate-x-0.5'
+            }`} />}
+    </button>
 );
 
 const REST_COLORS = {
@@ -107,7 +111,7 @@ const parseSortId = (sid) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 const SortableRow = ({
     product, idx, catId, sortableId, isLast, extraClass, hasPending, multiCatCount,
-    selectedIds, onToggle, onEdit, onDelete, onAIImagen,
+    selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
     codigoToGroup, codigoToMods, getImages, cachebust, t,
 }) => {
     const p = product;
@@ -209,8 +213,8 @@ const SortableRow = ({
             </div>
 
             {/* Status */}
-            <div className="w-20 shrink-0 px-2 py-2.5 hidden sm:block">
-                <StatusPill active={p.estado} t={t} />
+            <div className="w-20 shrink-0 px-2 py-2.5 hidden sm:flex items-center">
+                <StatusToggle active={p.estado} loading={togglingId === p.id} onToggle={() => onToggleStatus?.(p.id, p.estado)} />
             </div>
 
             {/* Priority / Position */}
@@ -284,11 +288,41 @@ const dropAnimation = {
 // ═══════════════════════════════════════════════════════════════════════════════
 const SortableCategory = ({
     catId, prods, hasPending, isSaving, multiCatCounts,
-    selectedIds, onToggle, onEdit, onDelete, onAIImagen,
+    selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
     codigoToGroup, codigoToMods, getImages, cachebust, t,
 }) => {
     // Composite IDs: catId::productId — allows same product in multiple categories
     const sortIds = useMemo(() => prods.map(p => makeSortId(catId, p.id)), [prods, catId]);
+
+    // Build visual segments: consecutive products in the same group are bundled
+    const segments = useMemo(() => {
+        const segs = [];
+        let currentGroupKey = null;
+        let currentGroupName = null;
+        let currentItems = [];
+
+        const flush = () => {
+            if (currentItems.length > 0) {
+                segs.push({ groupKey: currentGroupKey, groupName: currentGroupName, items: currentItems });
+                currentItems = [];
+            }
+        };
+
+        for (const p of prods) {
+            const g = p.codigo ? codigoToGroup[p.codigo] : null;
+            const gKey = g?.key || null;
+            if (gKey !== currentGroupKey) {
+                flush();
+                currentGroupKey = gKey;
+                currentGroupName = g?.name || null;
+            }
+            currentItems.push(p);
+        }
+        flush();
+        return segs;
+    }, [prods, codigoToGroup]);
+
+    let rowIdx = 0;
 
     return (
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
@@ -306,21 +340,43 @@ const SortableCategory = ({
                 <div className="w-32 shrink-0 px-2 py-2 pr-4" />
             </div>
 
-            {/* Sortable rows */}
-            {prods.map((p, i) => (
-                <SortableRow
-                    key={makeSortId(catId, p.id)}
-                    sortableId={makeSortId(catId, p.id)}
-                    product={p} idx={i} catId={catId}
-                    isLast={i === prods.length - 1}
-                    extraClass="" hasPending={hasPending}
-                    multiCatCount={multiCatCounts[p.id] || 1}
-                    selectedIds={selectedIds} onToggle={onToggle}
-                    onEdit={onEdit} onDelete={onDelete} onAIImagen={onAIImagen}
-                    codigoToGroup={codigoToGroup} codigoToMods={codigoToMods}
-                    getImages={getImages} cachebust={cachebust} t={t}
-                />
-            ))}
+            {/* Sortable rows — with group grouping */}
+            {segments.map((seg, si) => {
+                const startIdx = rowIdx;
+                const renderedRows = seg.items.map((p, i) => {
+                    const globalIdx = rowIdx++;
+                    return (
+                        <SortableRow
+                            key={makeSortId(catId, p.id)}
+                            sortableId={makeSortId(catId, p.id)}
+                            product={p} idx={globalIdx} catId={catId}
+                            isLast={globalIdx === prods.length - 1}
+                            extraClass={seg.groupKey ? 'border-l-2 border-l-amber-400/60 dark:border-l-amber-500/40' : ''}
+                            hasPending={hasPending}
+                            multiCatCount={multiCatCounts[p.id] || 1}
+                            selectedIds={selectedIds} onToggle={onToggle}
+                            onEdit={onEdit} onDelete={onDelete} onAIImagen={onAIImagen}
+                            onToggleStatus={onToggleStatus} togglingId={togglingId}
+                            codigoToGroup={codigoToGroup} codigoToMods={codigoToMods}
+                            getImages={getImages} cachebust={cachebust} t={t}
+                        />
+                    );
+                });
+
+                if (seg.groupKey) {
+                    return (
+                        <div key={`grp-${seg.groupKey}-${si}`}>
+                            <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50/60 dark:bg-amber-900/10 border-l-2 border-l-amber-400 dark:border-l-amber-500">
+                                <Layers className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
+                                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">{seg.groupName}</span>
+                                <span className="text-[10px] text-amber-600/60 dark:text-amber-400/50 font-medium">{seg.items.length} productos</span>
+                            </div>
+                            {renderedRows}
+                        </div>
+                    );
+                }
+                return <React.Fragment key={`seg-${si}`}>{renderedRows}</React.Fragment>;
+            })}
         </SortableContext>
     );
 };
@@ -344,7 +400,9 @@ const MobileCard = ({ p, sel, imgs, onToggle, onEdit, onDelete, onAIImagen, t })
             <div className="absolute top-2 left-2">
                 <CheckBtn checked={sel} onClick={() => onToggle(p.id)} className="bg-white/80 dark:bg-black/50 backdrop-blur-sm rounded-xl shadow-sm" />
             </div>
-            <div className="absolute top-2 right-2"><StatusPill active={p.estado} t={t} /></div>
+            <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                <StatusToggle active={p.estado} />
+            </div>
         </div>
         <div className="p-3 space-y-1.5">
             <div className="font-bold text-sm text-light-text-primary dark:text-dark-text-primary leading-tight line-clamp-2">{p.nombre}</div>
@@ -374,6 +432,7 @@ const ProductsTable = ({
     products, categories, menuOptions = [],
     selectedIds, onToggle, onToggleAll,
     onEdit, onDelete, onAIImagen, onReorder,
+    onToggleStatus,
 }) => {
     const { t } = useTranslation();
     const allSelected  = products.length > 0 && selectedIds.length === products.length;
@@ -384,7 +443,15 @@ const ProductsTable = ({
 
     const [pendingReorder, setPendingReorder] = useState({});
     const [saving, setSaving] = useState({});
-    const [activeProduct, setActiveProduct] = useState(null);  // DragOverlay source
+    const [activeProduct, setActiveProduct] = useState(null);
+    const [togglingId, setTogglingId] = useState(null);
+
+    const handleToggleStatus = async (productId, currentEstado) => {
+        if (!onToggleStatus) return;
+        setTogglingId(productId);
+        try { await onToggleStatus(productId, !currentEstado); }
+        finally { setTogglingId(null); }
+    };
 
     // ── Sensors ──────────────────────────────────────────────────────────────
     const sensors = useSensors(
@@ -435,8 +502,19 @@ const ProductsTable = ({
                 buckets[cid].products.push(p);
             }
         }
-        for (const b of Object.values(buckets))
-            b.products.sort((a, b) => (a.prioridad ?? 9999) - (b.prioridad ?? 9999));
+        for (const b of Object.values(buckets)) {
+            // Sort products: cluster by group, then by priority within group
+            b.products.sort((a, b) => {
+                const gA = a.codigo ? codigoToGroup[a.codigo]?.key : null;
+                const gB = b.codigo ? codigoToGroup[b.codigo]?.key : null;
+                // ungrouped first, then grouped together by key
+                if (!gA && gB) return -1;
+                if (gA && !gB) return 1;
+                if (gA && gB && gA !== gB) return gA < gB ? -1 : 1;
+                // within same group (or both ungrouped): sort by priority
+                return (a.prioridad ?? 9999) - (b.prioridad ?? 9999);
+            });
+        }
         const sorted = Object.values(buckets).sort((a, b) => (a.cat?.prioridad ?? 9999) - (b.cat?.prioridad ?? 9999));
         if (uncategorized.length) {
             uncategorized.sort((a, b) => (a.prioridad ?? 9999) - (b.prioridad ?? 9999));
@@ -590,6 +668,7 @@ const ProductsTable = ({
                                     multiCatCounts={multiCatCounts}
                                     selectedIds={selectedIds} onToggle={onToggle}
                                     onEdit={onEdit} onDelete={onDelete} onAIImagen={onAIImagen}
+                                    onToggleStatus={handleToggleStatus} togglingId={togglingId}
                                     codigoToGroup={codigoToGroup} codigoToMods={codigoToMods}
                                     getImages={getImages} cachebust={cachebust} t={t}
                                 />

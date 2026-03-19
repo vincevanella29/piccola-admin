@@ -294,6 +294,25 @@ const AdminCarta = ({ appState }) => {
         }
     }, [categories, createCategory, refresh]);
 
+    // ── Toggle status handlers ───────────────────────────────────────────────
+    const handleToggleProductStatus = useCallback(async (productId, newEstado) => {
+        try {
+            await updateProduct(productId, { estado: newEstado });
+            patchProduct(productId, { estado: newEstado });
+        } catch (err) {
+            console.error('Error toggling product status:', err);
+        }
+    }, [updateProduct, patchProduct]);
+
+    const handleToggleCategoryStatus = useCallback(async (categoryId, newEstado) => {
+        try {
+            await updateCategory(categoryId, { estado: newEstado });
+            refresh();
+        } catch (err) {
+            console.error('Error toggling category status:', err);
+        }
+    }, [updateCategory, refresh]);
+
     const toggleProduct = (id) => setSelectedProductIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
     const toggleCategory = (id) => setSelectedCategoryIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
@@ -478,6 +497,7 @@ const AdminCarta = ({ appState }) => {
                                     onEdit={setEditingProduct} onDelete={(id, name) => handleDeleteIndividual('products', id, name)}
                                     onAIImagen={setAiImagenProduct}
                                     onReorder={reorderProducts}
+                                    onToggleStatus={handleToggleProductStatus}
                                 />
                             )}
                             {activeTab === 'categories' && (
@@ -486,6 +506,7 @@ const AdminCarta = ({ appState }) => {
                                     menuTypes={menuTypes}
                                     selectedIds={selectedCategoryIds} onToggle={toggleCategory} onToggleAll={setSelectedCategoryIds}
                                     onEdit={setEditingCategory} onDelete={(id, name) => handleDeleteIndividual('categories', id, name)}
+                                    onToggleStatus={handleToggleCategoryStatus}
                                     onMoveCategory={handleMoveCategory}
                                     onBulkMoveCategories={handleBulkMoveCategories}
                                     onCopyCategory={handleCopyCategory}

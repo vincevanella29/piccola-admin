@@ -32,9 +32,16 @@ logger = logging.getLogger(__name__)
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _is_modifier(opt: dict) -> bool:
-    """Return True if this option group is a modifier (linked to a parent product)."""
+    """Return True if this option group is a modifier (linked to at least one parent product)."""
     mid = str(opt.get("menu_id") or "").strip()
-    return bool(mid and mid != "None")
+    if mid and mid != "None":
+        return True
+    # Also check menu_ids array (multi-product linking)
+    for x in (opt.get("menu_ids") or []):
+        px = str(x).strip()
+        if px and px != "None":
+            return True
+    return False
 
 
 def _is_product_group(opt: dict) -> bool:
@@ -70,10 +77,15 @@ def list_modifiers() -> list:
 def list_modifiers_for_product(product_id: str) -> list:
     """
     Return all modifier groups linked to a specific product.
-    Match on menu_id == product._id (string).
+    Matches on legacy menu_id == product._id OR product._id in menu_ids array.
     """
     pid = str(product_id).strip()
-    opts = list(db.menu_options.find({"menu_id": pid}))
+    opts = list(db.menu_options.find({
+        "$or": [
+            {"menu_id": pid},
+            {"menu_ids": pid},
+        ]
+    }))
     return [serialize(o) for o in opts]
 
 
@@ -110,10 +122,11 @@ def create_option_group(data: dict) -> str:
     is_modifier_group = bool(
         str(data.get("menu_id", "")).strip() and
         str(data.get("menu_id", "")).strip() != "None"
-    )
+    ) or bool([x for x in (data.get("menu_ids") or []) if str(x).strip() and str(x).strip() != "None"])
     doc = {
         "_id":          new_id,
         "menu_id":      data.get("menu_id", ""),
+        "menu_ids":     [str(x).strip() for x in (data.get("menu_ids") or []) if str(x).strip()],
         "option_type":  "modifier" if is_modifier_group else "product_group",  # persisted
         "option_id":    data.get("option_id", new_id),
         "option_name":  data.get("option_name", "Nuevo Grupo"),
@@ -128,6 +141,45 @@ def create_option_group(data: dict) -> str:
     }
     db.menu_options.insert_one(doc)
     return new_id
+
+
+def update_option_group(option_id: str, data: dict) -> int:
+    """
+    Update an existing menu_option group (product-group or modifier).
+
+    Accepts any of:
+        option_name, display_type, required, priority,
+        min_selected, max_selected, menu_id, menu_ids, values
+    Returns matched_count.
+    """
+    q = get_id_query(option_id)
+    existing = db.menu_options.find_one(q)
+    if not existing:
+        return 0
+
+    update: dict = {}
+    for key in ("option_name", "display_type", "required", "priority",
+                "min_selected", "max_selected", "menu_id", "values"):
+        if key in data:
+            val = data[key]
+            if key in ("priority", "min_selected", "max_selected"):
+                val = int(val)
+            update[key] = val
+
+    if "menu_ids" in data:
+        update["menu_ids"] = [str(x).strip() for x in (data["menu_ids"] or []) if str(x).strip()]
+
+    # Recalculate option_type
+    mid = str(update.get("menu_id", existing.get("menu_id", ""))).strip()
+    mids = update.get("menu_ids", existing.get("menu_ids", []))
+    is_modifier = bool(mid and mid != "None") or bool(
+        [x for x in (mids or []) if str(x).strip() and str(x).strip() != "None"]
+    )
+    update["option_type"] = "modifier" if is_modifier else "product_group"
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    result = db.menu_options.update_one(q, {"$set": update})
+    return result.matched_count
 
 
 # ── link / unlink modifier ─────────────────────────────────────────────────────

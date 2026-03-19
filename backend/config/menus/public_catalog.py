@@ -52,7 +52,19 @@ def _build_options_indexes() -> tuple:
         s = serialize(opt)
         dedup_key = str(opt.get("option_id") or opt.get("_id") or "")
         mid = str(opt.get("menu_id") or "").strip()
-        is_mod = bool(mid and mid not in ("", "None"))
+
+        # Collect ALL product IDs this modifier is linked to:
+        #   - legacy single menu_id (string)
+        #   - new menu_ids (array of strings)
+        linked_pids = set()
+        if mid and mid not in ("", "None"):
+            linked_pids.add(mid)
+        for x in (opt.get("menu_ids") or []):
+            px = str(x).strip()
+            if px and px not in ("", "None"):
+                linked_pids.add(px)
+
+        is_mod = bool(linked_pids)
 
         # Strategy A: index by value.codigo → always product_group unless has menu_id
         for value in (opt.get("values") or []):
@@ -65,13 +77,14 @@ def _build_options_indexes() -> tuple:
                 entry["option_type"] = "modifier" if is_mod else "product_group"
                 by_codigo[codigo].append(entry)
 
-        # Strategy B: index by menu_id → always modifier
+        # Strategy B: index by EVERY linked product ID → modifier
         if is_mod:
-            if dedup_key not in seen_menuId[mid]:
-                seen_menuId[mid].add(dedup_key)
-                entry = dict(s)
-                entry["option_type"] = "modifier"
-                by_menu_id[mid].append(entry)
+            for pid in linked_pids:
+                if dedup_key not in seen_menuId[pid]:
+                    seen_menuId[pid].add(dedup_key)
+                    entry = dict(s)
+                    entry["option_type"] = "modifier"
+                    by_menu_id[pid].append(entry)
 
     # Sort each list by priority
     for lst in list(by_codigo.values()) + list(by_menu_id.values()):
