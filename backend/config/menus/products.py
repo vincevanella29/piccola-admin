@@ -109,31 +109,34 @@ def _embed_options_and_media(product: dict, options_by_codigo: dict,
 
 
 def _build_sales_index() -> dict:
-    """Build { codigo: { mesano, total, por_local } } for the last month with global sales.
+    """Build { codigo: { mesano, total, por_local: {location_id: qty} } }.
+
+    Uses ventas_producto_dia_hora_cprodu which has per-location sales data.
+    The 'local' field in that collection matches location.permalink_slug (e.g. PRVLOC).
 
     Logic:
-      1. Starting from the current month, go backwards up to 6 months.
-      2. The FIRST check is global: does ANY product have sales in that month?
-      3. Once a month with sales is found, aggregate all product quantities for that month.
-      4. Return a dict keyed by product `codig`.
+      1. Walk backwards up to 6 months to find the latest period with global sales.
+      2. Build mapping permalink_slug → location_id from db.locations.
+      3. Aggregate quantities by (codigo, local) for the target period.
+      4. Return dict keyed by product 'codigo', with por_local keyed by location_id.
     """
     from datetime import datetime
 
     now = datetime.now()
 
-    # Build candidate periods: current month, then 5 prior months
+    # Build candidate periods (integers in this collection): current month, then 5 prior
     candidates = []
     y, m = now.year, now.month
     for _ in range(6):
-        candidates.append(f"{y}{str(m).zfill(2)}")
+        candidates.append(int(f"{y}{str(m).zfill(2)}"))
         m -= 1
         if m < 1:
             m = 12
             y -= 1
 
-    # Find the latest period that has ANY sales
+    # Find the latest period with ANY sales
     try:
-        existing = db.rentabilidad_producto_locales.distinct(
+        existing = db.ventas_producto_dia_hora_cprodu.distinct(
             "mesano", {"mesano": {"$in": candidates}}
         )
     except Exception as e:
@@ -143,7 +146,6 @@ def _build_sales_index() -> dict:
     if not existing:
         return {}
 
-    # Pick the most recent period that exists in DB
     existing_set = set(existing)
     target_period = None
     for c in candidates:
@@ -156,28 +158,37 @@ def _build_sales_index() -> dict:
 
     logger.info(f"[products] sales_index using period: {target_period}")
 
+    # Build permalink_slug → location_id mapping
+    slug_to_lid: dict = {}
+    for loc in db.locations.find({}, {"_id": 1, "permalink_slug": 1}):
+        slug = loc.get("permalink_slug", "").strip()
+        if slug:
+            slug_to_lid[slug] = str(loc["_id"])
+
     # Aggregate quantities for the target period
     pipeline = [
         {"$match": {"mesano": target_period}},
         {"$group": {
-            "_id":      {"codig": "$codig", "local": "$local"},
+            "_id":      {"codigo": "$codigo", "local": "$local"},
             "cantidad": {"$sum": "$cantidad"},
         }},
     ]
 
     idx: dict = {}
     try:
-        for doc in db.rentabilidad_producto_locales.aggregate(pipeline):
-            cod   = str(doc["_id"].get("codig") or "").strip()
-            local = str(doc["_id"].get("local") or "").strip()
+        for doc in db.ventas_producto_dia_hora_cprodu.aggregate(pipeline):
+            cod   = str(doc["_id"].get("codigo") or "").strip()
+            slug  = str(doc["_id"].get("local") or "").strip()
             qty   = int(doc.get("cantidad") or 0)
             if not cod:
                 continue
             if cod not in idx:
-                idx[cod] = {"mesano": target_period, "total": 0, "por_local": {}}
+                idx[cod] = {"mesano": str(target_period), "total": 0, "por_local": {}}
             idx[cod]["total"] += qty
-            if local:
-                idx[cod]["por_local"][local] = idx[cod]["por_local"].get(local, 0) + qty
+            # Map slug to location_id
+            lid = slug_to_lid.get(slug)
+            if lid:
+                idx[cod]["por_local"][lid] = idx[cod]["por_local"].get(lid, 0) + qty
     except Exception as e:
         logger.warning(f"[products] sales_index aggregate error: {e}")
         return {}
