@@ -21,6 +21,8 @@ _LOCATION_FIELDS = {
     "media_r2":       1,
     "media_url":      1,
     "media_logo":     1,
+    "media_urls":     1,     # gallery images array
+    "cover_image_url": 1,    # hero cover image
     "direccion":      1,
     "telefono":       1,
     "horario":        1,   # legacy plain-text schedule string
@@ -32,6 +34,7 @@ _LOCATION_FIELDS = {
     "prioridad":      1,
     "email":          1,
     "city":           1,
+    "commune":        1,
     # Structured schedules (added with opening-hours feature)
     "opening_hours":  1,   # { dinein: {"1":{open,close},...}, delivery: {...} }
     "special_dates":  1,   # [{date, label, closed, open, close}]

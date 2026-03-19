@@ -108,6 +108,82 @@ def _embed_options_and_media(product: dict, options_by_codigo: dict,
     return product
 
 
+def _build_sales_index() -> dict:
+    """Build { codigo: { mesano, total, por_local } } for the last month with global sales.
+
+    Logic:
+      1. Starting from the current month, go backwards up to 6 months.
+      2. The FIRST check is global: does ANY product have sales in that month?
+      3. Once a month with sales is found, aggregate all product quantities for that month.
+      4. Return a dict keyed by product `codig`.
+    """
+    from datetime import datetime
+
+    now = datetime.now()
+
+    # Build candidate periods: current month, then 5 prior months
+    candidates = []
+    y, m = now.year, now.month
+    for _ in range(6):
+        candidates.append(f"{y}{str(m).zfill(2)}")
+        m -= 1
+        if m < 1:
+            m = 12
+            y -= 1
+
+    # Find the latest period that has ANY sales
+    try:
+        existing = db.rentabilidad_producto_locales.distinct(
+            "mesano", {"mesano": {"$in": candidates}}
+        )
+    except Exception as e:
+        logger.warning(f"[products] sales_index distinct error: {e}")
+        return {}
+
+    if not existing:
+        return {}
+
+    # Pick the most recent period that exists in DB
+    existing_set = set(existing)
+    target_period = None
+    for c in candidates:
+        if c in existing_set:
+            target_period = c
+            break
+
+    if not target_period:
+        return {}
+
+    logger.info(f"[products] sales_index using period: {target_period}")
+
+    # Aggregate quantities for the target period
+    pipeline = [
+        {"$match": {"mesano": target_period}},
+        {"$group": {
+            "_id":      {"codig": "$codig", "local": "$local"},
+            "cantidad": {"$sum": "$cantidad"},
+        }},
+    ]
+
+    idx: dict = {}
+    try:
+        for doc in db.rentabilidad_producto_locales.aggregate(pipeline):
+            cod   = str(doc["_id"].get("codig") or "").strip()
+            local = str(doc["_id"].get("local") or "").strip()
+            qty   = int(doc.get("cantidad") or 0)
+            if not cod:
+                continue
+            if cod not in idx:
+                idx[cod] = {"mesano": target_period, "total": 0, "por_local": {}}
+            idx[cod]["total"] += qty
+            if local:
+                idx[cod]["por_local"][local] = idx[cod]["por_local"].get(local, 0) + qty
+    except Exception as e:
+        logger.warning(f"[products] sales_index aggregate error: {e}")
+        return {}
+
+    return idx
+
 
 # ── List ──────────────────────────────────────────────────────────────────
 
@@ -126,6 +202,9 @@ def list_products(search: Optional[str], category_id: Optional[str],
 
     # Build BOTH indexes ONCE for all products
     options_by_codigo, options_by_menu_id = _build_options_indexes()
+
+    # Build sales index (last month with global sales)
+    sales_idx = _build_sales_index()
 
     # Enrich with unused AI images
     p_ids = []
@@ -161,6 +240,9 @@ def list_products(search: Optional[str], category_id: Optional[str],
         ai_urls = ai_by_pid.get(pid, [])
         unused = [u for u in ai_urls if u and u not in local_gallery]
         s["unused_ai_images"] = list(dict.fromkeys(unused))  # dedup preserve order
+        # Attach sales units from the last month with global sales
+        codigo = str(s.get("codigo") or "").strip()
+        s["sales_units"] = sales_idx.get(codigo)  # {mesano, total, por_local} or None
         result.append(s)
 
     return result

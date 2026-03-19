@@ -130,70 +130,77 @@ def _embed_options_and_media(product: dict, by_codigo: dict, by_menu_id: dict) -
 
 
 def _build_sales_index() -> dict:
-    """
-    Build { codigo: { mesano, total, por_local: {nombre_local: qty} } }
-    from rentabilidad_producto_locales.
+    """Build { codigo: { mesano, total, por_local } } for the last month with global sales.
 
     Rules:
       - Only 'cantidad' (units sold) — NO revenue, margin, or cost exposed.
-      - Uses current month; falls back to previous month if current has no sales.
-      - 'local' field in the collection is the location name string.
+      - Walks backwards up to 6 months from today to find the FIRST month
+        that has ANY sales globally (not per product).
+      - Once found, aggregates all product quantities for that single period.
     """
     from datetime import datetime
 
     now = datetime.now()
-    mes, anio = now.month, now.year
-    periodo_actual   = f"{anio}{str(mes).zfill(2)}"
-    periodo_anterior = f"{anio - 1}12" if mes == 1 else f"{anio}{str(mes - 1).zfill(2)}"
+
+    # Build candidate periods: current month, then 5 prior months
+    candidates = []
+    y, m = now.year, now.month
+    for _ in range(6):
+        candidates.append(f"{y}{str(m).zfill(2)}")
+        m -= 1
+        if m < 1:
+            m = 12
+            y -= 1
+
+    # Find which of the candidate periods actually have data
+    try:
+        existing = db.rentabilidad_producto_locales.distinct(
+            "mesano", {"mesano": {"$in": candidates}}
+        )
+    except Exception as e:
+        logger.warning(f"[public_catalog] sales_index distinct error: {e}")
+        return {}
+
+    if not existing:
+        return {}
+
+    # Pick the most recent period that exists
+    existing_set = set(existing)
+    target_period = None
+    for c in candidates:
+        if c in existing_set:
+            target_period = c
+            break
+
+    if not target_period:
+        return {}
+
+    logger.info(f"[public_catalog] sales_index using period: {target_period}")
 
     pipeline = [
-        {"$match": {"mesano": {"$in": [periodo_actual, periodo_anterior]}}},
+        {"$match": {"mesano": target_period}},
         {"$group": {
-            "_id":     {"codig": "$codig", "mesano": "$mesano", "local": "$local"},
+            "_id":     {"codig": "$codig", "local": "$local"},
             "cantidad": {"$sum": "$cantidad"},
         }},
     ]
 
-    # raw: { (codig, mesano) → { local → qty } }
-    raw: dict = {}
+    idx: dict = {}
     try:
         for doc in db.rentabilidad_producto_locales.aggregate(pipeline):
-            cod    = str(doc["_id"].get("codig") or "").strip()
-            mesano = str(doc["_id"].get("mesano") or "")
-            local  = str(doc["_id"].get("local") or "").strip()
-            qty    = int(doc.get("cantidad") or 0)
+            cod   = str(doc["_id"].get("codig") or "").strip()
+            local = str(doc["_id"].get("local") or "").strip()
+            qty   = int(doc.get("cantidad") or 0)
             if not cod:
                 continue
-            key = (cod, mesano)
-            if key not in raw:
-                raw[key] = {}
+            if cod not in idx:
+                idx[cod] = {"mesano": target_period, "total": 0, "por_local": {}}
+            idx[cod]["total"] += qty
             if local:
-                raw[key][local] = raw[key].get(local, 0) + qty
+                idx[cod]["por_local"][local] = idx[cod]["por_local"].get(local, 0) + qty
     except Exception as e:
         logger.warning(f"[public_catalog] sales_index error: {e}")
         return {}
-
-    # Prefer current month; fall back to previous if current has no data
-    idx: dict = {}
-    all_codigs = {k[0] for k in raw}
-    for cod in all_codigs:
-        actual  = raw.get((cod, periodo_actual),   {})
-        anterio = raw.get((cod, periodo_anterior), {})
-
-        if actual:
-            por_local = actual
-            mesano    = periodo_actual
-        elif anterio:
-            por_local = anterio
-            mesano    = periodo_anterior
-        else:
-            continue
-
-        idx[cod] = {
-            "mesano":    mesano,
-            "total":     sum(por_local.values()),
-            "por_local": por_local,   # { "Providencia": 42, "Vitacura": 18, ... }
-        }
 
     return idx
 
