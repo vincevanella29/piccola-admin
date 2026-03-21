@@ -36,6 +36,7 @@ class BannerCreate(BaseModel):
     target_type: str = Field(..., pattern="^(location|dish|global|category)$")
     target_ids: List[str] = []
     location_ids: List[str] = []          # sucursales where this banner shows
+    active: bool = True                    # active by default on creation
     priority: int = 0
     popup_duration_seconds: int = 0       # 0 to disable auto-close
     display_delay_seconds: int = 0

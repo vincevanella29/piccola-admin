@@ -1,9 +1,4 @@
-/**
- * BannerContentTab — Todo lo visual del banner en un solo lugar
- * Título + descripción inline, imagen (upload/AI/historial), tamaño auto-detect,
- * botón CTA con preview. Zero tabs innecesarios.
- */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Image as ImageIcon, Sparkles, Loader2, Upload, Clock, X, Check,
@@ -80,14 +75,19 @@ const BannerContentTab = ({ form, setForm, uploading, onImageUpload, appState, m
     const btn = form.button_config || {};
     const setBtn = (u) => setForm(p => ({ ...p, button_config: { ...p.button_config, ...u } }));
 
-    // Auto-detect image size
+    // Auto-detect image size ONLY when the image_url changes (new upload/AI/history pick)
+    // NOT on every re-render which would overwrite manual size selection
+    const lastDetectedUrl = useRef(form.image_url);
     const handleImageLoad = useCallback((e) => {
+        // Only auto-detect if the URL actually changed (new image, not just re-render)
+        if (form.image_url === lastDetectedUrl.current) return;
+        lastDetectedUrl.current = form.image_url;
         const { naturalWidth: w, naturalHeight: h } = e.target;
         const detected = detectAspectRatio(w, h);
         if (detected && detected !== form.image_size) {
             setForm(p => ({ ...p, image_size: detected }));
         }
-    }, [form.image_size, setForm]);
+    }, [form.image_url, form.image_size, setForm]);
 
     // Load history on mount
     useEffect(() => {
