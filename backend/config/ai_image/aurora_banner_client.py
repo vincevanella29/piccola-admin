@@ -67,6 +67,7 @@ SIZE_FORMATS = {
     "16:9": { "ratio": "16:9", "pixels": "1280x720px", "desc": "widescreen horizontal" },
     "4:3":  { "ratio": "4:3",  "pixels": "1200x900px", "desc": "formato clásico" },
     "1:1":  { "ratio": "1:1",  "pixels": "800x800px",  "desc": "cuadrado" },
+    "9:16": { "ratio": "9:16", "pixels": "720x1280px", "desc": "vertical portrait story (celular)" },
 }
 
 

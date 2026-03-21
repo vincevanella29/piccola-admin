@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Dialog, DialogContent, Skeleton } from '@mui/material';
+import { Dialog, DialogContent } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
 import ResumenHeader from './ResumenHeader';
@@ -16,9 +16,9 @@ const ResumenWidget = ({
   defaultGranularity = 'day',
   comparisonType = 'none',
   labelKey = 'label',
-  labelName = '', // New: display name for the label
+  labelName = '',
   valueKey = 'value',
-  valueData = null, // New: display value or function
+  valueData = null,
   dateKey = 'date',
   onDetailsClick = null,
   alignByIndex = false,
@@ -26,23 +26,18 @@ const ResumenWidget = ({
 }) => {
   const { t } = useTranslation();
 
-  // Labels disponibles
   const allResumenes = React.useMemo(() => {
     const fromData = Array.isArray(data) ? [...new Set(data.map(d => d.series ?? d[labelKey]).filter(Boolean))] : [];
     const fromComp = Array.isArray(comparisonData) ? [...new Set(comparisonData.map(d => d.series ?? d[labelKey]).filter(Boolean))] : [];
     return Array.from(new Set([...(resumenes || []), ...fromData, ...fromComp]));
   }, [resumenes, data, comparisonData, labelKey]);
 
-  // Estado UI local
   const [selectedResumen, setSelectedResumen] = React.useState([]);
   const [detailData, setDetailData] = React.useState(null);
-  const [granularity, setGranularity] = React.useState(defaultGranularity); // 'day'|'week'|'month'
-  const [mode, setMode] = React.useState('aggregate'); // 'aggregate'|'compare'
+  const [granularity, setGranularity] = React.useState(defaultGranularity);
+  const [mode, setMode] = React.useState('aggregate');
   const [openModal, setOpenModal] = React.useState(false);
 
-  // Reset limpio SOLO cuando cambia nonce (nueva búsqueda)
-  // No dependemos de cambios en data/resumenes para evitar que se reseteen
-  // granularity y selección mientras el usuario interactúa.
   React.useEffect(() => {
     setSelectedResumen(allResumenes.length ? allResumenes : []);
     setGranularity(defaultGranularity);
@@ -50,7 +45,6 @@ const ResumenWidget = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);
 
-  // Agregación + datasets + options
   const {
     aggregatedData,
     labels,
@@ -78,23 +72,16 @@ const ResumenWidget = ({
 
   if (loading) {
     return (
-      <Box className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-modal rounded-3xl p-4">
-        <Box className="flex items-center justify-between mb-3">
-          <Skeleton variant="text" width={160} height={28} />
-          <Skeleton variant="rectangular" width={220} height={36} />
-        </Box>
-        <Skeleton variant="rectangular" height={180} className="rounded-xl" />
-        <Box className="flex gap-3 mt-3">
-          <Skeleton variant="rectangular" width={160} height={60} className="rounded-xl" />
-          <Skeleton variant="rectangular" width={160} height={60} className="rounded-xl" />
-          <Skeleton variant="rectangular" width={160} height={60} className="rounded-xl" />
-        </Box>
-      </Box>
+      <div className="rounded-2xl p-4 bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20">
+        <div className="h-4 w-28 rounded bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 animate-pulse mb-3" />
+        <div className="h-[180px] rounded-xl bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 animate-pulse" />
+        <div className="h-3 w-48 rounded bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 animate-pulse mt-3" />
+      </div>
     );
   }
 
   return (
-    <Box className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-modal rounded-3xl p-4">
+    <div className="rounded-2xl p-4 bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-light-text-primary dark:text-dark-text-primary">
       <ResumenHeader
         t={t}
         allResumenes={allResumenes}
@@ -118,7 +105,7 @@ const ResumenWidget = ({
         t={t}
       />
 
-      <Box className="flex flex-col gap-1 mt-2">
+      <div className="mt-2">
         <ResumenTotals
           t={t}
           mode={mode}
@@ -128,16 +115,17 @@ const ResumenWidget = ({
           labelName={labelName}
           valueData={valueData}
         />
-      </Box>
+      </div>
 
+      {/* Expanded Modal */}
       <Dialog
         open={openModal}
         onClose={() => setOpenModal(false)}
         maxWidth="lg"
         fullWidth
-        classes={{ paper: 'bg-light-surface dark:bg-dark-surface rounded-3xl shadow-neon' }}
+        classes={{ paper: 'bg-light-surface dark:bg-dark-surface rounded-2xl' }}
       >
-        <DialogContent className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary p-6">
+        <DialogContent className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary p-5">
           <ResumenHeader
             t={t}
             allResumenes={allResumenes}
@@ -150,7 +138,6 @@ const ResumenWidget = ({
             dense={false}
             hideExpand
           />
-          <Box className="mt-3" />
           <ResumenChart
             key={chartKey + '-modal'}
             mode={mode}
@@ -160,7 +147,7 @@ const ResumenWidget = ({
             height={500}
             t={t}
           />
-          <Box className="flex flex-col gap-1 mt-4">
+          <div className="mt-3">
             <ResumenTotals
               t={t}
               mode={mode}
@@ -168,16 +155,17 @@ const ResumenWidget = ({
               selectedResumen={selectedResumen}
               comparisonType={comparisonType}
             />
-          </Box>
+          </div>
         </DialogContent>
       </Dialog>
-    {/* Dialog para mostrar el detalle del punto seleccionado */}
-    <Dialog open={!!detailData} onClose={() => setDetailData(null)} maxWidth="sm" fullWidth>
-      <DialogContent>
-        <DetalleResumen detalle={detailData} t={t} />
-      </DialogContent>
-    </Dialog>
-  </Box>
+
+      {/* Detail Modal */}
+      <Dialog open={!!detailData} onClose={() => setDetailData(null)} maxWidth="sm" fullWidth>
+        <DialogContent className="bg-light-surface dark:bg-dark-surface">
+          <DetalleResumen detalle={detailData} t={t} />
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 

@@ -40,7 +40,9 @@ class BannerCreate(BaseModel):
     popup_duration_seconds: int = 0       # 0 to disable auto-close
     display_delay_seconds: int = 0
     # Image size / aspect
-    image_size: str = "3:1"               # 3:1, 2:1, 16:9, 1:1, 4:3
+    image_size: str = "3:1"               # 3:1, 2:1, 16:9, 1:1, 4:3, 9:16
+    # Device visibility
+    display_devices: List[str] = ["mobile", "desktop"]  # which devices show this banner
     # Button config
     button_config: Optional[dict] = None  # BannerButtonConfig as dict
     # Schedule
@@ -64,6 +66,8 @@ class BannerUpdate(BaseModel):
     display_delay_seconds: Optional[int] = None
     # Image size / aspect
     image_size: Optional[str] = None
+    # Device visibility
+    display_devices: Optional[List[str]] = None  # ["mobile", "desktop"]
     # Button config
     button_config: Optional[dict] = None
     # Schedule
@@ -209,7 +213,7 @@ class BannerAIGenerateRequest(BaseModel):
     headline: str = ""
     promo_text: str = ""
     style: str = "promo_dark"
-    image_size: str = "3:1"            # aspect ratio for AI generation
+    image_size: str = "3:1"            # aspect ratio for AI generation (3:1, 2:1, 16:9, 4:3, 1:1, 9:16)
     product_ids: List[str] = []        # up to 4 product IDs to compose
     product_images: List[str] = []     # up to 4 product image URLs (fallback)
     location_name: str = ""

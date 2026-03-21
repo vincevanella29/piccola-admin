@@ -1,111 +1,50 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormControlLabel,
-  Switch,
-  Tooltip,
-  Chip,
-  Stack,
-  ToggleButton,
-  ToggleButtonGroup,
-  Divider,
-} from '@mui/material';
-import Button from '@mui/material/Button';
-import { DateRange, CalendarMonth, CompareArrows } from '@mui/icons-material';
+import { Search, ChevronDown, ToggleLeft, ToggleRight, Calendar } from 'lucide-react';
 import DatePickerTheme from '../common/DatePickerTheme';
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
-import { useTheme } from '@mui/material/styles';
-import useMediaQuery from '@mui/material/useMediaQuery';
 
 dayjs.extend(isoWeek);
 
-// === helpers ===
 const resolveQuickRange = (key) => {
   const today = dayjs().endOf('day');
   switch (key) {
-    case 'THIS_YEAR':
-      return { start: dayjs().startOf('year').toDate(), end: today.toDate() };
-    case 'LAST_YEAR':
-      return {
-        start: dayjs().subtract(1, 'year').startOf('year').toDate(),
-        end: dayjs().subtract(1, 'year').endOf('year').toDate(),
-      };
-    case 'LAST_2_YEARS':
-      return { start: dayjs().subtract(2, 'year').startOf('year').toDate(), end: today.toDate() };
-    case 'THIS_WEEK': {
-      const start = dayjs().isoWeekday(1).startOf('day').toDate();
-      const end = dayjs().isoWeekday(7).endOf('day').toDate();
-      return { start, end };
-    }
-    case 'LAST_WEEK': {
-      const start = dayjs().subtract(1, 'week').isoWeekday(1).startOf('day').toDate();
-      const end = dayjs().subtract(1, 'week').isoWeekday(7).endOf('day').toDate();
-      return { start, end };
-    }
-    case 'LAST_7_DAYS': {
-      const end = today.toDate();
-      const start = dayjs().subtract(6, 'day').startOf('day').toDate();
-      return { start, end };
-    }
-    case 'THIS_MONTH':
-      return { start: dayjs().startOf('month').toDate(), end: today.toDate() };
-    case 'LAST_MONTH':
-      return {
-        start: dayjs().subtract(1, 'month').startOf('month').toDate(),
-        end: dayjs().subtract(1, 'month').endOf('month').toDate(),
-      };
-    case 'TWO_AGO':
-      return {
-        start: dayjs().subtract(2, 'month').startOf('month').toDate(),
-        end: dayjs().subtract(2, 'month').endOf('month').toDate(),
-      };
-    default:
-      return { start: null, end: null };
+    case 'THIS_YEAR':    return { start: dayjs().startOf('year').toDate(), end: today.toDate() };
+    case 'LAST_YEAR':    return { start: dayjs().subtract(1,'year').startOf('year').toDate(), end: dayjs().subtract(1,'year').endOf('year').toDate() };
+    case 'LAST_2_YEARS': return { start: dayjs().subtract(2,'year').startOf('year').toDate(), end: today.toDate() };
+    case 'THIS_WEEK':    return { start: dayjs().isoWeekday(1).startOf('day').toDate(), end: dayjs().isoWeekday(7).endOf('day').toDate() };
+    case 'LAST_WEEK':    return { start: dayjs().subtract(1,'week').isoWeekday(1).startOf('day').toDate(), end: dayjs().subtract(1,'week').isoWeekday(7).endOf('day').toDate() };
+    case 'LAST_7_DAYS':  return { start: dayjs().subtract(6,'day').startOf('day').toDate(), end: today.toDate() };
+    case 'THIS_MONTH':   return { start: dayjs().startOf('month').toDate(), end: today.toDate() };
+    case 'LAST_MONTH':   return { start: dayjs().subtract(1,'month').startOf('month').toDate(), end: dayjs().subtract(1,'month').endOf('month').toDate() };
+    case 'TWO_AGO':      return { start: dayjs().subtract(2,'month').startOf('month').toDate(), end: dayjs().subtract(2,'month').endOf('month').toDate() };
+    default:             return { start: null, end: null };
   }
 };
 
 const ControlsBar = ({
   t,
-  // min/max combinados
   ventaMinDate, ventaMaxDate,
   gastoMinDate, gastoMaxDate,
-  // quick + rango
   quickRange, setQuickRange,
   pendingDateRange, handlePendingDateRangeChange,
-  // comparación
   pendingConfig, handlePendingConfigChange,
-  // aplicar
   handleApply,
-  // empresa
   empresaOptions = [],
   selectedEmpresaId = null,
   onSelectEmpresa,
-  // sucursales
   sucursalOptions = [],
   selectedSucursalIds = [],
   onSelectSucursales,
-  // estado
   isLoading, error,
 }) => {
-  const theme = useTheme();
-  const mdUp = useMediaQuery(theme.breakpoints.up('md'));
-
-  // ==== DEFAULTS on mount: LAST_MONTH + same_period + align weekdays ====
   const didInitRef = React.useRef(false);
   React.useEffect(() => {
     if (didInitRef.current) return;
     const needQuick = !quickRange || quickRange === 'CUSTOM';
     const needDates = !pendingDateRange?.start || !pendingDateRange?.end;
     const needCmp = pendingConfig?.comparisonType === 'none' || pendingConfig?.comparisonType == null;
-    const needAlign = !pendingConfig?.compareByWeekdays;
-
-    if (needQuick || needDates || needCmp || needAlign) {
+    if (needQuick || needDates || needCmp) {
       const defKey = 'LAST_MONTH';
       setQuickRange?.(defKey);
       const { start, end } = resolveQuickRange(defKey);
@@ -115,26 +54,10 @@ const ControlsBar = ({
       handlePendingConfigChange('compareByWeekdays')({ target: { value: true } });
     }
     didInitRef.current = true;
-  }, [
-    quickRange,
-    pendingDateRange?.start,
-    pendingDateRange?.end,
-    pendingConfig?.comparisonType,
-    pendingConfig?.compareByWeekdays,
-    setQuickRange,
-    handlePendingDateRangeChange,
-    handlePendingConfigChange,
-  ]);
+  }, [quickRange, pendingDateRange?.start, pendingDateRange?.end, pendingConfig?.comparisonType, pendingConfig?.compareByWeekdays, setQuickRange, handlePendingDateRangeChange, handlePendingConfigChange]);
 
-  // ==== derived ====
-  const minAll = React.useMemo(
-    () => dayjs.min(ventaMinDate || dayjs(null), gastoMinDate || dayjs(null)),
-    [ventaMinDate, gastoMinDate]
-  );
-  const maxAll = React.useMemo(
-    () => dayjs.max(ventaMaxDate || dayjs(null), gastoMaxDate || dayjs(null)),
-    [ventaMaxDate, gastoMaxDate]
-  );
+  const minAll = React.useMemo(() => dayjs.min(ventaMinDate || dayjs(null), gastoMinDate || dayjs(null)), [ventaMinDate, gastoMinDate]);
+  const maxAll = React.useMemo(() => dayjs.max(ventaMaxDate || dayjs(null), gastoMaxDate || dayjs(null)), [ventaMaxDate, gastoMaxDate]);
 
   const handleQuickSelect = (key) => {
     setQuickRange(key);
@@ -149,278 +72,198 @@ const ControlsBar = ({
   };
 
   const quickOptions = [
-    { key: 'LAST_7_DAYS',  label: t('analytics.Últimos 7 días') },
-    { key: 'THIS_WEEK',    label: t('analytics.Esta semana') },
-    { key: 'LAST_WEEK',    label: t('analytics.Semana pasada') },
-    { key: 'THIS_MONTH',   label: t('analytics.Este mes') },
-    { key: 'LAST_MONTH',   label: t('analytics.Mes pasado') },
-    { key: 'THIS_YEAR',    label: t('analytics.Este año') },
-    { key: 'LAST_YEAR',    label: t('analytics.Año pasado') },
+    { key: 'LAST_7_DAYS', label: t('analytics.Últimos 7 días') },
+    { key: 'THIS_WEEK', label: t('analytics.Esta semana') },
+    { key: 'LAST_WEEK', label: t('analytics.Semana pasada') },
+    { key: 'THIS_MONTH', label: t('analytics.Este mes') },
+    { key: 'LAST_MONTH', label: t('analytics.Mes pasado') },
+    { key: 'THIS_YEAR', label: t('analytics.Este año') },
+    { key: 'LAST_YEAR', label: t('analytics.Año pasado') },
     { key: 'LAST_2_YEARS', label: t('analytics.Últimos 2 años') },
-    { key: 'TWO_AGO',      label: t('analytics.Antepasado') },
-    { key: 'CUSTOM',       label: t('analytics.Personalizado') },
+    { key: 'TWO_AGO', label: t('analytics.Antepasado') },
+    { key: 'CUSTOM', label: t('analytics.Personalizado') },
   ];
 
-  const comparisonDisabled = quickRange === 'CUSTOM';
+  const comparisonOptions = [
+    { value: 'none', label: t('analytics.Sin comparación') },
+    { value: 'same_period', label: t('analytics.Mismo período') },
+    { value: 'previous_period', label: t('analytics.Período anterior'), disabled: quickRange === 'CUSTOM' },
+  ];
 
-  // ==== UI ====
+  const SelectWrapper = ({ children, className = '' }) => (
+    <div className={`relative ${className}`}>
+      {children}
+      <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-light-text-secondary dark:text-dark-text-secondary" />
+    </div>
+  );
+
+  const selectClass = `h-8 pl-2.5 pr-7 rounded-lg text-xs font-medium appearance-none cursor-pointer
+    bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40
+    text-light-text-primary dark:text-dark-text-primary
+    border border-light-border/30 dark:border-dark-border/30
+    focus:outline-none focus:border-light-accent/50 dark:focus:border-dark-accent/50
+    transition-colors`;
+
   return (
-    <Box
-      className="bg-light-surface dark:bg-dark-surface rounded-2xl shadow-modal mb-4"
-      sx={{ p: 2, width: '100%', maxWidth: '100%', overflowX: 'hidden' }}
-    >
-      <Stack spacing={1.5}>
-        {/* Row 1: Empresa + Sucursales (una sola fila en md+) */}
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="stretch">
-          <FormControl size="small" sx={{ flex: 1, minWidth: 180 }}>
-            <InputLabel className="text-light-text-primary dark:text-dark-text-primary">
-              {t('analytics.Empresa')}
-            </InputLabel>
-            <Select
-              className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
+    <div className="rounded-2xl p-4 bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 space-y-3">
+
+      {/* Row 1: Empresa + Branches + Comparison */}
+      <div className="flex flex-wrap items-end gap-3">
+        {/* Company */}
+        <div>
+          <label className="block text-[9px] font-bold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary mb-1">
+            {t('analytics.Empresa')}
+          </label>
+          <SelectWrapper>
+            <select
               value={selectedEmpresaId || ''}
               onChange={(e) => onSelectEmpresa?.(e.target.value || null)}
-              label={t('analytics.Empresa')}
-              displayEmpty
-              MenuProps={{
-                PaperProps: { className: 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary' },
-              }}
+              className={selectClass}
             >
-              <MenuItem className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary" value="">
-                <em>{t('analytics.Todas')}</em>
-              </MenuItem>
+              <option value="">{t('analytics.Todas')}</option>
               {(empresaOptions || []).map((emp) => (
-                <MenuItem
-                  className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-                  key={emp.id || emp._id || emp.empresa_id || emp.value}
-                  value={emp.id || emp._id || emp.empresa_id || emp.value}
-                >
+                <option key={emp.id || emp._id || emp.empresa_id || emp.value} value={emp.id || emp._id || emp.empresa_id || emp.value}>
                   {emp.nombre || emp.name || emp.label || `Empresa ${emp.id || emp._id || ''}`}
-                </MenuItem>
+                </option>
               ))}
-            </Select>
-          </FormControl>
+            </select>
+          </SelectWrapper>
+        </div>
 
-          <FormControl size="small" sx={{ flex: 2, minWidth: 220 }} disabled={!selectedEmpresaId}>
-            <InputLabel className="text-light-text-primary dark:text-dark-text-primary">
-              {t('analytics.Sucursales')}
-            </InputLabel>
-            <Select
-              className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-              multiple
-              value={Array.isArray(selectedSucursalIds) ? selectedSucursalIds : []}
-              onChange={(e) => onSelectSucursales?.(Array.isArray(e.target.value) ? e.target.value : [])}
-              label={t('analytics.Sucursales')}
-              renderValue={(selected) => {
-                const map = new Map((sucursalOptions || []).map(s => [Number(s.id), s]));
-                const names = (selected || []).map((id) => map.get(Number(id))?.label || String(id));
-                return names.join(', ');
-              }}
-              MenuProps={{
-                PaperProps: { className: 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary' },
-              }}
-            >
-              {(sucursalOptions || []).map((s) => (
-                <MenuItem
-                  className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-                  key={s.id}
-                  value={s.id}
-                >
-                  {s.label || s.sigla || `Sucursal ${s.id}`}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Comparación + Alinear (empujado a la derecha en md+) */}
-          <Stack direction={{ xs: 'row', md: 'row' }} spacing={1} sx={{ ml: { md: 'auto' } }} alignItems="center">
-            {mdUp ? (
-              <ToggleButtonGroup
-                className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-                size="small"
-                exclusive
-                value={pendingConfig.comparisonType || 'same_period'}
-                onChange={(_, v) => v && handlePendingConfigChange('comparisonType')({ target: { value: v } })}
-                sx={{
-                  '& .MuiToggleButton-root': {
-                    textTransform: 'none',
-                    borderRadius: 2,
-                    px: 1,
-                    py: 0.5,
-                    lineHeight: 1.1,
-                  },
-                }}
-              >
-                <ToggleButton className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary" value="none">{t('analytics.Sin comparación')}</ToggleButton>
-                <ToggleButton className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary" value="same_period">{t('analytics.Mismo período')}</ToggleButton>
-                <ToggleButton className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary" value="previous_period" disabled={comparisonDisabled}>
-                  {t('analytics.Período anterior')}
-                </ToggleButton>
-              </ToggleButtonGroup>
-            ) : null}
-
-            <Tooltip title={t('analytics.align_by_weekday_to_compare')}>
-              <FormControlLabel
-                sx={{ m: 0 }}
-                control={
-                  <Switch
-                    size="small"
-                    checked={!!pendingConfig.compareByWeekdays}
-                    onChange={(e) =>
-                      handlePendingConfigChange('compareByWeekdays')({ target: { value: e.target.checked } })
-                    }
-                    disabled={pendingConfig.comparisonType === 'none'}
-                  />
-                }
-                label={t('analytics.Cuadrar días (L–D)')}
-                labelPlacement="end"
-              />
-            </Tooltip>
-          </Stack>
-        </Stack>
-
-        {/* Row 2: Quick range */}
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center">
-          <CalendarMonth fontSize="small" />
-          {mdUp ? (
-            <ToggleButtonGroup
-              className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary rounded-2xl"
-              size="small"
-              exclusive
-              value={quickRange}
-              onChange={(_, v) => v && handleQuickSelect(v)}
-              sx={{
-                flexWrap: 'wrap',
-                gap: 0.75,
-                '& .MuiToggleButton-root': {
-                  textTransform: 'none',
-                  borderRadius: 2,
-                  px: 1,
-                  py: 0.5,
-                  lineHeight: 1.1,
-                  whiteSpace: 'normal',
-                },
-              }}
-            >
-              {quickOptions.map((opt) => (
-                <ToggleButton
-                  className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary rounded-2xl"
-                  key={opt.key}
-                  value={opt.key}
-                >
-                  {opt.label}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          ) : (
-            <FormControl size="small" fullWidth>
-              <InputLabel className="text-light-text-primary dark:text-dark-text-primary">
-                {t('analytics.Rango')}
-              </InputLabel>
-              <Select
-                className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-                value={quickRange || 'LAST_MONTH'}
-                onChange={(e) => handleQuickSelect(e.target.value)}
-                label={t('analytics.Rango')}
-                MenuProps={{
-                  PaperProps: {
-                    className: 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary',
-                  },
-                }}
-              >
-                {quickOptions.map((opt) => (
-                  <MenuItem
-                    className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-                    key={opt.key}
-                    value={opt.key}
-                  >
-                    {opt.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-        </Stack>
-
-        {/* Row 3: Fecha o pickers + Buscar (alineado a la derecha en md+) */}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-          {quickRange === 'CUSTOM' ? (
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ flex: 1 }}>
-              <DatePickerTheme
-                className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-                label={t('analytics.Fecha Inicio')}
-                value={
-                  pendingDateRange.start
-                    ? typeof pendingDateRange.start.toDate === 'function'
-                      ? pendingDateRange.start.toDate()
-                      : new Date(pendingDateRange.start)
-                    : null
-                }
-                onChange={handlePendingDateRangeChange('start')}
-                minDate={minAll?.isValid?.() ? minAll.toDate() : undefined}
-                maxDate={pendingDateRange.end || (maxAll?.isValid?.() ? maxAll.toDate() : undefined)}
-                showYearDropdown
-              />
-              <DatePickerTheme
-                className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-                label={t('analytics.Fecha Fin')}
-                value={
-                  pendingDateRange.end
-                    ? typeof pendingDateRange.end.toDate === 'function'
-                      ? pendingDateRange.end.toDate()
-                      : new Date(pendingDateRange.end)
-                    : null
-                }
-                onChange={handlePendingDateRangeChange('end')}
-                minDate={pendingDateRange.start || (minAll?.isValid?.() ? minAll.toDate() : undefined)}
-                maxDate={maxAll?.isValid?.() ? maxAll.toDate() : undefined}
-                showYearDropdown
-              />
-            </Stack>
-          ) : (
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1 }}>
-              <DateRange fontSize="small" />
-              <Chip
-                className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
-                size="small"
-                label={
-                  pendingDateRange.start && pendingDateRange.end
-                    ? `${dayjs(pendingDateRange.start).format('YYYY-MM-DD')} – ${dayjs(pendingDateRange.end).format('YYYY-MM-DD')}`
-                    : ''
-                }
-                variant="outlined"
-                sx={{ borderRadius: 2, maxWidth: '100%', overflow: 'hidden', '& .MuiChip-label': { display: 'block' } }}
-              />
-            </Stack>
-          )}
-
-          <Button
-            loading={!!isLoading}
-            variant="contained"
-            onClick={handleApply}
-            disabled={!pendingDateRange.start || !pendingDateRange.end}
-            className="bg-light-accent dark:bg-dark-accent hover:bg-light-accent-hover dark:hover:bg-dark-accent-hover text-white rounded-xl"
-            sx={{ fontWeight: 700, px: 2, ml: { sm: 'auto' }, minWidth: 140 }}
+        {/* Branches */}
+        <div>
+          <label className="block text-[9px] font-bold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary mb-1">
+            {t('analytics.Sucursales')}
+          </label>
+          <select
+            multiple
+            disabled={!selectedEmpresaId}
+            value={Array.isArray(selectedSucursalIds) ? selectedSucursalIds : []}
+            onChange={(e) => {
+              const selected = Array.from(e.target.selectedOptions, (opt) => opt.value);
+              onSelectSucursales?.(selected);
+            }}
+            className={`min-h-[32px] max-h-20 pl-2.5 pr-2.5 py-1 rounded-lg text-xs font-medium
+              bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40
+              text-light-text-primary dark:text-dark-text-primary
+              border border-light-border/30 dark:border-dark-border/30
+              focus:outline-none disabled:opacity-30 disabled:cursor-not-allowed min-w-[120px]`}
           >
-            {t('analytics.Buscar')}
-          </Button>
-        </Stack>
+            {(sucursalOptions || []).map((s) => (
+              <option key={s.id} value={s.id}>{s.label || s.sigla || `Sucursal ${s.id}`}</option>
+            ))}
+          </select>
+        </div>
 
-        {/* Estado */}
-        <Box>
-          {isLoading && (
-            <Typography variant="caption" className="text-light-accent dark:text-dark-accent">
-              {t('analytics.Cargando...')}
-            </Typography>
+        {/* Comparison */}
+        <div>
+          <label className="block text-[9px] font-bold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary mb-1">
+            {t('analytics.Comparación', 'Comparación')}
+          </label>
+          <div className="flex gap-0.5">
+            {comparisonOptions.map((opt) => (
+              <button
+                key={opt.value}
+                disabled={opt.disabled}
+                onClick={() => handlePendingConfigChange('comparisonType')({ target: { value: opt.value } })}
+                className={`px-2.5 py-1.5 text-[10px] font-bold transition-colors rounded-lg
+                  ${pendingConfig.comparisonType === opt.value
+                    ? 'bg-light-accent dark:bg-dark-accent text-white'
+                    : 'bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 text-light-text-secondary dark:text-dark-text-secondary'
+                  }
+                  disabled:opacity-20 disabled:cursor-not-allowed`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Align days */}
+        <button
+          onClick={() => handlePendingConfigChange('compareByWeekdays')({ target: { value: !pendingConfig.compareByWeekdays } })}
+          disabled={pendingConfig.comparisonType === 'none'}
+          className="flex items-center gap-1 text-[10px] font-medium text-light-text-secondary dark:text-dark-text-secondary disabled:opacity-20 pb-0.5"
+        >
+          {pendingConfig.compareByWeekdays
+            ? <ToggleRight size={16} className="text-light-accent dark:text-dark-accent" />
+            : <ToggleLeft size={16} />
+          }
+          {t('analytics.Cuadrar días (L–D)')}
+        </button>
+      </div>
+
+      {/* Row 2: Quick range pills */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Calendar size={14} className="text-light-text-secondary dark:text-dark-text-secondary shrink-0" />
+        {quickOptions.map((opt) => (
+          <button
+            key={opt.key}
+            onClick={() => handleQuickSelect(opt.key)}
+            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors
+              ${quickRange === opt.key
+                ? 'bg-light-accent dark:bg-dark-accent text-white'
+                : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
+              }
+            `}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Row 3: Dates + Search */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {quickRange === 'CUSTOM' ? (
+          <div className="flex gap-2">
+            <DatePickerTheme
+              className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
+              label={t('analytics.Fecha Inicio')}
+              value={pendingDateRange.start ? (typeof pendingDateRange.start.toDate === 'function' ? pendingDateRange.start.toDate() : new Date(pendingDateRange.start)) : null}
+              onChange={handlePendingDateRangeChange('start')}
+              minDate={minAll?.isValid?.() ? minAll.toDate() : undefined}
+              maxDate={pendingDateRange.end || (maxAll?.isValid?.() ? maxAll.toDate() : undefined)}
+              showYearDropdown
+            />
+            <DatePickerTheme
+              className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary"
+              label={t('analytics.Fecha Fin')}
+              value={pendingDateRange.end ? (typeof pendingDateRange.end.toDate === 'function' ? pendingDateRange.end.toDate() : new Date(pendingDateRange.end)) : null}
+              onChange={handlePendingDateRangeChange('end')}
+              minDate={pendingDateRange.start || (minAll?.isValid?.() ? minAll.toDate() : undefined)}
+              maxDate={maxAll?.isValid?.() ? maxAll.toDate() : undefined}
+              showYearDropdown
+            />
+          </div>
+        ) : (
+          pendingDateRange.start && pendingDateRange.end && (
+            <span className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary">
+              <Calendar size={12} />
+              {dayjs(pendingDateRange.start).format('YYYY-MM-DD')} – {dayjs(pendingDateRange.end).format('YYYY-MM-DD')}
+            </span>
+          )
+        )}
+
+        <button
+          onClick={handleApply}
+          disabled={!pendingDateRange.start || !pendingDateRange.end || isLoading}
+          className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-bold
+            bg-light-accent dark:bg-dark-accent text-white
+            disabled:opacity-30 disabled:cursor-not-allowed
+            hover:opacity-90 active:scale-[0.98] transition-all ml-auto shrink-0"
+        >
+          {isLoading ? (
+            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <Search size={14} />
           )}
-          {error && (
-            <Typography variant="caption" className="text-light-error dark:text-dark-error">
-              {error.message}
-            </Typography>
-          )}
-        </Box>
-      </Stack>
-    </Box>
+          {t('analytics.Buscar')}
+        </button>
+      </div>
+
+      {isLoading && <p className="text-[10px] font-semibold text-light-accent dark:text-dark-accent animate-pulse">{t('analytics.Cargando...')}</p>}
+      {error && <p className="text-[10px] font-semibold text-light-error dark:text-dark-error">{error.message}</p>}
+    </div>
   );
 };
 

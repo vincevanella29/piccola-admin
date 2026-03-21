@@ -138,7 +138,7 @@ const AdminCarta = ({ appState }) => {
         fetchAll, refresh, patchProduct, updateProduct, createProduct, updateCategory, createCategory,
         uploadProductImage, triggerPublicSync, cleanDatabaseDuplicates,
         deleteProduct, deleteCategory, bulkDeleteProducts, bulkDeleteCategories,
-        fetchLocations, updateLocationButtons, createMenuType, deleteMenuType, reorderProducts,
+        fetchLocations, updateLocationButtons, createMenuType, deleteMenuType, reorderProducts, reorderGroups,
     } = useCartaAdmin(appState);
 
     // ── UI State ───────────────────────────────────────────────────────────────
@@ -497,7 +497,9 @@ const AdminCarta = ({ appState }) => {
                                     onEdit={setEditingProduct} onDelete={(id, name) => handleDeleteIndividual('products', id, name)}
                                     onAIImagen={setAiImagenProduct}
                                     onReorder={reorderProducts}
+                                    onReorderGroups={reorderGroups}
                                     onToggleStatus={handleToggleProductStatus}
+                                    onRefresh={refresh}
                                 />
                             )}
                             {activeTab === 'categories' && (

@@ -9,6 +9,7 @@ const IMAGE_SIZES = [
     { key: '16:9', label: '16:9', desc: 'Wide',       w: 80, h: 45 },
     { key: '4:3',  label: '4:3',  desc: 'Clásico',    w: 64, h: 48 },
     { key: '1:1',  label: '1:1',  desc: 'Cuadrado',   w: 48, h: 48 },
+    { key: '9:16', label: '9:16', desc: 'Vertical',   w: 36, h: 64 },
 ];
 
 const BUTTON_POSITIONS = [

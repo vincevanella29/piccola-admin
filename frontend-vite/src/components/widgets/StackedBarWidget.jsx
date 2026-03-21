@@ -1,60 +1,52 @@
 import React from 'react';
-import { Box } from '@mui/material';
 
-/**
- * StackedBarWidget
- * Generic stacked bar for distribution across ranges/buckets
- * Props:
- * - title: string
- * - totalLabel: string (e.g., "Total")
- * - total: number
- * - ranges: Array<{ key: string, label?: string, count: number, color?: string }>
- * - barHeight: number (px) default 12
- * - showRangeCounts: boolean default true
- * - compact: boolean default false (if true, hides grid labels)
- */
 const StackedBarWidget = ({
   title,
   totalLabel = 'Total',
   total = 0,
   ranges = [],
-  barHeight = 12,
+  barHeight = 10,
   showRangeCounts = true,
   compact = false,
 }) => {
   const denom = ranges.reduce((a, r) => a + (Number(r.count) || 0), 0) || 1;
 
   return (
-    <Box className="bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 rounded-2xl p-3">
+    <div className="rounded-xl p-3 bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20">
       {title && (
-        <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{title}</div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{title}</p>
       )}
-      <div className="text-lg font-semibold">{totalLabel}: {total}</div>
-      <div className="mt-2 w-full rounded-full overflow-hidden bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40" style={{ height: barHeight }}>
+      <p className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary mb-2">
+        {totalLabel}: {total.toLocaleString()}
+      </p>
+
+      <div className="w-full rounded-full overflow-hidden bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40" style={{ height: barHeight }}>
         <div className="flex w-full h-full">
-          {ranges.map((r, idx) => (
-            <div
-              key={r.key || idx}
-              className="h-full"
-              style={{
-                width: `${(Number(r.count) || 0) / denom * 100}%`,
-                background: r.color || ['#80cbc4','#4db6ac','#26a69a','#00897b','#00695c'][idx % 5],
-              }}
-            />
-          ))}
+          {ranges.map((r, idx) => {
+            const pct = (Number(r.count) || 0) / denom * 100;
+            return (
+              <div
+                key={r.key || idx}
+                className="h-full first:rounded-l-full last:rounded-r-full"
+                style={{ width: `${pct}%`, background: r.color || ['#009246','#1DE9B6','#4db6ac','#009688','#00695c'][idx % 5] }}
+                title={`${r.label || r.key}: ${r.count} (${pct.toFixed(1)}%)`}
+              />
+            );
+          })}
         </div>
       </div>
+
       {!compact && showRangeCounts && (
-        <div className="grid grid-cols-5 gap-1 mt-2 text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
-          {ranges.map((r) => (
-            <div key={r.key} className="text-center">
-              <div className="font-medium">{r.label || r.key}</div>
-              <div>{r.count}</div>
-            </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-2">
+          {ranges.map((r, idx) => (
+            <span key={r.key || idx} className="flex items-center gap-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color || ['#009246','#1DE9B6','#4db6ac','#009688','#00695c'][idx % 5] }} />
+              {r.label || r.key}: {r.count}
+            </span>
           ))}
         </div>
       )}
-    </Box>
+    </div>
   );
 };
 

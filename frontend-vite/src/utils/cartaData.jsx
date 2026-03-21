@@ -149,6 +149,16 @@ export const reorderProducts = async ({ token, account, items }) => {
     });
 };
 
+export const reorderGroups = async ({ token, account, items }) => {
+    return api({
+        method: 'POST',
+        endpoint: '/carta/menu-options/reorder',
+        data: { items },
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
 // ── Categories ─────────────────────────────────────
 export const fetchCategories = async ({ token, account, only_active } = {}) => {
     const params = {};

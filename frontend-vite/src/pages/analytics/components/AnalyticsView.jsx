@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Tabs, Tab } from '@mui/material';
 import ControlsBar from '../../../components/widgets/ControlsBar';
 import KPIStat from '../../../components/widgets/KPIStat';
 import VentasWidget from '../../../components/widgets/VentasWidget';
@@ -7,16 +6,13 @@ import GastosWidget from '../../../components/widgets/GastosWidget';
 
 // helpers para extraer cuenta/resumen2
 const getCuentaFromRow = (r) => {
-  // 1) cuenta en el detalle (lo más confiable)
   const d = r?.details?.data;
   if (d?.cuenta != null) return String(d.cuenta);
-  // 2) cuentas en el parent agrupado (si vino como grupo)
   const parentDetails = r?.details?.parent?.details;
   if (Array.isArray(parentDetails)) {
     const det = parentDetails.find(it => it?.cuenta != null);
     if (det) return String(det.cuenta);
   }
-  // 3) fallback ultra defensivo
   if (r?.cuenta != null) return String(r.cuenta);
   return null;
 };
@@ -31,7 +27,6 @@ const makeFiltrarResumen2 = (excluded = []) => (rows = []) => {
 
 const sumValues = (rows = []) => rows.reduce((acc, r) => acc + (Number(r.value) || 0), 0);
 
-// Extrae personas de una fila de ventas de forma defensiva
 const getPersonasFromRow = (r) => {
   const d = r?.details?.data;
   if (typeof d?.personas === 'number') return d.personas;
@@ -48,43 +43,32 @@ const sumPersonas = (rows = []) => rows.reduce((acc, r) => acc + (getPersonasFro
 const AnalyticsView = ({
   t,
   applyNonce,
-  // límites
   ventaMinDate, ventaMaxDate,
   gastoMinDate, gastoMaxDate,
-  // rango único
   pendingDateRange,
   handlePendingDateRangeChange,
   handleApply,
-  // comparación (global)
   pendingConfig,
   appliedConfig,
   handlePendingConfigChange,
-  // empresa
   empresaOptions,
   selectedEmpresaId,
   onSelectEmpresa,
-  // sucursales
   sucursalOptions = [],
   selectedSucursalIds = [],
   onSelectSucursales,
   excludedCuentas = [],
   excludedResumen2 = [],
-  // estado
   isLoading,
   error,
-  // data normalizada
   gastos,
   gastoComparison,
   ventas,
   ventaComparison,
-  // quick
   quickRange,
   setQuickRange,
 }) => {
-  
-  
-  // Totales (VENTAS igual, GASTOS filtrando cuentas especiales)
-  // Memoized calculations
+
   const filtrarCuentasGasto = useMemo(() => makeFiltrarCuentas(excludedCuentas), [excludedCuentas]);
   const filtrarResumen2Gasto = useMemo(() => makeFiltrarResumen2(excludedResumen2), [excludedResumen2]);
   const gastosFiltrados = useMemo(() => filtrarResumen2Gasto(filtrarCuentasGasto(gastos)), [gastos, filtrarCuentasGasto, filtrarResumen2Gasto]);
@@ -92,15 +76,12 @@ const AnalyticsView = ({
   const gastoTotalNum   = useMemo(() => sumValues(gastosFiltrados), [gastosFiltrados]);
   const ratio = ventaTotalNum > 0 ? (gastoTotalNum / ventaTotalNum) : 0;
 
-  // Personas y promedios (solo ventas)
   const personasTotalNum = useMemo(() => sumPersonas(ventas), [ventas]);
   const promedioPorPersona = personasTotalNum > 0 ? (ventaTotalNum / personasTotalNum) : 0;
 
-  // Mesas y promedios (solo ventas)
   const mesasTotalRaw = useMemo(() => ventas.reduce((acc, v) => acc + (Number(v?.details?.data?.mesas ?? v?.mesas ?? 0)), 0), [ventas]);
   const promedioPorMesa = mesasTotalRaw > 0 ? (ventaTotalNum / mesasTotalRaw) : 0;
 
-  // Comparación para mesas
   const ventaPrevNum = useMemo(
     () => sumValues(ventaComparison?.previous || []),
     [ventaComparison?.previous]
@@ -119,59 +100,45 @@ const AnalyticsView = ({
   );
   const promedioPrev = personasPrevNum > 0 ? (ventaPrevNum / personasPrevNum) : 0;
 
-  // Dev-only lightweight log
   if (process.env.NODE_ENV === 'development') {
     console.debug('[AnalyticsView] lens:', { ventas: ventas.length, gastos: gastos.length });
   }
 
   const variationVentaPct = (appliedConfig.comparisonType !== 'none' && ventaPrevNum > 0)
-    ? ((ventaTotalNum - ventaPrevNum) / ventaPrevNum) * 100
-    : null;
+    ? ((ventaTotalNum - ventaPrevNum) / ventaPrevNum) * 100 : null;
 
   const variationGastoPct = (appliedConfig.comparisonType !== 'none' && gastoPrevNum > 0)
-    ? ((gastoTotalNum - gastoPrevNum) / gastoPrevNum) * 100
-    : null;
+    ? ((gastoTotalNum - gastoPrevNum) / gastoPrevNum) * 100 : null;
 
   const variationPersonasPct = (appliedConfig.comparisonType !== 'none' && personasPrevNum > 0)
-    ? ((personasTotalNum - personasPrevNum) / personasPrevNum) * 100
-    : null;
+    ? ((personasTotalNum - personasPrevNum) / personasPrevNum) * 100 : null;
 
   const variationPromedioPct = (appliedConfig.comparisonType !== 'none' && promedioPrev > 0)
-    ? ((promedioPorPersona - promedioPrev) / promedioPrev) * 100
-    : null;
+    ? ((promedioPorPersona - promedioPrev) / promedioPrev) * 100 : null;
 
-  // Variaciones Mesas
   const variationMesasPct = (appliedConfig.comparisonType !== 'none' && mesasPrevRaw > 0)
-    ? ((mesasTotalRaw - mesasPrevRaw) / mesasPrevRaw) * 100
-    : null;
+    ? ((mesasTotalRaw - mesasPrevRaw) / mesasPrevRaw) * 100 : null;
   const variationPromedioMesaPct = (appliedConfig.comparisonType !== 'none' && promedioPrevMesa > 0)
-    ? ((promedioPorMesa - promedioPrevMesa) / promedioPrevMesa) * 100
-    : null;
+    ? ((promedioPorMesa - promedioPrevMesa) / promedioPrevMesa) * 100 : null;
 
-  // Formateados
   const ventaTotalFmt = ventaTotalNum.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
   const gastoTotalFmt = gastoTotalNum.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
-  const ventaPrevFmt  = ventaPrevNum.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
-  const gastoPrevFmt  = gastoPrevNum.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
   const personasTotalFmt = personasTotalNum.toLocaleString();
   const promedioFmt = promedioPorPersona.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
   const mesasTotalFmt = mesasTotalRaw.toLocaleString();
   const promedioMesaFmt = promedioPorMesa.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
 
-  // Descuentos
   const descuentosTotal = useMemo(() => ventas.reduce((acc, v) => acc + (Number(v?.details?.data?.desctos ?? v?.desctos ?? 0)), 0), [ventas]);
   const descuentosPrev = useMemo(() => (ventaComparison?.previous || []).reduce((acc, v) => acc + (Number(v?.details?.data?.desctos ?? v?.desctos ?? 0)), 0), [ventaComparison?.previous]);
   const variationDescuentosPct = (appliedConfig.comparisonType !== 'none' && descuentosPrev > 0)
-    ? ((descuentosTotal - descuentosPrev) / descuentosPrev) * 100
-    : null;
+    ? ((descuentosTotal - descuentosPrev) / descuentosPrev) * 100 : null;
   const descuentosFmt = descuentosTotal.toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
 
-  // Estado para tabs de KPIs
   const [kpiTab, setKpiTab] = useState('personas');
 
   return (
-    <div className="rounded-3xl p-4 shadow-modal">
-      {/* Controles globales (rango + comparación) */}
+    <div className="space-y-4">
+      {/* Controls */}
       <ControlsBar
         t={t}
         ventaMinDate={ventaMinDate} ventaMaxDate={ventaMaxDate}
@@ -182,26 +149,38 @@ const AnalyticsView = ({
         pendingConfig={pendingConfig}
         handlePendingConfigChange={handlePendingConfigChange}
         handleApply={handleApply}
-        // empresa selector
         empresaOptions={empresaOptions}
         selectedEmpresaId={selectedEmpresaId}
         onSelectEmpresa={onSelectEmpresa}
-        // sucursales selector
         sucursalOptions={sucursalOptions}
         selectedSucursalIds={selectedSucursalIds}
         onSelectSucursales={onSelectSucursales}
         isLoading={isLoading} error={error}
       />
 
-      {/* KPIs */}
-      {/* Tabs para alternar entre Personas y Mesas */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 1 }}>
-        <Tabs value={kpiTab} onChange={(_, v) => setKpiTab(v)} aria-label="Personas vs Mesas KPIs">
-          <Tab label={t('analytics.Personas')} value="personas" />
-          <Tab label={t('analytics.Mesas')} value="mesas" />
-        </Tabs>
-      </Box>
-      <Box className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
+      {/* KPI Tab toggle */}
+      <div className="flex items-center gap-1">
+        {[
+          { key: 'personas', label: t('analytics.Personas') },
+          { key: 'mesas', label: t('analytics.Mesas') },
+        ].map(tb => (
+          <button
+            key={tb.key}
+            onClick={() => setKpiTab(tb.key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors
+              ${kpiTab === tb.key
+                ? 'bg-light-accent dark:bg-dark-accent text-white'
+                : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
+              }
+            `}
+          >
+            {tb.label}
+          </button>
+        ))}
+      </div>
+
+      {/* KPIs Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         <KPIStat isLoading={isLoading} label={t('analytics.Ventas')} value={ventaTotalFmt} deltaPct={variationVentaPct} goodWhenUp />
         <KPIStat isLoading={isLoading} label={t('analytics.Gastos')} value={gastoTotalFmt} deltaPct={variationGastoPct} goodWhenUp={false} />
         <KPIStat isLoading={isLoading} label={t('analytics.Descuentos') || 'Descuentos'} value={descuentosFmt} deltaPct={variationDescuentosPct} goodWhenUp={false} />
@@ -217,10 +196,10 @@ const AnalyticsView = ({
             <KPIStat isLoading={isLoading} label={t('analytics.Promedio por mesa')} value={promedioMesaFmt} deltaPct={variationPromedioMesaPct} goodWhenUp />
           </>
         )}
-      </Box>
+      </div>
 
-      {/* 1 widget Ventas + 1 widget Gastos */}
-      <Box className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* Charts: Ventas + Gastos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <VentasWidget
           key={`ventas-${applyNonce}`}
           nonce={applyNonce}
@@ -237,7 +216,7 @@ const AnalyticsView = ({
           comparisonType={appliedConfig.comparisonType}
           loading={isLoading}
         />
-      </Box>
+      </div>
     </div>
   );
 };

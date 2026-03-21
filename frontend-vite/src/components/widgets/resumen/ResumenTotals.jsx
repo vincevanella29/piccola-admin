@@ -1,7 +1,8 @@
 import React from 'react';
-import { Typography } from '@mui/material';
 
 const ResumenTotals = ({ t, mode, aggregatedData, selectedResumen, comparisonType, labelName = '', valueData = null }) => {
+  const fmt = (n) => (n ?? 0).toLocaleString(undefined, { style: 'currency', currency: 'CLP' });
+
   if (mode === 'aggregate') {
     let totalC = (aggregatedData.current || []).reduce((a, b) => a + (b?.value || 0), 0);
     let totalP = (aggregatedData.previous || []).reduce((a, b) => a + (b?.value || 0), 0);
@@ -9,25 +10,35 @@ const ResumenTotals = ({ t, mode, aggregatedData, selectedResumen, comparisonTyp
       totalC = valueData(aggregatedData.current, 'current');
       totalP = valueData(aggregatedData.previous, 'previous');
     }
-    let str = `${labelName ? labelName + ': ' : ''}${t('analytics.Total mostrado (Actual)')}: ${totalC.toLocaleString(undefined, { style: 'currency', currency: 'CLP' })}`;
-    if (comparisonType !== 'none') {
-      str += ` | ${t('analytics.Total mostrado (Comparación)')}: ${totalP.toLocaleString(undefined, { style: 'currency', currency: 'CLP' })}`;
-    }
-    return <Typography className="text-light-text-primary dark:text-dark-text-primary" variant="caption">{str}</Typography>;
+
+    return (
+      <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+        <span className="font-bold">{labelName && `${labelName} `}</span>
+        <span className="text-light-accent dark:text-dark-accent font-semibold">{t('analytics.Total mostrado (Actual)')}: {fmt(totalC)}</span>
+        {comparisonType !== 'none' && (
+          <span> · {t('analytics.Total mostrado (Comparación)')}: {fmt(totalP)}</span>
+        )}
+      </p>
+    );
   }
 
-  // compare (sum all selectedResumen, do not show names)
+  // compare
   let totalC = (selectedResumen || []).reduce((acc, res) => acc + (aggregatedData.current?.[res] || []).reduce((a, b) => a + (b?.value || 0), 0), 0);
   let totalP = (selectedResumen || []).reduce((acc, res) => acc + (aggregatedData.previous?.[res] || []).reduce((a, b) => a + (b?.value || 0), 0), 0);
   if (typeof valueData === 'function') {
     totalC = valueData(aggregatedData.current, 'current');
     totalP = valueData(aggregatedData.previous, 'previous');
   }
-  let str = `${labelName ? labelName + ': ' : ''}${t('analytics.Actual')}: ${totalC.toLocaleString(undefined, { style: 'currency', currency: 'CLP' })}`;
-  if (comparisonType !== 'none') {
-    str += ` | ${t('analytics.Comparación')}: ${totalP.toLocaleString(undefined, { style: 'currency', currency: 'CLP' })}`;
-  }
-  return <Typography variant="caption" className="text-light-text-primary dark:text-dark-text-primary">{str}</Typography>;
+
+  return (
+    <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">
+      <span className="font-bold">{labelName && `${labelName} `}</span>
+      <span className="text-light-accent dark:text-dark-accent font-semibold">{t('analytics.Actual')}: {fmt(totalC)}</span>
+      {comparisonType !== 'none' && (
+        <span> · {t('analytics.Comparación')}: {fmt(totalP)}</span>
+      )}
+    </p>
+  );
 };
 
 export default ResumenTotals;

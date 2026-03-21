@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, MapPin, Tag, Layers, Calendar, Zap } from 'lucide-react';
+import { Globe, MapPin, Tag, Layers, Calendar, Zap, Smartphone, Monitor } from 'lucide-react';
 import CustomSelect from '../../../../components/common/CustomSelect';
 import { Field, inputCls, timeCls, Pill, SectionTitle } from './shared';
 
@@ -88,6 +88,47 @@ const BannerDistributionTab = ({ form, setForm, locations = [], categories = [],
 
     return (
         <div className="space-y-5">
+            {/* ── Device Visibility ─────────────────────────────────── */}
+            <div className="space-y-3">
+                <SectionTitle icon={Smartphone}>Dispositivos</SectionTitle>
+                <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary -mt-1">
+                    Elige en qué dispositivos se mostrará este banner
+                </p>
+                <div className="flex gap-2">
+                    {[
+                        { key: 'mobile',  icon: Smartphone, label: 'Móvil' },
+                        { key: 'desktop', icon: Monitor,    label: 'Escritorio' },
+                    ].map(({ key, icon: Icon, label }) => {
+                        const devices = form.display_devices || ['mobile', 'desktop'];
+                        const isActive = devices.includes(key);
+                        return (
+                            <button
+                                key={key} type="button"
+                                onClick={() => {
+                                    const current = form.display_devices || ['mobile', 'desktop'];
+                                    if (isActive && current.length <= 1) return; // at least 1
+                                    const next = isActive
+                                        ? current.filter(d => d !== key)
+                                        : [...current, key];
+                                    setForm(p => ({ ...p, display_devices: next }));
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border-2
+                                    ${isActive
+                                        ? 'border-light-accent dark:border-dark-accent bg-light-accent/10 dark:bg-dark-accent/10 text-light-accent dark:text-dark-accent shadow-sm'
+                                        : 'border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary opacity-50 hover:opacity-80'
+                                    }`}
+                            >
+                                <Icon className="w-4 h-4" />
+                                {label}
+                                {isActive && (
+                                    <span className="w-2 h-2 rounded-full bg-light-accent dark:bg-dark-accent" />
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             {/* ── Targeting ──────────────────────────────────────────── */}
             <div className="space-y-3">
                 <SectionTitle icon={MapPin}>{qt('title')}</SectionTitle>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Edit2, Trash2, Globe, MapPin, Tag, Layers, Calendar, Clock, Eye, EyeOff } from 'lucide-react';
+import { Edit2, Trash2, Globe, MapPin, Tag, Layers, Calendar, Clock, Eye, EyeOff, Smartphone, Monitor } from 'lucide-react';
 
 const TARGET_ICONS = { global: Globe, location: MapPin, dish: Tag, category: Layers };
 
@@ -100,6 +100,27 @@ const BannerCard = ({ banner, index, onEdit, onDelete, locations = [] }) => {
                             {banner.image_size}
                         </span>
                     )}
+
+                    {/* Device badges */}
+                    {(() => {
+                        const devices = banner.display_devices || ['mobile', 'desktop'];
+                        const isBoth = devices.includes('mobile') && devices.includes('desktop');
+                        if (isBoth) return null; // don't clutter if both
+                        return (
+                            <>
+                                {devices.includes('mobile') && (
+                                    <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] font-bold">
+                                        <Smartphone className="w-2.5 h-2.5" /> Móvil
+                                    </span>
+                                )}
+                                {devices.includes('desktop') && (
+                                    <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold">
+                                        <Monitor className="w-2.5 h-2.5" /> PC
+                                    </span>
+                                )}
+                            </>
+                        );
+                    })()}
 
                     {/* Locations */}
                     {locationNames && (

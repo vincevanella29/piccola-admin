@@ -1,11 +1,8 @@
 import React, { useMemo } from 'react';
-import { Box, Stack, Chip, Tooltip, Typography } from '@mui/material';
 import DeltaPill from '../ui/DeltaPill';
-import HoloChip from '../ui/HoloChip';
 
-// ---------- helpers ----------
-const clamp = (n, a=0, b=100) => Math.max(a, Math.min(b, Number(n||0)));
-const pct1 = (n) => (n==null||!isFinite(n)) ? '—' : `${Math.round(clamp(n))}%`;
+const clamp = (n, a = 0, b = 100) => Math.max(a, Math.min(b, Number(n || 0)));
+const pct1 = (n) => (n == null || !isFinite(n)) ? '—' : `${Math.round(clamp(n))}%`;
 const pctDelta = (curr, prev) => {
   if (!isFinite(curr) || !isFinite(prev)) return null;
   if (prev === 0) return curr > 0 ? 100 : 0;
@@ -13,14 +10,12 @@ const pctDelta = (curr, prev) => {
 };
 const gradeFromPct = (p) => {
   const v = clamp(p);
-  if (v >= 98) return { tier: 'S', color: 'text-matrix-green' };
-  if (v >= 95) return { tier: 'A', color: 'text-matrix-green' };
-  if (v >= 90) return { tier: 'B', color: 'text-light-text-primary dark:text-dark-text-primary' };
-  if (v >= 85) return { tier: 'C', color: 'text-vanellix-purple' };
-  return { tier: 'D', color: 'text-vanellix-purple' };
+  if (v >= 95) return { tier: 'A', cls: 'text-light-success dark:text-dark-success' };
+  if (v >= 90) return { tier: 'B', cls: 'text-light-accent dark:text-dark-accent' };
+  if (v >= 85) return { tier: 'C', cls: 'text-light-text-secondary dark:text-dark-text-secondary' };
+  return { tier: 'D', cls: 'text-light-error dark:text-dark-error' };
 };
 
-// ---------- component ----------
 const AttendanceDonutKPI = ({
   t = (k, p) => p?.default || k,
   title,
@@ -30,20 +25,20 @@ const AttendanceDonutKPI = ({
   previousPct: prevPctProp,
   previousWorked,
   previousTotal,
-  size = 92,
-  stroke = 10,
+  size = 72,
+  stroke = 8,
   showLegend = true,
   goodWhenUp = true,
 }) => {
   const currPct = useMemo(() => {
     if (isFinite(currPctProp)) return clamp(currPctProp);
-    const w = Number(currentWorked||0), tot = Number(currentTotal||0);
+    const w = Number(currentWorked || 0), tot = Number(currentTotal || 0);
     return tot > 0 ? clamp((w / tot) * 100) : 0;
   }, [currPctProp, currentWorked, currentTotal]);
 
   const prevPct = useMemo(() => {
     if (isFinite(prevPctProp)) return clamp(prevPctProp);
-    const w = Number(previousWorked||0), tot = Number(previousTotal||0);
+    const w = Number(previousWorked || 0), tot = Number(previousTotal || 0);
     if (tot <= 0) return null;
     return clamp((w / tot) * 100);
   }, [prevPctProp, previousWorked, previousTotal]);
@@ -52,8 +47,7 @@ const AttendanceDonutKPI = ({
   const delta = comparative ? pctDelta(currPct, prevPct) : null;
   const grade = gradeFromPct(currPct);
 
-  // Geometría donut
-  const pad = 4; // separación entre anillos
+  const pad = 3;
   const rOuter = (size - stroke) / 2;
   const rInner = comparative ? rOuter - stroke - pad : rOuter;
   const COuter = 2 * Math.PI * rOuter;
@@ -61,87 +55,50 @@ const AttendanceDonutKPI = ({
   const dashLenPrev = comparative ? (prevPct / 100) * COuter : 0;
   const dashLenCurr = (currPct / 100) * CInner;
 
-  const workedTxt = (w, tot) => (isFinite(w) && isFinite(tot) && tot>0) ? `${w}/${tot}` : '—';
+  const workedTxt = (w, tot) => (isFinite(w) && isFinite(tot) && tot > 0) ? `${w}/${tot}` : '—';
 
   return (
-    <Box className="rounded-2xl p-3 bg-light-surface/60 dark:bg-dark-surface/60 border border-light-accent/30 dark:border-dark-accent/30 shadow-neon flex items-center gap-3">
-      {/* DONUT */}
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <g transform={`translate(${size/2} ${size/2})`}>
-          {/* tracks */}
+    <div className="rounded-xl p-3 bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 flex items-center gap-3">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+        <g transform={`translate(${size / 2} ${size / 2})`}>
           {comparative ? (
             <>
-              <circle r={rOuter} fill="none" stroke="var(--ring-bg, rgba(0,0,0,0.10))" strokeWidth={stroke}/>
-              <circle r={rInner} fill="none" stroke="var(--ring-bg, rgba(0,0,0,0.10))" strokeWidth={stroke}/>
+              <circle r={rOuter} fill="none" className="stroke-light-surface-secondary dark:stroke-dark-surface-secondary" strokeWidth={stroke} />
+              <circle r={rInner} fill="none" className="stroke-light-surface-secondary dark:stroke-dark-surface-secondary" strokeWidth={stroke} />
             </>
           ) : (
-            <circle r={rInner} fill="none" stroke="var(--ring-bg, rgba(0,0,0,0.10))" strokeWidth={stroke}/>
+            <circle r={rInner} fill="none" className="stroke-light-surface-secondary dark:stroke-dark-surface-secondary" strokeWidth={stroke} />
           )}
-          {/* arcs */}
           <g transform="rotate(-90)">
             {comparative && (
-              <circle
-                r={rOuter}
-                fill="none"
-                stroke="rgba(127,127,127,0.45)"
-                strokeWidth={stroke}
-                strokeLinecap="round"
-                strokeDasharray={`${Math.max(dashLenPrev,0)} ${Math.max(COuter-dashLenPrev,0)}`}
+              <circle r={rOuter} fill="none" className="stroke-light-text-secondary/30 dark:stroke-dark-text-secondary/30" strokeWidth={stroke} strokeLinecap="round"
+                strokeDasharray={`${Math.max(dashLenPrev, 0)} ${Math.max(COuter - dashLenPrev, 0)}`}
               />
             )}
-            <circle
-              r={rInner}
-              fill="none"
-              className="text-light-accent dark:text-dark-accent"
-              stroke="currentColor"
-              strokeWidth={stroke}
-              strokeLinecap="round"
-              strokeDasharray={`${Math.max(dashLenCurr,0)} ${Math.max(CInner-dashLenCurr,0)}`}
+            <circle r={rInner} fill="none" className="stroke-light-accent dark:stroke-dark-accent" strokeWidth={stroke} strokeLinecap="round"
+              strokeDasharray={`${Math.max(dashLenCurr, 0)} ${Math.max(CInner - dashLenCurr, 0)}`}
             />
           </g>
         </g>
       </svg>
 
-      {/* INFO */}
-      <div className="flex-1">
-        {title && (
-          <div className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary">{title}</div>
-        )}
-
-        {/* KPI principal */}
-        <div className="flex items-center gap-2">
-          <Typography variant="h6" className="leading-none font-semibold">
-            {pct1(currPct)}
-          </Typography>
-          <Chip
-            size="small"
-            label={`Tier ${grade.tier}`}
-            className={`${grade.color} bg-light-surface/60 dark:bg-dark-surface/60`}
-            sx={{ height: 22, borderRadius: '9999px', fontWeight: 800 }}
-          />
+      <div className="flex-1 min-w-0">
+        {title && <p className="text-[10px] font-semibold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary mb-0.5">{title}</p>}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary">{pct1(currPct)}</span>
+          <span className={`text-[10px] font-bold ${grade.cls}`}>Tier {grade.tier}</span>
           {comparative && <DeltaPill value={delta} goodWhenUp={goodWhenUp} t={t} />}
         </div>
-
-        {/* Leyenda/Contexto */}
         {showLegend && (
-          <Stack direction="row" spacing={1} flexWrap="wrap" mt={0.75}>
-            <Tooltip title={t('employees.attendance.current') || 'Actual'} arrow describeChild>
-              <HoloChip
-                label={`${t('employees.attendance.current') || 'Actual'}: ${pct1(currPct)}${isFinite(currentWorked)&&isFinite(currentTotal) ? ` · ${workedTxt(currentWorked,currentTotal)}`:''}`}
-              />
-            </Tooltip>
-
+          <div className="flex gap-2 mt-1 text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
+            <span>{t('employees.attendance.current') || 'Actual'}: {pct1(currPct)}{isFinite(currentWorked) && isFinite(currentTotal) ? ` · ${workedTxt(currentWorked, currentTotal)}` : ''}</span>
             {comparative && (
-              <Tooltip title={t('employees.attendance.previous') || 'Anterior'} arrow describeChild>
-                <HoloChip
-                  label={`${t('employees.attendance.previous') || 'Anterior'}: ${pct1(prevPct)}${isFinite(previousWorked)&&isFinite(previousTotal) ? ` · ${workedTxt(previousWorked,previousTotal)}`:''}`}
-                />
-              </Tooltip>
+              <span>{t('employees.attendance.previous') || 'Anterior'}: {pct1(prevPct)}{isFinite(previousWorked) && isFinite(previousTotal) ? ` · ${workedTxt(previousWorked, previousTotal)}` : ''}</span>
             )}
-          </Stack>
+          </div>
         )}
       </div>
-    </Box>
+    </div>
   );
 };
 

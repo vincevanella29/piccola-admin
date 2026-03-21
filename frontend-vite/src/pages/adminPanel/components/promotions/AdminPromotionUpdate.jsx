@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import PromotionForm from './PromotionForm';
-import { initialFormData, customSelectStyles } from './PromotionFormUtils';
-import { MagnifyingGlassIcon, XCircleIcon } from '@heroicons/react/24/solid';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, X, ChevronDown, Loader2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence } from 'framer-motion';
-import { FaTimes } from 'react-icons/fa';
-import Select from 'react-select';
+import PromotionForm from './PromotionForm';
+import { initialFormData } from './PromotionFormUtils';
 
+/* ── Search Modal ──────────────────────────────────────────────────────── */
 const SearchPromotion = ({
   isModalOpen,
   setIsModalOpen,
@@ -27,152 +25,173 @@ const SearchPromotion = ({
   hasMore,
   loadMore,
 }) => {
-  const statusOptions = [
-    { value: 'all', label: t('promotion.all') },
-    { value: 'active', label: t('promotion.active') },
-    { value: 'inactive', label: t('promotion.inactive') },
-  ];
-
   if (!isModalOpen) return null;
 
   return createPortal(
     <AnimatePresence>
+      {/* Backdrop */}
       <motion.div
-        className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center p-4"
-        variants={{
-          hidden: { opacity: 0, scale: 0.8 },
-          visible: { opacity: 1, scale: 1 },
-          exit: { opacity: 0, scale: 0.8 },
-        }}
-        transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         onClick={() => setIsModalOpen(false)}
       >
+        {/* Modal */}
         <motion.div
-          className="relative bg-light-surface/95 dark:bg-dark-surface/95 rounded-xl p-0 max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl"
-          style={{ backdropFilter: 'blur(8px)' }}
+          className="relative bg-light-surface dark:bg-dark-surface rounded-2xl w-full max-w-xl max-h-[80vh] flex flex-col border border-light-border/30 dark:border-dark-border/30 shadow-2xl"
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.97 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Sticky Header */}
-          <div className="sticky top-0 z-20 bg-light-surface/95 dark:bg-dark-surface/95 rounded-t-xl px-6 pt-6 pb-2 flex flex-col">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-6 right-6 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-error dark:hover:text-dark-error transition-colors"
-              aria-label={t('promotion.close')}
-            >
-              <FaTimes className="w-6 h-6" />
-            </button>
-            <h3 className="text-xl font-futurist text-light-text-primary dark:text-dark-text-primary mb-4 text-center">
-              {t('promotion.select_promotion')}
-            </h3>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('header.search_placeholder')}
-              className="w-full p-3 mb-2 rounded-lg border border-light-border dark:border-dark-border bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
-            />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1 text-light-text-secondary dark:text-dark-text-secondary">
-                  {t('promotion.status')}
-                </label>
-                <Select
-                  value={statusOptions.find((opt) => opt.value === statusFilter)}
-                  onChange={(opt) => setStatusFilter(opt.value)}
-                  options={statusOptions}
-                  styles={customSelectStyles}
-                  isSearchable={false}
-                />
+          {/* Header */}
+          <div className="px-5 pt-5 pb-3 border-b border-light-border/20 dark:border-dark-border/20">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-light-text-primary dark:text-dark-text-primary">
+                {t('promotion.select_promotion')}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary hover:bg-light-surface-secondary/60 dark:hover:bg-dark-surface-secondary/60 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Search input */}
+            <div className="relative mb-3">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-light-text-secondary dark:text-dark-text-secondary" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('header.search_placeholder')}
+                autoFocus
+                className="w-full h-9 pl-9 pr-3 rounded-lg text-sm
+                  bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40
+                  text-light-text-primary dark:text-dark-text-primary
+                  border border-light-border/30 dark:border-dark-border/30
+                  placeholder:text-light-text-secondary/50 dark:placeholder:text-dark-text-secondary/50
+                  focus:outline-none focus:border-light-accent/50 dark:focus:border-dark-accent/50
+                  transition-colors"
+              />
+            </div>
+
+            {/* Filters row */}
+            <div className="flex gap-2">
+              {/* Status */}
+              <div className="flex gap-0.5">
+                {[
+                  { value: 'all', label: t('promotion.all') },
+                  { value: 'active', label: t('promotion.active') },
+                  { value: 'inactive', label: t('promotion.inactive') },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setStatusFilter(opt.value)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors
+                      ${statusFilter === opt.value
+                        ? 'bg-light-accent dark:bg-dark-accent text-white'
+                        : 'bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
+                      }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 text-light-text-secondary dark:text-dark-text-secondary">
-                  {t('promotion.start_date')}
-                </label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full p-3 rounded-lg border border-light-border dark:border-dark-border bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1 text-light-text-secondary dark:text-dark-text-secondary">
-                  {t('promotion.end_date')}
-                </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full p-3 rounded-lg border border-light-border dark:border-dark-border bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
-                />
-              </div>
+
+              {/* Date filters */}
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-7 px-2 rounded-lg text-[10px] font-medium
+                  bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40
+                  text-light-text-primary dark:text-dark-text-primary
+                  border border-light-border/30 dark:border-dark-border/30
+                  focus:outline-none"
+                title={t('promotion.start_date')}
+              />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-7 px-2 rounded-lg text-[10px] font-medium
+                  bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40
+                  text-light-text-primary dark:text-dark-text-primary
+                  border border-light-border/30 dark:border-dark-border/30
+                  focus:outline-none"
+                title={t('promotion.end_date')}
+              />
             </div>
           </div>
-          {/* Scrollable Promotions */}
-          <div className="flex-1 overflow-y-auto px-6 pb-6 pt-2 grid grid-cols-1 gap-4 scrollbar-thin">
+
+          {/* Promotion list */}
+          <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-none">
             {isLoadingPromos && allPromotions.length === 0 ? (
-              <p className="text-center text-light-text-secondary dark:text-dark-text-secondary">
-                {t('promotion.loading')}
-              </p>
+              <div className="flex flex-col items-center justify-center py-12 text-light-text-secondary dark:text-dark-text-secondary">
+                <Loader2 size={20} className="animate-spin mb-2" />
+                <p className="text-xs">{t('promotion.loading')}</p>
+              </div>
             ) : allPromotions.length > 0 ? (
-              allPromotions.map((promo, idx) => {
-                let key = promo.id || promo._id || `promo-fallback-${idx}-${Math.random().toString(36).substr(2, 5)}`; // Improved fallback: always unique with random suffix to prevent duplicates
-                if (!promo.id && !promo._id) {
+              <div className="space-y-1">
+                {allPromotions.map((promo, idx) => {
+                  const key = promo.id || promo._id || `promo-${idx}-${Math.random().toString(36).substr(2, 5)}`;
+                  if (!promo.id && !promo._id) return null;
+
+                  const isActive = promo.status ?? true;
                   return (
-                    <motion.div
+                    <button
                       key={key}
-                      style={{ border: '2px solid red', color: 'red', padding: 8, borderRadius: 8 }}
+                      onClick={() => handleSelectPromotion(promo)}
+                      className="w-full text-left px-3 py-3 rounded-xl hover:bg-light-surface-secondary/50 dark:hover:bg-dark-surface-secondary/50 transition-colors group"
                     >
-                      ⚠️ Warning: promotion without unique id (index {idx})
-                    </motion.div>
-                  );
-                }
-                return (
-                  <motion.div
-                    key={key}
-                    onClick={() => handleSelectPromotion(promo)}
-                    className="flex items-center gap-2 cursor-pointer hover:bg-light-surface-tertiary dark:hover:bg-dark-surface-tertiary p-4 rounded-lg transition-colors"
-                  >
-                    <div className="flex-1">
-                      <h4 className="text-base font-medium text-light-text-primary dark:text-dark-text-primary">
-                        {promo.name || t('common.no_name')}{' '}
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full ${(promo.status ?? true) ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}
-                        >
-                          {(promo.status ?? true) ? t('promotion.active') : t('promotion.inactive')}
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary group-hover:text-light-accent dark:group-hover:text-dark-accent transition-colors truncate">
+                          {promo.name || t('common.no_name')}
                         </span>
-                        {!(promo.id || promo._id) && (
-                          <span className="ml-2 text-xs text-red-500">[id vacío]</span>
-                        )}
-                      </h4>
-                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary truncate">
+                        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase
+                          ${isActive
+                            ? 'bg-light-success/15 text-light-success dark:bg-dark-success/15 dark:text-dark-success'
+                            : 'bg-light-error/15 text-light-error dark:bg-dark-error/15 dark:text-dark-error'
+                          }`}
+                        >
+                          {isActive ? t('promotion.active') : t('promotion.inactive')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">
                         {promo.description || t('common.no_description')}
                       </p>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                        {t('promotion.created_at')}: {promo.created_at ? new Date(promo.created_at).toLocaleDateString() : ''}
-                      </p>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                        {t('promotion.type')}: {t(`promotion.${promo.reward_type}`)}
-                      </p>
-                    </div>
-                  </motion.div>
-                );
-              })
+                      <div className="flex gap-3 mt-1 text-[10px] text-light-text-secondary/60 dark:text-dark-text-secondary/60">
+                        <span>{t('promotion.type')}: {t(`promotion.${promo.reward_type}`)}</span>
+                        {promo.created_at && (
+                          <span>{new Date(promo.created_at).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             ) : (
-              <p className="text-center text-light-text-secondary dark:text-dark-text-secondary">
+              <p className="text-center text-sm text-light-text-secondary dark:text-dark-text-secondary py-12">
                 {t('promotion.no_promotions')}
               </p>
             )}
+
+            {/* Load more */}
             {hasMore && (
               <button
                 onClick={loadMore}
                 disabled={isLoadingPromos}
-                className="w-full p-3 bg-matrix-green/20 hover:bg-matrix-green/30 text-light-text-primary dark:text-dark-text-primary rounded-lg transition-all"
+                className="w-full mt-2 py-2 rounded-xl text-xs font-bold text-light-accent dark:text-dark-accent hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 disabled:opacity-30 transition-colors"
               >
-                {isLoadingPromos ? t('promotion.loading') : t('promotion.load_more')}
+                {isLoadingPromos ? (
+                  <Loader2 size={14} className="animate-spin mx-auto" />
+                ) : (
+                  t('promotion.load_more')
+                )}
               </button>
             )}
           </div>
@@ -183,12 +202,10 @@ const SearchPromotion = ({
   );
 };
 
+/* ── Helpers ───────────────────────────────────────────────────────────── */
 const normalizeTime = (value) => {
   if (!value) return '';
-  if (typeof value === 'string') {
-    // Expect values like "09:00:00" or "09:00"; trim seconds if present
-    if (value.length >= 5) return value.slice(0, 5);
-  }
+  if (typeof value === 'string' && value.length >= 5) return value.slice(0, 5);
   return String(value);
 };
 
@@ -244,17 +261,12 @@ const mapToFormData = (promo) => ({
       };
     }
     if (rule.rule_type === 'hold_tokens' || rule.rule_type === 'burn_tokens') {
-      return {
-        ...rule,
-        amount: rule.amount !== undefined && rule.amount !== null ? Number(rule.amount) : 0,
-      };
+      return { ...rule, amount: rule.amount != null ? Number(rule.amount) : 0 };
     }
     if (rule.rule_type === 'merit_rule_fulfilled') {
       return {
         ...rule,
-        // Normalizamos nombres de campos por si el backend los envía distinto
         merit_rule_name: rule.merit_rule_name || rule.rule_name || '',
-        // Nuevo modelo: solo 'current' o 'last'. Ya no esperamos valores antiguos aquí.
         ranking_period: rule.ranking_period || 'current',
       };
     }
@@ -262,7 +274,23 @@ const mapToFormData = (promo) => ({
   }),
 });
 
-const AdminPromotionUpdate = ({ onUpdate, locations, menus, promotions, isLoading, formError, setFormError, platformTokens, tokenDecimals, meritSegments, meritRules, chileTime, mediaMap, refetchAllPromotions }) => {
+/* ── Main Component ────────────────────────────────────────────────────── */
+const AdminPromotionUpdate = ({
+  onUpdate,
+  locations,
+  menus,
+  promotions,
+  isLoading,
+  formError,
+  setFormError,
+  platformTokens,
+  tokenDecimals,
+  meritSegments,
+  meritRules,
+  chileTime,
+  mediaMap,
+  refetchAllPromotions,
+}) => {
   const { t } = useTranslation();
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [formData, setFormData] = useState({ ...initialFormData, menu_item_skus: [] });
@@ -277,19 +305,19 @@ const AdminPromotionUpdate = ({ onUpdate, locations, menus, promotions, isLoadin
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setPage(1);
     setAllPromotions([]);
     setHasMore(true);
     loadPromotions(1);
   }, [debouncedQuery, statusFilter, startDate, endDate]);
 
-  const loadPromotions = async (newPage = 1) => {
+  const loadPromotions = useCallback(async (newPage = 1) => {
     setIsLoadingPromos(true);
     try {
       const data = await refetchAllPromotions({
@@ -308,20 +336,15 @@ const AdminPromotionUpdate = ({ onUpdate, locations, menus, promotions, isLoadin
     } finally {
       setIsLoadingPromos(false);
     }
-  };
+  }, [debouncedQuery, statusFilter, startDate, endDate, refetchAllPromotions]);
 
-  React.useEffect(() => {
-    if (page > 1) {
-      loadPromotions(page);
-    }
+  useEffect(() => {
+    if (page > 1) loadPromotions(page);
   }, [page]);
 
-  // Reset page to 1 when filters/search change or modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     setPage(1);
-    if (isModalOpen) {
-      loadPromotions(1);
-    }
+    if (isModalOpen) loadPromotions(1);
   }, [isModalOpen, searchQuery, statusFilter, startDate, endDate]);
 
   const handleSelectPromotion = (promo) => {
@@ -337,43 +360,50 @@ const AdminPromotionUpdate = ({ onUpdate, locations, menus, promotions, isLoadin
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
-      <div className="space-y-4">
-        <motion.button
+    <div className="space-y-4">
+      {/* Select / Deselect promotion */}
+      <div className="space-y-3">
+        <button
           onClick={() => setIsModalOpen(true)}
-          className="w-full p-4 bg-gradient-to-r from-matrix-green/30 to-vanellix-cyan/30 dark:from-matrix-green/20 dark:to-vanellix-cyan/20 border border-matrix-green/20 dark:border-matrix-green/10 rounded-xl text-light-text-primary dark:text-dark-text-primary text-center flex items-center justify-center gap-2 hover:bg-matrix-green/40 dark:hover:bg-matrix-green/30 transition-all disabled:opacity-50 shadow-neon"
           disabled={isLoading}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+          className="w-full flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-bold
+            bg-light-surface dark:bg-dark-surface
+            border border-light-border/30 dark:border-dark-border/30
+            text-light-text-primary dark:text-dark-text-primary
+            hover:border-light-accent/50 dark:hover:border-dark-accent/50
+            disabled:opacity-30 transition-colors"
         >
-          <MagnifyingGlassIcon className="w-5 h-5 text-matrix-green" />
+          <Search size={15} className="text-light-accent dark:text-dark-accent" />
           {t('promotion.select_promotion')}
-        </motion.button>
+        </button>
+
         {selectedPromotion && (
-          <>
-            <label className="block text-sm font-medium mb-2 text-light-text-secondary dark:text-dark-text-secondary">
-              {t('promotion.selected_promotion')}
-            </label>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2 bg-gradient-to-r from-matrix-green/20 to-vanellix-cyan/20 dark:from-matrix-green/10 dark:to-vanellix-cyan/10 text-vanellix-cyan dark:text-vanellix-cyan px-4 py-2 rounded-full text-sm font-medium shadow-neon hover:shadow-lg transition-all"
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl
+              bg-light-accent/8 dark:bg-dark-accent/8
+              border border-light-accent/20 dark:border-dark-accent/20"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary mb-0.5">
+                {t('promotion.selected_promotion')}
+              </p>
+              <p className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary truncate">
+                {selectedPromotion.name}
+              </p>
+            </div>
+            <button
+              onClick={handleRemovePromotion}
+              className="p-1.5 rounded-lg text-light-text-secondary dark:text-dark-text-secondary hover:text-light-error dark:hover:text-dark-error hover:bg-light-error/10 dark:hover:bg-dark-error/10 transition-colors shrink-0"
             >
-              {selectedPromotion.name}
-              <XCircleIcon
-                className="h-5 w-5 cursor-pointer text-vanellix-purple hover:text-vanellix-purple/70 transition-colors"
-                onClick={handleRemovePromotion}
-              />
-            </motion.div>
-          </>
+              <X size={14} />
+            </button>
+          </motion.div>
         )}
       </div>
 
+      {/* Form */}
       {selectedPromotion && (
         <PromotionForm
           initialData={formData}
@@ -393,6 +423,7 @@ const AdminPromotionUpdate = ({ onUpdate, locations, menus, promotions, isLoadin
         />
       )}
 
+      {/* Search modal */}
       <SearchPromotion
         isModalOpen={isModalOpen}
         setIsModalOpen={setIsModalOpen}
@@ -410,9 +441,8 @@ const AdminPromotionUpdate = ({ onUpdate, locations, menus, promotions, isLoadin
         isLoadingPromos={isLoadingPromos}
         hasMore={hasMore}
         loadMore={() => setPage((p) => p + 1)}
-        page={page}
       />
-    </motion.div>
+    </div>
   );
 };
 

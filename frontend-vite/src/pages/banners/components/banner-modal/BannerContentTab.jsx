@@ -26,6 +26,7 @@ const IMAGE_SIZES = [
     { key: '16:9', label: '16:9', w: 48, h: 27 },
     { key: '4:3',  label: '4:3',  w: 40, h: 30 },
     { key: '1:1',  label: '1:1',  w: 30, h: 30 },
+    { key: '9:16', label: '9:16', w: 20, h: 36 },
 ];
 
 const BTN_POSITIONS = [
@@ -49,7 +50,8 @@ const detectAspectRatio = (w, h) => {
     if (r >= 1.7)  return '2:1';
     if (r >= 1.5)  return '16:9';
     if (r >= 1.15) return '4:3';
-    return '1:1';
+    if (r >= 0.75) return '1:1';
+    return '9:16';
 };
 
 const BannerContentTab = ({ form, setForm, uploading, onImageUpload, appState, menus = [] }) => {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Loader2, Image as ImageIcon, Megaphone } from 'lucide-react';
 import BannerContentTab from './banner-modal/BannerContentTab';
 import BannerDistributionTab from './banner-modal/BannerDistributionTab';
+import PhonePreview from './banner-modal/PhonePreview';
 
 const TABS = [
     { key: 'content',      icon: ImageIcon },
@@ -16,6 +17,7 @@ const INITIAL_FORM = {
     active: true, priority: 0,
     popup_duration_seconds: 0, display_delay_seconds: 0,
     image_size: '3:1',
+    display_devices: ['mobile', 'desktop'],
     button_config: { visible: false, text: '', position: 'bottom-right', style: 'solid', color: '#22c55e', text_color: '#ffffff' },
     schedule_start: null, schedule_end: null,
     schedule_days: null, schedule_time_from: null, schedule_time_to: null,
@@ -47,6 +49,7 @@ const BannerModal = ({
                 popup_duration_seconds: editingBanner.popup_duration_seconds || 0,
                 display_delay_seconds: editingBanner.display_delay_seconds || 0,
                 image_size: editingBanner.image_size || '3:1',
+                display_devices: editingBanner.display_devices || ['mobile', 'desktop'],
                 button_config: editingBanner.button_config || INITIAL_FORM.button_config,
                 schedule_start: editingBanner.schedule_start || null,
                 schedule_end: editingBanner.schedule_end || null,
@@ -74,7 +77,7 @@ const BannerModal = ({
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-light-surface dark:bg-dark-surface w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col"
+                    className="bg-light-surface dark:bg-dark-surface w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden border border-light-border dark:border-dark-border max-h-[90vh] flex flex-col"
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
@@ -105,27 +108,37 @@ const BannerModal = ({
                         ))}
                     </div>
 
-                    {/* Tab content */}
-                    <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
-                        {activeTab === 'content' && (
-                            <BannerContentTab
-                                form={form} setForm={setForm}
-                                uploading={uploading}
-                                onImageUpload={async (e) => {
-                                    const url = await onImageUpload(e);
-                                    if (url) setForm(p => ({ ...p, image_url: url }));
-                                }}
-                                appState={appState}
-                                menus={menus}
-                            />
-                        )}
-                        {activeTab === 'distribution' && (
-                            <BannerDistributionTab
-                                form={form} setForm={setForm}
-                                locations={locations} categories={categories} menus={menus}
-                            />
-                        )}
-                    </form>
+                    {/* Tab content + Phone Preview */}
+                    <div className="flex-1 overflow-y-auto">
+                        <div className="flex gap-6 p-6">
+                            {/* Main form area */}
+                            <form onSubmit={handleSubmit} className="flex-1 min-w-0">
+                                {activeTab === 'content' && (
+                                    <BannerContentTab
+                                        form={form} setForm={setForm}
+                                        uploading={uploading}
+                                        onImageUpload={async (e) => {
+                                            const url = await onImageUpload(e);
+                                            if (url) setForm(p => ({ ...p, image_url: url }));
+                                        }}
+                                        appState={appState}
+                                        menus={menus}
+                                    />
+                                )}
+                                {activeTab === 'distribution' && (
+                                    <BannerDistributionTab
+                                        form={form} setForm={setForm}
+                                        locations={locations} categories={categories} menus={menus}
+                                    />
+                                )}
+                            </form>
+
+                            {/* Phone Preview — sticky sidebar */}
+                            <div className="hidden md:flex flex-col shrink-0 sticky top-0 self-start pt-2">
+                                <PhonePreview form={form} />
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Footer */}
                     <div className="px-6 py-4 border-t border-light-border/30 dark:border-dark-border/30 flex gap-3 shrink-0">

@@ -284,45 +284,177 @@ const dropAnimation = {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  SortableCategory — wraps a category's products in SortableContext
+//  SortableGroupRow — renders a group as a collapsible draggeable block
 // ═══════════════════════════════════════════════════════════════════════════════
-const SortableCategory = ({
-    catId, prods, hasPending, isSaving, multiCatCounts,
+const SortableGroupRow = ({
+    sortableId, groupOpt, groupProducts, idx, isLast, hasPending,
     selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
     codigoToGroup, codigoToMods, getImages, cachebust, t,
 }) => {
-    // Composite IDs: catId::productId — allows same product in multiple categories
-    const sortIds = useMemo(() => prods.map(p => makeSortId(catId, p.id)), [prods, catId]);
+    const [expanded, setExpanded] = useState(false);
+    const groupName = groupOpt.option_name || 'Grupo';
+    const {
+        attributes, listeners, setNodeRef, transform, transition, isDragging,
+    } = useSortable({ id: sortableId });
 
-    // Build visual segments: consecutive products in the same group are bundled
-    const segments = useMemo(() => {
-        const segs = [];
-        let currentGroupKey = null;
-        let currentGroupName = null;
-        let currentItems = [];
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 'auto',
+        position: 'relative',
+    };
 
-        const flush = () => {
-            if (currentItems.length > 0) {
-                segs.push({ groupKey: currentGroupKey, groupName: currentGroupName, items: currentItems });
-                currentItems = [];
-            }
-        };
+    // Collect first image from each group product for mini-thumbs
+    const thumbs = groupProducts.slice(0, 4).map(p => {
+        const imgs = getImages(p);
+        return imgs.length ? cachebust(imgs[0], p) : null;
+    }).filter(Boolean);
 
-        for (const p of prods) {
-            const g = p.codigo ? codigoToGroup[p.codigo] : null;
-            const gKey = g?.key || null;
-            if (gKey !== currentGroupKey) {
-                flush();
-                currentGroupKey = gKey;
-                currentGroupName = g?.name || null;
-            }
-            currentItems.push(p);
-        }
-        flush();
-        return segs;
-    }, [prods, codigoToGroup]);
+    return (
+        <div ref={setNodeRef} style={style}>
+            {/* Group header row */}
+            <div
+                className={`flex items-center gap-0 border-b border-light-border/30 dark:border-dark-border/30 ${isLast ? 'border-b-0' : ''} transition-shadow duration-200 ${
+                    isDragging
+                        ? 'opacity-50 shadow-2xl ring-1 ring-amber-400/30 bg-amber-50/50 dark:bg-amber-900/10 rounded-xl scale-[1.01]'
+                        : 'bg-amber-50/30 dark:bg-amber-900/8 hover:bg-amber-50/60 dark:hover:bg-amber-900/15'
+                }`}
+            >
+                {/* Drag handle */}
+                <div className="w-9 shrink-0 flex items-center justify-center py-3"
+                    {...attributes} {...listeners}>
+                    <div className={`cursor-grab active:cursor-grabbing p-1.5 rounded-xl transition-all ${
+                        isDragging
+                            ? 'text-amber-500 bg-amber-500/15'
+                            : 'text-amber-400/40 hover:text-amber-500 hover:bg-amber-500/10'
+                    }`}>
+                        <GripVertical className="w-4 h-4" />
+                    </div>
+                </div>
 
-    let rowIdx = 0;
+                {/* Expand toggle */}
+                <div className="w-8 shrink-0 flex items-center py-3">
+                    <button onClick={() => setExpanded(e => !e)} className="p-1 rounded-lg text-amber-500 hover:bg-amber-500/10 transition-colors">
+                        {expanded
+                            ? <ChevronDown className="w-4 h-4" />
+                            : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                </div>
+
+                {/* Group icon + thumbs */}
+                <div className="w-14 shrink-0 px-2 py-2.5">
+                    <div className="relative w-11 h-11">
+                        {thumbs.length > 0 ? (
+                            <div className="w-11 h-11 rounded-2xl overflow-hidden border border-amber-300/30 dark:border-amber-500/20 grid grid-cols-2 grid-rows-2">
+                                {thumbs.slice(0, 4).map((url, i) => (
+                                    <img key={i} src={url} alt="" className="w-full h-full object-cover" />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="w-11 h-11 rounded-2xl bg-amber-100 dark:bg-amber-900/25 border border-amber-300/30 flex items-center justify-center">
+                                <Layers className="w-5 h-5 text-amber-500" />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Group name + badges */}
+                <div className="flex-1 min-w-0 px-2 py-2.5" onClick={() => setExpanded(e => !e)} style={{cursor:'pointer'}}>
+                    <div className="font-bold text-sm text-amber-700 dark:text-amber-400 leading-tight truncate flex items-center gap-2">
+                        <Layers className="w-3.5 h-3.5 shrink-0" />
+                        {groupName}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 dark:bg-amber-900/25 text-amber-700 dark:text-amber-400 border border-amber-300/40">
+                            {groupProducts.length} productos
+                        </span>
+                        {/* Price range */}
+                        {(() => {
+                            const prices = groupProducts.map(p => p.precio).filter(Boolean);
+                            if (!prices.length) return null;
+                            const min = Math.min(...prices);
+                            const max = Math.max(...prices);
+                            return (
+                                <span className="text-[10px] font-mono text-amber-600/60 dark:text-amber-400/50">
+                                    {min === max ? CLP(min) : `${CLP(min)} – ${CLP(max)}`}
+                                </span>
+                            );
+                        })()}
+                    </div>
+                </div>
+
+                {/* Priority */}
+                <div className="w-12 shrink-0 px-2 py-2.5 hidden sm:flex items-center justify-center">
+                    {hasPending ? (
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-amber-500/15 text-amber-500 text-[10px] font-bold">
+                            {idx + 1}
+                        </span>
+                    ) : (
+                        <span className="text-xs text-amber-500/50 font-medium">{groupOpt.category_priority ?? '—'}</span>
+                    )}
+                </div>
+
+                {/* Spacers to match product row widths */}
+                <div className="w-24 shrink-0 hidden sm:block" />
+                <div className="w-20 shrink-0 hidden sm:block" />
+                <div className="w-32 shrink-0" />
+            </div>
+
+            {/* Expanded sub-rows */}
+            <AnimatePresence initial={false}>
+                {expanded && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden border-l-2 border-l-amber-400/60 dark:border-l-amber-500/40 ml-4"
+                    >
+                        {groupProducts.map((p, pi) => (
+                            <SortableRow
+                                key={`grp-sub-${p.id}`}
+                                sortableId={`__nosort__${p.id}`}
+                                product={p}
+                                idx={pi}
+                                catId="__sub__"
+                                isLast={pi === groupProducts.length - 1}
+                                extraClass=""
+                                hasPending={false}
+                                multiCatCount={1}
+                                selectedIds={selectedIds}
+                                onToggle={onToggle}
+                                onEdit={onEdit}
+                                onDelete={onDelete}
+                                onAIImagen={onAIImagen}
+                                onToggleStatus={onToggleStatus}
+                                togglingId={togglingId}
+                                codigoToGroup={codigoToGroup}
+                                codigoToMods={codigoToMods}
+                                getImages={getImages}
+                                cachebust={cachebust}
+                                t={t}
+                            />
+                        ))}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SortableCategory — wraps a category's mixed items in SortableContext
+// ═══════════════════════════════════════════════════════════════════════════════
+const SortableCategory = ({
+    catId, items, hasPending, isSaving, multiCatCounts,
+    selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
+    codigoToGroup, codigoToMods, getImages, cachebust, t,
+}) => {
+    // items = array of { type: 'product', product } | { type: 'group', groupId, groupOpt, products }
+    const sortIds = useMemo(() => items.map(item =>
+        item.type === 'group' ? makeSortId(catId, `grp_${item.groupId}`) : makeSortId(catId, item.product.id)
+    ), [items, catId]);
 
     return (
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
@@ -340,42 +472,58 @@ const SortableCategory = ({
                 <div className="w-32 shrink-0 px-2 py-2 pr-4" />
             </div>
 
-            {/* Sortable rows — with group grouping */}
-            {segments.map((seg, si) => {
-                const startIdx = rowIdx;
-                const renderedRows = seg.items.map((p, i) => {
-                    const globalIdx = rowIdx++;
+            {/* Sortable rows — mixed products and groups */}
+            {items.map((item, idx) => {
+                if (item.type === 'group') {
                     return (
-                        <SortableRow
-                            key={makeSortId(catId, p.id)}
-                            sortableId={makeSortId(catId, p.id)}
-                            product={p} idx={globalIdx} catId={catId}
-                            isLast={globalIdx === prods.length - 1}
-                            extraClass={seg.groupKey ? 'border-l-2 border-l-amber-400/60 dark:border-l-amber-500/40' : ''}
+                        <SortableGroupRow
+                            key={makeSortId(catId, `grp_${item.groupId}`)}
+                            sortableId={makeSortId(catId, `grp_${item.groupId}`)}
+                            groupOpt={item.groupOpt}
+                            groupProducts={item.products}
+                            idx={idx}
+                            isLast={idx === items.length - 1}
                             hasPending={hasPending}
-                            multiCatCount={multiCatCounts[p.id] || 1}
-                            selectedIds={selectedIds} onToggle={onToggle}
-                            onEdit={onEdit} onDelete={onDelete} onAIImagen={onAIImagen}
-                            onToggleStatus={onToggleStatus} togglingId={togglingId}
-                            codigoToGroup={codigoToGroup} codigoToMods={codigoToMods}
-                            getImages={getImages} cachebust={cachebust} t={t}
+                            selectedIds={selectedIds}
+                            onToggle={onToggle}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onAIImagen={onAIImagen}
+                            onToggleStatus={onToggleStatus}
+                            togglingId={togglingId}
+                            codigoToGroup={codigoToGroup}
+                            codigoToMods={codigoToMods}
+                            getImages={getImages}
+                            cachebust={cachebust}
+                            t={t}
                         />
                     );
-                });
-
-                if (seg.groupKey) {
-                    return (
-                        <div key={`grp-${seg.groupKey}-${si}`}>
-                            <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50/60 dark:bg-amber-900/10 border-l-2 border-l-amber-400 dark:border-l-amber-500">
-                                <Layers className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
-                                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">{seg.groupName}</span>
-                                <span className="text-[10px] text-amber-600/60 dark:text-amber-400/50 font-medium">{seg.items.length} productos</span>
-                            </div>
-                            {renderedRows}
-                        </div>
-                    );
                 }
-                return <React.Fragment key={`seg-${si}`}>{renderedRows}</React.Fragment>;
+                return (
+                    <SortableRow
+                        key={makeSortId(catId, item.product.id)}
+                        sortableId={makeSortId(catId, item.product.id)}
+                        product={item.product}
+                        idx={idx}
+                        catId={catId}
+                        isLast={idx === items.length - 1}
+                        extraClass=""
+                        hasPending={hasPending}
+                        multiCatCount={multiCatCounts[item.product.id] || 1}
+                        selectedIds={selectedIds}
+                        onToggle={onToggle}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                        onAIImagen={onAIImagen}
+                        onToggleStatus={onToggleStatus}
+                        togglingId={togglingId}
+                        codigoToGroup={codigoToGroup}
+                        codigoToMods={codigoToMods}
+                        getImages={getImages}
+                        cachebust={cachebust}
+                        t={t}
+                    />
+                );
             })}
         </SortableContext>
     );
@@ -431,8 +579,8 @@ const MobileCard = ({ p, sel, imgs, onToggle, onEdit, onDelete, onAIImagen, t })
 const ProductsTable = ({
     products, categories, menuOptions = [],
     selectedIds, onToggle, onToggleAll,
-    onEdit, onDelete, onAIImagen, onReorder,
-    onToggleStatus,
+    onEdit, onDelete, onAIImagen, onReorder, onReorderGroups,
+    onToggleStatus, onRefresh,
 }) => {
     const { t } = useTranslation();
     const allSelected  = products.length > 0 && selectedIds.length === products.length;
@@ -443,7 +591,7 @@ const ProductsTable = ({
 
     const [pendingReorder, setPendingReorder] = useState({});
     const [saving, setSaving] = useState({});
-    const [activeProduct, setActiveProduct] = useState(null);
+    const [activeItem, setActiveItem] = useState(null); // { type, product?, groupOpt? }
     const [togglingId, setTogglingId] = useState(null);
 
     const handleToggleStatus = async (productId, currentEstado) => {
@@ -480,20 +628,29 @@ const ProductsTable = ({
         return map;
     }, [menuOptions]);
 
+    // Build a map: groupId -> groupOpt object (product_groups only)
+    const productGroupsById = useMemo(() => {
+        const map = {};
+        for (const opt of menuOptions.filter(o => !isModifier(o))) {
+            const gid = opt.id || opt._id;
+            if (gid) map[gid] = opt;
+        }
+        return map;
+    }, [menuOptions]);
+
     const catPaletteMap = useMemo(() => {
         const map = {};
         categories.forEach((c, i) => { map[c.id] = CAT_PALETTES[i % CAT_PALETTES.length]; });
         return map;
     }, [categories]);
 
-    // ── Group by category (product appears in ALL its categories) ─────────
+    // ── Build mixed items list per category (products + groups interleaved) ──
     const grouped = useMemo(() => {
         const buckets = {};
         const uncategorized = [];
         for (const p of products) {
             const catIds = (p.category_ids || []).filter(Boolean);
             if (catIds.length === 0) { uncategorized.push(p); continue; }
-            // Put product in EVERY category it belongs to
             for (const cid of catIds) {
                 if (!buckets[cid]) {
                     const cat = categories.find(c => c.id === cid);
@@ -502,26 +659,60 @@ const ProductsTable = ({
                 buckets[cid].products.push(p);
             }
         }
+
+        // For each bucket, build a mixed items list
         for (const b of Object.values(buckets)) {
-            // Sort products: cluster by group, then by priority within group
-            b.products.sort((a, b) => {
-                const gA = a.codigo ? codigoToGroup[a.codigo]?.key : null;
-                const gB = b.codigo ? codigoToGroup[b.codigo]?.key : null;
-                // ungrouped first, then grouped together by key
-                if (!gA && gB) return -1;
-                if (gA && !gB) return 1;
-                if (gA && gB && gA !== gB) return gA < gB ? -1 : 1;
-                // within same group (or both ungrouped): sort by priority
-                return (a.prioridad ?? 9999) - (b.prioridad ?? 9999);
-            });
+            const groupedProductIds = new Set();
+            const groupItems = [];
+
+            // Find all product groups and their members in this category
+            for (const p of b.products) {
+                const g = p.codigo ? codigoToGroup[p.codigo] : null;
+                if (g) {
+                    groupedProductIds.add(p.id);
+                    const existing = groupItems.find(gi => gi.type === 'group' && gi.groupId === g.key);
+                    if (existing) {
+                        existing.products.push(p);
+                    } else {
+                        const groupOpt = productGroupsById[g.key];
+                        if (groupOpt) {
+                            groupItems.push({
+                                type: 'group',
+                                groupId: g.key,
+                                groupOpt,
+                                products: [p],
+                                sortPriority: groupOpt.category_priority ?? 9999,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Solo products
+            const soloItems = b.products
+                .filter(p => !groupedProductIds.has(p.id))
+                .map(p => ({
+                    type: 'product',
+                    product: p,
+                    sortPriority: p.prioridad ?? 9999,
+                }));
+
+            // Merge and sort by priority
+            const mixed = [...soloItems, ...groupItems].sort((a, b) => a.sortPriority - b.sortPriority);
+            b.items = mixed;
         }
+
         const sorted = Object.values(buckets).sort((a, b) => (a.cat?.prioridad ?? 9999) - (b.cat?.prioridad ?? 9999));
         if (uncategorized.length) {
             uncategorized.sort((a, b) => (a.prioridad ?? 9999) - (b.prioridad ?? 9999));
-            sorted.push({ catId: '__none__', cat: null, products: uncategorized });
+            sorted.push({
+                catId: '__none__', cat: null,
+                products: uncategorized,
+                items: uncategorized.map(p => ({ type: 'product', product: p, sortPriority: p.prioridad ?? 9999 })),
+            });
         }
         return sorted;
-    }, [products, categories]);
+    }, [products, categories, codigoToGroup, productGroupsById]);
 
     // Count how many categories each product belongs to (for badge)
     const multiCatCounts = useMemo(() => {
@@ -533,7 +724,7 @@ const ProductsTable = ({
         return counts;
     }, [products]);
 
-    const getProds = useCallback((catId, src) => pendingReorder[catId] || src, [pendingReorder]);
+    const getItems = useCallback((catId, src) => pendingReorder[catId] || src, [pendingReorder]);
 
     const getImages = useCallback((p) => {
         if (p.media_images?.length) return p.media_images;
@@ -554,15 +745,21 @@ const ProductsTable = ({
         return map;
     }, [products]);
 
-    // ── dnd-kit event handlers (composite IDs: catId::productId) ─────────
+    // ── dnd-kit event handlers (composite IDs: catId::productId or catId::grp_groupId) ──
     const handleDragStart = useCallback((event) => {
         const { pid } = parseSortId(event.active.id);
-        setActiveProduct(productById[pid] || null);
-    }, [productById]);
+        if (pid.startsWith('grp_')) {
+            const groupId = pid.replace('grp_', '');
+            const groupOpt = productGroupsById[groupId];
+            setActiveItem(groupOpt ? { type: 'group', groupOpt } : null);
+        } else {
+            setActiveItem(productById[pid] ? { type: 'product', product: productById[pid] } : null);
+        }
+    }, [productById, productGroupsById]);
 
     const handleDragEnd = useCallback((event) => {
         const { active, over } = event;
-        setActiveProduct(null);
+        setActiveItem(null);
         if (!over || active.id === over.id) return;
 
         const a = parseSortId(active.id);
@@ -574,28 +771,49 @@ const ProductsTable = ({
         const bucket = grouped.find(g => g.catId === catId);
         if (!bucket) return;
 
-        const current = pendingReorder[catId] || [...bucket.products];
-        const oldIndex = current.findIndex(p => p.id === a.pid);
-        const newIndex = current.findIndex(p => p.id === o.pid);
+        const current = pendingReorder[catId] || [...bucket.items];
+        const getItemKey = (item) => item.type === 'group' ? `grp_${item.groupId}` : item.product.id;
+        const oldIndex = current.findIndex(item => getItemKey(item) === a.pid);
+        const newIndex = current.findIndex(item => getItemKey(item) === o.pid);
         if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
 
         const newList = arrayMove(current, oldIndex, newIndex);
         setPendingReorder(prev => ({ ...prev, [catId]: newList }));
     }, [grouped, pendingReorder]);
 
-    const handleDragCancel = useCallback(() => setActiveProduct(null), []);
+    const handleDragCancel = useCallback(() => setActiveItem(null), []);
 
     // ── Save / discard ───────────────────────────────────────────────────────
     const saveReorder = useCallback(async (catId) => {
         const list = pendingReorder[catId];
-        if (!list || !onReorder) return;
+        if (!list) return;
         setSaving(p => ({ ...p, [catId]: true }));
         try {
-            await onReorder(list.map((p, i) => ({ id: p.id, prioridad: i })));
+            // Split items into products and groups, assign priorities by position
+            const productItems = [];
+            const groupItems = [];
+            list.forEach((item, i) => {
+                if (item.type === 'group') {
+                    groupItems.push({ id: item.groupId, category_priority: i });
+                } else {
+                    productItems.push({ id: item.product.id, prioridad: i });
+                }
+            });
+
+            const promises = [];
+            if (productItems.length && onReorder) {
+                promises.push(onReorder(productItems));
+            }
+            if (groupItems.length && onReorderGroups) {
+                promises.push(onReorderGroups(groupItems));
+            }
+            await Promise.all(promises);
             setPendingReorder(p => { const n = { ...p }; delete n[catId]; return n; });
+            // Refresh data from backend so products reflect new priorities
+            if (onRefresh) onRefresh();
         } catch (err) { alert(`Error: ${err.message}`); }
         finally { setSaving(p => ({ ...p, [catId]: false })); }
-    }, [pendingReorder, onReorder]);
+    }, [pendingReorder, onReorder, onReorderGroups]);
 
     const discard = useCallback((catId) => {
         setPendingReorder(p => { const n = { ...p }; delete n[catId]; return n; });
@@ -603,8 +821,8 @@ const ProductsTable = ({
 
     // ── Render category ──────────────────────────────────────────────────────
     const renderCategory = (bucket, paletteIdx) => {
-        const { catId, cat, products: srcProds } = bucket;
-        const prods = getProds(catId, srcProds);
+        const { catId, cat, products: srcProds, items: srcItems } = bucket;
+        const items = getItems(catId, srcItems);
         const hasPending = !!pendingReorder[catId];
         const isSaving = !!saving[catId];
 
@@ -614,10 +832,11 @@ const ProductsTable = ({
 
         const isCol = collapsed[catId];
         const catName = catId === '__none__' ? 'Sin categoría' : (cat?.nombre || 'Sin categoría');
-        const allSel = prods.every(p => selectedIds.includes(p.id));
-        const someSel = prods.some(p => selectedIds.includes(p.id));
+        const totalProducts = srcProds?.length || items.reduce((sum, item) => sum + (item.type === 'group' ? item.products.length : 1), 0);
+        const allSel = srcProds?.length > 0 && srcProds.every(p => selectedIds.includes(p.id));
+        const someSel = srcProds?.some(p => selectedIds.includes(p.id));
         const toggleAll = () => {
-            const ids = prods.map(p => p.id);
+            const ids = (srcProds || []).map(p => p.id);
             if (allSel) onToggleAll(selectedIds.filter(id => !ids.includes(id)));
             else onToggleAll([...new Set([...selectedIds, ...ids])]);
         };
@@ -628,13 +847,13 @@ const ProductsTable = ({
                 <div onClick={() => toggleCollapse(catId)}
                     className={`flex items-center gap-3 px-4 py-3 cursor-pointer select-none ${palette.bg} hover:opacity-90 transition-opacity`}>
                     <div onClick={e => { e.stopPropagation(); toggleAll(); }}>
-                        <CheckBtn checked={allSel && prods.length > 0} indeterminate={someSel && !allSel} />
+                        <CheckBtn checked={allSel && totalProducts > 0} indeterminate={someSel && !allSel} />
                     </div>
                     {isCol ? <ChevronRight className={`w-4 h-4 shrink-0 ${palette.text}`} /> : <ChevronDown className={`w-4 h-4 shrink-0 ${palette.text}`} />}
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${palette.dot}`} />
                     <span className={`font-bold text-sm flex-1 truncate ${palette.text}`}>{catName}</span>
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${palette.chip}`}>
-                        {prods.length} {prods.length === 1 ? 'producto' : 'productos'}
+                        {totalProducts} {totalProducts === 1 ? 'producto' : 'productos'}
                     </span>
                     {cat?.prioridad != null && (
                         <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary opacity-50">p={cat.prioridad}</span>
@@ -664,7 +883,7 @@ const ProductsTable = ({
                             {/* Desktop — sortable */}
                             <div className="hidden md:block">
                                 <SortableCategory
-                                    catId={catId} prods={prods} hasPending={hasPending} isSaving={isSaving}
+                                    catId={catId} items={items} hasPending={hasPending} isSaving={isSaving}
                                     multiCatCounts={multiCatCounts}
                                     selectedIds={selectedIds} onToggle={onToggle}
                                     onEdit={onEdit} onDelete={onDelete} onAIImagen={onAIImagen}
@@ -676,7 +895,7 @@ const ProductsTable = ({
 
                             {/* Mobile — cards (no drag) */}
                             <div className="md:hidden p-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                                {prods.map(p => {
+                                {(srcProds || []).map(p => {
                                     const imgs = getImages(p).map(u => cachebust(u, p));
                                     return <MobileCard key={p.id} p={p} sel={selectedIds.includes(p.id)} imgs={imgs}
                                         onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} onAIImagen={onAIImagen} t={t} />;
@@ -730,7 +949,16 @@ const ProductsTable = ({
 
             {/* Portal-rendered ghost overlay — CSS transform, no layout thrash */}
             <DragOverlay dropAnimation={dropAnimation}>
-                {activeProduct ? <GhostCard product={activeProduct} /> : null}
+                {activeItem?.type === 'product' && activeItem.product ? (
+                    <GhostCard product={activeItem.product} />
+                ) : activeItem?.type === 'group' && activeItem.groupOpt ? (
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-900/30 border-2 border-amber-400/60 shadow-2xl">
+                        <Layers className="w-5 h-5 text-amber-500" />
+                        <span className="font-bold text-sm text-amber-700 dark:text-amber-400">
+                            {activeItem.groupOpt.option_name || 'Grupo'}
+                        </span>
+                    </div>
+                ) : null}
             </DragOverlay>
         </DndContext>
     );

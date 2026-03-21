@@ -100,6 +100,7 @@ def create_option_group(data: dict) -> str:
         display_type  : str   default 'select'
         required      : bool  default False
         priority      : int   default 0
+        category_priority : int  default 0  (position within category — groups vs products)
         min_selected  : int   default 0
         max_selected  : int   default 1
         menu_id       : str   "" = product-group, <product._id> = modifier
@@ -124,20 +125,21 @@ def create_option_group(data: dict) -> str:
         str(data.get("menu_id", "")).strip() != "None"
     ) or bool([x for x in (data.get("menu_ids") or []) if str(x).strip() and str(x).strip() != "None"])
     doc = {
-        "_id":          new_id,
-        "menu_id":      data.get("menu_id", ""),
-        "menu_ids":     [str(x).strip() for x in (data.get("menu_ids") or []) if str(x).strip()],
-        "option_type":  "modifier" if is_modifier_group else "product_group",  # persisted
-        "option_id":    data.get("option_id", new_id),
-        "option_name":  data.get("option_name", "Nuevo Grupo"),
-        "display_type": data.get("display_type", "select"),
-        "required":     data.get("required", False),
-        "priority":     int(data.get("priority", 0)),
-        "min_selected": int(data.get("min_selected", 0)),
-        "max_selected": int(data.get("max_selected", 1)),
-        "values":       data.get("values", []),
-        "created_at":   now,
-        "updated_at":   now,
+        "_id":               new_id,
+        "menu_id":           data.get("menu_id", ""),
+        "menu_ids":          [str(x).strip() for x in (data.get("menu_ids") or []) if str(x).strip()],
+        "option_type":       "modifier" if is_modifier_group else "product_group",  # persisted
+        "option_id":         data.get("option_id", new_id),
+        "option_name":       data.get("option_name", "Nuevo Grupo"),
+        "display_type":      data.get("display_type", "select"),
+        "required":          data.get("required", False),
+        "priority":          int(data.get("priority", 0)),
+        "category_priority": int(data.get("category_priority", 0)),
+        "min_selected":      int(data.get("min_selected", 0)),
+        "max_selected":      int(data.get("max_selected", 1)),
+        "values":            data.get("values", []),
+        "created_at":        now,
+        "updated_at":        now,
     }
     db.menu_options.insert_one(doc)
     return new_id
@@ -148,7 +150,7 @@ def update_option_group(option_id: str, data: dict) -> int:
     Update an existing menu_option group (product-group or modifier).
 
     Accepts any of:
-        option_name, display_type, required, priority,
+        option_name, display_type, required, priority, category_priority,
         min_selected, max_selected, menu_id, menu_ids, values
     Returns matched_count.
     """
@@ -158,11 +160,11 @@ def update_option_group(option_id: str, data: dict) -> int:
         return 0
 
     update: dict = {}
-    for key in ("option_name", "display_type", "required", "priority",
+    for key in ("option_name", "display_type", "required", "priority", "category_priority",
                 "min_selected", "max_selected", "menu_id", "values"):
         if key in data:
             val = data[key]
-            if key in ("priority", "min_selected", "max_selected"):
+            if key in ("priority", "min_selected", "max_selected", "category_priority"):
                 val = int(val)
             update[key] = val
 
@@ -180,6 +182,31 @@ def update_option_group(option_id: str, data: dict) -> int:
 
     result = db.menu_options.update_one(q, {"$set": update})
     return result.matched_count
+
+
+def reorder_groups(items: list) -> int:
+    """
+    Bulk update category_priority for product-group option groups.
+    items: [ { "id": "<option_id>", "category_priority": <int> }, ... ]
+    Returns count of updated docs.
+    """
+    from pymongo import UpdateOne
+    ops = [
+        UpdateOne(
+            get_id_query(item["id"]),
+            {"$set": {
+                "category_priority": int(item["category_priority"]),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+        for item in items
+        if "id" in item and "category_priority" in item
+    ]
+    if not ops:
+        return 0
+    result = db.menu_options.bulk_write(ops, ordered=False)
+    logger.info(f"Reordered {result.modified_count}/{len(ops)} option groups")
+    return result.modified_count
 
 
 # ── link / unlink modifier ─────────────────────────────────────────────────────

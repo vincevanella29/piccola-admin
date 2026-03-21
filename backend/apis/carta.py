@@ -476,6 +476,20 @@ async def create_menu_option_group(
     return {"success": True, "id": new_id}
 
 
+class ReorderGroupItem(BaseModel):
+    id: str
+    category_priority: int
+
+class ReorderGroupsRequest(BaseModel):
+    items: List[ReorderGroupItem]
+
+@router.post("/carta/menu-options/reorder")
+async def reorder_menu_option_groups(data: ReorderGroupsRequest, user: dict = Depends(_require_catalog_access)):
+    """Bulk update category_priority for product-group option groups (drag-and-drop ordering)."""
+    updated = option_svc.reorder_groups([item.dict() for item in data.items])
+    return {"success": True, "updated": updated}
+
+
 @router.put("/carta/menu-options/{option_id}")
 async def update_menu_option_group(
     option_id: str,
@@ -544,6 +558,8 @@ async def delete_menu_option(option_id: str, user: dict = Depends(_require_catal
     if deleted == 0:
         raise HTTPException(status_code=404, detail="Menu option not found")
     return {"success": True}
+
+
 
 
 @router.get("/carta/menu-options/duplicates")

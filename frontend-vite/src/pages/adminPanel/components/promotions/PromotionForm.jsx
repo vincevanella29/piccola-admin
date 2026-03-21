@@ -232,10 +232,10 @@ const PromotionForm = ({
   };
 
   return (
-    <div className="max-w-2xl mx-auto pb-28">
+    <div className="max-w-2xl mx-auto pb-6">
 
       {/* ── STICKY HEADER ──────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-40 pt-5 pb-3 mb-5">
+      <div className="sticky top-0 z-30 pt-5 pb-3 mb-5 bg-light-background/80 dark:bg-dark-background/80 backdrop-blur-md">
         <div className="flex justify-between items-end mb-2 px-1">
           <div>
             <h2 className="text-xl font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">
@@ -506,12 +506,12 @@ const PromotionForm = ({
 
       </div>
 
-      {/* ── FOOTER CTA ─────────────────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-light-surface/80 dark:bg-dark-surface/80 backdrop-blur-xl border-t border-light-border/20 dark:border-dark-border/20 z-50 flex justify-center">
+      {/* ── SUBMIT CTA ─────────────────────────────────────────────────── */}
+      <div className="sticky bottom-0 z-30 pt-3 pb-3 mb-24 md:mb-20 -mx-5 px-5 bg-light-background/80 dark:bg-dark-background/80 backdrop-blur-md">
         <button
           onClick={handleFormSubmit}
           disabled={isLoading}
-          className="w-full max-w-2xl py-3.5 bg-gradient-to-r from-matrix-green to-vanellix-cyan text-white font-bold text-sm rounded-2xl hover:shadow-[0_0_20px_rgba(var(--matrix-green-rgb),0.35)] disabled:opacity-50 transition-all active:scale-[0.98]"
+          className="w-full py-3.5 bg-light-accent dark:bg-dark-accent text-white font-bold text-sm rounded-xl hover:opacity-90 disabled:opacity-40 transition-all active:scale-[0.98]"
         >
           {isLoading ? '...' : (isUpdate ? t('promotion.update_button') : t('promotion.create_button'))}
         </button>
