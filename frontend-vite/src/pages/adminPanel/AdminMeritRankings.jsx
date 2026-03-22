@@ -195,6 +195,11 @@ const LeaderboardHeader = ({ comp, periodMode }) => {
               Admin KPI
             </span>
           )}
+          {comp.is_live && (
+            <span className="flex items-center gap-1 text-[9px] font-black uppercase text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full animate-pulse">
+              ● En vivo
+            </span>
+          )}
           {posLabel && (
             <span className="text-[9px] font-bold text-yellow-400">🏆 {posLabel}</span>
           )}
@@ -249,12 +254,11 @@ const AdminMeritRankings = ({ appState }) => {
 
   const {
     competitions,
-    competitionBoards,
     summary,
+    activeBoard,
     filterOptions,
     filters,
     updateFilter,
-    applyFilters,
     resetFilters,
     loading,
     loadingBoard,
@@ -262,6 +266,8 @@ const AdminMeritRankings = ({ appState }) => {
     currentPeriodo,
     restrictedToLocal,
     fetchCompetitions,
+    fetchSummary,
+    fetchLeaderboard,
   } = useAdminMeritRankings(appState);
 
   // Period mode: 'month' | 'year' | 'all'
@@ -270,7 +276,7 @@ const AdminMeritRankings = ({ appState }) => {
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   // Selected period for monthly comps
   const [selectedPeriodo, setSelectedPeriodo] = useState(null); // null = current month
-  // Selected competition — SOLO estado local, no re-fetcha
+  // Selected competition
   const [selectedRuleId, setSelectedRuleId] = useState(null);
   // Search del leaderboard
   const [search, setSearch] = useState('');
@@ -284,38 +290,46 @@ const AdminMeritRankings = ({ appState }) => {
     setPeriodMode(mode);
     setSelectedRuleId(null);
     if (mode === 'year') {
-      // Anuales: traer TODAS las reglas (sin filtro de periodo)
-      // El filtrado por period_mode === 'year' se hace localmente en filteredSummaryRaw
-      applyFilters({ periodo: null });
+      fetchSummary({ periodo: null });
     } else if (mode === 'month') {
-      applyFilters({ periodo: selectedPeriodo });
+      fetchSummary({ periodo: selectedPeriodo });
     } else {
-      // 'all': sin filtro de periodo
-      applyFilters({ periodo: null });
+      fetchSummary({ periodo: null });
     }
   };
 
   const handleYearChange = (year) => {
     setSelectedYear(year);
-    // Solo actualizamos el año seleccionado — la vista anual no filtra por mes
-    // El filtrado es local (period_mode === 'year')
   };
 
   const handlePeriodoChange = (p) => {
     setSelectedPeriodo(p);
-    applyFilters({ periodo: p });
+    setSelectedRuleId(null);
+    fetchSummary({ periodo: p });
   };
 
-  // handleSelectRule: SOLO local — no re-fetcha. Todas las competencias quedan visibles.
-  const handleSelectRule = (ruleId) => {
-    setSelectedRuleId(prev => prev === ruleId ? null : ruleId); // toggle
-  };
+  // Al seleccionar una competencia → fetch leaderboard on demand
+  const handleSelectRule = useCallback((ruleId) => {
+    const newId = selectedRuleId === ruleId ? null : ruleId; // toggle
+    setSelectedRuleId(newId);
+    if (newId) {
+      fetchLeaderboard(newId, { periodo: selectedPeriodo });
+    }
+  }, [selectedRuleId, fetchLeaderboard, selectedPeriodo]);
 
   const handleToggleHistoric = () => {
     const next = !showHistoric;
     setShowHistoric(next);
     fetchCompetitions(next ? null : true);
   };
+
+  // Aplicar filtros del toolbar → re-fetch leaderboard de la comp activa
+  const handleApplyFilters = useCallback((overrides = {}) => {
+    fetchSummary(overrides);
+    if (selectedRuleId) {
+      fetchLeaderboard(selectedRuleId, overrides);
+    }
+  }, [fetchSummary, fetchLeaderboard, selectedRuleId]);
 
   // 1) Competencias filtradas por periodMode (base)
   const filteredSummaryRaw = useMemo(() => {
@@ -351,17 +365,6 @@ const AdminMeritRankings = ({ appState }) => {
       return true;
     });
   }, [filteredSummaryRaw, listFilterCargo, listFilterSeccion]);
-
-  // Active comp in the leaderboard panel
-  const activeComp = useMemo(() => {
-    const boards = competitionBoards.filter(c => {
-      if (periodMode === 'year') return c.period_mode === 'year';
-      if (periodMode === 'month') return c.period_mode !== 'year';
-      return true;
-    });
-    if (selectedRuleId) return boards.find(c => c.rule_id === selectedRuleId) || boards[0] || null;
-    return boards[0] || null;
-  }, [selectedRuleId, competitionBoards, periodMode]);
 
   // Global KPIs
   const totalWinners      = filteredSummary.reduce((a, c) => a + (c.fulfilled_count || 0), 0);
@@ -430,7 +433,7 @@ const AdminMeritRankings = ({ appState }) => {
             filterOptions={filterOptions}
             filters={filters}
             updateFilter={updateFilter}
-            applyFilters={applyFilters}
+            applyFilters={handleApplyFilters}
             resetFilters={resetFilters}
             loading={loading}
             search={search}
@@ -477,27 +480,41 @@ const AdminMeritRankings = ({ appState }) => {
 
           {/* RIGHT: Leaderboard */}
           <div className="flex-1 min-w-0 space-y-4">
-            <LeaderboardHeader comp={activeComp} periodMode={periodMode} />
-            <MeritStatStrip comp={activeComp} t={t} />
+            {selectedRuleId ? (
+              <>
+                <LeaderboardHeader comp={activeBoard} periodMode={periodMode} />
+                <MeritStatStrip comp={activeBoard} t={t} />
 
-            {loadingBoard ? (
-              <div className="space-y-2">
-                {[...Array(10)].map((_, i) => (
-                  <div key={i} className="h-11 rounded-xl bg-dark-surface border border-dark-border/10 animate-pulse" style={{ animationDelay: `${i * 40}ms` }} />
-                ))}
-              </div>
+                {loadingBoard ? (
+                  <div className="space-y-2">
+                    {[...Array(10)].map((_, i) => (
+                      <div key={i} className="h-11 rounded-xl bg-dark-surface border border-dark-border/10 animate-pulse" style={{ animationDelay: `${i * 40}ms` }} />
+                    ))}
+                  </div>
+                ) : (
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeBoard?.rule_id || 'none'}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                    >
+                      <MeritLeaderboardTable comp={activeBoard} search={search} t={t} />
+                    </motion.div>
+                  </AnimatePresence>
+                )}
+              </>
             ) : (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeComp?.rule_id || 'none'}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <MeritLeaderboardTable comp={activeComp} search={search} t={t} />
-                </motion.div>
-              </AnimatePresence>
+              <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-dark-border/15 rounded-2xl text-center px-4">
+                <Trophy size={40} className="text-dark-text-secondary/15 mb-4" strokeWidth={1} />
+                <p className="text-sm font-semibold text-dark-text-secondary mb-1">
+                  Selecciona una competencia
+                </p>
+                <p className="text-xs text-dark-text-secondary/50 max-w-xs">
+                  Elige una competencia de la lista para ver el ranking completo
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -511,13 +528,13 @@ export default AdminMeritRankings;
 
 export const pageMetadata = {
   path: '/app/admin/merit-rankings',
-  label: 'Admin Merit Rankings',
+  label: 'admin_merit_rankings.label',
   category: 'analytics.Análisis',
   minRoleLevel: 3,
   maxRoleLevel: 6,
   order: 6,
   locations: ['sidebar'],
-  description: 'Ranking de competencias de meritocracia por ventas y periodo',
+  description: 'admin_merit_rankings.description',
   icon: 'FaTrophy',
   isMainPage: false,
   isSearchable: true,

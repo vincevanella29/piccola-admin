@@ -5,7 +5,6 @@ import axios from 'axios';
 const API_BASE = '/api';
 
 const defaultFilters = {
-  rule_id: null,        // null = todas las activas
   periodo: null,        // null = mes actual
   sucursal: null,
   cargo: null,
@@ -16,27 +15,30 @@ export default function useAdminMeritRankings(appState) {
   const token = appState?.token;
 
   // ── State ─────────────────────────────────────────────────────────────────
-  const [competitions, setCompetitions]     = useState([]);  // lista de reglas
-  const [leaderboard, setLeaderboard]       = useState(null); // respuesta completa
+  const [competitions, setCompetitions]     = useState([]);   // lista de reglas
+  const [summaryData, setSummaryData]       = useState(null); // respuesta resumen (sin leaderboards)
+  const [activeBoard, setActiveBoard]       = useState(null); // leaderboard de la competencia activa
   const [filterOptions, setFilterOptions]   = useState({ periodos: [], locales: [], cargos: [] });
-  const [filters, setFilters]               = useState(defaultFilters);
+  const [filters, setFilters]              = useState(defaultFilters);
 
   const [loadingComps, setLoadingComps]     = useState(false);
   const [loadingBoard, setLoadingBoard]     = useState(false);
   const [loadingFilters, setLoadingFilters] = useState(false);
+  const [loadingSummary, setLoadingSummary] = useState(false);
   const [error, setError]                   = useState(null);
 
   // Modal de empleado individual
   const [selectedEmployee, setSelectedEmployee] = useState(null);
 
   const abortRef = useRef(null);
+  const summaryAbortRef = useRef(null);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const authHeaders = useCallback(() => ({
     headers: { Authorization: `Bearer ${token}` },
   }), [token]);
 
-  // ── Fetch competitions list ───────────────────────────────────────────────
+  // ── Fetch competitions list (reglas) ──────────────────────────────────────
   const fetchCompetitions = useCallback(async (onlyActive = null) => {
     setLoadingComps(true);
     setError(null);
@@ -72,8 +74,43 @@ export default function useAdminMeritRankings(appState) {
     }
   }, [authHeaders]);
 
-  // ── Fetch leaderboard ────────────────────────────────────────────────────
-  const fetchLeaderboard = useCallback(async (overrideFilters = {}) => {
+  // ── Fetch summary (all competitions, no leaderboard rows) ─────────────
+  const fetchSummary = useCallback(async (overrideFilters = {}) => {
+    if (summaryAbortRef.current) summaryAbortRef.current.abort();
+    const ctrl = new AbortController();
+    summaryAbortRef.current = ctrl;
+
+    setLoadingSummary(true);
+    setError(null);
+
+    const active = { ...filters, ...overrideFilters };
+    const params = {};
+    if (active.periodo) params.periodo = active.periodo;
+    // NO enviar rule_id → modo resumen
+    params.include_sales = false; // No necesitamos KPIs en resumen
+
+    try {
+      const { data } = await axios.get(`${API_BASE}/admin/merits/leaderboard`, {
+        params,
+        signal: ctrl.signal,
+        ...authHeaders(),
+      });
+      setSummaryData(data);
+    } catch (err) {
+      if (err.name === 'CanceledError' || err.name === 'AbortError') return;
+      setError(err?.response?.data?.detail || err.message || 'Error cargando resumen');
+    } finally {
+      setLoadingSummary(false);
+    }
+  }, [filters, authHeaders]);
+
+  // ── Fetch leaderboard for ONE competition ─────────────────────────────
+  const fetchLeaderboard = useCallback(async (ruleId, overrideFilters = {}) => {
+    if (!ruleId) {
+      setActiveBoard(null);
+      return;
+    }
+
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -82,10 +119,8 @@ export default function useAdminMeritRankings(appState) {
     setError(null);
 
     const active = { ...filters, ...overrideFilters };
-
-    const params = {};
-    if (active.rule_id)  params.rule_id  = active.rule_id;
-    if (active.periodo)  params.periodo  = active.periodo;
+    const params = { rule_id: ruleId };
+    if (active.periodo)   params.periodo  = active.periodo;
     if (active.sucursal && active.sucursal !== 'all') params.sucursal = active.sucursal;
     if (active.cargo    && active.cargo    !== 'all') params.cargo    = active.cargo;
     params.include_sales = active.include_sales;
@@ -96,7 +131,9 @@ export default function useAdminMeritRankings(appState) {
         signal: ctrl.signal,
         ...authHeaders(),
       });
-      setLeaderboard(data);
+      // El backend retorna 1 competition en el array
+      const comp = data.competitions?.[0] || null;
+      setActiveBoard(comp);
     } catch (err) {
       if (err.name === 'CanceledError' || err.name === 'AbortError') return;
       setError(err?.response?.data?.detail || err.message || 'Error cargando leaderboard');
@@ -110,66 +147,47 @@ export default function useAdminMeritRankings(appState) {
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  const applyFilters = useCallback((overrides = {}) => {
-    fetchLeaderboard(overrides);
-  }, [fetchLeaderboard]);
-
   const resetFilters = useCallback(() => {
     setFilters(defaultFilters);
-    fetchLeaderboard(defaultFilters);
-  }, [fetchLeaderboard]);
+  }, []);
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!token) return;
-    fetchCompetitions(true); // solo activas inicialmente
+    fetchCompetitions(true);
     fetchFilterOptions();
-    fetchLeaderboard();
+    fetchSummary();
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Computed data ─────────────────────────────────────────────────────────
 
-  /**
-   * Devuelve la lista de competencias del leaderboard actual.
-   * Cada competencia tiene { rule_id, rule_name, leaderboard, total_participants, ... }
-   */
-  const competitionBoards = leaderboard?.competitions || [];
-
-  /**
-   * Resumen: pasa TODOS los campos de la competencia al frontend.
-   * Crítico: period_mode, is_active, include_cargos, template_category, etc.
-   * Son necesarios para los filtros de año / cargo / sección.
-   */
-  const summary = competitionBoards.map(c => ({
-    // Spread completo — ningún campo se pierde
+  /** Summary list: metadata + counts for each competition (no leaderboard rows) */
+  const summary = (summaryData?.competitions || []).map(c => ({
     ...c,
-    // Aliases de compat para los componentes que usan nombres alternativos
-    total:            c.total_participants,
-    fulfilled:        c.fulfilled_count,
+    total:     c.total_participants,
+    fulfilled: c.fulfilled_count,
   }));
 
   return {
     // Data
     competitions,        // lista de reglas (para selector)
-    leaderboard,         // respuesta raw completa
-    competitionBoards,   // lista procesada de competencias con leaderboard
-    summary,             // resumen por competencia
+    summary,             // resumen por competencia (sin leaderboard)
+    activeBoard,         // leaderboard de la competencia seleccionada
     filterOptions,       // { periodos, locales, cargos }
-    currentPeriodo: leaderboard?.periodo || null,
-    userLevel: leaderboard?.level || null,
-    restrictedToLocal: leaderboard?.restricted_to_local || null,
+    currentPeriodo: summaryData?.periodo || null,
+    restrictedToLocal: summaryData?.restricted_to_locals || null,
 
     // Filters
     filters,
     updateFilter,
-    applyFilters,
     resetFilters,
 
     // Loading / Error
-    loading: loadingBoard || loadingComps,
+    loading: loadingBoard || loadingComps || loadingSummary,
     loadingBoard,
     loadingComps,
     loadingFilters,
+    loadingSummary,
     error,
 
     // Employee detail modal
@@ -178,6 +196,7 @@ export default function useAdminMeritRankings(appState) {
 
     // Actions
     fetchCompetitions,
+    fetchSummary,
     fetchLeaderboard,
     fetchFilterOptions,
   };

@@ -93,20 +93,42 @@ def _enrich_workers(ruts: List[str]) -> Dict[str, Dict]:
         }
     return out
 
-
 # ── KPI collection routing por template_key ──────────────────────────────────
-# Indica qué colecciones se leen y cómo interpretar los campos.
-# Es la única fuente de verdad para el Admin Merit Rankings.
+# Derivado dinámicamente de los módulos en rules_models/.
+# Cada módulo expone TEMPLATE_KEY y <KEY>_RULE_TEMPLATE con "category".
 
-_TEMPLATE_CATEGORY: Dict[str, str] = {
-    "sales_ranking_position":   "sales",
-    "sales_top_category":       "sales",
-    "admin_sales_ranking":      "sales_admin",
-    "admin_sales_top_category": "sales_admin",
-    "times_metrics_employee":   "times_employee",
-    "times_metrics_local":      "times_local",
-    "attendance_full_month":    "attendance",
-}
+def _get_template_category(template_key: str) -> str:
+    """
+    Lee la categoría del template desde el módulo cargado dinámicamente.
+    Fuente de verdad: rules_models/<module>.py → TEMPLATE_RULE_TEMPLATE.category
+    
+    Retorna subcategoría específica para el routing de KPIs:
+    - sales, sales_admin, times_employee, times_local, attendance, etc.
+    """
+    try:
+        modules = _get_rule_modules()
+        mod = modules.get(template_key)
+        if mod:
+            tpl_var = f"{template_key.upper()}_RULE_TEMPLATE"
+            tpl = getattr(mod, tpl_var, None)
+            if tpl and isinstance(tpl, dict):
+                base_category = tpl.get("category", "sales")
+                # Subcategorizar para routing de KPIs
+                if base_category == "sales":
+                    # admin_sales_* usan colección admin, el resto usa empleado
+                    if template_key.startswith("admin_sales"):
+                        return "sales_admin"
+                    return "sales"
+                if base_category == "times":
+                    # times_metrics_local vs times_metrics_employee
+                    if "local" in template_key:
+                        return "times_local"
+                    return "times_employee"
+                return base_category  # attendance, etc.
+    except Exception as e:
+        logger.warning(f"[ADMIN_MERITS] _get_template_category fallback para '{template_key}': {e}")
+    return "sales"  # fallback seguro
+
 
 
 # Mapeo metric_key → campo del doc + label legible (sales_ranking_position y admin_sales_ranking)
@@ -135,7 +157,7 @@ def _get_kpis_dynamic(
     int_ruts = [int(r) for r in ruts if r.isdigit()]
     ruts_query = ruts + [str(r) for r in int_ruts]
 
-    category = _TEMPLATE_CATEGORY.get(template_key, "sales")
+    category = _get_template_category(template_key)
     params   = (rule or {}).get("params") or {}
 
     # ── Ventas empleado ────────────────────────────────────────────────────────
@@ -469,13 +491,13 @@ def _extract_rule_metadata(rule: Dict) -> Dict[str, Any]:
         tpl = getattr(mod, tpl_var, None) if mod else None
         if tpl:
             kpi_collections   = [s.get("collection", "") for s in (tpl.get("data_sources") or [])]
-            template_category = tpl.get("category", _TEMPLATE_CATEGORY.get(template_key, "sales"))
+            template_category = tpl.get("category", _get_template_category(template_key))
             template_name     = tpl.get("name", "")
     except Exception:
         pass
 
     if not template_category:
-        template_category = _TEMPLATE_CATEGORY.get(template_key, "sales")
+        template_category = _get_template_category(template_key)
 
     is_admin_rule = (
         template_key.startswith("admin_") or
@@ -705,13 +727,48 @@ async def merit_leaderboard(
 
     # ── Procesar cada regla ───────────────────────────────────────────────
     competition_results = []
+    is_summary_mode = rule_id is None  # Sin rule_id = modo liviano (solo counts)
 
     for rule in rules_to_query:
         rid   = str(rule["_id"])
         rname = rule.get("rule_name", "")
         params = rule.get("params") or {}
+        _is_live = False
 
-        # BUG FIX: usar helper que busca por ObjectId Y string
+        rule_meta = _extract_rule_metadata(rule)
+
+        # ── MODO RESUMEN (sin rule_id): Solo counts livianos ─────────────
+        if is_summary_mode:
+            results_docs = _results_for_rule(rid, periodo_dash)
+            total_count = len(results_docs)
+            fulfilled_count = sum(1 for d in results_docs if d.get("status") == "fulfilled")
+
+            # Si no hay results pre-computados, intentar contar participantes de KPIs
+            has_data = total_count > 0
+            if not has_data:
+                # Check si hay KPIs disponibles para esta regla/periodo (live preview)
+                _tkey = rule.get("template_key", "")
+                _cat = _get_template_category(_tkey)
+                # No hacer query pesada — solo marcar como sin data
+                _is_live = True
+
+            competition_results.append({
+                "rule_id":            rid,
+                "rule_name":          rname,
+                "periodo":            periodo_dash,
+                "is_active":          bool(rule.get("is_active")),
+                "merit_points":       rule.get("merit_points", 0),
+                **rule_meta,
+                "scope":              rule.get("scope"),
+                "total_participants": total_count,
+                "fulfilled_count":    fulfilled_count,
+                "leaderboard":        [],   # NO enviar rows en modo resumen
+                "has_data":           has_data,
+                "is_live":            _is_live and not has_data,
+            })
+            continue
+
+        # ── MODO DETALLE (con rule_id): Leaderboard completo ─────────────
         results_docs = _results_for_rule(rid, periodo_dash)
 
         logger.info(
@@ -720,57 +777,152 @@ async def merit_leaderboard(
         )
 
         if not results_docs:
-            # Sin resultados = el worker aún no corrió para este periodo/regla.
-            rule_meta = _extract_rule_metadata(rule)
-            competition_results.append({
-                "rule_id":            rid,
-                "rule_name":          rname,
-                "periodo":            periodo_dash,
-                "is_active":          bool(rule.get("is_active")),
-                "merit_points":       rule.get("merit_points", 0),
-                **rule_meta,
-                "total_participants": 0,
-                "fulfilled_count":    0,
-                "leaderboard":        [],
-                "has_data":           False,
-            })
-            continue
+            # ── LIVE FALLBACK: Worker no corrió aún — evaluar en tiempo real ──
+            # Mismo enfoque que mi_meritos.py: usa evaluate() + KPIs existentes
+            logger.info(
+                f"[ADMIN_MERITS] regla='{rname}' SIN resultados pre-computados → evaluación en vivo"
+            )
 
-        # Mapa rut → resultado
-        rut_result_map: Dict[str, Dict] = {}
-        for d in results_docs:
-            rut = str(d.get("rut", ""))
-            if not rut:
+            # 1. Obtener scope de la regla para filtrar trabajadores
+            scope_cfg = rule.get("scope") or {}
+            cargos_cfg = scope_cfg.get("cargos") or {}
+            secciones_cfg = scope_cfg.get("secciones") or {}
+            inc_cargos = cargos_cfg.get("include") or []
+            exc_cargos = cargos_cfg.get("exclude") or []
+            inc_secciones = [str(s).strip().lower() for s in (secciones_cfg.get("include") or [])]
+            exc_secciones = [str(s).strip().lower() for s in (secciones_cfg.get("exclude") or [])]
+
+            # 2. Query de trabajadores activos que matcheen con el scope
+            worker_query: Dict[str, Any] = {"activo": 1}
+            if inc_cargos:
+                worker_query["cargo"] = {"$in": inc_cargos}
+            elif exc_cargos:
+                worker_query["cargo"] = {"$nin": exc_cargos}
+
+            live_workers = list(WORKERS.find(
+                worker_query,
+                {"rut": 1, "nombres": 1, "apellidopaterno": 1, "cargo": 1,
+                 "sucursal": 1, "seccion": 1, "profile_image_url": 1}
+            ))
+
+            # Filtrar por sección si aplica
+            # NOTA: trabajadores_vpn NO tiene seccion — se resuelve via cargos_intranet
+            if inc_secciones or exc_secciones:
+                # Construir mapeo cargo → seccion desde cargos_intranet
+                cargo_sec_map: Dict[str, str] = {}
+                for cdoc in db.cargos_intranet.find({}, {"cargo": 1, "seccion": 1}):
+                    c = (cdoc.get("cargo") or "").strip()
+                    s = (cdoc.get("seccion") or "").strip().lower()
+                    if c and s:
+                        cargo_sec_map[c] = s
+
+                def _sec_ok(w):
+                    # Resolver sección: primero intentar del worker, luego del cargo
+                    sec = str(w.get("seccion") or "").strip().lower()
+                    if not sec:
+                        cargo = (w.get("cargo") or "").strip()
+                        sec = cargo_sec_map.get(cargo, "")
+                    if inc_secciones and sec not in inc_secciones:
+                        return False
+                    if exc_secciones and sec in exc_secciones:
+                        return False
+                    return True
+                live_workers = [w for w in live_workers if _sec_ok(w)]
+
+            live_ruts = list({str(w.get("rut", "")) for w in live_workers if w.get("rut")})
+
+            if not live_ruts:
+                competition_results.append({
+                    "rule_id":            rid,
+                    "rule_name":          rname,
+                    "periodo":            periodo_dash,
+                    "is_active":          bool(rule.get("is_active")),
+                    "merit_points":       rule.get("merit_points", 0),
+                    **rule_meta,
+                    "total_participants": 0,
+                    "fulfilled_count":    0,
+                    "leaderboard":        [],
+                    "has_data":           False,
+                    "is_live":            True,
+                })
                 continue
-            rut_result_map[rut] = {
-                "rut":          rut,
-                "status":       d.get("status", ""),
-                "merit_points": float(d.get("merit_points") or 0),
-                "finalized":    bool(d.get("finalized")),
-            }
 
-        all_ruts = list(rut_result_map.keys())
-        logger.info(
-            f"[ADMIN_MERITS] regla='{rname}' → {len(all_ruts)} ruts únicos en resultados"
-        )
+            # 3. Obtener ganadores en vivo con evaluate()
+            live_winners_list = _run_evaluate_fallback(rule, periodo_dash)
+            live_winners_set = set(str(r) for r in live_winners_list)
+            logger.info(
+                f"[ADMIN_MERITS] regla='{rname}' live evaluate → "
+                f"{len(live_winners_set)} ganadores de {len(live_ruts)} participantes"
+            )
 
-        worker_map = _enrich_workers(all_ruts)
-        logger.info(
-            f"[ADMIN_MERITS] regla='{rname}' → {len(worker_map)} workers enriquecidos de {len(all_ruts)} ruts"
-        )
-
-        kpis_map: Dict[str, Dict] = {}
-        if include_sales:
+            # 4. Obtener KPIs de los participantes
             _tkey = rule.get("template_key", "")
-            kpis_map = _get_kpis_dynamic(_tkey, periodo_dash, all_ruts, rule=rule)
-            ruts_sin_kpi = [r for r in all_ruts if r not in kpis_map]
-            if ruts_sin_kpi:
-                logger.debug(
-                    f"[ADMIN_MERITS] regla='{rname}' template={_tkey} — "
-                    f"{len(ruts_sin_kpi)}/{len(all_ruts)} ruts sin KPI"
-                )
+            live_kpis = _get_kpis_dynamic(_tkey, periodo_dash, live_ruts, rule=rule) if include_sales else {}
 
-        # Filtros de permisos + explícitos
+            # Solo incluir ruts que tengan KPIs (ya que sin KPIs no hay info útil)
+            # PERO si es attendance o times_local siempre incluir todos
+            _cat = _get_template_category(_tkey)
+            if _cat in ("attendance", "times_local"):
+                participant_ruts = live_ruts
+            else:
+                participant_ruts = [r for r in live_ruts if r in live_kpis] if live_kpis else live_ruts
+
+            # 5. Construir maps sintéticos
+            worker_map = _enrich_workers(participant_ruts)
+            kpis_map = live_kpis
+            rut_result_map = {}
+            for rut in participant_ruts:
+                rut_result_map[rut] = {
+                    "rut":          rut,
+                    "status":       "fulfilled" if rut in live_winners_set else "not_fulfilled",
+                    "merit_points": float(rule.get("merit_points") or 0) if rut in live_winners_set else 0.0,
+                    "finalized":    False,
+                }
+            all_ruts = participant_ruts
+            _is_live = True
+
+            logger.info(
+                f"[ADMIN_MERITS] regla='{rname}' LIVE → "
+                f"{len(participant_ruts)} participantes con KPIs, "
+                f"{len(live_winners_set)} ganadores"
+            )
+
+        else:
+            # Mapa rut → resultado (results_docs pre-computados)
+            rut_result_map: Dict[str, Dict] = {}
+            for d in results_docs:
+                rut = str(d.get("rut", ""))
+                if not rut:
+                    continue
+                rut_result_map[rut] = {
+                    "rut":          rut,
+                    "status":       d.get("status", ""),
+                    "merit_points": float(d.get("merit_points") or 0),
+                    "finalized":    bool(d.get("finalized")),
+                }
+
+            all_ruts = list(rut_result_map.keys())
+            logger.info(
+                f"[ADMIN_MERITS] regla='{rname}' → {len(all_ruts)} ruts únicos en resultados"
+            )
+
+            worker_map = _enrich_workers(all_ruts)
+            logger.info(
+                f"[ADMIN_MERITS] regla='{rname}' → {len(worker_map)} workers enriquecidos de {len(all_ruts)} ruts"
+            )
+
+            kpis_map: Dict[str, Dict] = {}
+            if include_sales:
+                _tkey = rule.get("template_key", "")
+                kpis_map = _get_kpis_dynamic(_tkey, periodo_dash, all_ruts, rule=rule)
+                ruts_sin_kpi = [r for r in all_ruts if r not in kpis_map]
+                if ruts_sin_kpi:
+                    logger.debug(
+                        f"[ADMIN_MERITS] regla='{rname}' template={_tkey} — "
+                        f"{len(ruts_sin_kpi)}/{len(all_ruts)} ruts sin KPI"
+                    )
+
+        # ── Filtros de permisos + explícitos ──────────────────────────────
         def _rut_has_access(rut: str) -> bool:
             if allowed_siglas is None:
                 return True  # acceso total
@@ -819,7 +971,6 @@ async def merit_leaderboard(
         )
 
         if not filtered_ruts:
-            rule_meta = _extract_rule_metadata(rule)
             competition_results.append({
                 "rule_id":            rid,
                 "rule_name":          rname,
@@ -831,10 +982,11 @@ async def merit_leaderboard(
                 "fulfilled_count":    0,
                 "leaderboard":        [],
                 "has_data":           True,
+                "is_live":            _is_live,
             })
             continue
 
-        # Construir filas enriquecidas
+        # ── Construir filas enriquecidas ──────────────────────────────────
         leaderboard_rows = []
         for rut in filtered_ruts:
             result_info = rut_result_map.get(rut, {})
@@ -883,14 +1035,14 @@ async def merit_leaderboard(
                 "avg_local":             sales_info.get("avg_local", 0),
                 # ─ KPIs extra (ventas)
                 "promedio_mesa":         sales_info.get("promedio_mesa", 0),
-                "pm_mesa_puesto_emp":     sales_info.get("pm_mesa_puesto_emp", 0),
-                "pm_mesa_puesto_local":   sales_info.get("pm_mesa_puesto_local", 0),
-                "promedio_persona":       sales_info.get("promedio_persona", 0),
-                "avg_venta_diaria":       sales_info.get("avg_venta_diaria", 0),
-                "dias_con_venta":         sales_info.get("dias_con_venta", 0),
+                "pm_mesa_puesto_emp":    sales_info.get("pm_mesa_puesto_emp", 0),
+                "pm_mesa_puesto_local":  sales_info.get("pm_mesa_puesto_local", 0),
+                "promedio_persona":      sales_info.get("promedio_persona", 0),
+                "avg_venta_diaria":      sales_info.get("avg_venta_diaria", 0),
+                "dias_con_venta":        sales_info.get("dias_con_venta", 0),
                 "personas_atendidas":    sales_info.get("personas_atendidas", 0),
                 "total_mesas":           sales_info.get("total_mesas", 0),
-                "days_present_admin":     sales_info.get("days_present_admin", 0),
+                "days_present_admin":    sales_info.get("days_present_admin", 0),
                 "es_competidor":         sales_info.get("es_competidor", False),
                 # ─ Tiempos
                 "avg_seg":               sales_info.get("avg_seg", 0),
@@ -936,7 +1088,6 @@ async def merit_leaderboard(
             f"{len(leaderboard_rows)} participantes, {fulfilled_count} ganadores"
         )
 
-        rule_meta = _extract_rule_metadata(rule)
         competition_results.append({
             "rule_id":            rid,
             "rule_name":          rname,
@@ -949,6 +1100,7 @@ async def merit_leaderboard(
             "fulfilled_count":    fulfilled_count,
             "leaderboard":        leaderboard_rows,
             "has_data":           True,
+            "is_live":            _is_live,
         })
 
     logger.info(

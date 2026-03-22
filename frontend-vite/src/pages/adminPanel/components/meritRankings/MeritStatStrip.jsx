@@ -13,19 +13,20 @@ const StatChip = ({ icon: Icon, label, value, colorClass }) => (
 const MeritStatStrip = ({ comp, t }) => {
   if (!comp || !comp.has_data) return null;
 
+  const isLive = comp.is_live === true;
   const competing = (comp.total_participants || 0) - (comp.fulfilled_count || 0);
 
   return (
     <div className="flex gap-2">
       <StatChip
         icon={CheckCircle}
-        label={t('merit_rankings.stats.winners')}
+        label={isLive ? 'Ganarían' : t('merit_rankings.stats.winners')}
         value={comp.fulfilled_count ?? 0}
-        colorClass="text-matrix-green"
+        colorClass={isLive ? 'text-amber-400' : 'text-matrix-green'}
       />
       <StatChip
         icon={TrendingUp}
-        label={t('merit_rankings.stats.competing')}
+        label={isLive ? 'En competencia' : t('merit_rankings.stats.competing')}
         value={competing}
         colorClass="text-yellow-400"
       />

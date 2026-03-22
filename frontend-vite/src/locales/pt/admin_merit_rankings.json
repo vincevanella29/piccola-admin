@@ -1,15 +1,17 @@
 {
+  "label": "Rankings de Mérito",
+  "description": "Ranking de competições de meritocracia por vendas e período",
   "merit_rankings": {
-    "page_title": "Merit Rankings Admin",
-    "page_desc": "Controle de competições e ranking de vendas",
+    "page_title": "Rankings de Mérito",
+    "page_desc": "Controle de competições e rankings por vendas",
     "kpi_competitions": "Competições",
     "kpi_participants": "Participantes",
-    "kpi_winners": "Ganhadores",
+    "kpi_winners": "Vencedores",
     "period_label": "Período",
     "restricted_badge": "Apenas: {{local}}",
-    "no_rules_active": "Sem competições ativas",
+    "no_rules_active": "Nenhuma competição ativa",
     "toolbar": {
-      "search_placeholder": "Buscar funcionário, RUT...",
+      "search_placeholder": "Buscar funcionário, ID...",
       "filters": "Filtros",
       "refresh": "Atualizar",
       "reset": "Resetar",
@@ -32,7 +34,7 @@
       "local": "Local",
       "top_label": "Top {{n}}",
       "pts_label": "+{{n}} pts",
-      "winners_label": "{{n}} ganhadores",
+      "winners_label": "{{n}} vencedores",
       "participants_label": "{{n}} participantes",
       "no_data": "Sem dados neste período"
     },
@@ -43,17 +45,17 @@
       "col_employee": "Funcionário",
       "col_local": "Local",
       "col_sales": "Vendas",
-      "col_avg_mesa": "R$/Mesa",
+      "col_avg_mesa": "$/Mesa",
       "col_mesas": "Mesas",
       "col_status": "Status",
       "status_won": "Ganhou",
       "status_competing": "Competindo",
       "no_data_title": "Sem dados para este período",
       "no_data_desc": "O worker ainda não processou este mês ou não há competidores elegíveis",
-      "no_filter_match": "Sem resultados com esses filtros"
+      "no_filter_match": "Nenhum resultado com esses filtros"
     },
     "stats": {
-      "winners": "Ganhadores",
+      "winners": "Vencedores",
       "competing": "Competindo",
       "pts_prize": "Pts em jogo"
     }

@@ -1,6 +1,8 @@
 {
+  "label": "Rankings de Mérito",
+  "description": "Ranking de competencias de meritocracia por ventas y periodo",
   "merit_rankings": {
-    "page_title": "Merit Rankings Admin",
+    "page_title": "Rankings de Mérito",
     "page_desc": "Control de competencias y rankings por ventas",
     "kpi_competitions": "Competencias",
     "kpi_participants": "Participantes",

@@ -223,6 +223,7 @@ const DetailRow = ({ row, comp }) => {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const MeritLeaderboardTable = ({ comp, search, t }) => {
+  const isLive = comp?.is_live === true;
   const [sortKey, setSortKey] = useState('puesto_empresa');
   const [sortDir, setSortDir] = useState('asc');
   const [expandedRut, setExpandedRut] = useState(null);
@@ -383,6 +384,11 @@ const MeritLeaderboardTable = ({ comp, search, t }) => {
             const expanded = expandedRut === row.rut;
             const topRef   = comp?.ranking_scope === 'local' ? row.top_local : row.top_empresa;
 
+            // Live: fulfilled = "podría ganar" (provisional)
+            const rowBg = won
+              ? isLive ? 'bg-amber-400/[0.03]' : 'bg-matrix-green/[0.025]'
+              : '';
+
             return (
               <React.Fragment key={row.rut || i}>
                 <motion.tr
@@ -390,9 +396,7 @@ const MeritLeaderboardTable = ({ comp, search, t }) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(i * 0.01, 0.25) }}
                   onClick={() => toggleExpand(row.rut)}
-                  className={`cursor-pointer transition-colors hover:bg-dark-surface-secondary/20 ${
-                    won ? 'bg-matrix-green/[0.025]' : ''
-                  } ${expanded ? 'bg-dark-surface-secondary/15' : ''}`}
+                  className={`cursor-pointer transition-colors hover:bg-dark-surface-secondary/20 ${rowBg} ${expanded ? 'bg-dark-surface-secondary/15' : ''}`}
                 >
                   {/* Expand icon */}
                   <td className="w-8 px-2 py-2">
@@ -498,14 +502,21 @@ const MeritLeaderboardTable = ({ comp, search, t }) => {
                   {/* Status */}
                   <td className="px-3 py-2.5 text-center">
                     {won ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-matrix-green bg-matrix-green/10 border border-matrix-green/20 px-2 py-0.5 rounded-full whitespace-nowrap">
-                        <FaCheckCircle size={8} />
-                        {t('merit_rankings.leaderboard.status_won')}
-                      </span>
+                      isLive ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          <FaCheckCircle size={8} />
+                          Podría ganar
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-matrix-green bg-matrix-green/10 border border-matrix-green/20 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          <FaCheckCircle size={8} />
+                          {t('merit_rankings.leaderboard.status_won')}
+                        </span>
+                      )
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[10px] text-dark-text-secondary bg-dark-surface-secondary border border-dark-border/15 px-2 py-0.5 rounded-full whitespace-nowrap">
                         <FaTimesCircle size={8} />
-                        {t('merit_rankings.leaderboard.status_competing')}
+                        {isLive ? 'En competencia' : t('merit_rankings.leaderboard.status_competing')}
                       </span>
                     )}
                   </td>

@@ -145,6 +145,7 @@ const CompetitionCard = ({ comp, isSelected, onClick }) => {
   const posLabel   = positionLabel(comp);
   const isAnnual   = comp.period_mode === 'year';
   const isAdmin    = comp.is_admin_rule;
+  const isLive     = comp.is_live;
 
   return (
     <motion.button
@@ -183,6 +184,11 @@ const CompetitionCard = ({ comp, isSelected, onClick }) => {
               <Clock size={7} /> Hist.
             </span>
           )}
+          {isLive && (
+            <span className="flex items-center gap-0.5 text-[8px] font-black text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-full leading-none animate-pulse">
+              ● EN VIVO
+            </span>
+          )}
           {/* Points + position right-aligned */}
           <span className="ml-auto text-[10px] font-black font-mono text-matrix-green leading-none">+{comp.merit_points}pt</span>
         </div>
@@ -210,20 +216,20 @@ const CompetitionCard = ({ comp, isSelected, onClick }) => {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[9px]">
-                <span className="flex items-center gap-0.5 text-matrix-green font-bold">
-                  <CheckCircle size={8} /> {fulfilled}
+                <span className={`flex items-center gap-0.5 font-bold ${isLive ? 'text-amber-400' : 'text-matrix-green'}`}>
+                  <CheckCircle size={8} /> {fulfilled} {isLive ? 'ganarían' : ''}
                 </span>
                 <span className="text-dark-text-secondary/40">/</span>
                 <span className="text-dark-text-secondary">{total}</span>
               </div>
-              <span className={`font-bold text-[10px] ${pct >= 50 ? 'text-matrix-green' : 'text-yellow-400'}`}>
+              <span className={`font-bold text-[10px] ${pct >= 50 ? (isLive ? 'text-amber-400' : 'text-matrix-green') : 'text-yellow-400'}`}>
                 {pct}%
               </span>
             </div>
 
             <div className="h-[3px] bg-dark-border/15 rounded-full overflow-hidden">
               <motion.div
-                className={`h-full rounded-full ${barColor(tplCat, isAnnual)}`}
+                className={`h-full rounded-full ${isLive ? 'bg-amber-400/70' : barColor(tplCat, isAnnual)}`}
                 initial={{ width: 0 }}
                 animate={{ width: `${pct}%` }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}

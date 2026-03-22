@@ -1,7 +1,9 @@
 {
+  "label": "Merit Rankings",
+  "description": "Meritocracy competition rankings by sales and period",
   "merit_rankings": {
-    "page_title": "Merit Rankings Admin",
-    "page_desc": "Competition and sales ranking control",
+    "page_title": "Merit Rankings",
+    "page_desc": "Competition control and rankings by sales",
     "kpi_competitions": "Competitions",
     "kpi_participants": "Participants",
     "kpi_winners": "Winners",
@@ -9,7 +11,7 @@
     "restricted_badge": "Only: {{local}}",
     "no_rules_active": "No active competitions",
     "toolbar": {
-      "search_placeholder": "Search employee, RUT...",
+      "search_placeholder": "Search employee, ID...",
       "filters": "Filters",
       "refresh": "Refresh",
       "reset": "Reset",
@@ -18,18 +20,18 @@
       "competition_all": "All active",
       "period_label": "Period",
       "period_current": "Current month",
-      "local_label": "Branch",
-      "local_all": "All branches",
+      "local_label": "Location",
+      "local_all": "All locations",
       "cargo_label": "Role",
       "cargo_all": "All roles"
     },
     "competitions": {
       "section_title": "Competitions",
-      "show_historic": "View historic",
-      "show_active": "View active only",
+      "show_historic": "Show historic",
+      "show_active": "Show active only",
       "sales": "Sales",
       "empresa": "Company",
-      "local": "Branch",
+      "local": "Location",
       "top_label": "Top {{n}}",
       "pts_label": "+{{n}} pts",
       "winners_label": "{{n}} winners",
@@ -38,10 +40,10 @@
     },
     "leaderboard": {
       "participants": "participants",
-      "col_rank_emp": "#Comp",
-      "col_rank_local": "#Branch",
+      "col_rank_emp": "#Co.",
+      "col_rank_local": "#Loc.",
       "col_employee": "Employee",
-      "col_local": "Branch",
+      "col_local": "Location",
       "col_sales": "Sales",
       "col_avg_mesa": "$/Table",
       "col_mesas": "Tables",
@@ -49,13 +51,13 @@
       "status_won": "Won",
       "status_competing": "Competing",
       "no_data_title": "No data for this period",
-      "no_data_desc": "The worker hasn't processed this month yet or there are no eligible competitors",
-      "no_filter_match": "No results with those filters"
+      "no_data_desc": "The worker has not yet processed this month or there are no eligible competitors",
+      "no_filter_match": "No results match those filters"
     },
     "stats": {
       "winners": "Winners",
       "competing": "Competing",
-      "pts_prize": "Prize pts"
+      "pts_prize": "Pts at stake"
     }
   }
 }
