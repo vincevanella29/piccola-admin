@@ -67,3 +67,19 @@ export async function getRankings(
     headers: buildAuthHeaders(appState),
   });
 }
+
+
+/**
+ * Fetches support data: workers with sales roles missing KPI data.
+ */
+export async function getSupportMissing(appState, { periodo_start, periodo_end, sucursal = null } = {}) {
+  if (!periodo_start || !periodo_end) throw new Error('Start and end periods are required');
+
+  const params = toParams({ periodo_start, periodo_end, sucursal });
+  return api({
+    method: 'GET',
+    endpoint: `/admin/rankings/support?${params.toString()}`,
+    withCredentials: true,
+    headers: buildAuthHeaders(appState),
+  });
+}

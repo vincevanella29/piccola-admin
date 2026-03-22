@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 // Asegúrate de que la ruta a tu archivo de API sea correcta
-import { getRankings } from '../utils/adminRankings'; 
+import { getRankings, getSupportMissing } from '../utils/adminRankings'; 
 import { useTranslation } from 'react-i18next';
 
 // Helper para obtener el inicio y fin del mes actual en formato YYYY-MM
@@ -16,6 +16,7 @@ export default function useAdminRankings(appState) {
   
   // --- Estados del Hook ---
   const [data, setData] = useState(null);
+  const [supportData, setSupportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -78,6 +79,21 @@ export default function useAdminRankings(appState) {
     }
   }, [appState, wallet, token, pagination.itemsPerPage, t]);
 
+  // --- Fetch de soporte (workers sin ventas) ---
+  const fetchSupport = useCallback(async (currentFilters) => {
+    if (!wallet || !token) return;
+    try {
+      const res = await getSupportMissing(appState, {
+        periodo_start: currentFilters.periodo_start,
+        periodo_end: currentFilters.periodo_end,
+      });
+      setSupportData(res);
+    } catch (err) {
+      console.error('Error fetching support data:', err);
+      setSupportData(null);
+    }
+  }, [appState, wallet, token]);
+
   // --- Efecto para recargar datos cuando cambian los filtros o la página ---
   // Se gatilla cuando el componente llama a applyFilters o goToPage
   // (Este enfoque evita recargas automáticas por cada cambio en un input)
@@ -93,6 +109,7 @@ export default function useAdminRankings(appState) {
   const applyFilters = () => {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
     fetchRankings(filters, 1);
+    fetchSupport(filters);
   };
 
   // Cambia de página y hace el fetch
@@ -110,6 +127,7 @@ export default function useAdminRankings(appState) {
   // --- Valor de Retorno del Hook ---
   return {
     data,
+    supportData,
     loading,
     error,
     filters,

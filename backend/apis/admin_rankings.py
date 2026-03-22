@@ -474,3 +474,103 @@ async def get_employee_rankings(
         "ranking": paginated_results,
         "workers": workers_payload
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Endpoint de soporte: garzones sin venta / sin RUT de venta
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_SALES_REQUIRED_SECTIONS = {"garzon", "salonero"}
+_SALES_CARGOS_CACHE: List[str] = []
+
+def _get_sales_required_cargos() -> List[str]:
+    """Cached: lee cargos cuya sección indica que deberían vender."""
+    global _SALES_CARGOS_CACHE
+    if _SALES_CARGOS_CACHE:
+        return _SALES_CARGOS_CACHE
+    docs = db.cargos_intranet.find(
+        {"seccion": {"$regex": "|".join(_SALES_REQUIRED_SECTIONS), "$options": "i"}},
+        {"cargo": 1, "_id": 0}
+    )
+    _SALES_CARGOS_CACHE = [d["cargo"] for d in docs if d.get("cargo")]
+    return _SALES_CARGOS_CACHE
+
+
+@router.get(
+    "/admin/rankings/support",
+    summary="Workers con rol de ventas activos sin KPIs en el periodo (soporte)",
+)
+async def get_support_missing_sales(
+    periodo_start: str = Query(..., description="Período de inicio (YYYY-MM)"),
+    periodo_end: str = Query(..., description="Período de fin (YYYY-MM)"),
+    sucursal: Optional[str] = None,
+    user: dict = Depends(verify_session),
+):
+    perms = get_perms_from_user(user)
+    if sucursal:
+        validate_include_local_or_403(perms, [sucursal])
+
+    allowed_slugs = allowed_local_filter(perms)
+    normalized_sigla = normalize_sucursal_to_sigla(sucursal) if sucursal else None
+    allowed_siglas = derive_allowed_siglas_from_slugs(allowed_slugs) if (not normalized_sigla and allowed_slugs is not None) else set()
+
+    # 1. Cargos que deben vender (cached)
+    sales_cargos = _get_sales_required_cargos()
+    if not sales_cargos:
+        return {"ok": True, "missing": [], "count": 0, "sales_cargos": []}
+
+    # 2. Workers activos — solo campos mínimos
+    worker_q: Dict[str, Any] = {"activo": 1, "cargo": {"$in": sales_cargos}}
+    if normalized_sigla:
+        worker_q["sucursal"] = normalized_sigla
+    elif allowed_slugs is not None:
+        if not allowed_siglas:
+            return {"ok": True, "missing": [], "count": 0, "sales_cargos": sales_cargos}
+        worker_q["sucursal"] = {"$in": sorted(list(allowed_siglas))}
+
+    workers = list(TRABAJADORES_COLL.find(
+        worker_q,
+        {"rut": 1, "nombres": 1, "apellidopaterno": 1, "cargo": 1, "sucursal": 1, "_id": 0}
+    ))
+    if not workers:
+        return {"ok": True, "missing": [], "count": 0, "sales_cargos": sales_cargos}
+
+    # 3. RUTs con KPIs — query liviana: solo rut + periodo match
+    worker_ruts = [str(w.get("rut", "")) for w in workers if w.get("rut")]
+    periodo_match = {"rut": {"$in": worker_ruts}}
+    if periodo_start == periodo_end:
+        periodo_match["periodo"] = periodo_start       # exact match = index hit
+    else:
+        periodo_match["periodo"] = {"$gte": periodo_start, "$lte": periodo_end}
+
+    # Usar find con projection (más rápido que distinct para sets pequeños)
+    ruts_with_kpi_str = {
+        str(d["rut"])
+        for d in KPI_EMPLEADO_COLL.find(periodo_match, {"rut": 1, "_id": 0})
+    }
+
+    # 4. Diff rápido
+    missing = []
+    for w in workers:
+        rut_str = str(w.get("rut", ""))
+        if rut_str and rut_str not in ruts_with_kpi_str:
+            missing.append({
+                "rut": rut_str,
+                "nombre": w.get("nombres"),
+                "apellido": w.get("apellidopaterno"),
+                "cargo": w.get("cargo"),
+                "local": w.get("sucursal"),
+                "issue": "no_kpi",
+                "issue_label": "Sin registro de ventas",
+            })
+
+    missing.sort(key=lambda x: (x.get("local", ""), x.get("apellido", "")))
+
+    return {
+        "ok": True,
+        "missing": missing,
+        "count": len(missing),
+        "total_sales_workers": len(workers),
+        "sales_cargos": sales_cargos,
+    }
+

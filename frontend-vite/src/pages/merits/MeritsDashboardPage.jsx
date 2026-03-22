@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { TrendingUp, AlertTriangle } from 'lucide-react';
 
 // Hooks
 import useAdminRankings from '../../hooks/useAdminRankings';
@@ -9,16 +10,22 @@ import useAdminRankings from '../../hooks/useAdminRankings';
 import { DashboardToolbar } from './components/adminDash/DashboardToolbar';
 import { SummaryCards } from './components/adminDash/SummaryCards';
 import { EmployeeTable } from './components/adminDash/EmployeeTable';
-// Al importar del directorio, automáticamente resuelve a /EmployeeDetailPanel/index.jsx
 import { EmployeeDetailPanel } from './components/adminDash/EmployeeDetailPanel'; 
+import SupportTable from './components/adminDash/SupportTable';
+
+const TABS = [
+  { id: 'ranking', label: 'Ranking', icon: TrendingUp },
+  { id: 'support', label: 'Soporte', icon: AlertTriangle },
+];
 
 const MeritsDashboardPage = ({ appState }) => {
   const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState('ranking');
   
   // --- HOOK DEL BACKEND ---
-  // Maneja la carga, errores y los filtros que requieren una nueva llamada a la API
   const { 
     data, 
+    supportData,
     loading, 
     error, 
     filters: backendFilters,
@@ -78,9 +85,8 @@ const MeritsDashboardPage = ({ appState }) => {
     return result;
   }, [allEmployees, searchTerm, clientFilters, sortConfig]);
 
-  // Opciones para selectores: locales desde appState.allowed, cargos desde data
+  // Opciones para selectores
   const clientFilterOptions = useMemo(() => {
-    // 1) Locales PERMITIDOS (siglas) desde appState
     const allowedEmpresas = Array.isArray(appState?.allowed?.empresas)
       ? appState.allowed.empresas
       : [];
@@ -90,17 +96,11 @@ const MeritsDashboardPage = ({ appState }) => {
         if (s?.sigla) allowedSiglas.add(String(s.sigla));
       }
     }
-
-    // fallback si no hay allowed (dev)
     if (allowedSiglas.size === 0) {
       allEmployees.forEach(e => e?.local && allowedSiglas.add(String(e.local)));
     }
-
-    // 2) Cargos desde data (client-side)
     const cargos = new Set(allEmployees.map(e => e.cargo).filter(Boolean));
-
     return {
-      // DashboardToolbar arma {value,label} más abajo, acá sólo entregamos valores
       locales: ['all', ...Array.from(allowedSiglas).sort()],
       cargos: ['all', ...Array.from(cargos).sort()],
     };
@@ -112,6 +112,8 @@ const MeritsDashboardPage = ({ appState }) => {
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
     }));
   };
+
+  const supportCount = SupportTable.getPriorityCount(supportData);
   
   return (
     <div className="w-full max-w-full mx-auto p-4 md:p-6 space-y-6 bg-dark-background text-dark-text">
@@ -141,24 +143,83 @@ const MeritsDashboardPage = ({ appState }) => {
         setClientFilters={setClientFilters}
         clientFilterOptions={clientFilterOptions}
       />
-      
-      <SummaryCards data={filteredAndSortedEmployees} />
-      
-      <EmployeeTable
-        employees={filteredAndSortedEmployees}
-        onSort={handleSort}
-        sortConfig={sortConfig}
-        onSelectEmployee={setSelectedEmployee}
-        loading={loading}
-        // override: locales permitidos (mismo set pero con 'Todos' para la tabla)
-        allowedLocalOptions={['Todos', ...clientFilterOptions.locales.filter(v => v !== 'all')]}
-      />
+
+      {/* ── Tabs ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 bg-dark-surface border border-dark-border/20 rounded-xl p-1">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          const isSupport = tab.id === 'support';
+          const hasBadge = isSupport && supportCount > 0;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                isActive
+                  ? isSupport
+                    ? 'bg-red-500/15 text-red-400 shadow-sm'
+                    : 'bg-matrix-green/10 text-matrix-green shadow-sm'
+                  : 'text-dark-text-secondary hover:text-dark-text-primary hover:bg-dark-surface-secondary/30'
+              }`}
+            >
+              <Icon size={16} />
+              {tab.label}
+              {hasBadge && (
+                <span className={`ml-1 text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                  isActive ? 'bg-red-500/20 text-red-300' : 'bg-red-500/15 text-red-400 animate-pulse'
+                }`}>
+                  {supportCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Content ───────────────────────────────────────────────────── */}
+      <AnimatePresence mode="wait">
+        {activeTab === 'ranking' && (
+          <motion.div
+            key="ranking"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
+            className="space-y-6"
+          >
+            <SummaryCards data={filteredAndSortedEmployees} />
+            
+            <EmployeeTable
+              employees={filteredAndSortedEmployees}
+              onSort={handleSort}
+              sortConfig={sortConfig}
+              onSelectEmployee={setSelectedEmployee}
+              loading={loading}
+              allowedLocalOptions={['Todos', ...clientFilterOptions.locales.filter(v => v !== 'all')]}
+            />
+          </motion.div>
+        )}
+
+        {activeTab === 'support' && (
+          <motion.div
+            key="support"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
+          >
+            <SupportTable supportData={supportData} loading={loading} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {selectedEmployee && (
           <EmployeeDetailPanel
             employee={selectedEmployee}
-            allEmployees={filteredAndSortedEmployees} // <-- AÑADIR ESTA LÍNEA
+            allEmployees={filteredAndSortedEmployees}
             appState={appState}
             onClose={() => setSelectedEmployee(null)}
           />
