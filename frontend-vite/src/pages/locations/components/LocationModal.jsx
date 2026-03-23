@@ -135,12 +135,12 @@ const LocationModal = ({ location, isOpen, onClose, appState, liveVisitors = {} 
     return (
         <AnimatePresence>
             {isOpen && (
-                <motion.div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6"
+                <motion.div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-6"
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
                     <motion.div
-                        className="relative w-full max-w-2xl max-h-[92vh] flex flex-col bg-light-background dark:bg-dark-surface rounded-3xl shadow-2xl border border-light-border dark:border-dark-border overflow-hidden"
-                        initial={{ scale: 0.92, opacity: 0, y: 24 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.92, opacity: 0, y: 24 }} transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                        className="relative w-full sm:max-w-2xl h-[100dvh] sm:h-[88vh] flex flex-col bg-light-background dark:bg-dark-surface sm:rounded-3xl shadow-2xl border-0 sm:border border-light-border dark:border-dark-border overflow-hidden"
+                        initial={{ scale: 0.95, opacity: 0, y: 24 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.95, opacity: 0, y: 24 }} transition={{ type: 'spring', damping: 28, stiffness: 300 }}
                         onClick={e => e.stopPropagation()}>
 
                         {/* Header */}
@@ -183,8 +183,8 @@ const LocationModal = ({ location, isOpen, onClose, appState, liveVisitors = {} 
                             ))}
                         </div>
 
-                        {/* Content */}
-                        <div className="flex-1 overflow-y-auto px-6 py-5">
+                        {/* Content — min-h-0 is critical for flex overflow scroll */}
+                        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 overscroll-contain">
                             {activeTab === 'info' && <InfoTab form={form} handleChange={handleChange} />}
                             {activeTab === 'horarios' && (
                                 <HorariosTab openingHours={openingHours} setOpeningHours={setOpeningHours}
