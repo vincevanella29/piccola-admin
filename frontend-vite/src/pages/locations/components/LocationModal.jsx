@@ -135,12 +135,12 @@ const LocationModal = ({ location, isOpen, onClose, appState, liveVisitors = {} 
     return (
         <AnimatePresence>
             {isOpen && (
-                <motion.div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-6"
+                <motion.div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center sm:p-6"
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
                     <motion.div
-                        className="relative w-full sm:max-w-2xl h-[100dvh] sm:h-[88vh] flex flex-col bg-light-background dark:bg-dark-surface sm:rounded-3xl shadow-2xl border-0 sm:border border-light-border dark:border-dark-border overflow-hidden"
-                        initial={{ scale: 0.95, opacity: 0, y: 24 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.95, opacity: 0, y: 24 }} transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                        className="relative w-full sm:max-w-2xl top-24 sm:top-0 h-[calc(100dvh-96px-72px)] sm:h-[calc(100vh-7rem)] flex flex-col bg-light-background dark:bg-dark-surface rounded-t-3xl sm:rounded-3xl shadow-2xl border-0 sm:border border-light-border dark:border-dark-border overflow-hidden"
+                        initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 40 }} transition={{ type: 'spring', damping: 28, stiffness: 300 }}
                         onClick={e => e.stopPropagation()}>
 
                         {/* Header */}
