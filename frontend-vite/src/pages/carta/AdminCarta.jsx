@@ -134,7 +134,7 @@ const CreateMenuTypeInline = ({ onSave, onCancel }) => {
 const AdminCarta = ({ appState }) => {
     const { t } = useTranslation();
     const {
-        products, categories, locations, menuOptions, menuTypes, isLoading, isSyncing,
+        products, categories, locations, mtzSummary, menuOptions, menuTypes, isLoading, isSyncing,
         fetchAll, refresh, patchProduct, updateProduct, createProduct, updateCategory, createCategory,
         uploadProductImage, triggerPublicSync, cleanDatabaseDuplicates,
         deleteProduct, deleteCategory, bulkDeleteProducts, bulkDeleteCategories,
@@ -316,44 +316,56 @@ const AdminCarta = ({ appState }) => {
     const toggleProduct = (id) => setSelectedProductIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
     const toggleCategory = (id) => setSelectedCategoryIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
+    // Quick price update — inline edit from ProductsTable
+    const handleQuickPriceUpdate = useCallback(async (productId, newPrice) => {
+        try {
+            await updateProduct(productId, { precio: newPrice });
+            patchProduct(productId, { precio: newPrice });
+        } catch (err) {
+            console.error('Quick price update error:', err);
+            throw err;
+        }
+    }, [updateProduct, patchProduct]);
+
     return (
         <div className="min-h-screen bg-light-background dark:bg-dark-background">
 
-            {/* ── Hero Header ─────────────────────────────────────────────── */}
+            {/* ── Hero Header ───────────────────────────────────────────────── */}
             <div className="relative bg-gradient-to-b from-light-surface-secondary/80 to-transparent dark:from-dark-surface/80 dark:to-transparent border-b border-light-border/50 dark:border-dark-border/50 pb-0">
-                <div className="max-w-7xl mx-auto px-6 lg:px-8 pt-10 pb-6">
-                    <div className="flex items-end justify-between gap-6">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 pb-4 sm:pb-6">
+                    {/* Title + Actions — stacks on mobile */}
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                         <div>
-                            <div className="flex items-center gap-3 mb-1">
-                                <div className="w-8 h-8 rounded-xl bg-light-accent dark:bg-dark-accent flex items-center justify-center shadow-neon">
-                                    <BookOpen className="w-4 h-4 text-white" />
+                            <div className="flex items-center gap-2.5 mb-1">
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-light-accent dark:bg-dark-accent flex items-center justify-center shadow-neon">
+                                    <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                                 </div>
-                                <span className="text-xs font-semibold uppercase tracking-widest text-light-accent dark:text-dark-accent">Admin</span>
+                                <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-light-accent dark:text-dark-accent">Admin</span>
                             </div>
-                            <h1 className="text-3xl font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">
                                 {t('carta.title')}
                             </h1>
-                            <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                            <p className="text-xs sm:text-sm text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                                 {t('carta.subtitle')}
                             </p>
                         </div>
 
-                        {/* Quick Actions */}
-                        <div className="flex flex-col items-end gap-2 shrink-0">
+                        {/* Quick Actions — horizontal scrollable on mobile */}
+                        <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
                             <div className="flex items-center gap-2">
                                 <button onClick={handleCleanDb} disabled={isSyncingLocal}
-                                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-red-500 dark:text-red-400 hover:bg-red-500/5 text-xs font-semibold transition-all disabled:opacity-40 shadow-sm">
+                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-red-500 dark:text-red-400 hover:bg-red-500/5 text-[11px] sm:text-xs font-semibold transition-all disabled:opacity-40 shadow-sm">
                                     {isSyncingLocal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                                    <span className="hidden sm:inline">{t('carta.clean_db')}</span>
+                                    <span className="hidden xs:inline">{t('carta.clean_db')}</span>
                                 </button>
                                 <button onClick={handleSyncWeb} disabled={isSyncingLocal}
-                                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all disabled:opacity-40 shadow-sm ${
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] sm:text-xs font-semibold transition-all disabled:opacity-40 shadow-sm ${
                                         isSyncingLocal
                                             ? 'bg-green-500/10 border-green-400/30 text-green-600 dark:text-green-400'
                                             : 'bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-green-500/5 hover:border-green-400/30 hover:text-green-600 dark:hover:text-green-400'
                                     }`}>
                                     {isSyncingLocal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-green-500" />}
-                                    <span className="hidden sm:inline">{t('carta.sync_web')}</span>
+                                    <span className="hidden xs:inline">{t('carta.sync_web')}</span>
                                 </button>
                             </div>
                             {syncMsg && (
@@ -369,14 +381,13 @@ const AdminCarta = ({ appState }) => {
                     </div>
                 </div>
             </div>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
 
-            <div className="max-w-7xl mx-auto px-6 lg:px-8 py-6 space-y-5">
-
-                {/* ── Toolbar: Filters + Tabs + CTA ─────────────────────────── */}
+                {/* ── Toolbar: Filters + Tabs + CTA ───────────────────────── */}
                 <div className="space-y-3">
-                    {/* Row 1: Tabs */}
-                    <div className="overflow-x-auto pb-0.5">
-                        <div className="flex items-center bg-light-surface-secondary/70 dark:bg-dark-surface-secondary/70 backdrop-blur-sm p-1 rounded-2xl gap-0.5 border border-light-border/50 dark:border-dark-border/50 w-max">
+                    {/* Row 1: Tabs — scrollable on mobile */}
+                    <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto pb-0.5 scrollbar-hide">
+                        <div className="flex items-center bg-light-surface-secondary/70 dark:bg-dark-surface-secondary/70 backdrop-blur-sm p-1 rounded-2xl gap-0.5 border border-light-border/50 dark:border-dark-border/50 w-max min-w-full sm:min-w-0">
                             <SegmentedTab id="products"    active={activeTab === 'products'}    onClick={setActiveTab} icon={Package}          label={t('carta.tab_products')}    count={products.length} />
                             <SegmentedTab id="categories"  active={activeTab === 'categories'}  onClick={setActiveTab} icon={Tags}             label={t('carta.tab_categories')}  count={categories.length} />
                             <SegmentedTab id="options"     active={activeTab === 'options'}     onClick={setActiveTab} icon={Layers}           label={t('carta.tab_options')}     count={menuOptions.length} />
@@ -431,9 +442,9 @@ const AdminCarta = ({ appState }) => {
                     </AnimatePresence>
 
                     {/* Row 2: Search + Category filter + CTA */}
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2">
                         {/* Search */}
-                        <div className="relative flex-1 min-w-[140px] max-w-xs">
+                        <div className="relative flex-1 min-w-0 sm:min-w-[140px] sm:max-w-xs">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-light-text-secondary dark:text-dark-text-secondary pointer-events-none" />
                             <input type="text" placeholder={t('carta.search')} value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
@@ -453,8 +464,8 @@ const AdminCarta = ({ appState }) => {
                             )}
                         </AnimatePresence>
 
-                        {/* spacer */}
-                        <div className="flex-1" />
+                        {/* spacer — desktop only */}
+                        <div className="hidden sm:block flex-1" />
 
                         {/* CTA */}
                         {activeTab === 'products' && (
@@ -492,7 +503,7 @@ const AdminCarta = ({ appState }) => {
                         <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
                             {activeTab === 'products' && (
                                 <ProductsTable products={filteredProducts} categories={categories}
-                                    menuOptions={menuOptions}
+                                    menuOptions={menuOptions} mtzSummary={mtzSummary}
                                     selectedIds={selectedProductIds} onToggle={toggleProduct} onToggleAll={setSelectedProductIds}
                                     onEdit={setEditingProduct} onDelete={(id, name) => handleDeleteIndividual('products', id, name)}
                                     onAIImagen={setAiImagenProduct}
@@ -500,6 +511,7 @@ const AdminCarta = ({ appState }) => {
                                     onReorderGroups={reorderGroups}
                                     onToggleStatus={handleToggleProductStatus}
                                     onRefresh={refresh}
+                                    onQuickPriceUpdate={handleQuickPriceUpdate}
                                 />
                             )}
                             {activeTab === 'categories' && (

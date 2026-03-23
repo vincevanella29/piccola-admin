@@ -10,6 +10,7 @@ const useCartaAdmin = (appState) => {
     const [locations, setLocations] = useState([]);
     const [menuOptions, setMenuOptions] = useState([]);
     const [menuTypes, setMenuTypes] = useState([]);
+    const [mtzSummary, setMtzSummary] = useState({});
     const [isLoading, setIsLoading] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [error, setError] = useState(null);
@@ -20,18 +21,22 @@ const useCartaAdmin = (appState) => {
         setIsLoading(true);
         setError(null);
         try {
-            const [cats, prods, locs, opts, mTypes] = await Promise.all([
+            const [cats, prods, locs, opts, mTypes, mtzSum] = await Promise.all([
                 cartaApi.fetchCategories({ token, account }),
                 cartaApi.fetchProducts({ token, account, ...params }),
                 cartaApi.fetchLocations({ token, account }),
                 cartaApi.fetchMenuOptions({ token, account }),
                 cartaApi.fetchMenuTypes({ token, account }),
+                cartaApi.fetchMtzSummary({ token, account }).catch(e => { console.error('[MTZ-SUMMARY] fetch error:', e); return { data: {} }; }),
             ]);
+            console.log('[MTZ-SUMMARY] raw response:', mtzSum);
+            console.log('[MTZ-SUMMARY] keys count:', Object.keys(mtzSum?.data || {}).length);
             setCategories(Array.isArray(cats) ? cats : []);
             setProducts(Array.isArray(prods) ? prods : []);
             setLocations(Array.isArray(locs) ? locs : []);
             setMenuOptions(Array.isArray(opts) ? opts : []);
             setMenuTypes(Array.isArray(mTypes) ? mTypes : []);
+            setMtzSummary(mtzSum?.data || {});
             hasFetched.current = true;
         } catch (err) {
             setError(err.message);
@@ -174,6 +179,7 @@ const useCartaAdmin = (appState) => {
         products,
         categories,
         locations,
+        mtzSummary,
         menuOptions,
         menuTypes,
         isLoading,

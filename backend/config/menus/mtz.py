@@ -119,13 +119,13 @@ def get_mtz_data(product_id: str) -> dict:
         costo_total = 0.0
         for ing in receta_list:
             if ing.get("mesano") == latest_mesano:
-                c = ing.get("costo", 0.0) or 0.0
+                c = ing.get("costo_linea", 0.0) or ing.get("costo", 0.0) or 0.0
                 costo_total += c
                 receta_final.append({
                     "ingrediente_codigo": ing.get("ingrediente_codigo") or ing.get("ingrediente_cod"),
-                    "ingrediente":        ing.get("ingrediente") or ing.get("ingrediente_nombre", "Desconocido"),
-                    "cantidad":           ing.get("cantidad", 0.0),
-                    "unidad":             ing.get("unidad", ""),
+                    "ingrediente":        ing.get("ingrediente_nombre") or ing.get("ingrediente", "Desconocido"),
+                    "cantidad":           ing.get("cantidad_ingrediente") or ing.get("cantidad", 0.0),
+                    "unidad":             ing.get("u_medida_base") or ing.get("unidad", ""),
                     "costo":              c,
                     "pct_costo":          None,
                 })

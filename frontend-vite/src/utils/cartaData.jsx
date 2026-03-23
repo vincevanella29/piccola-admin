@@ -92,6 +92,15 @@ export const fetchMtzMissingProducts = async ({ token, account }) => {
     });
 };
 
+export const fetchMtzSummary = async ({ token, account }) => {
+    return api({
+        method: 'GET',
+        endpoint: '/carta/mtz-summary',
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
 export const fetchMenuOptions = async ({ token, account }) => {
     return api({
         method: 'GET',
@@ -474,3 +483,34 @@ export const fetchLiveVisitors = async ({ token, account }) => {
         withCredentials: true,
     });
 };
+
+// ── AI Nutrition ───────────────────────────────────
+export const generateProductNutrition = async ({ token, account, payload }) => {
+    return api({
+        method: 'POST',
+        endpoint: '/carta/ai-nutrition/generate',
+        data: payload,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const acceptProductNutrition = async ({ token, account, payload }) => {
+    return api({
+        method: 'POST',
+        endpoint: '/carta/ai-nutrition/accept',
+        data: payload,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const fetchProductNutrition = async ({ token, account, productId }) => {
+    return api({
+        method: 'GET',
+        endpoint: `/carta/ai-nutrition/${productId}`,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+

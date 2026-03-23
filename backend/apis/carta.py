@@ -623,6 +623,54 @@ async def get_mtz_data(product_id: str, user: dict = Depends(_require_catalog_ac
     return result
 
 
+@router.get("/carta/mtz-summary")
+async def get_mtz_summary(user: dict = Depends(_require_catalog_access)):
+    """Batch: latest-month sales/margin summary per product code for the table."""
+    # Get latest mesano
+    latest_doc = db.rentabilidad_producto_locales.find_one(
+        {}, {"mesano": 1, "_id": 0}, sort=[("mesano", -1)]
+    )
+    if not latest_doc:
+        return {"mesano": None, "data": {}}
+    mesano = latest_doc["mesano"]
+
+    # One aggregation for all products in the latest month
+    pipeline = [
+        {"$match": {"mesano": mesano}},
+        {"$group": {
+            "_id": "$codig",
+            "cantidad": {"$sum": "$cantidad"},
+            "total_venta": {"$sum": "$total_venta"},
+            "total_margen": {"$sum": "$total_margen"},
+            "total_costo": {"$sum": "$total_costo"},
+            "puven": {"$first": "$puven"},
+        }},
+    ]
+    results = list(db.rentabilidad_producto_locales.aggregate(pipeline))
+
+    data = {}
+    for r in results:
+        cod = r["_id"]
+        if not cod:
+            continue
+        cant = r.get("cantidad", 0)
+        venta = r.get("total_venta", 0)
+        margen = r.get("total_margen", 0)
+        costo = r.get("total_costo", 0)
+        cupro = round(costo / cant, 0) if cant > 0 else None
+        margin_pct = round(margen / venta * 100, 1) if venta > 0 else None
+        data[cod] = {
+            "cantidad": cant,
+            "total_venta": round(venta),
+            "total_margen": round(margen),
+            "cupro": cupro,
+            "margin_pct": margin_pct,
+            "puven": r.get("puven"),
+        }
+
+    return {"mesano": mesano, "data": data}
+
+
 @router.get("/carta/mtz-missing")
 async def get_mtz_missing_products(user: dict = Depends(_require_catalog_access)):
     return mtz_svc.get_missing_products()

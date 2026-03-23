@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Edit2, Trash2, CheckSquare, Square, MinusSquare,
     ImageIcon, Sparkles, ChevronDown, ChevronRight,
-    Layers, GripVertical, Save, Loader2,
+    Layers, GripVertical, Save, Loader2, TrendingUp, ArrowUpDown, Pencil, Check, X,
 } from 'lucide-react';
 import {
     DndContext, DragOverlay, closestCenter,
@@ -26,6 +26,94 @@ import { CSS } from '@dnd-kit/utilities';
 // ── Formatters ────────────────────────────────────────────────────────────────
 const CLP = (v) =>
     v != null ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v) : '—';
+const fmtK = (v) => v == null ? '—' : v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v.toLocaleString('es-CL');
+
+// ── Inline Price Editor ───────────────────────────────────────────────────────
+const InlinePrice = ({ value, productId, onSave }) => {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState('');
+    const [saving, setSaving] = useState(false);
+    const inputRef = useRef(null);
+
+    const startEdit = (e) => {
+        e.stopPropagation();
+        setDraft(String(value || ''));
+        setEditing(true);
+    };
+
+    useEffect(() => {
+        if (editing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [editing]);
+
+    const save = async () => {
+        const num = parseInt(draft, 10);
+        if (isNaN(num) || num < 0) { setEditing(false); return; }
+        if (num === value) { setEditing(false); return; }
+        setSaving(true);
+        try {
+            await onSave(productId, num);
+        } catch (err) {
+            console.error('Price update error:', err);
+        } finally {
+            setSaving(false);
+            setEditing(false);
+        }
+    };
+
+    const cancel = () => setEditing(false);
+
+    const handleKey = (e) => {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') cancel();
+    };
+
+    if (editing) {
+        return (
+            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary font-medium">$</span>
+                <input
+                    ref={inputRef}
+                    type="number"
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onKeyDown={handleKey}
+                    onBlur={save}
+                    disabled={saving}
+                    className="w-16 px-1.5 py-1 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-accent/50 dark:border-dark-accent/50 text-sm font-mono font-bold text-light-text-primary dark:text-dark-text-primary outline-none focus:ring-1 focus:ring-light-accent dark:focus:ring-dark-accent transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                {saving && <Loader2 className="w-3 h-3 animate-spin text-light-accent dark:text-dark-accent" />}
+            </div>
+        );
+    }
+
+    return (
+        <button
+            onClick={startEdit}
+            className="group/price flex items-center gap-1 font-mono font-bold text-sm text-light-text-primary dark:text-dark-text-primary hover:text-light-accent dark:hover:text-dark-accent transition-colors cursor-text"
+            title="Click para editar precio"
+        >
+            {CLP(value)}
+            <Pencil className="w-2.5 h-2.5 opacity-0 group-hover/price:opacity-40 transition-opacity" />
+        </button>
+    );
+};
+
+const MarginPill = ({ pct }) => {
+    if (pct == null) return <span className="text-[10px] text-light-text-secondary/30 dark:text-dark-text-secondary/30">—</span>;
+    const color = pct >= 30
+        ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+        : pct >= 15
+            ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+            : 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400';
+    return (
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${color}`}>
+            <TrendingUp className="w-2.5 h-2.5" />{pct.toFixed(0)}%
+        </span>
+    );
+};
 
 // ── Image slider ─────────────────────────────────────────────────────────────
 const ImageSlider = ({ images, alt, className }) => {
@@ -112,13 +200,15 @@ const parseSortId = (sid) => {
 const SortableRow = ({
     product, idx, catId, sortableId, isLast, extraClass, hasPending, multiCatCount,
     selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
-    codigoToGroup, codigoToMods, getImages, cachebust, t,
+    codigoToGroup, codigoToMods, getImages, cachebust, t, mtzSummary = {},
+    onQuickPriceUpdate,
 }) => {
     const p = product;
     const sel = selectedIds.includes(p.id);
     const imgs = getImages(p).map(u => cachebust(u, p));
     const g = p.codigo ? codigoToGroup[p.codigo] : null;
     const mods = p.codigo ? codigoToMods[p.codigo] : null;
+    const mtz = p.codigo ? mtzSummary[p.codigo] : null;
 
     const {
         attributes, listeners, setNodeRef, transform, transition, isDragging,
@@ -207,18 +297,37 @@ const SortableRow = ({
                 )}
             </div>
 
-            {/* Price */}
-            <div className="w-24 shrink-0 px-2 py-2.5 font-mono font-bold text-sm text-light-text-primary dark:text-dark-text-primary whitespace-nowrap hidden sm:block">
-                {CLP(p.precio)}
+            {/* Price — inline editable */}
+            <div className="w-20 shrink-0 px-1 py-2.5 whitespace-nowrap hidden sm:block">
+                {onQuickPriceUpdate ? (
+                    <InlinePrice value={p.precio} productId={p.id} onSave={onQuickPriceUpdate} />
+                ) : (
+                    <span className="font-mono font-bold text-sm text-light-text-primary dark:text-dark-text-primary">{CLP(p.precio)}</span>
+                )}
+            </div>
+
+            {/* MTZ: Margin */}
+            <div className="w-16 shrink-0 px-1 py-2.5 hidden lg:flex items-center justify-center">
+                <MarginPill pct={mtz?.margin_pct} />
+            </div>
+
+            {/* MTZ: Qty Sold */}
+            <div className="w-16 shrink-0 px-1 py-2.5 hidden lg:flex items-center justify-end">
+                <span className="text-[11px] font-mono font-semibold text-light-text-secondary dark:text-dark-text-secondary">{mtz ? fmtK(mtz.cantidad) : '—'}</span>
+            </div>
+
+            {/* MTZ: Total Sales */}
+            <div className="w-20 shrink-0 px-1 py-2.5 hidden lg:flex items-center justify-end">
+                <span className="text-[11px] font-mono font-semibold text-light-text-primary dark:text-dark-text-primary">{mtz ? fmtK(mtz.total_venta) : '—'}</span>
             </div>
 
             {/* Status */}
-            <div className="w-20 shrink-0 px-2 py-2.5 hidden sm:flex items-center">
+            <div className="w-14 shrink-0 px-1 py-2.5 hidden sm:flex items-center">
                 <StatusToggle active={p.estado} loading={togglingId === p.id} onToggle={() => onToggleStatus?.(p.id, p.estado)} />
             </div>
 
             {/* Priority / Position */}
-            <div className="w-12 shrink-0 px-2 py-2.5 hidden sm:flex items-center justify-center">
+            <div className="w-10 shrink-0 px-1 py-2.5 hidden sm:flex items-center justify-center">
                 {hasPending ? (
                     <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-light-accent/15 dark:bg-dark-accent/15 text-light-accent dark:text-dark-accent text-[10px] font-bold">
                         {idx + 1}
@@ -289,7 +398,8 @@ const dropAnimation = {
 const SortableGroupRow = ({
     sortableId, groupOpt, groupProducts, idx, isLast, hasPending,
     selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
-    codigoToGroup, codigoToMods, getImages, cachebust, t,
+    codigoToGroup, codigoToMods, getImages, cachebust, t, mtzSummary = {},
+    onQuickPriceUpdate,
 }) => {
     const [expanded, setExpanded] = useState(false);
     const groupName = groupOpt.option_name || 'Grupo';
@@ -433,6 +543,8 @@ const SortableGroupRow = ({
                                 getImages={getImages}
                                 cachebust={cachebust}
                                 t={t}
+                                mtzSummary={mtzSummary}
+                                onQuickPriceUpdate={onQuickPriceUpdate}
                             />
                         ))}
                     </motion.div>
@@ -449,7 +561,8 @@ const SortableGroupRow = ({
 const SortableCategory = ({
     catId, items, hasPending, isSaving, multiCatCounts,
     selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
-    codigoToGroup, codigoToMods, getImages, cachebust, t,
+    codigoToGroup, codigoToMods, getImages, cachebust, t, mtzSummary = {},
+    onQuickPriceUpdate,
 }) => {
     // items = array of { type: 'product', product } | { type: 'group', groupId, groupOpt, products }
     const sortIds = useMemo(() => items.map(item =>
@@ -464,10 +577,13 @@ const SortableCategory = ({
                 <div className="w-8 shrink-0 py-2" />
                 <div className="w-14 shrink-0 px-2 py-2">{t('carta.col_image')}</div>
                 <div className="flex-1 px-2 py-2">{t('carta.col_name')}</div>
-                <div className="w-24 shrink-0 px-2 py-2 hidden sm:block">{t('carta.col_price')}</div>
-                <div className="w-20 shrink-0 px-2 py-2 hidden sm:block">{t('carta.col_status')}</div>
-                <div className="w-12 shrink-0 px-2 py-2 hidden sm:block text-center">
-                    {hasPending ? '🔄' : t('carta.col_priority')}
+                <div className="w-20 shrink-0 px-1 py-2 hidden sm:block">{t('carta.col_price')}</div>
+                <div className="w-16 shrink-0 px-1 py-2 hidden lg:block text-center">Margen</div>
+                <div className="w-16 shrink-0 px-1 py-2 hidden lg:block text-right">Vendido</div>
+                <div className="w-20 shrink-0 px-1 py-2 hidden lg:block text-right">Venta $</div>
+                <div className="w-14 shrink-0 px-1 py-2 hidden sm:block">{t('carta.col_status')}</div>
+                <div className="w-10 shrink-0 px-1 py-2 hidden sm:block text-center">
+                    {hasPending ? '🔄' : '#'}
                 </div>
                 <div className="w-32 shrink-0 px-2 py-2 pr-4" />
             </div>
@@ -496,6 +612,8 @@ const SortableCategory = ({
                             getImages={getImages}
                             cachebust={cachebust}
                             t={t}
+                            mtzSummary={mtzSummary}
+                            onQuickPriceUpdate={onQuickPriceUpdate}
                         />
                     );
                 }
@@ -521,7 +639,9 @@ const SortableCategory = ({
                         codigoToMods={codigoToMods}
                         getImages={getImages}
                         cachebust={cachebust}
+                        onQuickPriceUpdate={onQuickPriceUpdate}
                         t={t}
+                        mtzSummary={mtzSummary}
                     />
                 );
             })}
@@ -533,7 +653,7 @@ const SortableCategory = ({
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Mobile card (unchanged — no drag on mobile)
 // ═══════════════════════════════════════════════════════════════════════════════
-const MobileCard = ({ p, sel, imgs, onToggle, onEdit, onDelete, onAIImagen, t }) => (
+const MobileCard = ({ p, sel, imgs, onToggle, onEdit, onDelete, onAIImagen, onQuickPriceUpdate, t }) => (
     <motion.div
         initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
         className={`relative rounded-2xl border overflow-hidden transition-colors ${sel ? 'border-light-accent dark:border-dark-accent bg-light-accent/5 dark:bg-dark-accent/8' : 'border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface'}`}>
@@ -554,7 +674,13 @@ const MobileCard = ({ p, sel, imgs, onToggle, onEdit, onDelete, onAIImagen, t })
         </div>
         <div className="p-3 space-y-1.5">
             <div className="font-bold text-sm text-light-text-primary dark:text-dark-text-primary leading-tight line-clamp-2">{p.nombre}</div>
-            <div className="font-mono font-bold text-light-accent dark:text-dark-accent text-sm">{CLP(p.precio)}</div>
+            <div className="text-sm">
+                {onQuickPriceUpdate ? (
+                    <InlinePrice value={p.precio} productId={p.id} onSave={onQuickPriceUpdate} />
+                ) : (
+                    <span className="font-mono font-bold text-light-accent dark:text-dark-accent">{CLP(p.precio)}</span>
+                )}
+            </div>
             <div className="flex items-center gap-1.5 pt-1">
                 {onAIImagen && (
                     <button onClick={() => onAIImagen(p)} className="p-1.5 rounded-xl bg-violet-500/10 border border-violet-400/20 text-violet-500 hover:bg-violet-500/20 transition-all">
@@ -577,10 +703,10 @@ const MobileCard = ({ p, sel, imgs, onToggle, onEdit, onDelete, onAIImagen, t })
 //  ProductsTable — main component
 // ═══════════════════════════════════════════════════════════════════════════════
 const ProductsTable = ({
-    products, categories, menuOptions = [],
+    products, categories, menuOptions = [], mtzSummary = {},
     selectedIds, onToggle, onToggleAll,
     onEdit, onDelete, onAIImagen, onReorder, onReorderGroups,
-    onToggleStatus, onRefresh,
+    onToggleStatus, onRefresh, onQuickPriceUpdate,
 }) => {
     const { t } = useTranslation();
     const allSelected  = products.length > 0 && selectedIds.length === products.length;
@@ -890,6 +1016,8 @@ const ProductsTable = ({
                                     onToggleStatus={handleToggleStatus} togglingId={togglingId}
                                     codigoToGroup={codigoToGroup} codigoToMods={codigoToMods}
                                     getImages={getImages} cachebust={cachebust} t={t}
+                                    mtzSummary={mtzSummary}
+                                    onQuickPriceUpdate={onQuickPriceUpdate}
                                 />
                             </div>
 
@@ -897,7 +1025,7 @@ const ProductsTable = ({
                             <div className="md:hidden p-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                                 {(srcProds || []).map(p => {
                                     const imgs = getImages(p).map(u => cachebust(u, p));
-                                    return <MobileCard key={p.id} p={p} sel={selectedIds.includes(p.id)} imgs={imgs}
+                                    return <MobileCard key={p.id} p={p} sel={selectedIds.includes(p.id)} imgs={imgs} onQuickPriceUpdate={onQuickPriceUpdate}
                                         onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} onAIImagen={onAIImagen} t={t} />;
                                 })}
                             </div>

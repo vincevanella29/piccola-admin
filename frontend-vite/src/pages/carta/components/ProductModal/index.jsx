@@ -1,26 +1,24 @@
 /**
- * ProductModal — main orchestrator
+ * ProductModal — Apple-style unified product editor
  *
- * Responsible for:
- *   • Tab navigation (Detalles / Galería / Modificadores / Precio Especial / MTZ)
- *   • Shared form state (nombre, precio, categorías, restricción…)
- *   • Gallery state (images[], video)
- *   • Lazy data loading per tab (MTZ on demand)
- *   • Save / upload logic
+ * Consolidated from 6 tabs → 3 clean sections:
+ *   🍽  Producto     → details form + gallery (always visible)
+ *   ⚙️  Configuración → modifiers + special price
+ *   📊  Análisis     → MTZ + nutrition
  *
- * Each tab is a self-contained sub-component:
- *   DetailsTab   → form fields
- *   GalleryTab   → image carousel + upload
- *   ModifiersTab → link/unlink modifier option groups
- *   EspecialTab  → special price config
- *   MtzTab       → sales & recipe data
+ * Design principles:
+ *   • Wide modal (2xl) with clear visual hierarchy
+ *   • iOS-style segmented control for tabs
+ *   • Collapsible sections within each tab
+ *   • Footer save button always visible on relevant tabs
  */
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Package, X, Save, Loader2, CheckCircle, AlertTriangle,
-    BarChart2, Zap, ListFilter,
+    BarChart2, Zap, ListFilter, Apple, ChevronDown, ChevronRight,
+    Image as ImageIcon, Settings, PieChart,
 } from 'lucide-react';
 import * as cartaApi from '../../../../utils/cartaData';
 import { uploadProductVideo } from '../../../../utils/cartaData';
@@ -29,29 +27,69 @@ import DetailsTab   from './DetailsTab';
 import GalleryTab   from './GalleryTab';
 import ModifiersTab from './ModifiersTab';
 import EspecialTab  from './EspecialTab';
-import MtzTab       from './MtzTab';
-import { DAYS }     from './constants.jsx';
+import MtzTab        from './MtzTab';
+import NutritionTab  from './NutritionTab';
+import { DAYS }      from './constants.jsx';
 
-// ── Tab button ─────────────────────────────────────────────────────────────────
-const Tab = ({ id, active, onClick, icon: Icon, label, badge, accent = 'amber' }) => {
-    const ACCENT = {
-        amber: 'border-amber-500 text-amber-600 dark:text-amber-400',
-        blue:  'border-blue-500 text-blue-600 dark:text-blue-400',
-        green: 'border-light-accent dark:border-dark-accent text-light-text-primary dark:text-dark-text-primary',
-    };
+// ── Segmented Control ──────────────────────────────────────────────────────────
+const SegmentedControl = ({ tabs, active, onChange }) => (
+    <div className="flex items-center bg-light-surface-secondary/70 dark:bg-dark-surface-secondary/70 p-0.5 rounded-xl gap-0.5 border border-light-border/50 dark:border-dark-border/50 w-full">
+        {tabs.map(({ id, icon: Icon, label, badge }) => (
+            <button key={id} onClick={() => onChange(id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-[10px] text-xs font-semibold transition-all duration-200 ${
+                    active === id
+                        ? 'text-light-text-primary dark:text-dark-text-primary bg-white dark:bg-dark-surface shadow-sm'
+                        : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
+                }`}>
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">{label}</span>
+                {badge > 0 && (
+                    <span className={`px-1 py-0.5 rounded-full text-[9px] font-bold leading-none ${
+                        active === id
+                            ? 'bg-light-accent/10 dark:bg-dark-accent/20 text-light-accent dark:text-dark-accent'
+                            : 'bg-light-surface-secondary dark:bg-dark-surface-secondary'
+                    }`}>{badge}</span>
+                )}
+            </button>
+        ))}
+    </div>
+);
+
+// ── Collapsible Section ────────────────────────────────────────────────────────
+const Section = ({ title, icon: Icon, defaultOpen = true, badge, children }) => {
+    const [open, setOpen] = useState(defaultOpen);
     return (
-        <button onClick={() => onClick(id)}
-            className={`pb-3 text-sm font-semibold transition-colors border-b-2 flex items-center gap-1.5 mr-6 shrink-0 ${
-                active ? ACCENT[accent] : 'border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
-            }`}>
-            {Icon && <Icon className="w-3.5 h-3.5" />}
-            {label}
-            {badge != null && badge > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    active ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'
-                }`}>{badge}</span>
-            )}
-        </button>
+        <div className="rounded-2xl border border-light-border/60 dark:border-dark-border/40 overflow-hidden transition-all">
+            <button type="button" onClick={() => setOpen(v => !v)}
+                className="w-full flex items-center gap-2.5 px-4 py-3 bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/15 hover:bg-light-surface-secondary/50 dark:hover:bg-dark-surface-secondary/25 transition-colors text-left">
+                <div className="w-6 h-6 rounded-lg bg-light-accent/10 dark:bg-dark-accent/15 flex items-center justify-center shrink-0">
+                    <Icon className="w-3.5 h-3.5 text-light-accent dark:text-dark-accent" />
+                </div>
+                <span className="flex-1 text-xs font-bold text-light-text-primary dark:text-dark-text-primary uppercase tracking-wide">{title}</span>
+                {badge != null && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400">
+                        {badge}
+                    </span>
+                )}
+                {open
+                    ? <ChevronDown className="w-3.5 h-3.5 text-light-text-secondary dark:text-dark-text-secondary shrink-0" />
+                    : <ChevronRight className="w-3.5 h-3.5 text-light-text-secondary dark:text-dark-text-secondary shrink-0" />}
+            </button>
+            <AnimatePresence initial={false}>
+                {open && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden">
+                        <div className="px-4 py-4">
+                            {children}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 };
 
@@ -80,7 +118,7 @@ const ProductModal = ({
     };
 
     // ── Core state ─────────────────────────────────────────────────────────
-    const [activeTab, setActiveTab] = useState('details');
+    const [activeTab, setActiveTab] = useState('product');
     const [form, setForm] = useState({
         nombre:       product?.nombre || '',
         descripcion:  product?.descripcion || '',
@@ -125,7 +163,7 @@ const ProductModal = ({
     const [loadingMtz, setLoadingMtz] = useState(false);
 
     useEffect(() => {
-        if (activeTab === 'mtz' && isEdit && !mtzData && !loadingMtz) {
+        if (activeTab === 'analytics' && isEdit && !mtzData && !loadingMtz) {
             setLoadingMtz(true);
             cartaApi.fetchProductMtzData({ token, account, productId: product.id })
                 .then(data  => setMtzData(data))
@@ -218,54 +256,56 @@ const ProductModal = ({
         } finally { setSavingEsp(false); }
     };
 
+    // Tab definitions
+    const tabs = [
+        { id: 'product', icon: Package, label: t('carta.tab_details', 'Producto') },
+        ...(isEdit ? [
+            { id: 'config', icon: Settings, label: 'Configuración' },
+            { id: 'analytics', icon: PieChart, label: 'Análisis' },
+        ] : []),
+    ];
+
     // ── Render ─────────────────────────────────────────────────────────────
     return (
         <div className="fixed inset-0 z-[999999] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-md p-0 sm:p-4">
             <motion.div
                 initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                className="w-full sm:max-w-lg bg-light-surface dark:bg-dark-surface sm:rounded-2xl rounded-t-3xl shadow-2xl border border-light-border dark:border-dark-border overflow-hidden"
+                className="w-full sm:max-w-2xl bg-light-surface dark:bg-dark-surface sm:rounded-2xl rounded-t-3xl shadow-2xl border border-light-border dark:border-dark-border overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]"
             >
                 {/* Mobile drag handle */}
-                <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="flex justify-center pt-3 pb-1 sm:hidden shrink-0">
                     <div className="w-10 h-1 rounded-full bg-light-border dark:bg-dark-border" />
                 </div>
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-light-accent/10 dark:bg-dark-accent/15 flex items-center justify-center">
+                <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 shrink-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-light-accent/10 dark:bg-dark-accent/15 flex items-center justify-center shrink-0">
                             <Package className="w-4 h-4 text-light-accent dark:text-dark-accent" />
                         </div>
-                        <h2 className="text-base font-bold text-light-text-primary dark:text-dark-text-primary">
-                            {isEdit ? t('carta.product_modal_edit') : t('carta.product_modal_new')}
-                        </h2>
+                        <div className="min-w-0">
+                            <h2 className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary truncate">
+                                {isEdit ? (product?.nombre || t('carta.product_modal_edit')) : t('carta.product_modal_new')}
+                            </h2>
+                            {isEdit && product?.codigo && (
+                                <p className="text-[10px] font-mono text-light-text-secondary dark:text-dark-text-secondary">{product.codigo}</p>
+                            )}
+                        </div>
                     </div>
                     <button onClick={onClose}
-                        className="w-8 h-8 rounded-full bg-light-surface-secondary dark:bg-dark-surface-secondary flex items-center justify-center hover:opacity-80 transition-opacity">
+                        className="w-8 h-8 rounded-full bg-light-surface-secondary dark:bg-dark-surface-secondary flex items-center justify-center hover:opacity-80 transition-opacity shrink-0">
                         <X className="w-4 h-4 text-light-text-secondary dark:text-dark-text-secondary" />
                     </button>
                 </div>
 
                 {/* Tab bar */}
-                <div className="flex border-b border-light-border dark:border-dark-border px-6 overflow-x-auto">
-                    <Tab id="details" active={activeTab === 'details'} onClick={setActiveTab}
-                        label={t('carta.tab_details', 'Detalles')} accent="green" />
-                    <Tab id="gallery" active={activeTab === 'gallery'} onClick={setActiveTab}
-                        label={`${t('carta.tab_gallery', 'Galería')} (${images.length}/4)`} accent="green" />
-                    {isEdit && (<>
-                        <Tab id="modifiers" active={activeTab === 'modifiers'} onClick={setActiveTab}
-                            icon={ListFilter} label="Modificadores" accent="blue" badge={0} />
-                        <Tab id="especial" active={activeTab === 'especial'} onClick={setActiveTab}
-                            icon={Zap} label="Precio Especial" accent="amber"
-                            badge={esp.special_status ? 1 : 0} />
-                        <Tab id="mtz" active={activeTab === 'mtz'} onClick={setActiveTab}
-                            icon={BarChart2} label={t('carta.tab_mtz', 'MTZ')} accent="green" />
-                    </>)}
+                <div className="px-5 sm:px-6 pb-3 shrink-0">
+                    <SegmentedControl tabs={tabs} active={activeTab} onChange={setActiveTab} />
                 </div>
 
                 {/* Body */}
-                <div className="px-6 py-5 max-h-[75vh] overflow-y-auto">
+                <div className="flex-1 overflow-y-auto px-5 sm:px-6 pb-4">
                     {/* Global alert */}
                     <AnimatePresence>
                         {msg && (
@@ -286,52 +326,79 @@ const ProductModal = ({
                         )}
                     </AnimatePresence>
 
-                    {/* Tab panels */}
-                    {activeTab === 'details' && (
-                        <DetailsTab form={form} set={set} categories={categories} />
-                    )}
-                    {activeTab === 'gallery' && (
-                    <GalleryTab
-                            images={images} video={video} product={product} isEdit={isEdit}
-                            uploading={uploading} onUpload={handleImageUpload}
-                            onRemove={(i) => setImages(prev => prev.filter((_, idx) => idx !== i))}
-                            onMove={(f, t) => setImages(prev => { const a = [...prev]; [a[f], a[t]] = [a[t], a[f]]; return a; })}
-                            onReorder={setImages}
-                            onVideoRemove={() => setVideo('')}
-                            onVideoSet={(url) => setVideo(url)}
-                            onVideoUpload={handleVideoUpload}
-                            token={token} account={account}
-                            onOpenAurora={onOpenAurora} onClose={onClose}
-                        />
+                    {/* ═══ TAB: Producto ═══ */}
+                    {activeTab === 'product' && (
+                        <div className="space-y-3">
+                            <Section title="Información" icon={Package} defaultOpen={true}>
+                                <DetailsTab form={form} set={set} categories={categories} />
+                            </Section>
 
+                            <Section title={`Galería (${images.length}/4)`} icon={ImageIcon} defaultOpen={images.length > 0}>
+                                <GalleryTab
+                                    images={images} video={video} product={product} isEdit={isEdit}
+                                    uploading={uploading} onUpload={handleImageUpload}
+                                    onRemove={(i) => setImages(prev => prev.filter((_, idx) => idx !== i))}
+                                    onMove={(f, t) => setImages(prev => { const a = [...prev]; [a[f], a[t]] = [a[t], a[f]]; return a; })}
+                                    onReorder={setImages}
+                                    onVideoRemove={() => setVideo('')}
+                                    onVideoSet={(url) => setVideo(url)}
+                                    onVideoUpload={handleVideoUpload}
+                                    token={token} account={account}
+                                    onOpenAurora={onOpenAurora} onClose={onClose}
+                                />
+                            </Section>
+                        </div>
                     )}
-                    {activeTab === 'modifiers' && isEdit && (
-                        <ModifiersTab
-                            product={product} menuOptions={menuOptions} products={products}
-                            token={token} account={account}
-                        />
+
+                    {/* ═══ TAB: Configuración ═══ */}
+                    {activeTab === 'config' && isEdit && (
+                        <div className="space-y-3">
+                            <Section title="Modificadores" icon={ListFilter} defaultOpen={true}>
+                                <ModifiersTab
+                                    product={product} menuOptions={menuOptions} products={products}
+                                    token={token} account={account}
+                                />
+                            </Section>
+
+                            <Section title="Precio Especial" icon={Zap} defaultOpen={!!esp.special_status}
+                                badge={esp.special_status ? '⚡ Activo' : null}>
+                                <EspecialTab
+                                    especial={especial} setEsp={setEsp}
+                                    savingEsp={savingEsp} espMsg={espMsg} setEspMsg={setEspMsg}
+                                    onSave={handleSaveEspecial} isEdit={isEdit}
+                                />
+                            </Section>
+                        </div>
                     )}
-                    {activeTab === 'especial' && (
-                        <EspecialTab
-                            especial={especial} setEsp={setEsp}
-                            savingEsp={savingEsp} espMsg={espMsg} setEspMsg={setEspMsg}
-                            onSave={handleSaveEspecial} isEdit={isEdit}
-                        />
-                    )}
-                    {activeTab === 'mtz' && (
-                        <MtzTab mtzData={mtzData} loading={loadingMtz} />
+
+                    {/* ═══ TAB: Análisis ═══ */}
+                    {activeTab === 'analytics' && isEdit && (
+                        <div className="space-y-3">
+                            <Section title="Rentabilidad & Ventas" icon={BarChart2} defaultOpen={true}>
+                                <MtzTab mtzData={mtzData} loading={loadingMtz} />
+                            </Section>
+
+                            <Section title="Tabla Nutricional" icon={Apple} defaultOpen={false}>
+                                <NutritionTab
+                                    product={product}
+                                    token={token}
+                                    account={account}
+                                    mtzData={mtzData}
+                                />
+                            </Section>
+                        </div>
                     )}
                 </div>
 
-                {/* Footer — only show save on details/gallery */}
-                {(activeTab === 'details' || activeTab === 'gallery') && (
-                    <div className="flex gap-2 px-6 py-4 border-t border-light-border dark:border-dark-border bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/10">
+                {/* Footer — only show save on product tab */}
+                {activeTab === 'product' && (
+                    <div className="flex gap-2 px-5 sm:px-6 py-3.5 border-t border-light-border dark:border-dark-border bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/10 shrink-0">
                         <button type="button" onClick={onClose}
                             className="flex-1 py-2.5 rounded-xl border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary text-sm font-semibold hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-colors">
                             {t('carta.cancel')}
                         </button>
                         <button type="button" disabled={saving} onClick={handleSave}
-                            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-md disabled:opacity-50">
+                            className="flex-[2] flex items-center justify-center gap-2 py-2.5 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-md disabled:opacity-50">
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             {saving ? t('carta.saving') : t('carta.save')}
                         </button>
