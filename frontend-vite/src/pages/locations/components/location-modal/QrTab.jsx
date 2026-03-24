@@ -2,10 +2,9 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     QrCode, Download, ExternalLink, Copy, Check, BarChart3,
-    Upload, X, Palette, Sparkles, Image as ImageIcon,
-    Square, Sticker, FileImage, Trash2,
+    Upload, X, Trash2,
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { inputCls } from './shared';
 import QrAnalyticsPanel from './QrAnalyticsPanel';
 
@@ -30,13 +29,67 @@ const STYLE_PRESETS = [
     { id: 'ocean',    label: 'Ocean',     fg: '#0c4a6e', bg: '#f0f9ff' },
 ];
 
-// ── Sticker templates ─────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const STICKER_LAYOUTS = [
-    { id: 'minimal',  label: 'Minimal',  desc: 'Solo QR' },
-    { id: 'branded',  label: 'Branded',  desc: 'QR + Logo + Nombre' },
-    { id: 'full',     label: 'Completo', desc: 'QR + Logo + Nombre + Dirección' },
-];
+/**
+ * Renders the hidden QRCodeCanvas to a high-res image (with the center logo
+ * already baked in by qrcode.react). Returns a Promise<HTMLImageElement>.
+ */
+function rasterizeQR(canvasId, size) {
+    return new Promise((resolve, reject) => {
+        const srcCanvas = document.getElementById(canvasId);
+        if (!srcCanvas) return reject(new Error('QR canvas not found'));
+
+        // Scale up the existing canvas content to `size`
+        const out = document.createElement('canvas');
+        out.width = size;
+        out.height = size;
+        const ctx = out.getContext('2d');
+        ctx.imageSmoothingEnabled = false;          // keep QR crisp
+        ctx.drawImage(srcCanvas, 0, 0, size, size);
+
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = out.toDataURL('image/png');
+    });
+}
+
+/** Load an image from URL and return an Image element */
+function loadImg(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
+/** Rounded rect path */
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+/** Trigger browser download */
+function triggerDownload(dataUrl, filename) {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -51,10 +104,8 @@ const QrTab = ({ location, form, handleChange, appState, copied, setCopied, live
     const [centerImageName, setCenterImageName] = useState('');
     const [customFg, setCustomFg] = useState('');
     const [customBg, setCustomBg] = useState('');
-    const [stickerLayout, setStickerLayout] = useState('branded');
-    const [viewMode, setViewMode] = useState('qr'); // 'qr' | 'sticker'
+    const [downloading, setDownloading] = useState(false);
     const fileInputRef = useRef(null);
-    const stickerCanvasRef = useRef(null);
 
     const slug = location.permalink_slug;
     const savedRedirectUrl = location.qr_redirect_url;
@@ -98,118 +149,95 @@ const QrTab = ({ location, form, handleChange, appState, copied, setCopied, live
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // ── Download QR only ──────────────────────────────────────────────────
-    const downloadQR = (format = 'png') => {
-        const svgEl = document.getElementById('qr-svg-canvas');
-        if (!svgEl) return;
-        if (format === 'svg') {
-            const blob = new Blob([new XMLSerializer().serializeToString(svgEl)], { type: 'image/svg+xml' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `qr-${slug || 'local'}.svg`;
-            a.click(); URL.revokeObjectURL(a.href);
-            return;
+    // ── Download: QR only (PNG, transparent bg) ──────────────────────────
+    const downloadQROnly = async () => {
+        setDownloading(true);
+        try {
+            const size = 2048;
+            const qrImg = await rasterizeQR('qr-canvas-hidden', size);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            // Transparent background — user can place on any design
+            ctx.drawImage(qrImg, 0, 0, size, size);
+
+            triggerDownload(canvas.toDataURL('image/png'), `qr-${slug || 'local'}.png`);
+        } catch (err) {
+            console.error('[QR] download error:', err);
+        } finally {
+            setDownloading(false);
         }
-        const size = format === 'hd' ? 2048 : 1024;
-        const svgData = new XMLSerializer().serializeToString(svgEl);
-        const canvas = document.createElement('canvas');
-        canvas.width = size; canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
-        img.onload = () => {
-            if (format === 'transparent') {
-                // Transparent background — just draw SVG
-                ctx.drawImage(img, 0, 0, size, size);
-            } else {
-                ctx.fillStyle = bgColor;
-                ctx.fillRect(0, 0, size, size);
-                ctx.drawImage(img, 0, 0, size, size);
-            }
-            const a = document.createElement('a');
-            a.href = canvas.toDataURL('image/png');
-            a.download = `qr-${slug || 'local'}${format === 'hd' ? '-2k' : format === 'transparent' ? '-transparent' : ''}.png`;
-            a.click();
-        };
-        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
     };
 
-    // ── Download Sticker ──────────────────────────────────────────────────
-    const downloadSticker = async (stickerSize = 1200) => {
-        const svgEl = document.getElementById('qr-svg-canvas');
-        if (!svgEl) return;
+    // ── Download: Sticker with design ────────────────────────────────────
+    const downloadSticker = async () => {
+        setDownloading(true);
+        try {
+            const W = 1200;
+            const qrSize = 800;
+            const padding = (W - qrSize) / 2;
+            const textAreaH = 180;
+            const H = padding + qrSize + textAreaH + padding / 2;
 
-        const canvas = document.createElement('canvas');
-        const w = stickerSize;
-        const h = stickerLayout === 'minimal' ? stickerSize : stickerLayout === 'branded' ? stickerSize + 200 : stickerSize + 300;
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
+            const canvas = document.createElement('canvas');
+            canvas.width = W;
+            canvas.height = H;
+            const ctx = canvas.getContext('2d');
 
-        // Background
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, w, h);
+            // Background with rounded corners (sticker-ready)
+            const cornerR = 64;
+            roundRect(ctx, 0, 0, W, H, cornerR);
+            ctx.fillStyle = bgColor;
+            ctx.fill();
+            ctx.clip();
 
-        // QR
-        const svgData = new XMLSerializer().serializeToString(svgEl);
-        const qrImg = new Image();
-        await new Promise((resolve) => {
-            qrImg.onload = resolve;
-            qrImg.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-        });
+            // QR code
+            const qrImg = await rasterizeQR('qr-canvas-hidden', qrSize * 2);
+            const qrX = (W - qrSize) / 2;
+            const qrY = padding;
 
-        const qrSize = stickerLayout === 'minimal' ? w - 80 : w - 160;
-        const qrX = (w - qrSize) / 2;
-        const qrY = stickerLayout === 'minimal' ? 40 : 80;
+            // Subtle inner shadow for QR area
+            ctx.save();
+            roundRect(ctx, qrX - 4, qrY - 4, qrSize + 8, qrSize + 8, 32);
+            ctx.fillStyle = fgColor + '08';
+            ctx.fill();
+            ctx.restore();
 
-        // Rounded rect clip for QR area
-        const r = 24;
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(qrX + r, qrY);
-        ctx.lineTo(qrX + qrSize - r, qrY);
-        ctx.quadraticCurveTo(qrX + qrSize, qrY, qrX + qrSize, qrY + r);
-        ctx.lineTo(qrX + qrSize, qrY + qrSize - r);
-        ctx.quadraticCurveTo(qrX + qrSize, qrY + qrSize, qrX + qrSize - r, qrY + qrSize);
-        ctx.lineTo(qrX + r, qrY + qrSize);
-        ctx.quadraticCurveTo(qrX, qrY + qrSize, qrX, qrY + qrSize - r);
-        ctx.lineTo(qrX, qrY + r);
-        ctx.quadraticCurveTo(qrX, qrY, qrX + r, qrY);
-        ctx.closePath();
-        ctx.clip();
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(qrX, qrY, qrSize, qrSize);
-        ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-        ctx.restore();
+            ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
-        // Text below QR
-        if (stickerLayout !== 'minimal') {
+            // Text: location name
             const textY = qrY + qrSize + 50;
             ctx.fillStyle = fgColor;
             ctx.textAlign = 'center';
+            ctx.font = `700 ${Math.round(W * 0.038)}px -apple-system, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
+            ctx.fillText(location.nombre || '', W / 2, textY);
 
-            // Name
-            ctx.font = `bold ${Math.round(w * 0.04)}px -apple-system, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
-            ctx.fillText(location.nombre || '', w / 2, textY);
-
-            if (stickerLayout === 'full') {
-                // Address
-                ctx.font = `${Math.round(w * 0.025)}px -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif`;
-                ctx.globalAlpha = 0.5;
-                const addr = location.direccion || '';
-                ctx.fillText(addr.length > 50 ? addr.substring(0, 50) + '…' : addr, w / 2, textY + 50);
-
-                // "Escanea el QR"
-                ctx.globalAlpha = 0.35;
-                ctx.font = `600 ${Math.round(w * 0.02)}px -apple-system, "SF Pro Text", system-ui, sans-serif`;
-                ctx.fillText('ESCANEA EL CÓDIGO QR', w / 2, textY + 90);
+            // Subtitle: address (if available)
+            if (location.direccion) {
+                ctx.globalAlpha = 0.45;
+                ctx.font = `400 ${Math.round(W * 0.022)}px -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif`;
+                const addr = location.direccion.length > 55
+                    ? location.direccion.substring(0, 55) + '…'
+                    : location.direccion;
+                ctx.fillText(addr, W / 2, textY + 50);
                 ctx.globalAlpha = 1;
             }
-        }
 
-        const a = document.createElement('a');
-        a.href = canvas.toDataURL('image/png');
-        a.download = `sticker-${slug || 'local'}-${stickerLayout}.png`;
-        a.click();
+            // "Escanea el código QR" micro-label
+            ctx.globalAlpha = 0.25;
+            ctx.font = `600 ${Math.round(W * 0.016)}px -apple-system, "SF Pro Text", system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText('ESCANEA EL CÓDIGO QR', W / 2, textY + 95);
+            ctx.globalAlpha = 1;
+
+            triggerDownload(canvas.toDataURL('image/png'), `sticker-${slug || 'local'}.png`);
+        } catch (err) {
+            console.error('[Sticker] download error:', err);
+        } finally {
+            setDownloading(false);
+        }
     };
 
     const copyUrl = () => {
@@ -218,7 +246,7 @@ const QrTab = ({ location, form, handleChange, appState, copied, setCopied, live
         setTimeout(() => setCopied(false), 2000);
     };
 
-    // QR image settings
+    // QR Canvas image settings (center logo)
     const imageSettings = centerImage ? {
         src: centerImage,
         height: 36,
@@ -327,32 +355,14 @@ const QrTab = ({ location, form, handleChange, appState, copied, setCopied, live
                         )}
                     </div>
 
-                    {/* ═════════════════════════════════════════════════════════ */}
-                    {/* QR DESIGNER                                              */}
-                    {/* ═════════════════════════════════════════════════════════ */}
+                    {/* ═══════════════════════════════════════════════════════ */}
+                    {/* QR DESIGNER                                            */}
+                    {/* ═══════════════════════════════════════════════════════ */}
                     {slug && qrUrl && (
                         <div className="rounded-2xl border border-light-border/30 dark:border-dark-border/30 overflow-hidden">
 
-                            {/* View mode toggle: QR vs Sticker */}
-                            <div className="flex p-1 m-3 rounded-xl bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 border border-light-border/15 dark:border-dark-border/15">
-                                {[
-                                    { id: 'qr', label: 'Código QR', icon: QrCode },
-                                    { id: 'sticker', label: 'Sticker', icon: Sticker },
-                                ].map(v => (
-                                    <button key={v.id} type="button" onClick={() => setViewMode(v.id)}
-                                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${
-                                            viewMode === v.id
-                                                ? 'bg-white dark:bg-dark-surface shadow-sm text-light-text-primary dark:text-dark-text-primary'
-                                                : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
-                                        }`}>
-                                        <v.icon className="w-3.5 h-3.5" />
-                                        {v.label}
-                                    </button>
-                                ))}
-                            </div>
-
                             {/* ── Design controls ─────────────────────────── */}
-                            <div className="px-4 pb-3 space-y-3">
+                            <div className="px-4 py-3 space-y-3">
 
                                 {/* Color presets */}
                                 <div>
@@ -440,81 +450,22 @@ const QrTab = ({ location, form, handleChange, appState, copied, setCopied, live
                                     <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp"
                                         onChange={handleImageUpload} className="hidden" />
                                 </div>
-
-                                {/* Sticker layout (only in sticker mode) */}
-                                {viewMode === 'sticker' && (
-                                    <div>
-                                        <span className="text-[8px] font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-1.5 block">Diseño sticker</span>
-                                        <div className="flex gap-1.5">
-                                            {STICKER_LAYOUTS.map(layout => (
-                                                <button
-                                                    key={layout.id}
-                                                    type="button"
-                                                    onClick={() => setStickerLayout(layout.id)}
-                                                    className={`flex-1 flex flex-col items-center gap-0.5 p-2 rounded-xl border transition-all text-center ${
-                                                        stickerLayout === layout.id
-                                                            ? 'border-light-accent dark:border-dark-accent bg-light-accent/5 dark:bg-dark-accent/5'
-                                                            : 'border-light-border/20 dark:border-dark-border/20 hover:border-light-border/40 dark:hover:border-dark-border/40'
-                                                    }`}
-                                                >
-                                                    <span className={`text-[10px] font-bold ${stickerLayout === layout.id ? 'text-light-accent dark:text-dark-accent' : 'text-light-text-primary dark:text-dark-text-primary'}`}>
-                                                        {layout.label}
-                                                    </span>
-                                                    <span className="text-[8px] text-light-text-secondary dark:text-dark-text-secondary">{layout.desc}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
                             {/* ── Preview area ────────────────────────────── */}
                             <div className="px-4 py-5 flex flex-col items-center gap-4 border-t border-light-border/15 dark:border-dark-border/15 bg-[repeating-conic-gradient(#80808012_0%_25%,transparent_0%_50%)] dark:bg-[repeating-conic-gradient(#80808010_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]">
 
-                                {viewMode === 'qr' ? (
-                                    /* ── QR Only Preview ── */
-                                    <div className="relative group">
-                                        <div className="absolute -inset-4 rounded-3xl opacity-15 blur-xl transition-opacity group-hover:opacity-25"
-                                            style={{ backgroundColor: fgColor }} />
-                                        <div className="relative p-5 rounded-2xl shadow-lg border border-light-border/15 dark:border-dark-border/15 transition-shadow hover:shadow-xl"
-                                            style={{ backgroundColor: bgColor }}>
-                                            <QRCodeSVG id="qr-svg-canvas" value={qrUrl} size={180} level="H"
-                                                includeMargin={false} bgColor={bgColor} fgColor={fgColor}
-                                                imageSettings={imageSettings} />
-                                        </div>
+                                {/* Visible preview QR */}
+                                <div className="relative group">
+                                    <div className="absolute -inset-4 rounded-3xl opacity-15 blur-xl transition-opacity group-hover:opacity-25"
+                                        style={{ backgroundColor: fgColor }} />
+                                    <div className="relative p-5 rounded-2xl shadow-lg border border-light-border/15 dark:border-dark-border/15 transition-shadow hover:shadow-xl"
+                                        style={{ backgroundColor: bgColor }}>
+                                        <QRCodeCanvas value={qrUrl} size={180} level="H"
+                                            includeMargin={false} bgColor={bgColor} fgColor={fgColor}
+                                            imageSettings={imageSettings} />
                                     </div>
-                                ) : (
-                                    /* ── Sticker Preview ── */
-                                    <div className="relative group">
-                                        <div className="absolute -inset-4 rounded-3xl opacity-10 blur-xl transition-opacity group-hover:opacity-20"
-                                            style={{ backgroundColor: fgColor }} />
-                                        <div className="relative rounded-2xl shadow-xl border border-light-border/15 dark:border-dark-border/15 overflow-hidden transition-shadow hover:shadow-2xl"
-                                            style={{ backgroundColor: bgColor, minWidth: 220 }}>
-                                            <div className="p-6 flex flex-col items-center gap-3">
-                                                <QRCodeSVG id="qr-svg-canvas" value={qrUrl} size={160} level="H"
-                                                    includeMargin={false} bgColor={bgColor} fgColor={fgColor}
-                                                    imageSettings={imageSettings} />
-                                                {stickerLayout !== 'minimal' && (
-                                                    <div className="text-center space-y-0.5 mt-1">
-                                                        <p className="text-[13px] font-bold" style={{ color: fgColor }}>
-                                                            {location.nombre}
-                                                        </p>
-                                                        {stickerLayout === 'full' && location.direccion && (
-                                                            <p className="text-[10px] truncate max-w-[180px]" style={{ color: fgColor, opacity: 0.5 }}>
-                                                                {location.direccion}
-                                                            </p>
-                                                        )}
-                                                        {stickerLayout === 'full' && (
-                                                            <p className="text-[8px] font-semibold uppercase tracking-widest mt-1" style={{ color: fgColor, opacity: 0.3 }}>
-                                                                Escanea el código QR
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                </div>
 
                                 {/* Info */}
                                 <div className="text-center space-y-0.5">
@@ -523,41 +474,30 @@ const QrTab = ({ location, form, handleChange, appState, copied, setCopied, live
                                 </div>
                             </div>
 
-                            {/* ── Download buttons ────────────────────────── */}
-                            <div className="px-4 py-3 border-t border-light-border/15 dark:border-dark-border/15 space-y-2">
-                                {viewMode === 'qr' ? (
-                                    <>
-                                        <div className="flex gap-2">
-                                            <button type="button" onClick={() => downloadQR('png')}
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-[10px] font-bold shadow-md hover:opacity-90 active:scale-[0.98] transition-all">
-                                                <Download className="w-3.5 h-3.5" /> PNG
-                                            </button>
-                                            <button type="button" onClick={() => downloadQR('hd')}
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[10px] font-bold shadow-md hover:opacity-90 active:scale-[0.98] transition-all">
-                                                <Sparkles className="w-3.5 h-3.5" /> HD 2K
-                                            </button>
-                                            <button type="button" onClick={() => downloadQR('svg')}
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary text-[10px] font-bold hover:text-light-accent dark:hover:text-dark-accent transition-all">
-                                                <Download className="w-3.5 h-3.5" /> SVG
-                                            </button>
-                                        </div>
-                                        <button type="button" onClick={() => downloadQR('transparent')}
-                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-light-border/40 dark:border-dark-border/40 text-light-text-secondary dark:text-dark-text-secondary text-[10px] font-semibold hover:text-light-accent dark:hover:text-dark-accent hover:border-light-accent/40 dark:hover:border-dark-accent/40 transition-all">
-                                            <FileImage className="w-3.5 h-3.5" /> PNG sin fondo (transparente)
-                                        </button>
-                                    </>
-                                ) : (
-                                    <div className="flex gap-2">
-                                        <button type="button" onClick={() => downloadSticker(1200)}
-                                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-[10px] font-bold shadow-md hover:opacity-90 active:scale-[0.98] transition-all">
-                                            <Sticker className="w-3.5 h-3.5" /> Descargar Sticker
-                                        </button>
-                                        <button type="button" onClick={() => downloadSticker(2400)}
-                                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[10px] font-bold shadow-md hover:opacity-90 active:scale-[0.98] transition-all">
-                                            <Sparkles className="w-3.5 h-3.5" /> Sticker HD
-                                        </button>
-                                    </div>
-                                )}
+                            {/* Hidden high-res canvas for download (off-screen) */}
+                            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+                                <QRCodeCanvas id="qr-canvas-hidden" value={qrUrl} size={1024} level="H"
+                                    includeMargin={false} bgColor={bgColor} fgColor={fgColor}
+                                    imageSettings={centerImage ? {
+                                        src: centerImage,
+                                        height: 200,
+                                        width: 200,
+                                        excavate: true,
+                                    } : undefined} />
+                            </div>
+
+                            {/* ── Download buttons (2 only — clean) ────────── */}
+                            <div className="px-4 py-3 border-t border-light-border/15 dark:border-dark-border/15 flex gap-2">
+                                <button type="button" onClick={downloadQROnly} disabled={downloading}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-light-border dark:border-dark-border text-light-text-primary dark:text-dark-text-primary text-[11px] font-bold hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary active:scale-[0.98] transition-all disabled:opacity-50">
+                                    <Download className="w-3.5 h-3.5" />
+                                    Solo QR
+                                </button>
+                                <button type="button" onClick={downloadSticker} disabled={downloading}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-[11px] font-bold shadow-md hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50">
+                                    <Download className="w-3.5 h-3.5" />
+                                    Con Diseño
+                                </button>
                             </div>
                         </div>
                     )}
