@@ -38,68 +38,75 @@ const AdminGamification = ({ appState }) => {
   }, [activeSubTab]);
 
   return (
-    // Contenedor principal con padding responsivo
-    <div className="min-h-screen text-light-text-primary dark:text-dark-text-primary p-4 sm:p-6 lg:py-8 lg:px-8">
+    // Contenedor principal con padding responsivo y transición suave
+    <div className="min-h-screen bg-gray-50/50 dark:bg-transparent text-light-text-primary dark:text-dark-text-primary p-4 sm:p-6 lg:py-8 lg:px-8 transition-colors duration-300">
       <div className="max-w-7xl mx-auto">
         {/* Encabezado de la página */}
         <motion.header
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
+          initial={{ opacity: 0, y: -15, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="mb-10"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-matrix-green/10 rounded-lg flex-shrink-0">
-              <Award className="text-matrix-green" size={28} />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="p-3 bg-white dark:bg-dark-surface-secondary/60 rounded-2xl border border-dark-border/5 dark:border-dark-border/20 shadow-sm flex-shrink-0 self-start sm:self-auto">
+              <Award className="text-matrix-green drop-shadow-sm" size={32} strokeWidth={1.5} />
             </div>
-            {/* Título con tamaño de fuente responsivo */}
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              {t('gamification.admin_title', 'Gestión de Meritocracia')}
-            </h1>
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-light-text-primary dark:text-dark-text-primary">
+                {t('gamification.admin_title', 'Gestión de Meritocracia')}
+              </h1>
+              <p className="mt-1 text-light-text-secondary dark:text-dark-text-secondary text-sm sm:text-base font-medium">
+                Administra segmentos, reglas de juego y propuestas de gobernanza.
+              </p>
+            </div>
           </div>
-          <p className="mt-2 text-light-text-secondary dark:text-dark-text-secondary text-sm sm:text-base">
-            Administra segmentos, reglas de juego y propuestas de gobernanza.
-          </p>
         </motion.header>
 
-        {/* Navegación por Pestañas Responsiva */}
+        {/* Navegación por Pestañas Responsiva estilo Píldoras */}
         <motion.nav
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mb-8"
         >
-          {/* Contenedor que permite el scroll horizontal en pantallas pequeñas */}
-          <div className="border-b border-dark-border/20">
-            <div className="overflow-x-auto scrollbar-none">
-              {/* Flex container con whitespace-nowrap para evitar que las pestañas se rompan en varias líneas */}
-              <div className="flex items-center gap-2 sm:gap-4 -mb-px whitespace-nowrap">
-                {subTabs.map((tab) => (
+          <div className="bg-white/80 dark:bg-dark-surface-secondary/40 backdrop-blur-md p-1.5 rounded-2xl border border-dark-border/10 dark:border-dark-border/20 shadow-sm overflow-x-auto scrollbar-none">
+            <div className="flex flex-nowrap items-center gap-1 xl:justify-start">
+              {subTabs.map((tab) => {
+                const isActive = activeSubTab === tab.key;
+                return (
                   <button
                     key={tab.key}
                     onClick={() => setActiveSubTab(tab.key)}
-                    // Se agrega flex-shrink-0 para que los botones no se encojan y se ajusta el padding
-                    className={`flex-shrink-0 flex items-center gap-2 px-3 py-3 text-sm font-semibold transition-colors duration-200 border-b-2
-                      ${activeSubTab === tab.key
-                        ? 'border-matrix-green text-matrix-green'
-                        : 'border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
+                    className={`flex-shrink-0 relative flex items-center gap-2 px-4 py-2.5 text-[13px] font-bold rounded-xl transition-all duration-300
+                      ${isActive
+                        ? 'text-black dark:text-black shadow-sm'
+                        : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-surface'
                       }`}
                   >
-                    <tab.icon size={18} />
-                    <span>{tab.label}</span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeSubTabBg"
+                        className="absolute inset-0 bg-matrix-green rounded-xl"
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                    <tab.icon size={16} className={`relative z-10 ${isActive ? 'text-black/80' : 'opacity-60'}`} />
+                    <span className="relative z-10">{tab.label}</span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         </motion.nav>
 
         {/* Contenido Principal */}
         <motion.main
-          key={activeSubTab} // Clave para que Framer Motion re-anime el contenido al cambiar de tab
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: 'easeInOut' }}
+          key={activeSubTab} // Clave para re-animar
+          initial={{ opacity: 0, scale: 0.98, filter: 'blur(2px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          className="bg-white/40 dark:bg-transparent rounded-3xl"
         >
           {activeSubTab === 'segments' && (
             <SegmentManager

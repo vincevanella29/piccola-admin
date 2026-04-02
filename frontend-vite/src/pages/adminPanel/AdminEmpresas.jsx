@@ -11,7 +11,10 @@ import EmpresaRolesTab from './components/empresas/EmpresaRolesTab.jsx';
 import ApiAccessRulesTab from './components/empresas/components/roles/ApiAccessRulesTab.jsx';
 
 // ⬅️ NUEVO: Tab de Centros de Producción
+// ⬅️ NUEVO: Tab de Centros de Producción
 import ProductionCentersTab from './components/empresas/components/cproduccion/ProductionCentersTab.jsx';
+
+import EmpresaWorkersAuditTab from './components/empresas/EmpresaWorkersAuditTab.jsx';
 
 // ⬅️ Usa los mismos Tabs que en MyFichaPanel:
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs';
@@ -228,6 +231,16 @@ const AdminEmpresas = ({ appState }) => {
                   >
                     {t('empresa.tab_cproduccion') || 'Centros de Producción'}
                   </TabsTrigger>
+
+                  {/* NUEVO TAB: Auditoría Wallet */}
+                  <TabsTrigger
+                    isActive={activeTab === 'audit'}
+                    onClick={() => setActiveTab('audit')}
+                    icon={ShieldCheck} // Reusing ShieldCheck for now, or some other icon
+                    className="whitespace-nowrap"
+                  >
+                    Auditoría Wallets
+                  </TabsTrigger>
                 </TabsList>
               </div>
             </div>
@@ -323,6 +336,12 @@ const AdminEmpresas = ({ appState }) => {
               <TabsContent isActive={activeTab === 'cproduccion'}>
                 <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
                   <ProductionCentersTab appState={appState} t={t} />
+                </div>
+              </TabsContent>
+
+              <TabsContent isActive={activeTab === 'audit'}>
+                <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
+                  <EmpresaWorkersAuditTab appState={appState} t={t} />
                 </div>
               </TabsContent>
             </div>

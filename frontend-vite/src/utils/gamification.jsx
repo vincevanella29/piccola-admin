@@ -344,6 +344,20 @@ export async function confirmBatchMint({ tx_hash, result_ids, walletAddress, tok
   });
 }
 
+// List unique merit periods
+export async function listMeritPeriods({ walletAddress, token } = {}) {
+  const endpoint = `/admin/gamification/merit/periods`;
+  return api({
+    method: 'GET',
+    endpoint,
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}
+
 // List merit results with advanced filters (from meritocracy_kpi_results)
 export async function listMeritResults({
   periodo_start,
@@ -435,6 +449,7 @@ export default {
   planBatchMerit,
   buildBatchTxs,
   confirmBatchMint,
+  listMeritPeriods,
   listMeritResults,
   setFastMinter,
   listFastMinters,

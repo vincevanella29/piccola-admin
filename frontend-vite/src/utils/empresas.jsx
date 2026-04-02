@@ -237,6 +237,19 @@ export async function listEmpresas({ page = 1, limit = 20, q = '', walletAddress
   });
 }
 
+// Auditoria de Empleados
+export async function auditWorkers({ walletAddress, token }) {
+  return api({
+    method: 'GET',
+    endpoint: `/empresas-workers/audit`,
+    withCredentials: true,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(walletAddress ? { 'X-Wallet-Address': walletAddress } : {}),
+    },
+  });
+}
+
 export default {
   createEmpresa,
   getEmpresa,
@@ -251,4 +264,5 @@ export default {
   listCuentasRefs,
   listSucursalesRefs,
   listEmpresas,
+  auditWorkers,
 };

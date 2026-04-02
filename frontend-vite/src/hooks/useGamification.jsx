@@ -11,6 +11,7 @@ import {
   listMeritRules as apiListMeritRules,
   computeMeritPreview as apiComputeMeritPreview,
   listCatalogs as apiListCatalogs,
+  listMeritPeriods as apiListMeritPeriods,
   listMeritResults as apiListMeritResults,
 } from '../utils/gamification.jsx';
 
@@ -24,6 +25,7 @@ export function useGamification(appState, t) {
     rules: { ts: 0, data: null, lastArgsKey: 'default' },
     templates: { ts: 0, data: null },
     catalogs: { ts: 0, data: null, lastQ: undefined },
+    periods: { ts: 0, data: null },
     results: { tsByKey: {} }, // key -> { ts, data }
   });
   const now = () => Date.now();
@@ -120,7 +122,21 @@ export function useGamification(appState, t) {
     return nextCatalogs;
   }, [handleApiCall, effectiveWallet, token, catalogs]);
 
-  // Resultados de mérito (listado/estado local)
+  // Periodos de mérito
+  const listMeritPeriods = useCallback(async ({ forceRefresh = false } = {}) => {
+    const entry = cacheRef.current.periods;
+    if (!forceRefresh && isFresh(entry.ts)) {
+      return entry.data;
+    }
+    const response = await handleApiCall(
+      () => apiListMeritPeriods({ walletAddress: effectiveWallet, token }),
+      { setLoading: true }
+    );
+    const periods = response?.periods || [];
+    cacheRef.current.periods = { ts: now(), data: periods };
+    return periods;
+  }, [handleApiCall, effectiveWallet, token]);
+
   const listMeritResults = useCallback(async (filters = {}) => {
     const { forceRefresh = false, ...rest } = filters || {};
     const key = JSON.stringify(rest || {});
@@ -154,6 +170,7 @@ export function useGamification(appState, t) {
     listRules,
     computePreview,
     listCatalogs: listAllCatalogs,
+    listMeritPeriods,
     listMeritResults,
     updateRuleFromTemplate,
   };

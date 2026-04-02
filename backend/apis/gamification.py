@@ -66,6 +66,16 @@ def staff_user(user: Dict[str, Any] = Depends(verify_session)) -> Dict[str, Any]
 # -------------------- ENDPOINTS --------------------
 
 @router.get(
+    "/admin/gamification/merit/periods",
+    summary="Lista los períodos únicos con méritos pendientes",
+    dependencies=[Depends(admin_user)],
+)
+async def get_merit_periods():
+    periods = gamification_service.list_merit_periods()
+    return {"ok": True, "periods": periods}
+
+
+@router.get(
     "/admin/gamification/merit/results",
     summary="Lista los resultados de méritos con filtros avanzados",
     dependencies=[Depends(admin_user)],

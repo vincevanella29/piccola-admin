@@ -184,21 +184,21 @@ const RuleCreate = ({ isLoading, defineRuleFromTemplate, listRuleTemplates, list
         </AnimatePresence>
       </div>
 
-      <div className="flex items-center justify-between mt-8 pt-6 border-t border-dark-border/20">
+      <div className="flex items-center justify-between mt-8 pt-6 border-t border-dark-border/10 dark:border-dark-border/20">
          {currentStep > 1 ? (
-            <button type="button" onClick={handleBack} className="px-4 py-2 rounded-lg font-semibold bg-light-surface dark:bg-dark-surface-secondary hover:opacity-90 transition-opacity">
+            <button type="button" onClick={handleBack} className="px-6 py-2.5 rounded-2xl font-bold bg-white dark:bg-dark-surface hover:bg-gray-50 dark:hover:bg-dark-surface-secondary border border-dark-border/15 dark:border-dark-border/30 text-light-text-primary dark:text-dark-text-primary hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm">
                {t('common.back') || 'Atrás'}
             </button>
          ) : <div />}
          
          {currentStep < 3 ? (
-            <button type="button" onClick={handleNext} className="px-4 py-2 rounded-lg font-semibold text-white bg-matrix-green hover:opacity-90 transition-opacity">
+            <button type="button" onClick={handleNext} className="px-6 py-2.5 rounded-2xl font-bold text-black bg-matrix-green hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] border border-matrix-green/30 transition-all shadow-lg shadow-matrix-green/10">
                {t('common.next') || 'Siguiente'}
             </button>
          ) : (
              <button
                 type="submit"
-                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-white bg-matrix-green hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                className="flex items-center justify-center gap-2 px-8 py-2.5 rounded-2xl font-bold text-black bg-matrix-green hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-matrix-green/20 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
                 disabled={isLoading}
               >
                 {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Save size={20} />}

@@ -31,6 +31,7 @@ export function useGamificationAdmin(appState, t) {
     listRules: g.listRules,
     computePreview: g.computePreview,
     listCatalogs: g.listCatalogs,
+    listMeritPeriods: g.listMeritPeriods,
     listMeritResults: g.listMeritResults,
 
     // Acciones DAO + Meritocracy

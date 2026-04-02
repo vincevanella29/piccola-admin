@@ -59,6 +59,7 @@ from .preview_services import (
 # AÑADE ESTA NUEVA IMPORTACIÓN
 from .merit_results_services import (
     list_merit_results,
+    list_merit_periods,
 )
 
 # Make all imported functions available for other modules
@@ -95,4 +96,5 @@ __all__ = [
     'compute_merit_preview_points',
     # Merit Results Services
     'list_merit_results',
+    'list_merit_periods',
 ]

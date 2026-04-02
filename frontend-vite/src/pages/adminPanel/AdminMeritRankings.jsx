@@ -290,7 +290,7 @@ const AdminMeritRankings = ({ appState }) => {
     setPeriodMode(mode);
     setSelectedRuleId(null);
     if (mode === 'year') {
-      fetchSummary({ periodo: null });
+      fetchSummary({ periodo: selectedYear });
     } else if (mode === 'month') {
       fetchSummary({ periodo: selectedPeriodo });
     } else {
@@ -300,6 +300,7 @@ const AdminMeritRankings = ({ appState }) => {
 
   const handleYearChange = (year) => {
     setSelectedYear(year);
+    fetchSummary({ periodo: year });
   };
 
   const handlePeriodoChange = (p) => {
@@ -313,9 +314,10 @@ const AdminMeritRankings = ({ appState }) => {
     const newId = selectedRuleId === ruleId ? null : ruleId; // toggle
     setSelectedRuleId(newId);
     if (newId) {
-      fetchLeaderboard(newId, { periodo: selectedPeriodo });
+      const p = periodMode === 'year' ? selectedYear : selectedPeriodo;
+      fetchLeaderboard(newId, { periodo: p });
     }
-  }, [selectedRuleId, fetchLeaderboard, selectedPeriodo]);
+  }, [selectedRuleId, fetchLeaderboard, selectedPeriodo, selectedYear, periodMode]);
 
   const handleToggleHistoric = () => {
     const next = !showHistoric;
@@ -325,11 +327,12 @@ const AdminMeritRankings = ({ appState }) => {
 
   // Aplicar filtros del toolbar → re-fetch leaderboard de la comp activa
   const handleApplyFilters = useCallback((overrides = {}) => {
-    fetchSummary(overrides);
+    const targetPeriod = (periodMode === 'year') ? selectedYear : (selectedPeriodo || overrides.periodo);
+    fetchSummary({ ...overrides, periodo: targetPeriod });
     if (selectedRuleId) {
-      fetchLeaderboard(selectedRuleId, overrides);
+      fetchLeaderboard(selectedRuleId, { ...overrides, periodo: targetPeriod });
     }
-  }, [fetchSummary, fetchLeaderboard, selectedRuleId]);
+  }, [fetchSummary, fetchLeaderboard, selectedRuleId, periodMode, selectedYear, selectedPeriodo]);
 
   // 1) Competencias filtradas por periodMode (base)
   const filteredSummaryRaw = useMemo(() => {

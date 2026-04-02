@@ -16,6 +16,7 @@ import {
   listSucursalesRefs as apiListSucursalesRefs,
   includeCuentasByResumen2 as apiIncludeCuentasByResumen2,
   excludeCuentasByResumen2 as apiExcludeCuentasByResumen2,
+  auditWorkers as apiAuditWorkers,
 } from '../utils/empresas.jsx';
 
 export function useEmpresaAdmin(appState, t) {
@@ -341,6 +342,23 @@ export function useEmpresaAdmin(appState, t) {
     }
   };
 
+  // Auditoria de Empleados
+  const fetchAuditWorkers = async () => {
+    setIsLoading(true);
+    try {
+      if (!wallet || !token) {
+        setError(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
+        return { audit: [], total: 0 };
+      }
+      return await apiAuditWorkers({ walletAddress: wallet, token });
+    } catch (err) {
+      setError(t?.('empresa.error_fetch_audit', { message: err.message }) || err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     // state
     isLoading,
@@ -363,6 +381,7 @@ export function useEmpresaAdmin(appState, t) {
     getEmpresaFromCache,
     listCuentasRefs,
     listSucursalesRefs,
+    fetchAuditWorkers,
   };
 }
 

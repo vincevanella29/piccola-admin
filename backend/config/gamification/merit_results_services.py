@@ -121,3 +121,16 @@ def list_merit_results(
             res["segment_info"] = segment_metadata[token_id]
 
     return results
+
+def list_merit_periods() -> List[str]:
+    """
+    Devuelve la lista de periodos únicos (YYYY-MM) que tienen al menos un mérito en estado pendiente
+    o en general si no hay pendientes, priorizando performance.
+    """
+    pipeline = [
+        {"$match": {"mint_status": {"$in": [None, "pending"]}, "status": "fulfilled"}},
+        {"$group": {"_id": "$periodo"}},
+        {"$sort": {"_id": -1}}
+    ]
+    periods = list(db.meritocracy_kpi_results.aggregate(pipeline))
+    return [p["_id"] for p in periods if p.get("_id")]

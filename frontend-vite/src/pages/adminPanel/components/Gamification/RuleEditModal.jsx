@@ -203,12 +203,12 @@ export default function RuleEditModal({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
           >
-            <div className="w-full max-w-5xl rounded-2xl border border-dark-border/20 bg-light-surface/40 dark:bg-dark-surface-secondary/40 shadow-2xl overflow-hidden">
+            <div className="w-full max-w-5xl rounded-[32px] border border-dark-border/20 bg-white/70 dark:bg-dark-surface-secondary/60 backdrop-blur-3xl shadow-2xl overflow-hidden">
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-dark-border/20 bg-dark-surface-secondary/40">
-                <div className="text-lg font-semibold">Editar regla</div>
-                <button onClick={onClose} className="p-2 rounded-lg hover:bg-dark-surface-secondary border border-dark-border/30" aria-label="Cerrar">
-                  <X size={18} />
+              <div className="flex items-center justify-between px-8 py-6 border-b border-dark-border/10">
+                <div className="text-2xl font-black text-light-text-primary dark:text-dark-text-primary tracking-tight">Editar regla</div>
+                <button onClick={onClose} className="p-2.5 rounded-2xl bg-white dark:bg-dark-surface hover:bg-gray-50 dark:hover:bg-dark-surface-secondary border border-dark-border/10 dark:border-dark-border/30 text-light-text-secondary dark:text-dark-text-secondary transition-all shadow-sm" aria-label="Cerrar">
+                  <X size={20} />
                 </button>
               </div>
 
@@ -240,21 +240,21 @@ export default function RuleEditModal({
               </div>
 
               {/* Footer */}
-              <div className="px-5 py-3 border-t border-dark-border/20 bg-dark-surface-secondary/40 flex items-center justify-end gap-2">
+              <div className="px-8 py-5 border-t border-dark-border/10 bg-white/50 dark:bg-dark-surface-secondary/30 flex items-center justify-end gap-3 rounded-b-[32px]">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg border border-dark-border/30 hover:bg-dark-surface-secondary"
+                  className="px-6 py-2.5 rounded-2xl font-bold bg-white dark:bg-dark-surface hover:bg-gray-50 dark:hover:bg-dark-surface-secondary border border-dark-border/15 dark:border-dark-border/30 text-light-text-primary dark:text-dark-text-primary hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm"
                   disabled={isSaving}
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSave}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-matrix-green text-white dark:text-dark-text-secondary disabled:bg-matrix-green/40"
+                  className="flex items-center justify-center gap-2 px-8 py-2.5 rounded-2xl font-bold text-black bg-matrix-green hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-matrix-green/20 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
                   disabled={isSaving}
                 >
-                  {isSaving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
-                  {isSaving ? 'Guardando…' : 'Guardar cambios'}
+                  {isSaving ? <LoaderCircle size={20} className="animate-spin" /> : <Save size={20} />}
+                  {isSaving ? 'Guardando…' : 'Guardar Cambios'}
                 </button>
               </div>
             </div>

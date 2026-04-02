@@ -717,3 +717,142 @@ async def list_empresas(
         items.append(doc)
     total = COL_EMPRESAS.count_documents(filt)
     return {"total": total, "items": items}
+
+@router.get("/empresas-workers/audit", summary="Auditoría de Empleados, Usuarios y Wallets")
+async def get_workers_audit(user: dict = Depends(verify_session)):
+    require_admin_level(user, "admin")
+    
+    logger.info("=== INICIANDO AUDITORIA WALLETS ===")
+    
+    # 1. Fetch all empleados_usuarios mapping
+    empleados = list(db.empleados_usuarios.find({}, {"rut": 1, "wallet": 1, "sub": 1, "email": 1, "cargo": 1, "seccion": 1, "_id": 0}))
+    logger.info(f"[AUDIT] Obtenidos {len(empleados)} registros de empleados_usuarios.")
+    
+    # 1.5 Fetch cargos to seccion mapping
+    cargos_docs = list(db.cargos_intranet.find({}, {"cargo": 1, "seccion": 1, "_id": 0}))
+    cargo_to_seccion = {str(c.get("cargo")).strip().lower(): c.get("seccion") for c in cargos_docs if c.get("cargo")}
+    
+    emp_map = {}
+    registered_ruts_str = set()
+    registered_ruts_int = set()
+    
+    for e in empleados:
+        rut_val = e.get("rut")
+        if rut_val is not None:
+            r_str = str(rut_val).strip()
+            emp_map[r_str] = e
+            registered_ruts_str.add(r_str)
+            try:
+                registered_ruts_int.add(int(rut_val))
+            except:
+                pass
+                
+    logger.info(f"[AUDIT] Ruts registrados parseados: {len(registered_ruts_str)} únicos (str).")
+            
+    # 2. Fetch active workers OR workers that are registered (even if inactive)
+    query = {
+        "$or": [
+            {"activo": 1},
+            {"rut": {"$in": list(registered_ruts_str)}},
+            {"rut": {"$in": list(registered_ruts_int)}}
+        ]
+    }
+    
+    workers = list(db.trabajadores_vpn.find(
+        query,
+        {"rut": 1, "nombres": 1, "apellidopaterno": 1, "apellidomaterno": 1, "cargo": 1, "sucursal": 1, "activo": 1, "profile_image_url": 1, "_id": 0}
+    ))
+    logger.info(f"[AUDIT] Trabajadores VPN que aplican (activos o ya en Web3): {len(workers)}.")
+    
+    # Keep track of workers we processed
+    processed_ruts = set()
+    results = []
+    
+    for w in workers:
+        r = str(w.get("rut", "")).strip()
+        if not r:
+            continue
+            
+        processed_ruts.add(r)
+        
+        nombres = (w.get("nombres") or "").strip()
+        ap_pat = (w.get("apellidopaterno") or "").strip()
+        ap_mat = (w.get("apellidomaterno") or "").strip()
+        fullname = " ".join([p for p in [nombres, ap_pat, ap_mat] if p])
+        
+        emp_data = emp_map.get(r, {})
+        has_user = bool(emp_data.get("sub") or emp_data.get("email"))
+        wallet = emp_data.get("wallet")
+        # Ensure the wallet is an actual Ethereum address and not a stray privy DID
+        has_wallet = bool(wallet and isinstance(wallet, str) and wallet.startswith("0x"))
+        
+        status = "no_user"
+        if has_user and has_wallet:
+            status = "complete"
+        elif has_user and not has_wallet:
+            status = "user_no_wallet"
+            
+        is_active = bool(w.get("activo") == 1)
+        
+        
+        cargo_final = w.get("cargo") or emp_data.get("cargo")
+        seccion_final = emp_data.get("seccion")
+        if not seccion_final and cargo_final:
+            seccion_final = cargo_to_seccion.get(str(cargo_final).strip().lower())
+            
+        results.append({
+            "rut": r,
+            "name": fullname,
+            "cargo": cargo_final,
+            "seccion": seccion_final,
+            "sucursal": w.get("sucursal"),
+            "has_user": has_user,
+            "has_wallet": has_wallet,
+            "wallet": wallet,
+            "email": emp_data.get("email"),
+            "profile_image_url": w.get("profile_image_url"),
+            "status": status,
+            "is_active_employee": is_active
+        })
+        
+    # Append users in empleados_usuarios but missing from trabajadores_vpn
+    missing_count = 0
+    for r_str, emp_data in emp_map.items():
+        if r_str not in processed_ruts:
+            missing_count += 1
+            has_user = bool(emp_data.get("sub") or emp_data.get("email"))
+            wallet = emp_data.get("wallet")
+            has_wallet = bool(wallet and isinstance(wallet, str) and wallet.startswith("0x"))
+            status = "complete" if has_wallet else ("user_no_wallet" if has_user else "no_user")
+            
+            cargo_final = emp_data.get("cargo") or "—"
+            seccion_final = emp_data.get("seccion")
+            if not seccion_final and cargo_final != "—":
+                seccion_final = cargo_to_seccion.get(str(cargo_final).strip().lower())
+            
+            results.append({
+                "rut": r_str,
+                "name": "Desconocido (No en VPN)",
+                "cargo": cargo_final,
+                "seccion": seccion_final,
+                "sucursal": "—",
+                "has_user": has_user,
+                "has_wallet": has_wallet,
+                "wallet": wallet,
+                "email": emp_data.get("email"),
+                "profile_image_url": None,
+                "status": status,
+                "is_active_employee": False
+            })
+            
+    logger.info(f"[AUDIT] Empleados en empleados_usuarios que NO están en trabajadores_vpn: {missing_count}")
+    
+    # Sort logically: user_no_wallet > no_user > complete
+    def sort_key(x):
+        if x["status"] == "user_no_wallet": return 0
+        if x["status"] == "no_user": return 1
+        return 2
+        
+    results.sort(key=sort_key)
+    logger.info(f"=== FIN AUDITORIA WALLETS - Total Retornados: {len(results)} ===")
+    return {"total": len(results), "audit": results}
