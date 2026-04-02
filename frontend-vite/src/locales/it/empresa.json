@@ -93,5 +93,15 @@
   "pick_sections": "Seleziona sezioni",
   "exclude_sections": "Blocca Sezioni (applicato)"
   ,
-  "api_rule_saved": "Regola API salvata"
+  "api_rule_saved": "Regola API salvata",
+  "production_centers_title": "Centri di Produzione",
+  "production_centers_subtitle": "Configura le stazioni (es. Griglia, Cucina Calda) e mappa i ruoli operativi",
+  "production_centers_info": "Assegna i ruoli che lavorano in ogni centro di produzione. Quando un dipendente registra le presenze, le metriche di prestazione e tempo verranno attribuite automaticamente a questo centro. Inoltre, consentirà loro di richiedere ricette, processare scarti e caricare inventari delle proprie aree produttive.",
+  "search_centro": "Cerca centro...",
+  "pick_one_title": "Seleziona un Centro",
+  "pick_one_desc": "Clicca su un centro di produzione a sinistra per configurare quali ruoli compongono le sue operazioni.",
+  "cargos_assigned": "Ruoli Operativi",
+  "cargos_desc": "Personale che lavora in questo centro",
+  "areas_assigned": "Aree di Configurazione",
+  "areas_desc": "Posizioni nel layout"
 }

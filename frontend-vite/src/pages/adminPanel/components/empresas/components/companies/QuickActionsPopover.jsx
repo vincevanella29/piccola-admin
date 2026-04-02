@@ -1,8 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Select from 'react-select';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Settings2, Save } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { motion, AnimatePresence } from 'framer-motion';
 import { makeSelectStyles, parseIds, useIsDark } from './QuickActionsCommon';
 
 const QuickActionsPopover = ({
@@ -60,6 +61,8 @@ const QuickActionsPopover = ({
       if (anchorRef?.current && anchorRef.current.contains(e.target)) return;
       const panel = document.getElementById('qa-popover');
       if (panel && panel.contains(e.target)) return;
+      // Allow select options menu to click
+      if (e.target.closest('.vxselect__menu')) return;
       onClose?.();
     };
     document.addEventListener('mousedown', onDocClick);
@@ -84,26 +87,37 @@ const QuickActionsPopover = ({
 
   if (!portalTarget) return null;
   return createPortal(
-    <div
+    <motion.div
       id="qa-popover"
+      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 2147483000 }}
-      className="rounded-xl border bg-light-surface text-light-text-primary border-light-border shadow-modal
-                 dark:bg-dark-surface dark:text-dark-text-primary dark:border-dark-border"
+      className="rounded-3xl border bg-white/90 shadow-2xl backdrop-blur-xl border-gray-200 text-gray-900 
+                 dark:bg-gray-900/90 dark:text-white dark:border-gray-800"
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-light-border dark:border-dark-border">
-        <div className="font-medium">{t('empresa.quick_actions') || 'Acciones rápidas'}</div>
-        <button
-          className="p-1 rounded-md hover:bg-light-surface-secondary/60 dark:hover:bg-dark-surface-secondary/60"
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800/60">
+        <div className="flex items-center gap-2">
+           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500/20 to-primary-500/20 flex items-center justify-center">
+               <Settings2 className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+           </div>
+           <div className="font-semibold">{t('empresa.quick_actions') || 'Acciones Rápidas'}</div>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
           onClick={onClose}
         >
-          <X className="h-4 w-4" />
-        </button>
+          <X className="h-5 w-5" />
+        </motion.button>
       </div>
 
-      <div className="p-4 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="p-5 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs mb-1 opacity-80">{t('empresa.incluir_resumen2_multi') || 'Incluir por Resumen2'}</label>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">{t('empresa.incluir_resumen2_multi') || 'Incluir por Resumen2'}</label>
             <Select
               isMulti
               options={resumen2Options}
@@ -118,7 +132,7 @@ const QuickActionsPopover = ({
             />
           </div>
           <div>
-            <label className="block text-xs mb-1 opacity-80">{t('empresa.excluir_resumen2_multi') || 'Excluir por Resumen2'}</label>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">{t('empresa.excluir_resumen2_multi') || 'Excluir por Resumen2'}</label>
             <Select
               isMulti
               options={resumen2Options}
@@ -134,54 +148,57 @@ const QuickActionsPopover = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs mb-1 opacity-80">{t('empresa.incluir_cuentas_ids') || 'Incluir cuentas (IDs, coma/espacio)'}</label>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">{t('empresa.incluir_cuentas_ids') || 'Incluir Cuentas (IDs)'}</label>
             <input
-              className="w-full px-3 py-2 rounded-md border bg-transparent
-                         border-light-border focus:outline-none focus:ring-2 focus:ring-light-accent
-                         dark:border-dark-border dark:focus:ring-dark-accent"
+              className="w-full px-4 py-2.5 rounded-2xl border bg-gray-50/50 dark:bg-black/20
+                         border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500
+                         dark:border-gray-800 dark:focus:ring-primary-500 transition-all text-sm"
               value={idsIn}
               onChange={(e) => setIdsIn(e.target.value)}
-              placeholder="101, 202, 303"
+              placeholder="Ej: 101, 202, 303"
             />
           </div>
           <div>
-            <label className="block text-xs mb-1 opacity-80">{t('empresa.excluir_cuentas_ids') || 'Excluir cuentas (IDs, coma/espacio)'}</label>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">{t('empresa.excluir_cuentas_ids') || 'Excluir Cuentas (IDs)'}</label>
             <input
-              className="w-full px-3 py-2 rounded-md border bg-transparent
-                         border-light-border focus:outline-none focus:ring-2 focus:ring-light-accent
-                         dark:border-dark-border dark:focus:ring-dark-accent"
+              className="w-full px-4 py-2.5 rounded-2xl border bg-gray-50/50 dark:bg-black/20
+                         border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500
+                         dark:border-gray-800 dark:focus:ring-primary-500 transition-all text-sm"
               value={idsEx}
               onChange={(e) => setIdsEx(e.target.value)}
-              placeholder="404 505 606"
+              placeholder="Ej: 404, 505, 606"
             />
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-3 border-t border-light-border dark:border-dark-border flex items-center justify-end gap-2">
-        <button
-          className="px-3 py-2 rounded-md border border-light-border hover:bg-light-surface-secondary/60
-                     dark:border-dark-border dark:hover:bg-dark-surface-secondary/60"
+      <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800/60 bg-gray-50/50 dark:bg-gray-900/50 rounded-b-3xl flex items-center justify-end gap-3">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="px-5 py-2.5 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-sm shadow-sm
+                     dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 transition-colors"
           onClick={onClose}
           disabled={loading}
         >
           {t('common.cancel') || 'Cancelar'}
-        </button>
-        <button
-          className="px-4 py-2 rounded-md text-white
-                     bg-light-accent hover:bg-light-accent-hover
-                     dark:bg-dark-accent dark:hover:bg-dark-accent-hover
-                     disabled:opacity-60 inline-flex items-center gap-2"
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="px-6 py-2.5 rounded-2xl text-white font-semibold text-sm shadow-md
+                     bg-gradient-to-r from-primary-500 to-indigo-500 hover:from-primary-600 hover:to-indigo-600
+                     disabled:opacity-60 inline-flex items-center gap-2 transition-all"
           onClick={doApply}
           disabled={loading}
         >
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {t('common.apply') || 'Aplicar'}
-        </button>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {t('common.apply') || 'Aplicar Cambios'}
+        </motion.button>
       </div>
-    </div>,
+    </motion.div>,
     portalTarget
   );
 };

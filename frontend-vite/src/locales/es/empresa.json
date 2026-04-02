@@ -93,5 +93,15 @@
   "pick_sections": "Selecciona secciones",
   "exclude_sections": "Bloquear Secciones (aplicado)"
   ,
-  "api_rule_saved": "Regla de API guardada"
+  "api_rule_saved": "Regla de API guardada",
+  "production_centers_title": "Centros de Producción",
+  "production_centers_subtitle": "Configura las estaciones (ej. Parrilla, Cocina Caliente) y mapea los cargos operativos",
+  "production_centers_info": "Asigna qué cargos trabajan en cada centro de producción. Cuando un empleado registre asistencia, sus métricas de rendimiento y tiempos se atribuirán automáticamente a este centro. Esto les permitirá además solicitar recetas, procesar mermas y subir inventarios de sus áreas productivas.",
+  "search_centro": "Buscar centro...",
+  "pick_one_title": "Selecciona un Centro",
+  "pick_one_desc": "Haz clic en un centro de producción a la izquierda para configurar qué cargos conforman sus operaciones.",
+  "cargos_assigned": "Cargos Operativos",
+  "cargos_desc": "Personal que trabaja en este centro",
+  "areas_assigned": "Áreas de Configuración",
+  "areas_desc": "Ubicaciones de layout"
 }

@@ -1,17 +1,40 @@
 // src/pages/adminPanel/components/empresas/components/roles/RoleScopesTab.jsx
 import React, { useMemo, useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Select from 'react-select';
-import { Save, Trash2, RefreshCw, Shield } from 'lucide-react';
+import { Save, Trash2, RefreshCw, Shield, CheckCircle2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { useIsDark, makeSelectStyles, ROLE_LEVEL_OPTIONS } from './common';
 import useRolesAccess from '../../../../../../hooks/useRolesAccess.jsx';
+
+/* ── Apple-style toggle ── */
+const Toggle = ({ checked, onChange, label }) => (
+  <label className="flex items-center gap-3 cursor-pointer group">
+    <motion.div
+      className={`relative w-12 h-7 rounded-full transition-colors ${
+        checked
+          ? 'bg-gradient-to-r from-primary-500 to-indigo-500'
+          : 'bg-gray-300 dark:bg-gray-700'
+      }`}
+      onClick={(e) => { e.preventDefault(); onChange(!checked); }}
+      whileTap={{ scale: 0.95 }}
+    >
+      <motion.div
+        className="absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md"
+        animate={{ left: checked ? '22px' : '2px' }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+      />
+    </motion.div>
+    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+      {label}
+    </span>
+  </label>
+);
 
 const RoleScopesTab = ({
   appState,
   t,
-  // puedes pasar options ya listas...
   sucursalesOptions = [],
   empresasOptions = [],
-  // ...o prefetched crudos y aquí se arman las options
   prefetchedSucursales = [],
   prefetchedEmpresas = [],
 }) => {
@@ -20,12 +43,11 @@ const RoleScopesTab = ({
 
   const { getRoleLevelScope, saveRoleLevelScope, clearRoleLevelScope } = useRolesAccess(appState, t);
 
-  // si no vienen options, fabrícalas desde los prefetched
   const sucsOpts = useMemo(() => {
     if (sucursalesOptions?.length) return sucursalesOptions;
     return (prefetchedSucursales || []).map(s => ({
       value: Number(s?.id_sucursal),
-      label: `#${s?.id_sucursal}${s?.sigla ? `  · ${s.sigla}` : ''}${s?.nombre ? `  · ${s.nombre}` : ''}` ,
+      label: `#${s?.id_sucursal}${s?.sigla ? `  · ${s.sigla}` : ''}${s?.nombre ? `  · ${s.nombre}` : ''}`,
     }));
   }, [sucursalesOptions, prefetchedSucursales]);
 
@@ -33,7 +55,7 @@ const RoleScopesTab = ({
     if (empresasOptions?.length) return empresasOptions;
     return (prefetchedEmpresas || []).map(e => ({
       value: String(e?._id),
-      label: `${e?.nombre || ''}${e?.slug ? `  · ${e.slug}` : ''} · (${e?._id})` ,
+      label: `${e?.nombre || ''}${e?.slug ? `  · ${e.slug}` : ''} · (${e?._id})`,
     }));
   }, [empresasOptions, prefetchedEmpresas]);
 
@@ -42,8 +64,8 @@ const RoleScopesTab = ({
 
   const [allowAllSuc, setAllowAllSuc] = useState(false);
   const [allowAllEmp, setAllowAllEmp] = useState(false);
-  const [selSucursales, setSelSucursales] = useState([]); // [{ value: 101, label: 'LFD' }, ...]
-  const [selEmpresas, setSelEmpresas] = useState([]);     // [{ value: '66fa...', label: 'LPI' }, ...]
+  const [selSucursales, setSelSucursales] = useState([]);
+  const [selEmpresas, setSelEmpresas] = useState([]);
 
   const load = async () => {
     try {
@@ -91,7 +113,7 @@ const RoleScopesTab = ({
         empresa_ids: allowAllEmp ? [] : selEmpresas.map((o) => String(o.value)),
         sucursal_ids: allowAllSuc ? [] : selSucursales.map((o) => Number(o.value)),
       });
-      setBanner({ type: 'ok', msg: t?.('empresa.saved') || 'Guardado' });
+      setBanner({ type: 'ok', msg: t?.('empresa.saved') || 'Guardado correctamente' });
     } catch {
       setBanner({ type: 'err', msg: t?.('empresa.save_error') || 'Error al guardar' });
     }
@@ -113,36 +135,52 @@ const RoleScopesTab = ({
   };
 
   return (
-    <>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
-          <Shield className="h-5 w-5" />
-          {t?.('empresa.role_scopes_title') || 'Visibilidad por nivel de rol'}
-        </h3>
-        <button
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary-500/20 to-indigo-500/20 flex items-center justify-center">
+            <Shield className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold">{t?.('empresa.role_scopes_title') || 'Visibilidad por nivel de rol'}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t?.('empresa.role_scopes_desc') || 'Configura qué puede ver cada nivel de wallet'}</p>
+          </div>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={load}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold shadow-sm transition-all"
         >
           <RefreshCw className="h-4 w-4" />
           {t?.('empresa.refresh') || 'Refrescar'}
-        </button>
+        </motion.button>
       </div>
 
-      {banner.msg && (
-        <div
-          className={`mb-3 rounded-lg border px-3 py-2 ${
-            banner.type === 'ok'
-              ? 'border-green-300/40 bg-green-500/10 text-green-600 dark:border-green-500/30 dark:text-green-400'
-              : 'border-red-300/40 bg-red-500/10 text-red-600 dark:border-red-500/30 dark:text-red-400'
-          }`}
-        >
-          <span className="text-sm">{banner.msg}</span>
-        </div>
-      )}
+      {/* Banner */}
+      <AnimatePresence>
+        {banner.msg && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm ${
+              banner.type === 'ok'
+                ? 'border-emerald-500/20 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                : 'border-red-500/20 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400'
+            }`}
+          >
+            {banner.type === 'ok' ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+            <span className="text-sm font-medium">{banner.msg}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Role Level Selector — prominent card */}
+      <div className="bg-white/40 dark:bg-black/20 rounded-3xl border border-gray-200 dark:border-gray-800 backdrop-blur-xl p-6 space-y-6">
         <div>
-          <label className="block text-sm mb-1">{t?.('empresa.role_level') || 'Nivel de rol'}</label>
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3">{t?.('empresa.role_level') || 'Nivel de Rol'}</label>
           <Select
             isClearable
             options={ROLE_LEVEL_OPTIONS}
@@ -150,81 +188,89 @@ const RoleScopesTab = ({
             onChange={setSelectedRoleLevel}
             styles={selectStyles}
             classNamePrefix="vxselect"
-            className="text-sm"
-            placeholder={t?.('empresa.choose_role_level') || 'Elige nivel de rol'}
+            className="text-sm font-medium max-w-lg"
+            placeholder={t?.('empresa.choose_role_level') || 'Selecciona un nivel de rol...'}
           />
         </div>
 
-        <div className="md:col-span-1">
-          <label className="block text-sm mb-1">{t?.('empresa.allow_all_sucursales') || 'Todas las sucursales'}</label>
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={allowAllSuc}
-            onChange={(e) => setAllowAllSuc(e.target.checked)}
-          />
-        </div>
+        {selectedRoleLevel && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* Toggles */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50/50 dark:bg-gray-800/30 rounded-2xl">
+              <Toggle checked={allowAllSuc} onChange={setAllowAllSuc} label={t?.('empresa.allow_all_sucursales') || 'Permitir todas las sucursales'} />
+              <Toggle checked={allowAllEmp} onChange={setAllowAllEmp} label={t?.('empresa.allow_all_companies') || 'Permitir todas las empresas'} />
+            </div>
 
-        <div className="md:col-span-1">
-          <label className="block text-sm mb-1">{t?.('empresa.allow_all_companies') || 'Todas las empresas'}</label>
-          <input
-            type="checkbox"
-            className="h-4 w-4"
-            checked={allowAllEmp}
-            onChange={(e) => setAllowAllEmp(e.target.checked)}
-          />
-        </div>
+            {/* Conditional selectors */}
+            <AnimatePresence>
+              {!allowAllSuc && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                  <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">
+                    <Eye className="h-3.5 w-3.5" /> {t?.('empresa.sucursales_allowed') || 'Sucursales permitidas'}
+                  </label>
+                  <Select
+                    isMulti
+                    options={sucsOpts}
+                    value={selSucursales}
+                    onChange={setSelSucursales}
+                    styles={selectStyles}
+                    classNamePrefix="vxselect"
+                    className="text-sm font-medium"
+                    placeholder={t?.('empresa.choose_sucursales') || 'Elegir sucursales...'}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-        {!allowAllSuc && (
-          <div className="md:col-span-3">
-            <label className="block text-sm mb-1">{t?.('empresa.sucursales_allowed') || 'Sucursales permitidas'}</label>
-            <Select
-              isMulti
-              options={sucsOpts}
-              value={selSucursales}
-              onChange={setSelSucursales}
-              styles={selectStyles}
-              classNamePrefix="vxselect"
-              className="text-sm"
-              placeholder={t?.('empresa.choose_sucursales') || 'Elegir sucursales'}
-            />
-          </div>
+            <AnimatePresence>
+              {!allowAllEmp && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                  <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">
+                    <Eye className="h-3.5 w-3.5" /> {t?.('empresa.empresas_allowed') || 'Empresas permitidas'}
+                  </label>
+                  <Select
+                    isMulti
+                    options={empOpts}
+                    value={selEmpresas}
+                    onChange={setSelEmpresas}
+                    styles={selectStyles}
+                    classNamePrefix="vxselect"
+                    className="text-sm font-medium"
+                    placeholder={t?.('empresa.choose_empresas') || 'Elegir empresas...'}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Actions */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-2">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onClear}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 font-bold text-sm transition-all"
+              >
+                <Trash2 className="h-4 w-4" />
+                {t?.('empresa.clear') || 'Eliminar configuración'}
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onSave}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-primary-500 to-indigo-500 hover:from-primary-600 hover:to-indigo-600 text-white font-bold text-sm shadow-lg shadow-primary-500/20 transition-all"
+              >
+                <Save className="h-4 w-4" />
+                {t?.('empresa.save') || 'Guardar'}
+              </motion.button>
+            </div>
+          </motion.div>
         )}
-
-        {!allowAllEmp && (
-          <div className="md:col-span-3">
-            <label className="block text-sm mb-1">{t?.('empresa.empresas_allowed') || 'Empresas permitidas'}</label>
-            <Select
-              isMulti
-              options={empOpts}
-              value={selEmpresas}
-              onChange={setSelEmpresas}
-              styles={selectStyles}
-              classNamePrefix="vxselect"
-              className="text-sm"
-              placeholder={t?.('empresa.choose_empresas') || 'Elegir empresas'}
-            />
-          </div>
-        )}
-      </section>
-
-      <div className="flex items-center justify-end gap-2 mt-4">
-        <button
-          onClick={onSave}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary-600 text-white hover:bg-primary-700"
-        >
-          <Save className="h-4 w-4" />
-          {t?.('empresa.save') || 'Guardar'}
-        </button>
-        <button
-          onClick={onClear}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
-        >
-          <Trash2 className="h-4 w-4" />
-          {t?.('empresa.clear') || 'Eliminar configuración'}
-        </button>
       </div>
-    </>
+    </div>
   );
 };
 

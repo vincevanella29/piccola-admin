@@ -11,7 +11,6 @@ import EmpresaRolesTab from './components/empresas/EmpresaRolesTab.jsx';
 import ApiAccessRulesTab from './components/empresas/components/roles/ApiAccessRulesTab.jsx';
 
 // ⬅️ NUEVO: Tab de Centros de Producción
-// ⬅️ NUEVO: Tab de Centros de Producción
 import ProductionCentersTab from './components/empresas/components/cproduccion/ProductionCentersTab.jsx';
 
 import EmpresaWorkersAuditTab from './components/empresas/EmpresaWorkersAuditTab.jsx';
@@ -70,7 +69,7 @@ const AdminEmpresas = ({ appState }) => {
       setAllSucursales(suc);
       setAllCuentas(cue);
     } catch {
-      setInitError(t('empresa.load_all_error'));
+      setInitError(t('empresa.load_all_error') || 'Error al cargar todo');
     } finally {
       setInitLoading(false);
     }
@@ -120,7 +119,7 @@ const AdminEmpresas = ({ appState }) => {
       const emp = await fetchAllPages(listEmpresas, { limit: 200, q: '' });
       setAllEmpresas(emp);
     } catch {
-      appState?.setError?.(t('empresa.refresh_error'));
+      appState?.setError?.(t('empresa.refresh_error') || 'Error refresh');
     }
   }, [listEmpresas, appState, t]);
 
@@ -172,33 +171,90 @@ const AdminEmpresas = ({ appState }) => {
   );
 
   return (
-    <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 flex flex-col">
-      {/* Título */}
-      <div className="flex items-center justify-between mb-4 sm:mb-6">
-        <motion.h1
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-2xl sm:text-3xl lg:text-4xl font-bold text-light-text-primary dark:text-dark-text-primary flex items-center gap-3"
-        >
-          <Building2 className="h-7 w-7 sm:h-8 sm:w-8" />
+    <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
+      {/* Título - Apple Glass Style */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex items-center justify-between bg-white/40 dark:bg-black/20 p-5 sm:p-6 rounded-3xl border border-gray-200 dark:border-gray-800 backdrop-blur-xl shadow-sm"
+      >
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-primary-500/30">
+            <Building2 className="h-6 w-6 text-white" />
+          </div>
           {t('empresa.admin_title')}
-        </motion.h1>
+        </h1>
+        
+        {/* Acciones contextuales Header */}
+        <div className="hidden sm:flex items-center gap-3">
+          {activeTab === 'empresas' && (
+            <>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold text-sm shadow-sm transition-all"
+                onClick={loadAllOnce}
+                disabled={initLoading}
+                title={t('empresa.reload_all_tooltip')}
+              >
+                <RotateCw className={`h-4 w-4 ${initLoading ? 'animate-spin' : ''}`} />
+                <span>{t('empresa.reload') || 'Recargar'}</span>
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-primary-500 to-indigo-500 hover:from-primary-600 hover:to-indigo-600 text-white font-bold text-sm shadow-lg shadow-primary-500/20 transition-all"
+                onClick={() => setShowCreate(true)}
+              >
+                <Plus className="h-5 w-5" /> {t('empresa.create_new')}
+              </motion.button>
+            </>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Acciones contextuales Móvil */}
+      <div className="flex sm:hidden items-center justify-between gap-3 bg-white/40 dark:bg-black/20 p-4 rounded-3xl border border-gray-200 dark:border-gray-800 backdrop-blur-xl">
+          {activeTab === 'empresas' ? (
+            <>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-semibold text-sm shadow-sm"
+                onClick={loadAllOnce}
+                disabled={initLoading}
+              >
+                <RotateCw className={`h-4 w-4 ${initLoading ? 'animate-spin' : ''}`} />
+                <span>{t('empresa.reload') || 'Recargar'}</span>
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-primary-500 to-indigo-500 text-white font-bold text-sm shadow-lg"
+                onClick={() => setShowCreate(true)}
+              >
+                <Plus className="h-5 w-5" /> {t('common.add') || 'Añadir'}
+              </motion.button>
+            </>
+          ) : (
+            <div className="w-full text-center text-sm font-semibold text-gray-400">
+               {t('empresa.admin_title')} Configuración
+            </div>
+          )}
       </div>
 
-      {/* Card + Tabs (misma UX que MyFichaPanel) */}
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-light-surface dark:bg-dark-surface shadow-sm overflow-hidden">
-        <div className="px-3 sm:px-4 pt-3 sm:pt-4 border-b border-gray-200 dark:border-gray-800 bg-light-surface/70 dark:bg-dark-surface/70 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md">
-          <Tabs>
+      {/* Card + Tabs  */}
+      <div className="rounded-[32px] border border-gray-200 dark:border-gray-800 bg-white/30 dark:bg-black/30 backdrop-blur-xl shadow-xl overflow-hidden flex flex-col">
+        <Tabs>
+          <div className="px-4 sm:px-6 pt-4 sm:pt-6 border-b border-gray-100 dark:border-gray-800/50 bg-white/40 dark:bg-gray-900/40">
             {/* Header Tabs con scroll horizontal */}
             <div className="relative w-full">
-              <div className="overflow-x-auto scrollbar-none pb-2 -mb-2">
-                <TabsList>
+              <div className="overflow-x-auto scrollbar-none pb-4">
+                <TabsList className="bg-transparent border-0 gap-2 p-0 flex">
                   <TabsTrigger
                     isActive={activeTab === 'empresas'}
                     onClick={() => setActiveTab('empresas')}
                     icon={Building2}
-                    className="whitespace-nowrap"
+                    className={`whitespace-nowrap px-5 py-3 rounded-2xl font-bold transition-all ${activeTab === 'empresas' ? 'bg-white dark:bg-gray-800 shadow-sm text-primary-600 dark:text-primary-400' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-gray-800/50'}`}
                   >
                     {t('empresa.tab_empresas') || 'Empresas'}
                   </TabsTrigger>
@@ -207,146 +263,116 @@ const AdminEmpresas = ({ appState }) => {
                     isActive={activeTab === 'roles'}
                     onClick={() => setActiveTab('roles')}
                     icon={ShieldCheck}
-                    className="whitespace-nowrap"
+                    className={`whitespace-nowrap px-5 py-3 rounded-2xl font-bold transition-all ${activeTab === 'roles' ? 'bg-white dark:bg-gray-800 shadow-sm text-primary-600 dark:text-primary-400' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-gray-800/50'}`}
                   >
                     {t('empresa.tab_roles') || 'Roles & Scopes'}
                   </TabsTrigger>
 
-                  {/* Nuevo Tab: Secciones por API */}
                   <TabsTrigger
                     isActive={activeTab === 'secciones'}
                     onClick={() => setActiveTab('secciones')}
                     icon={ShieldCheck}
-                    className="whitespace-nowrap"
+                    className={`whitespace-nowrap px-5 py-3 rounded-2xl font-bold transition-all ${activeTab === 'secciones' ? 'bg-white dark:bg-gray-800 shadow-sm text-primary-600 dark:text-primary-400' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-gray-800/50'}`}
                   >
-                    {t('empresa.tab_secciones') || 'Secciones por API'}
+                    {t('empresa.tab_secciones') || 'Secciones x API'}
                   </TabsTrigger>
 
-                  {/* ⬇️ NUEVO TAB */}
                   <TabsTrigger
                     isActive={activeTab === 'cproduccion'}
                     onClick={() => setActiveTab('cproduccion')}
                     icon={Factory}
-                    className="whitespace-nowrap"
+                    className={`whitespace-nowrap px-5 py-3 rounded-2xl font-bold transition-all ${activeTab === 'cproduccion' ? 'bg-white dark:bg-gray-800 shadow-sm text-primary-600 dark:text-primary-400' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-gray-800/50'}`}
                   >
-                    {t('empresa.tab_cproduccion') || 'Centros de Producción'}
+                    {t('empresa.tab_cproduccion') || 'Centros Prod.'}
                   </TabsTrigger>
 
-                  {/* NUEVO TAB: Auditoría Wallet */}
                   <TabsTrigger
                     isActive={activeTab === 'audit'}
                     onClick={() => setActiveTab('audit')}
-                    icon={ShieldCheck} // Reusing ShieldCheck for now, or some other icon
-                    className="whitespace-nowrap"
+                    icon={ShieldCheck}
+                    className={`whitespace-nowrap px-5 py-3 rounded-2xl font-bold transition-all ${activeTab === 'audit' ? 'bg-white dark:bg-gray-800 shadow-sm text-primary-600 dark:text-primary-400' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-gray-800/50'}`}
                   >
-                    Auditoría Wallets
+                    Auditoría
                   </TabsTrigger>
                 </TabsList>
               </div>
             </div>
+          </div>
 
-            {/* Acciones contextuales (solo tab Empresas) */}
-            <div className="flex items-center gap-2 mt-3 sm:mt-4">
-              {activeTab === 'empresas' ? (
-                <>
-                  <button
-                    className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900"
-                    onClick={loadAllOnce}
-                    disabled={initLoading}
-                    title={t('empresa.reload_all_tooltip')}
-                  >
-                    <RotateCw className={`h-4 w-4 ${initLoading ? 'animate-spin' : ''}`} />
-                    <span className="hidden sm:inline">{t('empresa.reload')}</span>
-                  </button>
-                  <button
-                    className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md bg-primary-600 text-white hover:bg-primary-700"
-                    onClick={() => setShowCreate(true)}
-                  >
-                    <Plus className="h-4 w-4" /> {t('empresa.create_new')}
-                  </button>
-                </>
-              ) : (
-                <div className="h-10 sm:h-10" />
-              )}
-            </div>
+          {/* Contenidos */}
+          <div className="p-4 sm:p-6 bg-transparent">
+            <TabsContent isActive={activeTab === 'empresas'}>
+              <div className="w-full">
+                <EmpresasList {...empresasListProps} />
+              </div>
 
-            {/* Contenidos */}
-            <div className="p-3 sm:p-4">
-              <TabsContent isActive={activeTab === 'empresas'}>
-                <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
-                  <EmpresasList {...empresasListProps} />
-                </div>
+              {/* Drawer de creación */}
+              <EmpresaCreateDrawer
+                open={showCreate}
+                onClose={() => setShowCreate(false)}
+                onCreated={async () => {
+                  setShowCreate(false);
+                  await refreshEmpresasFromServer(); // sólo empresas
+                }}
+                prefetchedSucursales={allSucursales}
+                prefetchedCuentas={allCuentas}
+                resumen2Options={resumen2Options}
+                createEmpresa={createEmpresa}
+                includeByResumen2={includeCuentasByResumen2}
+                excludeByResumen2={excludeCuentasByResumen2}
+                t={t}
+                appState={appState}
+              />
 
-                {/* Drawer de creación */}
-                <EmpresaCreateDrawer
-                  open={showCreate}
-                  onClose={() => setShowCreate(false)}
-                  onCreated={async () => {
-                    setShowCreate(false);
-                    await refreshEmpresasFromServer(); // sólo empresas
-                  }}
-                  prefetchedSucursales={allSucursales}
-                  prefetchedCuentas={allCuentas}
-                  resumen2Options={resumen2Options}
-                  createEmpresa={createEmpresa}
-                  includeByResumen2={includeCuentasByResumen2}
-                  excludeByResumen2={excludeCuentasByResumen2}
-                  t={t}
+              {/* Drawer de edición */}
+              <EmpresaCreateDrawer
+                open={showEdit}
+                onClose={() => { setShowEdit(false); setEditingEmpresa(null); }}
+                onUpdated={async () => {
+                  setShowEdit(false);
+                  setEditingEmpresa(null);
+                  await refreshEmpresasFromServer();
+                }}
+                empresa={editingEmpresa}
+                prefetchedSucursales={allSucursales}
+                prefetchedCuentas={allCuentas}
+                resumen2Options={resumen2Options}
+                updateEmpresa={updateEmpresa}
+                t={t}
+                appState={appState}
+              />
+            </TabsContent>
+
+            <TabsContent isActive={activeTab === 'roles'}>
+              <div className="w-full">
+                <EmpresaRolesTab
                   appState={appState}
-                />
-
-                {/* Drawer de edición */}
-                <EmpresaCreateDrawer
-                  open={showEdit}
-                  onClose={() => { setShowEdit(false); setEditingEmpresa(null); }}
-                  onUpdated={async () => {
-                    setShowEdit(false);
-                    setEditingEmpresa(null);
-                    await refreshEmpresasFromServer();
-                  }}
-                  empresa={editingEmpresa}
-                  prefetchedSucursales={allSucursales}
-                  prefetchedCuentas={allCuentas}
-                  resumen2Options={resumen2Options}
-                  updateEmpresa={updateEmpresa}
                   t={t}
-                  appState={appState}
+                  prefetchedEmpresas={allEmpresas}
+                  prefetchedSucursales={allSucursales}
                 />
-              </TabsContent>
+              </div>
+            </TabsContent>
 
-              <TabsContent isActive={activeTab === 'roles'}>
-                <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
-                  <EmpresaRolesTab
-                    appState={appState}
-                    t={t}
-                    prefetchedEmpresas={allEmpresas}
-                    prefetchedSucursales={allSucursales}
-                  />
-                </div>
-              </TabsContent>
+            <TabsContent isActive={activeTab === 'secciones'}>
+              <div className="w-full">
+                <ApiAccessRulesTab appState={appState} t={t} />
+              </div>
+            </TabsContent>
 
-              {/* Nuevo contenido: Secciones por API */}
-              <TabsContent isActive={activeTab === 'secciones'}>
-                <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
-                  <ApiAccessRulesTab appState={appState} t={t} />
-                </div>
-              </TabsContent>
+            <TabsContent isActive={activeTab === 'cproduccion'}>
+              <div className="w-full">
+                <ProductionCentersTab appState={appState} t={t} />
+              </div>
+            </TabsContent>
 
-              {/* ⬇️ NUEVO CONTENIDO: Centros de Producción */}
-              <TabsContent isActive={activeTab === 'cproduccion'}>
-                <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
-                  <ProductionCentersTab appState={appState} t={t} />
-                </div>
-              </TabsContent>
-
-              <TabsContent isActive={activeTab === 'audit'}>
-                <div className="rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-800">
-                  <EmpresaWorkersAuditTab appState={appState} t={t} />
-                </div>
-              </TabsContent>
-            </div>
-          </Tabs>
-        </div>
+            <TabsContent isActive={activeTab === 'audit'}>
+              <div className="w-full">
+                <EmpresaWorkersAuditTab appState={appState} t={t} />
+              </div>
+            </TabsContent>
+          </div>
+        </Tabs>
       </div>
     </div>
   );

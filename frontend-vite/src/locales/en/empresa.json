@@ -94,5 +94,15 @@
   "pick_sections": "Select sections",
   "exclude_sections": "Block Sections (enforced)"
   ,
-  "api_rule_saved": "API rule saved"
+  "api_rule_saved": "API rule saved",
+  "production_centers_title": "Production Centers",
+  "production_centers_subtitle": "Configure stations (e.g. Grill, Hot Kitchen) and map operative roles",
+  "production_centers_info": "Assign which roles work in each production center. When an employee logs attendance, their performance and time metrics will automatically be attributed to this center. This will also allow them to request recipes, process waste, and upload inventories for their productive areas.",
+  "search_centro": "Search center...",
+  "pick_one_title": "Select a Center",
+  "pick_one_desc": "Click on a production center on the left to configure which roles make up its operations.",
+  "cargos_assigned": "Operative Roles",
+  "cargos_desc": "Staff working in this center",
+  "areas_assigned": "Configuration Areas",
+  "areas_desc": "Layout locations"
 }

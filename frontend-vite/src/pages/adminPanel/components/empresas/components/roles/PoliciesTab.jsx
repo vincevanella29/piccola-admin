@@ -1,8 +1,49 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw, Save, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { RefreshCw, Save, Trash2, ChevronDown, ChevronUp, Pencil, FileText, Settings2 } from 'lucide-react';
 import Select from 'react-select';
 import useRolesAccess from '../../../../../../hooks/useRolesAccess.jsx';
 import { useIsDark, makeSelectStyles, sucLabel, empLabel } from './common';
+
+/* ── Apple-style toggle ── */
+const Toggle = ({ checked, onChange, label }) => (
+  <label className="flex items-center gap-3 cursor-pointer group">
+    <motion.div
+      className={`relative w-12 h-7 rounded-full transition-colors ${
+        checked
+          ? 'bg-gradient-to-r from-primary-500 to-indigo-500'
+          : 'bg-gray-300 dark:bg-gray-700'
+      }`}
+      onClick={(e) => { e.preventDefault(); onChange(!checked); }}
+      whileTap={{ scale: 0.95 }}
+    >
+      <motion.div
+        className="absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md"
+        animate={{ left: checked ? '22px' : '2px' }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+      />
+    </motion.div>
+    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+      {label}
+    </span>
+  </label>
+);
+
+/* ── Badge pill ── */
+const Badge = ({ children, color = 'gray' }) => {
+  const colors = {
+    green: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    red: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    blue: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    gray: 'bg-gray-500/15 text-gray-600 dark:text-gray-400',
+    indigo: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${colors[color] || colors.gray}`}>
+      {children}
+    </span>
+  );
+};
 
 const PoliciesTab = ({ appState, t, prefetchedEmpresas = [], prefetchedSucursales = [] }) => {
   const isDark = useIsDark();
@@ -26,7 +67,6 @@ const PoliciesTab = ({ appState, t, prefetchedEmpresas = [], prefetchedSucursale
   const [polEmpBlock, setPolEmpBlock] = useState([]);
   const [polSucBlock, setPolSucBlock] = useState([]);
 
-  // NUEVO: “si su sucursal está en la lista ⇒ ver TODAS las sucursales”
   const [polOwnSucGrantsAll, setPolOwnSucGrantsAll] = useState(false);
   const [polOwnSucIdsAll, setPolOwnSucIdsAll] = useState([]);
 
@@ -51,7 +91,7 @@ const PoliciesTab = ({ appState, t, prefetchedEmpresas = [], prefetchedSucursale
     return (rolesMeta?.cargos || []).map((c) => ({ value: (c || '').toLowerCase(), label: c }));
   }, [polType, rolesMeta]);
 
-  // --- prime meta + listado (evitar doble llamada en StrictMode)
+  // --- prime meta + listado
   const didInit = useRef(false);
   useEffect(() => {
     if (didInit.current) return;
@@ -67,18 +107,14 @@ const PoliciesTab = ({ appState, t, prefetchedEmpresas = [], prefetchedSucursale
   // --- helpers
   const resetPolicyForm = () => {
     setEditingPolicyId(null);
-
     setPolAllowAllEmp(false);
     setPolAllowAllSuc(false);
     setPolAllowOwnSuc(false);
     setPolActiveReq(true);
-
     setPolEmpAllow([]); setPolSucAllow([]);
     setPolEmpBlock([]); setPolSucBlock([]);
-
     setPolOwnSucGrantsAll(false);
     setPolOwnSucIdsAll([]);
-
     setShowAdvanced(false);
   };
 
@@ -109,7 +145,6 @@ const PoliciesTab = ({ appState, t, prefetchedEmpresas = [], prefetchedSucursale
     setPolEmpBlock(toOptEmp(p?.empresa_ids_block));
     setPolSucBlock(toOptSuc(p?.sucursal_ids_block));
 
-    // NUEVO campos
     setPolOwnSucGrantsAll(!!p?.own_sucursal_grants_all);
     setPolOwnSucIdsAll(toOptSuc(p?.own_sucursal_ids_grant_all));
   };
@@ -127,7 +162,6 @@ const PoliciesTab = ({ appState, t, prefetchedEmpresas = [], prefetchedSucursale
       sucursal_ids_allow: polSucAllow.map(o => Number(o.value)),
       empresa_ids_block: polEmpBlock.map(o => String(o.value)),
       sucursal_ids_block: polSucBlock.map(o => Number(o.value)),
-      // ⬇️ NUEVO
       own_sucursal_grants_all: polOwnSucGrantsAll,
       own_sucursal_ids_grant_all: polOwnSucIdsAll.map(o => Number(o.value)),
     });
@@ -136,203 +170,227 @@ const PoliciesTab = ({ appState, t, prefetchedEmpresas = [], prefetchedSucursale
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Form */}
-      <div className="lg:col-span-1 space-y-3">
-        <h4 className="text-sm font-semibold">{t?.('empresa.policy_editor') || 'Editor de política'}</h4>
-
-        <div>
-          <label className="block text-sm mb-1">Tipo</label>
-          <Select
-            options={[{ value: 'cargo', label: 'Cargo' }, { value: 'seccion', label: 'Sección' }]}
-            value={polType}
-            onChange={(v) => { setPolType(v); setPolKey(null); }}
-            styles={selectStyles}
-            classNamePrefix="vxselect"
-            className="text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">{polType?.value === 'seccion' ? 'Sección' : 'Cargo'}</label>
-          <Select
-            options={polKeyOptions}
-            value={polKey}
-            onChange={setPolKey}
-            isSearchable
-            styles={selectStyles}
-            classNamePrefix="vxselect"
-            className="text-sm"
-            placeholder="Selecciona…"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 pt-1">
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={polAllowAllEmp} onChange={e=>setPolAllowAllEmp(e.target.checked)} />
-            Permitir TODAS las empresas
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={polAllowAllSuc} onChange={e=>setPolAllowAllSuc(e.target.checked)} />
-            Permitir TODAS las sucursales
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={polAllowOwnSuc} onChange={e=>setPolAllowOwnSuc(e.target.checked)} />
-            Permitir sucursal propia (desde ficha)
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={polActiveReq} onChange={e=>setPolActiveReq(e.target.checked)} />
-            Requiere ficha ACTIVA
-          </label>
-        </div>
-
-        {/* NUEVO: own_sucursal_grants_all + lista de sucursales que disparan ALL */}
-        <div className="mt-2 grid grid-cols-1 gap-2">
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={polOwnSucGrantsAll}
-              onChange={e=>setPolOwnSucGrantsAll(e.target.checked)}
-            />
-            Si su Sucursal ∈ lista ⇒ ver TODAS las sucursales
-          </label>
-
-          <div>
-            <label className="block text-sm mb-1">Sucursales que disparan acceso total</label>
-            <Select
-              isMulti
-              options={sucursalOptions}
-              value={polOwnSucIdsAll}
-              onChange={setPolOwnSucIdsAll}
-              styles={selectStyles}
-              classNamePrefix="vxselect"
-              className="text-sm"
-              isDisabled={!polOwnSucGrantsAll}
-              placeholder="Selecciona sucursales… (vacío = cualquiera)"
-            />
-          </div>
-        </div>
-
-        <div className="pt-2">
-          <label className="block text-sm mb-1">Empresas permitidas (allow)</label>
-          <Select
-            isMulti
-            options={empresaOptions}
-            value={polEmpAllow}
-            onChange={setPolEmpAllow}
-            styles={selectStyles}
-            classNamePrefix="vxselect"
-            className="text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">Sucursales permitidas (allow)</label>
-          <Select
-            isMulti
-            options={sucursalOptions}
-            value={polSucAllow}
-            onChange={setPolSucAllow}
-            styles={selectStyles}
-            classNamePrefix="vxselect"
-            className="text-sm"
-          />
-        </div>
-
-        <button className="text-xs underline mt-2" onClick={()=>setShowAdvanced(v=>!v)}>
-          {showAdvanced ? 'Ocultar avanzado' : 'Mostrar avanzado (block lists)'}
-        </button>
-
-        {showAdvanced && (
-          <div className="space-y-2">
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      {/* ─── Editor Panel (left/top) ─── */}
+      <div className="lg:col-span-2">
+        <div className="bg-white/40 dark:bg-black/20 rounded-3xl border border-gray-200 dark:border-gray-800 backdrop-blur-xl p-6 space-y-5 sticky top-4">
+          {/* Editor title */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500/20 to-indigo-500/20 flex items-center justify-center">
+              <Settings2 className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
+            </div>
             <div>
-              <label className="block text-sm mb-1">Empresas bloqueadas (block)</label>
+              <h4 className="font-bold text-base">{t?.('empresa.policy_editor') || 'Editor de Política'}</h4>
+              <p className="text-[11px] text-gray-500">{editingPolicyId ? 'Editando política existente' : 'Crear nueva política'}</p>
+            </div>
+          </div>
+
+          {/* Type + Key */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Tipo</label>
               <Select
-                isMulti
-                options={empresaOptions}
-                value={polEmpBlock}
-                onChange={setPolEmpBlock}
+                options={[{ value: 'cargo', label: 'Cargo' }, { value: 'seccion', label: 'Sección' }]}
+                value={polType}
+                onChange={(v) => { setPolType(v); setPolKey(null); }}
                 styles={selectStyles}
                 classNamePrefix="vxselect"
-                className="text-sm"
+                className="text-sm font-medium"
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Sucursales bloqueadas (block)</label>
+              <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">{polType?.value === 'seccion' ? 'Sección' : 'Cargo'}</label>
+              <Select
+                options={polKeyOptions}
+                value={polKey}
+                onChange={setPolKey}
+                isSearchable
+                styles={selectStyles}
+                classNamePrefix="vxselect"
+                className="text-sm font-medium"
+                placeholder="Selecciona…"
+              />
+            </div>
+          </div>
+
+          {/* Toggles grid */}
+          <div className="grid grid-cols-1 gap-3 p-4 bg-gray-50/50 dark:bg-gray-800/30 rounded-2xl">
+            <Toggle checked={polAllowAllEmp} onChange={setPolAllowAllEmp} label="Permitir TODAS las empresas" />
+            <Toggle checked={polAllowAllSuc} onChange={setPolAllowAllSuc} label="Permitir TODAS las sucursales" />
+            <Toggle checked={polAllowOwnSuc} onChange={setPolAllowOwnSuc} label="Permitir sucursal propia (ficha)" />
+            <Toggle checked={polActiveReq} onChange={setPolActiveReq} label="Requiere ficha ACTIVA" />
+          </div>
+
+          {/* Suc grants all */}
+          <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 space-y-3">
+            <Toggle checked={polOwnSucGrantsAll} onChange={setPolOwnSucGrantsAll} label="Si su sucursal ∈ lista ⇒ ver TODAS" />
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-2">Sucursales que disparan acceso total</label>
               <Select
                 isMulti
                 options={sucursalOptions}
-                value={polSucBlock}
-                onChange={setPolSucBlock}
+                value={polOwnSucIdsAll}
+                onChange={setPolOwnSucIdsAll}
                 styles={selectStyles}
                 classNamePrefix="vxselect"
                 className="text-sm"
+                isDisabled={!polOwnSucGrantsAll}
+                placeholder="Vacío = cualquiera"
               />
             </div>
           </div>
-        )}
 
-        <div className="flex items-center justify-end gap-2 pt-3">
-          {editingPolicyId && (
-            <button
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
-              onClick={async ()=>{ await removePolicy(editingPolicyId); resetPolicyForm(); fetchPolicies().catch(()=>{}); }}
-            >
-              <Trash2 className="h-4 w-4" /> Eliminar
-            </button>
-          )}
-          <button
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary-600 text-white hover:bg-primary-700"
-            onClick={onSavePolicyClick}
-            disabled={!polType?.value || !polKey?.value}
+          {/* Allow lists */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">Empresas permitidas</label>
+              <Select isMulti options={empresaOptions} value={polEmpAllow} onChange={setPolEmpAllow} styles={selectStyles} classNamePrefix="vxselect" className="text-sm" placeholder="Seleccionar..." />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">Sucursales permitidas</label>
+              <Select isMulti options={sucursalOptions} value={polSucAllow} onChange={setPolSucAllow} styles={selectStyles} classNamePrefix="vxselect" className="text-sm" placeholder="Seleccionar..." />
+            </div>
+          </div>
+
+          {/* Advanced toggle */}
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            onClick={() => setShowAdvanced(v => !v)}
           >
-            <Save className="h-4 w-4" /> Guardar política
-          </button>
+            {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {showAdvanced ? 'Ocultar listas de bloqueo' : 'Mostrar listas de bloqueo'}
+          </motion.button>
+
+          <AnimatePresence>
+            {showAdvanced && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden space-y-4">
+                <div className="p-4 bg-red-50/50 dark:bg-red-900/10 rounded-2xl border border-red-100 dark:border-red-900/30 space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">Empresas bloqueadas</label>
+                    <Select isMulti options={empresaOptions} value={polEmpBlock} onChange={setPolEmpBlock} styles={selectStyles} classNamePrefix="vxselect" className="text-sm" placeholder="Bloquear..." />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">Sucursales bloqueadas</label>
+                    <Select isMulti options={sucursalOptions} value={polSucBlock} onChange={setPolSucBlock} styles={selectStyles} classNamePrefix="vxselect" className="text-sm" placeholder="Bloquear..." />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Actions */}
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+            {editingPolicyId && (
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 font-bold text-sm transition-all"
+                onClick={async () => { await removePolicy(editingPolicyId); resetPolicyForm(); fetchPolicies().catch(()=>{}); }}
+              >
+                <Trash2 className="h-4 w-4" /> Eliminar
+              </motion.button>
+            )}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl text-white font-bold text-sm shadow-lg transition-all ${
+                polType?.value && polKey?.value
+                  ? 'bg-gradient-to-r from-primary-500 to-indigo-500 hover:from-primary-600 hover:to-indigo-600 shadow-primary-500/20'
+                  : 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed opacity-60'
+              }`}
+              onClick={onSavePolicyClick}
+              disabled={!polType?.value || !polKey?.value}
+            >
+              <Save className="h-4 w-4" /> Guardar política
+            </motion.button>
+          </div>
         </div>
       </div>
 
-      {/* Listado */}
-      <div className="lg:col-span-2 space-y-3">
+      {/* ─── Policies List (right/bottom) ─── */}
+      <div className="lg:col-span-3 space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold">{t?.('empresa.policies_list') || 'Políticas vigentes'}</h4>
-          <button
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900"
-            onClick={()=>fetchPolicies().catch(()=>{})}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
+              <FileText className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+            </div>
+            <h4 className="font-bold text-base">{t?.('empresa.policies_list') || 'Políticas Vigentes'}</h4>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold shadow-sm transition-all"
+            onClick={() => fetchPolicies().catch(()=>{})}
           >
             <RefreshCw className="h-4 w-4" />
             Refrescar
-          </button>
+          </motion.button>
         </div>
 
-        <div className="grid gap-2">
+        <div className="space-y-3">
           {(policies || []).map((p) => (
-            <div
+            <motion.div
               key={p._id}
-              className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 hover:bg-light-surface-secondary/40 dark:hover:bg-dark-surface-secondary/40"
+              layout
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/40 dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-gray-800 backdrop-blur-xl p-4 hover:shadow-md transition-shadow"
             >
-              <div className="flex items-center justify-between">
-                <div className="font-medium">
-                  {p.type === 'seccion' ? 'Sección' : 'Cargo'}: <span className="font-mono">{p.key}</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Badge color="indigo">{p.type === 'seccion' ? 'Sección' : 'Cargo'}</Badge>
+                  <span className="font-bold text-sm">{p.key}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs opacity-70">{p.active_required ? 'requiere activo' : 'no requiere activo'}</span>
-                  <button className="text-xs underline" onClick={()=>fillPolicyForm(p)}>Editar</button>
+                  <Badge color={p.active_required ? 'green' : 'gray'}>
+                    {p.active_required ? 'Requiere activo' : 'No req. activo'}
+                  </Badge>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
+                    onClick={() => fillPolicyForm(p)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </motion.button>
                 </div>
               </div>
 
-              <div className="mt-1 text-xs grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1">
-                <div>all empresas: <b>{p.allow_all_companies ? 'sí' : 'no'}</b></div>
-                <div>all sucursales: <b>{p.allow_all_sucursales ? 'sí' : 'no'}</b></div>
-                <div>own sucursal: <b>{p.allow_own_sucursal ? 'sí' : 'no'}</b></div>
-                <div>own→ALL: <b>{p.own_sucursal_grants_all ? 'sí' : 'no'}</b></div>
-                <div>own→ALL ids: {(p.own_sucursal_ids_grant_all || []).length}</div>
-                <div>emp allow: {(p.empresa_ids_allow||[]).length}</div>
-                <div>suc allow: {(p.sucursal_ids_allow||[]).length}</div>
-                <div>emp block: {(p.empresa_ids_block||[]).length} / suc block: {(p.sucursal_ids_block||[]).length}</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500">Empresas:</span>
+                  <Badge color={p.allow_all_companies ? 'green' : 'gray'}>{p.allow_all_companies ? 'Todas' : `${(p.empresa_ids_allow||[]).length}`}</Badge>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500">Sucursales:</span>
+                  <Badge color={p.allow_all_sucursales ? 'green' : 'gray'}>{p.allow_all_sucursales ? 'Todas' : `${(p.sucursal_ids_allow||[]).length}`}</Badge>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500">Propia:</span>
+                  <Badge color={p.allow_own_sucursal ? 'green' : 'gray'}>{p.allow_own_sucursal ? 'Sí' : 'No'}</Badge>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500">Own→ALL:</span>
+                  <Badge color={p.own_sucursal_grants_all ? 'blue' : 'gray'}>{p.own_sucursal_grants_all ? 'Sí' : 'No'}</Badge>
+                </div>
               </div>
-            </div>
+
+              {/* Block counts if any */}
+              {((p.empresa_ids_block||[]).length > 0 || (p.sucursal_ids_block||[]).length > 0) && (
+                <div className="mt-2 flex items-center gap-3 text-[10px]">
+                  <Badge color="red">Block emp: {(p.empresa_ids_block||[]).length}</Badge>
+                  <Badge color="red">Block suc: {(p.sucursal_ids_block||[]).length}</Badge>
+                </div>
+              )}
+            </motion.div>
           ))}
-          {!policies?.length && <div className="text-sm opacity-70">No hay políticas aún.</div>}
+
+          {!policies?.length && (
+            <div className="text-center py-12 text-gray-400 dark:text-gray-600">
+              <FileText className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">No hay políticas configuradas aún.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

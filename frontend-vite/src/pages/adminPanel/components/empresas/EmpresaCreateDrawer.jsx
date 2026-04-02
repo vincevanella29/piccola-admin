@@ -1,8 +1,9 @@
 // src/pages/adminPanel/components/empresas/EmpresaCreateDrawer.jsx
 import React, { useMemo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Select from 'react-select';
-import { X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { X, Loader2, CheckCircle2, AlertTriangle, Building2 } from 'lucide-react';
 
 /* ----------------------------- helpers theme ----------------------------- */
 const useIsDark = () => {
@@ -20,38 +21,61 @@ const useIsDark = () => {
 const makeSelectStyles = (isDark) => ({
   control: (base, state) => ({
     ...base,
-    background: 'transparent',
+    background: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(249, 250, 251, 0.5)',
+    minHeight: 48,
+    borderRadius: '1rem',
+    borderWidth: '1px',
     borderColor: state.isFocused
-      ? (isDark ? 'var(--dark-accent, #009246)' : 'var(--light-accent, #009246)')
-      : (isDark ? 'var(--dark-border, #333333)' : 'var(--light-border, #D1D5DB)'),
+      ? (isDark ? '#6366f1' : '#6366f1') // indigo-500
+      : (isDark ? 'var(--dark-border, #1f2937)' : 'var(--light-border, #e5e7eb)'),
     boxShadow: state.isFocused
-      ? `0 0 0 3px rgba(${isDark ? 'var(--matrix-green-rgb, 0, 146, 70)' : 'var(--matrix-green-rgb, 0, 146, 70)'}, .25)`
+      ? `0 0 0 3px rgba(99, 102, 241, .2)`
       : 'none',
-    minHeight: 44,
-    ':hover': {
-      borderColor: isDark ? 'var(--dark-accent, #009246)' : 'var(--light-accent, #009246)',
-    },
+    ':hover': { borderColor: '#6366f1' },
+    backdropFilter: 'blur(12px)'
   }),
   menu: (base) => ({
     ...base,
-    background: isDark ? 'var(--dark-surface, #1A1A1A)' : 'var(--light-surface, #FFFFFF)',
-    border: `1px solid ${isDark ? 'var(--dark-border, #333333)' : 'var(--light-border, #D1D5DB)'}`,
+    background: isDark ? 'rgba(17, 24, 39, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+    borderRadius: '1rem',
     overflow: 'hidden',
-    backdropFilter: 'blur(8px)',
+    backdropFilter: 'blur(24px)',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+    zIndex: 99999,
   }),
   option: (base, state) => ({
     ...base,
-    background: state.isFocused ? 'rgba(0,146,70,.12)' : 'transparent',
-    color: 'inherit',
+    background: state.isSelected ? '#6366f1' : state.isFocused ? (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)') : 'transparent',
+    color: state.isSelected ? '#ffffff' : 'inherit',
+    cursor: 'pointer',
+    padding: '12px 16px',
+    ':active': { background: '#4f46e5' }
   }),
-  multiValue: (base) => ({
-    ...base,
-    background: 'rgba(0,146,70,.14)',
+  multiValue: (base) => ({ 
+      ...base, 
+      background: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)',
+      borderRadius: '8px',
+      margin: '2px 4px 2px 0'
   }),
-  multiValueLabel: (base) => ({ ...base, color: 'inherit' }),
+  multiValueLabel: (base) => ({ 
+      ...base, 
+      color: isDark ? '#a5b4fc' : '#4338ca',
+      fontWeight: '600',
+      fontSize: '0.85rem',
+      padding: '4px 8px',
+  }),
+  multiValueRemove: (base) => ({
+      ...base,
+      borderRadius: '0 8px 8px 0',
+      ':hover': {
+          background: 'rgba(239,68,68,0.2)',
+          color: '#ef4444'
+      }
+  }),
   input: (base) => ({ ...base, color: 'inherit' }),
   singleValue: (base) => ({ ...base, color: 'inherit' }),
-  placeholder: (base) => ({ ...base, color: isDark ? 'var(--dark-text-secondary, #B0B0B0)' : 'var(--light-text-secondary, #6B7280)' }),
+  placeholder: (base) => ({ ...base, color: isDark ? '#9ca3af' : '#6b7280' }),
 });
 
 /* ----------------------------- modal pieces ------------------------------ */
@@ -59,13 +83,13 @@ const ModalBackdrop = ({ children, onClose }) => (
   <motion.div
     role="dialog"
     aria-modal="true"
-    className="fixed inset-0 z-[100] flex items-center justify-center"
+    className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-8"
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
     exit={{ opacity: 0 }}
     onClick={onClose}
   >
-    <div className="absolute inset-0 bg-black/60" />
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
     {children}
   </motion.div>
 );
@@ -73,42 +97,38 @@ const ModalBackdrop = ({ children, onClose }) => (
 const ModalPanel = ({ children, onClose, title, closeLabel }) => (
   <motion.div
     className="
-      relative z-[101] w-full max-w-5xl mx-4
-      rounded-3xl border
-      bg-light-surface text-light-text-primary border-light-border shadow-modal
-      dark:bg-dark-surface dark:text-dark-text-primary dark:border-dark-border
-      overflow-hidden
+      relative z-[101] w-full max-w-5xl mx-auto
+      rounded-[32px] border shadow-2xl backdrop-blur-xl
+      bg-white/95 text-gray-900 border-gray-200
+      dark:bg-gray-900/95 dark:text-white dark:border-gray-800
+      flex flex-col max-h-[90vh] overflow-hidden
     "
-    initial={{ y: 24, scale: 0.98, opacity: 0 }}
+    initial={{ y: 20, scale: 0.95, opacity: 0 }}
     animate={{ y: 0, scale: 1, opacity: 1 }}
-    exit={{ y: 24, scale: 0.98, opacity: 0 }}
-    transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+    exit={{ y: 20, scale: 0.95, opacity: 0 }}
+    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     onClick={(e) => e.stopPropagation()}
   >
     {/* header */}
-    <div
-      className="
-        sticky top-0 flex items-center justify-between px-6 py-4
-        bg-light-surface/90 border-b border-light-border backdrop-blur-sm
-        dark:bg-dark-surface/90 dark:border-dark-border
-      "
-    >
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      <button
-        className="
-          p-2 rounded-md
-          hover:bg-light-surface-secondary/60
-          dark:hover:bg-dark-surface-secondary/60
-          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-accent dark:focus:ring-dark-accent
-        "
+    <div className="flex-none flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800/60 bg-white/40 dark:bg-black/20">
+      <div className="flex items-center gap-3">
+         <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary-500/20 to-indigo-500/20 flex items-center justify-center">
+            <Building2 className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+         </div>
+         <h3 className="text-xl font-bold tracking-tight">{title}</h3>
+      </div>
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors bg-gray-50 dark:bg-gray-800/50"
         onClick={onClose}
         aria-label={closeLabel || 'Cerrar'}
       >
         <X className="h-5 w-5" />
-      </button>
+      </motion.button>
     </div>
     {/* body */}
-    <div className="p-6 max-h-[80vh] overflow-y-auto scrollbar-none">{children}</div>
+    <div className="flex-1 overflow-y-auto scrollbar-none p-6">{children}</div>
   </motion.div>
 );
 
@@ -283,7 +303,11 @@ const EmpresaCreateDrawer = ({
     }
   };
 
-  return (
+  const portalTarget = typeof document !== 'undefined' ? document.body : null;
+
+  if (!portalTarget) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <ModalBackdrop onClose={onClose}>
@@ -300,63 +324,70 @@ const EmpresaCreateDrawer = ({
             <AnimatePresence>
               {banner.msg && (
                 <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 ${
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  className={`mb-6 flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm ${
                     banner.type === 'ok'
-                      ? 'border-light-success/40 bg-light-success/10 text-light-accent dark:border-dark-success/40 dark:bg-dark-success/10 dark:text-dark-success'
-                      : 'border-light-error/40 bg-light-error/10 text-light-error dark:border-dark-error/40 dark:bg-dark-error/10 dark:text-dark-error'
+                      ? 'border-emerald-500/20 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                      : 'border-red-500/20 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400'
                   }`}
                 >
-                  {banner.type === 'ok' ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-                  <span className="text-sm">{banner.msg}</span>
+                  {banner.type === 'ok' ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+                  <span className="text-sm font-medium">{banner.msg}</span>
                 </motion.div>
               )}
             </AnimatePresence>
 
             {/* Datos base */}
-            <section className="space-y-3 mb-6">
+            <section className="space-y-4 mb-8">
+              <div className="flex items-center gap-3 mb-2">
+                 <div className="w-1.5 h-6 bg-gradient-to-b from-primary-500 to-indigo-600 rounded-full" />
+                 <h4 className="font-bold text-lg">{t?.('empresa.basic_info') || 'Información Básica'}</h4>
+              </div>
               <div>
-                <label className="block text-sm mb-1">{t?.('empresa.nombre') || 'Nombre'}</label>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">{t?.('empresa.nombre') || 'Nombre de la Empresa'}</label>
                 <input
-                  className="w-full px-3 py-2 rounded-md border bg-transparent
-                             border-light-border focus:outline-none focus:ring-2 focus:ring-light-accent
-                             dark:border-dark-border dark:focus:ring-dark-accent"
+                  className="w-full px-4 py-3 rounded-2xl border bg-gray-50/50 dark:bg-black/20 text-sm font-medium
+                             border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all
+                             dark:border-gray-800 dark:focus:ring-primary-500"
                   value={form.nombre}
                   onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))}
-                  placeholder={t?.('empresa.name_placeholder') || 'Mi Empresa S.A.'}
+                  placeholder={t?.('empresa.name_placeholder') || 'Escriba un nombre...'}
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm mb-1">{t?.('empresa.slug_label') || 'Slug'}</label>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">{t?.('empresa.slug_label') || 'Identificador (Slug)'}</label>
                   <input
-                    className="w-full px-3 py-2 rounded-md border bg-transparent
-                               border-light-border focus:outline-none focus:ring-2 focus:ring-light-accent
-                               dark:border-dark-border dark:focus:ring-dark-accent"
+                    className="w-full px-4 py-3 rounded-2xl border bg-gray-50/50 dark:bg-black/20 text-sm font-medium
+                               border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all
+                               dark:border-gray-800 dark:focus:ring-primary-500"
                     value={form.slug}
                     onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value }))}
-                    placeholder={t?.('empresa.slug_placeholder') || 'mi-empresa'}
+                    placeholder={t?.('empresa.slug_placeholder') || 'ej: mi-empresa'}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm mb-1">{t?.('common.description') || 'Descripción'}</label>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">{t?.('common.description') || 'Descripción'}</label>
                   <input
-                    className="w-full px-3 py-2 rounded-md border bg-transparent
-                               border-light-border focus:outline-none focus:ring-2 focus:ring-light-accent
-                               dark:border-dark-border dark:focus:ring-dark-accent"
+                    className="w-full px-4 py-3 rounded-2xl border bg-gray-50/50 dark:bg-black/20 text-sm font-medium
+                               border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all
+                               dark:border-gray-800 dark:focus:ring-primary-500"
                     value={form.descripcion}
                     onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))}
-                    placeholder={t?.('empresa.description_placeholder') || 'Opcional'}
+                    placeholder={t?.('empresa.description_placeholder') || 'Opciona...'}
                   />
                 </div>
               </div>
             </section>
 
             {/* Sucursales */}
-            <section className="mb-6">
-              <h4 className="text-sm font-semibold mb-2">{t?.('empresa.sucursales_multi') || 'Sucursales (multi)'}</h4>
+            <section className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                 <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
+                 <h4 className="font-bold text-lg">{t?.('empresa.sucursales_multi') || 'Asignación de Sucursales'}</h4>
+              </div>
               <Select
                 isMulti
                 isSearchable
@@ -365,114 +396,135 @@ const EmpresaCreateDrawer = ({
                 onChange={setSelectedSucursales}
                 styles={selectStyles}
                 classNamePrefix="vxselect"
-                className="text-sm"
-                placeholder={t?.('empresa.select_sucursales_placeholder') || 'Selecciona sucursales…'}
+                className="text-sm font-medium"
+                placeholder={t?.('empresa.select_sucursales_placeholder') || 'Puedes asignar sucursales a esta empresa...'}
               />
             </section>
 
-            {/* Incluir por Cuentas */}
-            <section className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold">{t?.('empresa.incluir_cuentas_multi') || 'Incluir por Cuentas (multi)'}</h4>
-                <span className="text-xs opacity-70">
-                  {(t && t('empresa.total_cuentas', { count: (prefetchedCuentas || []).length })) || `Total cuentas: ${(prefetchedCuentas || []).length}`}
-                </span>
-              </div>
-              <Select
-                isMulti
-                isSearchable
-                options={ctaOptions}
-                value={selectedIncludeCtas}
-                onChange={setSelectedIncludeCtas}
-                styles={selectStyles}
-                classNamePrefix="vxselect"
-                className="text-sm"
-                placeholder={t?.('empresa.select_cuentas_incluir_placeholder') || 'Selecciona cuentas a incluir…'}
-              />
-            </section>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+               {/* Reglas de Inclusión */}
+               <div className="bg-emerald-50/50 dark:bg-emerald-900/10 p-5 rounded-3xl border border-emerald-100 dark:border-emerald-900/30">
+                  <div className="flex items-center gap-2 mb-4">
+                      <div className="px-2 py-1 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold uppercase tracking-widest">Incluir</div>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Reglas Positivas</span>
+                  </div>
 
-            {/* Incluir por Resumen2 */}
-            <section className="mb-6">
-              <h4 className="text-sm font-semibold mb-2">{t?.('empresa.incluir_resumen2_multi') || 'Incluir por Resumen2 (multi)'}</h4>
-              <Select
-                isMulti
-                isSearchable
-                options={resumen2Options}
-                value={selectedIncludeR2}
-                onChange={setSelectedIncludeR2}
-                styles={selectStyles}
-                classNamePrefix="vxselect"
-                className="text-sm"
-                placeholder={t?.('empresa.select_resumen2_incluir_placeholder') || 'Selecciona etiquetas resumen2 a incluir…'}
-              />
-            </section>
+                  <div className="space-y-5">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">{t?.('empresa.incluir_cuentas_multi') || 'Por Cuentas (multi)'}</label>
+                        <span className="text-[10px] font-bold opacity-70 bg-gray-200 dark:bg-gray-800 px-2 rounded-md">
+                          {(t && t('empresa.total_cuentas', { count: (prefetchedCuentas || []).length })) || `Total: ${(prefetchedCuentas || []).length}`}
+                        </span>
+                      </div>
+                      <Select
+                        isMulti
+                        isSearchable
+                        options={ctaOptions}
+                        value={selectedIncludeCtas}
+                        onChange={setSelectedIncludeCtas}
+                        styles={selectStyles}
+                        classNamePrefix="vxselect"
+                        className="text-sm shadow-sm"
+                        placeholder={t?.('empresa.select_cuentas_incluir_placeholder') || 'Añadir cuentas...'}
+                      />
+                    </div>
 
-            {/* Excluir por Cuentas */}
-            <section className="mb-6">
-              <h4 className="text-sm font-semibold mb-2">{t?.('empresa.excluir_cuentas_multi') || 'Excluir por Cuentas (multi)'}</h4>
-              <Select
-                isMulti
-                isSearchable
-                options={ctaOptions}
-                value={selectedExcludeCtas}
-                onChange={setSelectedExcludeCtas}
-                styles={selectStyles}
-                classNamePrefix="vxselect"
-                className="text-sm"
-                placeholder={t?.('empresa.select_cuentas_excluir_placeholder') || 'Selecciona cuentas a excluir…'}
-              />
-            </section>
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">{t?.('empresa.incluir_resumen2_multi') || 'Por Resumen2 (multi)'}</label>
+                      <Select
+                        isMulti
+                        isSearchable
+                        options={resumen2Options}
+                        value={selectedIncludeR2}
+                        onChange={setSelectedIncludeR2}
+                        styles={selectStyles}
+                        classNamePrefix="vxselect"
+                        className="text-sm shadow-sm"
+                        placeholder={t?.('empresa.select_resumen2_incluir_placeholder') || 'Añadir etiquetas resumen2...'}
+                      />
+                    </div>
+                  </div>
+               </div>
 
-            {/* Excluir por Resumen2 */}
-            <section className="mb-8">
-              <h4 className="text-sm font-semibold mb-2">{t?.('empresa.excluir_resumen2_multi') || 'Excluir por Resumen2 (multi)'}</h4>
-              <Select
-                isMulti
-                isSearchable
-                options={resumen2Options}
-                value={selectedExcludeR2}
-                onChange={setSelectedExcludeR2}
-                styles={selectStyles}
-                classNamePrefix="vxselect"
-                className="text-sm"
-                placeholder={t?.('empresa.select_resumen2_excluir_placeholder') || 'Selecciona etiquetas resumen2 a excluir…'}
-              />
-            </section>
+               {/* Reglas de Exclusión */}
+               <div className="bg-red-50/50 dark:bg-red-900/10 p-5 rounded-3xl border border-red-100 dark:border-red-900/30">
+                  <div className="flex items-center gap-2 mb-4">
+                      <div className="px-2 py-1 bg-red-500/20 text-red-600 dark:text-red-400 rounded-lg text-xs font-bold uppercase tracking-widest">Excluir</div>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Reglas Negativas</span>
+                  </div>
+
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">{t?.('empresa.excluir_cuentas_multi') || 'Por Cuentas (multi)'}</label>
+                      <Select
+                        isMulti
+                        isSearchable
+                        options={ctaOptions}
+                        value={selectedExcludeCtas}
+                        onChange={setSelectedExcludeCtas}
+                        styles={selectStyles}
+                        classNamePrefix="vxselect"
+                        className="text-sm shadow-sm"
+                        placeholder={t?.('empresa.select_cuentas_excluir_placeholder') || 'Bloquear cuentas...'}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400 mb-2">{t?.('empresa.excluir_resumen2_multi') || 'Por Resumen2 (multi)'}</label>
+                      <Select
+                        isMulti
+                        isSearchable
+                        options={resumen2Options}
+                        value={selectedExcludeR2}
+                        onChange={setSelectedExcludeR2}
+                        styles={selectStyles}
+                        classNamePrefix="vxselect"
+                        className="text-sm shadow-sm"
+                        placeholder={t?.('empresa.select_resumen2_excluir_placeholder') || 'Bloquear etiquetas resumen2...'}
+                      />
+                    </div>
+                  </div>
+               </div>
+            </div>
 
             {/* actions */}
-            <div className="flex items-center justify-end gap-2">
-              <button
-                className="px-4 py-2 rounded-md border
-                           border-light-border hover:bg-light-surface-secondary/60
-                           focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-accent
-                           dark:border-dark-border dark:hover:bg-dark-surface-secondary/60 dark:focus:ring-dark-accent"
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-bold shadow-sm
+                           dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 transition-colors"
                 onClick={onClose}
                 disabled={submitting}
               >
                 {t?.('common.cancel') || 'Cancelar'}
-              </button>
-              <button
-                className="px-4 py-2 rounded-md text-white
-                           bg-light-accent hover:bg-light-accent-hover shadow-neon
-                           focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-accent
-                           disabled:opacity-50
-                           dark:bg-dark-accent dark:hover:bg-dark-accent-hover dark:focus:ring-dark-accent"
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: canSubmit && !submitting ? 1.02 : 1 }}
+                whileTap={{ scale: canSubmit && !submitting ? 0.98 : 1 }}
+                className={`w-full sm:w-auto px-8 py-3 rounded-2xl text-white font-bold shadow-xl flex items-center justify-center transition-all ${
+                   canSubmit && !submitting 
+                   ? 'bg-gradient-to-r from-primary-500 to-indigo-500 hover:from-primary-600 hover:to-indigo-600 shadow-primary-500/30' 
+                   : 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed opacity-60'
+                }`}
                 onClick={handleCreate}
                 disabled={!canSubmit || submitting}
               >
                 {submitting ? (
                   <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" /> {t?.('common.saving') || 'Guardando'}
+                    <Loader2 className="h-5 w-5 animate-spin" /> {t?.('common.saving') || 'Guardando'}
                   </span>
                 ) : (
                   isEdit ? (t?.('common.save_changes') || 'Guardar cambios') : (t?.('empresa.create') || 'Crear empresa')
                 )}
-              </button>
+              </motion.button>
             </div>
           </ModalPanel>
         </ModalBackdrop>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    portalTarget
   );
 };
 
