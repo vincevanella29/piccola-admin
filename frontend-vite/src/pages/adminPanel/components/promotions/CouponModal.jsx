@@ -112,7 +112,7 @@ const RuleCard = ({ rule }) => {
   );
 };
 
-const CouponModal = ({ coupon, onClose, onReactivate, t }) => {
+const CouponModal = ({ coupon, onClose, onReactivate, onRedeem, t }) => {
   const formatDate = (date) => date ? new Date(date).toLocaleString() : 'N/A';
   const abbreviateAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : 'N/A';
 
@@ -269,17 +269,29 @@ const CouponModal = ({ coupon, onClose, onReactivate, t }) => {
           </div>
 
           {/* FOOTER ACTIONS */}
-          {coupon.status === 'redeemed' && (
-            <div className="p-4 border-t border-light-border/20 dark:border-dark-border/20 bg-light-surface/50 dark:bg-dark-surface/50 backdrop-blur-md">
-              <motion.button
-                onClick={() => onReactivate(coupon.coupon_code)}
-                className="w-full py-3.5 bg-gradient-to-r from-matrix-green to-vanellix-cyan text-light-text-primary dark:text-dark-text-primary font-bold rounded-xl shadow-neon hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <ArrowPathIcon className="h-5 w-5" />
-                {t('promotion.reactivate')}
-              </motion.button>
+          {(coupon.status === 'redeemed' || coupon.status === 'claimed' || coupon.status === 'reactivated') && (
+            <div className="p-4 border-t border-light-border/20 dark:border-dark-border/20 bg-light-surface/50 dark:bg-dark-surface/50 backdrop-blur-md flex gap-3">
+              {coupon.status === 'redeemed' ? (
+                <motion.button
+                  onClick={() => onReactivate(coupon.coupon_code)}
+                  className="w-full py-3.5 bg-gradient-to-r from-matrix-green to-vanellix-cyan text-light-text-primary dark:text-dark-text-primary font-bold rounded-xl shadow-neon hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <ArrowPathIcon className="h-5 w-5" />
+                  {t('promotion.reactivate')}
+                </motion.button>
+              ) : (
+                <motion.button
+                  onClick={() => onRedeem(coupon.coupon_code)}
+                  className="w-full py-3.5 bg-gradient-to-r from-matrix-green to-green-600 text-white font-bold rounded-xl shadow-neon hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <TicketIcon className="h-5 w-5" />
+                  Canjear Manualmente
+                </motion.button>
+              )}
             </div>
           )}
         </motion.div>

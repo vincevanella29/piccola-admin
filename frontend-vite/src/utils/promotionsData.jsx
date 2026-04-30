@@ -125,6 +125,21 @@ export async function reactivateCoupon({ walletAddress, token, couponCode }) {
     });
 }
 
+// Función para canjear un cupón manualmente (admin)
+export async function redeemCoupon({ walletAddress, token, couponCode }) {
+    return api({
+        method: 'POST',
+        endpoint: '/promotions/coupon/redeem',
+        data: {
+            coupon_code: couponCode,
+        },
+        headers: {
+            'X-Wallet-Address': walletAddress,
+            Authorization: `Bearer ${token}`,
+        },
+    });
+}
+
 // Nueva función para listar cupones
 export async function fetchCoupons({ walletAddress, token, page = 1, limit = 20, wallet = '', promotion = '', start_date = '', end_date = '', status = '' }) {
     const params = { page, limit };

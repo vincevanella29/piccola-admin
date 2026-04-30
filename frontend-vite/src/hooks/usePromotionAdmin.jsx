@@ -1,7 +1,7 @@
 // src/hooks/usePromotionAdmin.jsx
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
-import { createPromotion, updatePromotion, fetchAllPromotions, reactivateCoupon, fetchCoupons, fetchApiToken as fetchApiTokenApi, generateApiToken as generateApiTokenApi, fetchMeritSegments } from '../utils/promotionsData';
+import { createPromotion, updatePromotion, fetchAllPromotions, reactivateCoupon, redeemCoupon, fetchCoupons, fetchApiToken as fetchApiTokenApi, generateApiToken as generateApiTokenApi, fetchMeritSegments } from '../utils/promotionsData';
 import { fetchPlatformTokensFromApi } from './useCompanyTokenData';
 import { useTokenMetadata } from './useTokenMetadata';
 import { listMeritRules as apiListMeritRules } from '../utils/gamification.jsx';
@@ -363,6 +363,28 @@ export function usePromotionAdmin(appState, t) {
     }
   };
 
+  // Redeem a coupon
+  const redeem = async ({ couponCode }) => {
+    setError(null);
+    try {
+      if (!wallet) {
+        setError(t('wallet.connect_wallet'));
+        return;
+      }
+      const response = await redeemCoupon({
+        walletAddress: wallet,
+        token,
+        couponCode,
+      });
+      appState.setSuccess(`Coupon ${couponCode} canjeado bloqueado correctamente.`);
+      await refetchCoupons();
+      return response;
+    } catch (err) {
+      setError(`Error canjeando cupón: ${err.message}`);
+      throw err;
+    }
+  };
+
   // Load initial data
   useEffect(() => {
     if (appState?.isWalletDataReady && !hasFetchedTokens.current) {
@@ -379,6 +401,7 @@ export function usePromotionAdmin(appState, t) {
     create,
     update,
     reactivate,
+    redeem,
     refetchAllPromotions,
     refetchCoupons,
     fetchApiToken,

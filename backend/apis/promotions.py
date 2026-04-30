@@ -405,3 +405,55 @@ async def get_coupons(
     except Exception as e:
         logger.error(f"Error fetching coupons: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching coupons: {str(e)}")
+
+from pydantic import BaseModel
+class RedeemCouponAdminRequest(BaseModel):
+    coupon_code: str
+
+@router.post("/promotions/coupon/redeem")
+async def admin_redeem_coupon(request: RedeemCouponAdminRequest, user: dict = Depends(verify_session)):
+    try:
+        wallet = user["wallet"].lower()
+        coupon_code = request.coupon_code
+        role_level = get_company_role_level(wallet)
+        if role_level not in [3, 4, 5]:
+            raise HTTPException(status_code=403, detail="Insufficient role level (must be 3 or 4)")
+        coupon = db.promotion_claims.find_one({"codigo": coupon_code})
+        if not coupon:
+            raise HTTPException(status_code=404, detail=f"Coupon {coupon_code} not found")
+        if coupon.get("redeemed_at"):
+            raise HTTPException(status_code=400, detail="Coupon is already redeemed")
+            
+        now_chile = datetime.now(chile_tz)
+        result = db.promotion_claims.update_one(
+            {"codigo": coupon_code},
+            {
+                "$set": {
+                    "redeemed_at": now_chile,
+                    "redeemed_by": wallet,
+                    "pos_order_id": "MANUAL_ADMIN_REDEEM"
+                }
+            }
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Coupon not found")
+            
+        db.promotion_coupons_history.insert_one({
+            "coupon_id": str(coupon["_id"]),
+            "action": "redeemed",
+            "timestamp": now_chile,
+            "promotion_id": coupon["promotion_id"],
+            "wallet": coupon["wallet"],
+            "admin_wallet": wallet,
+            "discount_amount": 0,
+            "pos_order_id": "MANUAL_ADMIN_REDEEM"
+        })
+        return {
+            "success": True,
+            "message": f"Coupon {coupon_code} redeemed successfully"
+        }
+    except HTTPException as e:
+        raise
+    except Exception as e:
+        logger.error(f"Error redeeming coupon {coupon_code} manually: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error redeeming coupon: {str(e)}")

@@ -30,6 +30,7 @@ const PromotionDashboard = ({ appState }) => {
     create,
     update,
     reactivate,
+    redeem,
     refetchAllPromotions,
     refetchCoupons,
     platformTokens,
@@ -210,6 +211,7 @@ const PromotionDashboard = ({ appState }) => {
                   coupons={coupons}
                   isLoading={adminLoading}
                   onReactivate={reactivate}
+                  onRedeem={redeem}
                   refetchCoupons={refetchCoupons}
                 />
               )}

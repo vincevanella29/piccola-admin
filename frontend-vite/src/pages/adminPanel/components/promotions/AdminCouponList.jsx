@@ -132,7 +132,90 @@ const ReactivateConfirmModal = ({ isOpen, coupon, onClose, onConfirm, isSubmitti
   </AnimatePresence>
 );
 
-const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initialLoading, onReactivate, refetchCoupons }) => {
+const RedeemConfirmModal = ({ isOpen, coupon, onClose, onConfirm, isSubmitting, t }) => (
+  <AnimatePresence>
+    {isOpen && (
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          aria-label={t('promotion.confirm_close', 'Cerrar')}
+        />
+
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          className="relative w-full max-w-md rounded-2xl bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 shadow-xl overflow-hidden"
+          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 12, scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+        >
+          <div className="p-5 border-b border-light-border/10 dark:border-dark-border/20 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-light-text-primary dark:text-dark-text-primary">
+                Canjear cupón
+              </h3>
+              <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                Esto marcará el cupón como canjeado y lo bloqueará.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-lg text-light-text-secondary hover:text-light-text-primary hover:bg-light-surface-secondary/60 dark:hover:bg-dark-surface-secondary/60 transition-colors"
+              aria-label={t('promotion.confirm_close', 'Cerrar')}
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-3">
+            <div className="rounded-xl bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40 border border-light-border/10 dark:border-dark-border/20 p-3">
+              <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                {t('promotion.coupon_code', 'Código de Cupón')}
+              </div>
+              <div className="mt-1 font-mono text-sm font-semibold text-light-text-primary dark:text-dark-text-primary">
+                {coupon?.coupon_code || '-'}
+              </div>
+            </div>
+
+            <p className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary">
+              Acción manual administrativa. Se registrará en el historial.
+            </p>
+          </div>
+
+          <div className="p-5 pt-0 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl border border-light-border/30 dark:border-dark-border/30 text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {t('promotion.cancel', 'Cancelar')}
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl bg-matrix-green text-white hover:bg-matrix-green/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isSubmitting ? t('promotion.processing', 'Procesando...') : 'Canjear'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
+const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initialLoading, onReactivate, onRedeem, refetchCoupons }) => {
   const { t } = useTranslation();
   
   // Data State
@@ -141,7 +224,9 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
   const [total, setTotal] = useState(0);
   const [selectedCoupon, setSelectedCoupon] = useState(null);
   const [reactivateTarget, setReactivateTarget] = useState(null);
+  const [redeemTarget, setRedeemTarget] = useState(null);
   const [isReactivating, setIsReactivating] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
 
   // Pagination & Filter State
   const [page, setPage] = useState(1);
@@ -213,6 +298,26 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
       setReactivateTarget(null);
     } finally {
       setIsReactivating(false);
+    }
+  };
+
+  const handleRedeem = async (couponCode) => {
+    try {
+      await onRedeem({ couponCode });
+      fetchCoupons();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const confirmRedeem = async () => {
+    if (!redeemTarget?.coupon_code) return;
+    setIsRedeeming(true);
+    try {
+      await handleRedeem(redeemTarget.coupon_code);
+      setRedeemTarget(null);
+    } finally {
+      setIsRedeeming(false);
     }
   };
 
@@ -434,6 +539,15 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
                                <ArrowUturnLeftIcon className="h-5 w-5" />
                             </button>
                           )}
+                          {coupon.status !== 'redeemed' && coupon.status !== 'expired' && (
+                            <button 
+                              onClick={() => setRedeemTarget(coupon)} 
+                              className="p-1.5 text-light-text-secondary hover:text-matrix-green hover:bg-matrix-green/10 rounded-lg transition-all"
+                              title="Canjear Cupón"
+                            >
+                               <TicketIcon className="h-5 w-5" />
+                            </button>
+                          )}
                        </div>
                     </td>
                   </tr>
@@ -475,6 +589,7 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
             coupon={selectedCoupon}
             onClose={() => setSelectedCoupon(null)}
             onReactivate={handleReactivate}
+            onRedeem={handleRedeem}
             t={t}
           />
         )}
@@ -486,6 +601,15 @@ const AdminCouponList = ({ appState, coupons: initialCoupons, isLoading: initial
         onClose={() => !isReactivating && setReactivateTarget(null)}
         onConfirm={confirmReactivate}
         isSubmitting={isReactivating}
+        t={t}
+      />
+
+      <RedeemConfirmModal
+        isOpen={!!redeemTarget}
+        coupon={redeemTarget}
+        onClose={() => !isRedeeming && setRedeemTarget(null)}
+        onConfirm={confirmRedeem}
+        isSubmitting={isRedeeming}
         t={t}
       />
     </motion.div>
