@@ -83,7 +83,7 @@ export default function KpiRow({
       <Td>
         <div className="flex items-start gap-4">
           <img
-            src={emp.profile_image_url || 'https://via.placeholder.com/40'}
+            src={emp.profile_image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.nombre || 'E')}&background=random`}
             alt={`${emp.nombre} ${emp.apellido}`}
             className="w-10 h-10 rounded-full object-cover mt-1"
           />

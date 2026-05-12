@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
     Shield, Wifi, WifiOff, Link2, CheckCircle2, XCircle,
     Copy, RefreshCw, Loader2, Globe, Zap,
-    AlertTriangle, ChevronDown, ChevronUp
+    AlertTriangle, ChevronDown, ChevronUp, Key
 } from 'lucide-react';
 import {
     fetchCartaProviders,
