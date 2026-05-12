@@ -182,12 +182,46 @@ const AdminCarta = ({ appState }) => {
     // ── Filtered Lists ─────────────────────────────────────────────────────────
     const filteredProducts = useMemo(() => {
         const q = searchQuery.toLowerCase();
+
+        let productsInMenuType = null;
+        let globallyUsedProductIds = null;
+
+        if (selectedMenuType) {
+            productsInMenuType = new Set();
+            globallyUsedProductIds = new Set();
+
+            for (const cat of categories) {
+                for (const pid of (cat.menu_ids || [])) {
+                    globallyUsedProductIds.add(String(pid));
+                }
+            }
+            for (const cat of categoriesByMenuType) {
+                for (const pid of (cat.menu_ids || [])) {
+                    productsInMenuType.add(String(pid));
+                }
+            }
+
+            for (const p of products) {
+                const pCatIds = p.category_ids || [];
+                if (pCatIds.length > 0) globallyUsedProductIds.add(String(p.id));
+                if (pCatIds.some(cid => categoryIdsForMenuType.has(cid))) {
+                    productsInMenuType.add(String(p.id));
+                }
+            }
+        }
+
         return products.filter(p => {
             const matchSearch = !q || p.nombre?.toLowerCase().includes(q) || p.codigo?.toLowerCase().includes(q);
             const matchCat = !selectedCategoryFilter || (p.category_ids || []).includes(selectedCategoryFilter);
-            return matchSearch && matchCat;
+            
+            let matchMenuType = true;
+            if (selectedMenuType) {
+                matchMenuType = productsInMenuType.has(String(p.id));
+            }
+
+            return matchSearch && matchCat && matchMenuType;
         });
-    }, [products, searchQuery, selectedCategoryFilter]);
+    }, [products, searchQuery, selectedCategoryFilter, selectedMenuType, categoriesByMenuType, categoryIdsForMenuType, categories]);
 
     const filteredCategories = useMemo(() => {
         const q = searchQuery.toLowerCase();
