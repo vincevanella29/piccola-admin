@@ -443,7 +443,9 @@ const DeliveryReviews = ({ appState }) => {
               >
                 <option value="">Todas las sucursales</option>
                 {locations.map(l => (
-                  <option key={l.slug} value={l.slug}>{l.nombre}</option>
+                  <option key={l._id || l.slug || l.permalink_slug} value={l.slug || l.permalink_slug}>
+                    {l.nombre || l.name}
+                  </option>
                 ))}
               </select>
             </div>
