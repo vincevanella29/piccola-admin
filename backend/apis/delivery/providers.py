@@ -122,6 +122,7 @@ class ProviderUpdate(BaseModel):
     status: Optional[str] = None
     api_key_id: Optional[str] = None
     logo_url: Optional[str] = None
+    domain: Optional[str] = None
     sync_url: Optional[str] = None
     field_mapping: Optional[Dict[str, str]] = None
     description: Optional[str] = None
@@ -487,6 +488,78 @@ async def update_provider(
     logger.info(f"[delivery/providers] Updated provider '{provider_id}' by {user.get('wallet')}")
 
     return {"success": True, "message": "Proveedor actualizado"}
+
+
+@router.post("/delivery/providers/{provider_id}/resync", summary="Re-sync config to delivery app")
+async def resync_delivery_provider(
+    provider_id: str,
+    request: Request,
+    user: dict = Depends(verify_session)
+):
+    """
+    Re-push the current admin_api_url to an already-claimed delivery app.
+    Uses /admin/rotate on the delivery side to update the stored config
+    without needing to re-create the provider.
+    """
+    require_admin_level(user, "delivery")
+
+    if not ObjectId.is_valid(provider_id):
+        raise HTTPException(status_code=400, detail="ID inválido")
+
+    provider = PROVIDERS_COLL.find_one({"_id": ObjectId(provider_id)})
+    if not provider:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+    domain = (provider.get("domain") or "").rstrip("/")
+    if not domain:
+        raise HTTPException(status_code=400, detail="Provider no tiene domain configurado")
+
+    # Decrypt mnemonic from DB
+    from utils.vanellix_crypto import decrypt_b2b_mnemonic
+    mnemonic_enc = provider.get("dilithium_mnemonic_enc")
+    if not mnemonic_enc:
+        raise HTTPException(status_code=400, detail="Provider no tiene credenciales Dilithium. Necesitas re-crear con auto-link.")
+
+    mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
+    api_key_value = provider.get("api_key_value", "")
+    wallet = user.get("wallet") or user.get("id")
+
+    # Build admin URL dynamically
+    fwd_host = request.headers.get("x-forwarded-host")
+    if fwd_host:
+        admin_api_url = f"https://{fwd_host}/api"
+    else:
+        admin_api_url = f"{request.base_url}api"
+
+    rotate_url = build_provider_url(domain, "claim").replace("/claim", "/rotate")
+    rotate_payload = {
+        "company_id": 0,
+        "provider_slug": provider.get("slug", ""),
+        "api_key": api_key_value,
+        "dilithium_mnemonic": mnemonic,
+        "admin_api_url": admin_api_url,
+        "claimed_by": wallet,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(rotate_url, json=rotate_payload)
+
+        if resp.status_code == 200:
+            logger.info(f"[delivery/providers] ✅ Re-synced config to {rotate_url} | admin_api_url={admin_api_url}")
+            return {"success": True, "admin_api_url": admin_api_url, "message": "Config actualizada en la delivery app"}
+        else:
+            detail = resp.text[:300]
+            logger.error(f"[delivery/providers] ❌ Re-sync failed: {resp.status_code} {detail}")
+            raise HTTPException(status_code=502, detail=f"Delivery respondió {resp.status_code}: {detail}")
+
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail=f"No se pudo conectar a {rotate_url}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[delivery/providers] ❌ Re-sync error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/delivery/providers/{provider_id}", summary="Desactivar proveedor")

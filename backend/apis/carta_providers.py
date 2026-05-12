@@ -355,6 +355,7 @@ async def get_carta_provider(
 async def update_carta_provider(
     provider_id: str,
     payload: ProviderUpdate,
+    request: Request,
     user: dict = Depends(verify_session)
 ):
     require_admin_level(user, "member")
@@ -377,6 +378,79 @@ async def update_carta_provider(
     logger.info(f"[carta/providers] Updated provider '{provider_id}' by {user.get('wallet')}")
 
     return {"success": True, "message": "Provider actualizado"}
+
+
+@router.post("/carta/providers/{provider_id}/resync", summary="Re-sync config to carta app")
+async def resync_carta_provider(
+    provider_id: str,
+    request: Request,
+    user: dict = Depends(verify_session)
+):
+    """
+    Re-push the current admin_api_url to an already-claimed carta app.
+    Uses /admin/rotate on the carta side to update the stored config
+    without needing to re-create the provider.
+    """
+    require_admin_level(user, "member")
+
+    if not ObjectId.is_valid(provider_id):
+        raise HTTPException(status_code=400, detail="ID inválido")
+
+    provider = PROVIDERS_COLL.find_one({"_id": ObjectId(provider_id)})
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider no encontrado")
+
+    domain = (provider.get("domain") or "").rstrip("/")
+    if not domain:
+        raise HTTPException(status_code=400, detail="Provider no tiene domain configurado")
+
+    # Decrypt mnemonic from DB
+    from utils.vanellix_crypto import decrypt_b2b_mnemonic
+    mnemonic_enc = provider.get("dilithium_mnemonic_enc")
+    if not mnemonic_enc:
+        raise HTTPException(status_code=400, detail="Provider no tiene credenciales Dilithium. Necesitas re-crear con auto-link.")
+
+    mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
+    api_key_value = provider.get("api_key_value", "")
+    wallet = user.get("wallet") or user.get("id")
+
+    # Build admin URL dynamically
+    fwd_host = request.headers.get("x-forwarded-host")
+    if fwd_host:
+        admin_api_url = f"https://{fwd_host}/api"
+    else:
+        admin_api_url = f"{request.base_url}api"
+
+    rotate_url = build_carta_url(domain, "claim").replace("/claim", "/rotate")
+    rotate_payload = {
+        "company_id": 0,
+        "provider_slug": provider.get("slug", ""),
+        "api_key": api_key_value,
+        "dilithium_mnemonic": mnemonic,
+        "dilithium_pk": provider.get("dilithium_pk", ""),
+        "admin_api_url": admin_api_url,
+        "claimed_by": wallet,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(rotate_url, json=rotate_payload)
+
+        if resp.status_code == 200:
+            logger.info(f"[carta/providers] ✅ Re-synced config to {rotate_url} | admin_api_url={admin_api_url}")
+            return {"success": True, "admin_api_url": admin_api_url, "message": "Config actualizada en la carta"}
+        else:
+            detail = resp.text[:300]
+            logger.error(f"[carta/providers] ❌ Re-sync failed: {resp.status_code} {detail}")
+            raise HTTPException(status_code=502, detail=f"Carta respondió {resp.status_code}: {detail}")
+
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail=f"No se pudo conectar a {rotate_url}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[carta/providers] ❌ Re-sync error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/carta/providers/{provider_id}", summary="Desactivar carta provider")
@@ -404,3 +478,4 @@ async def delete_carta_provider(
     logger.info(f"[carta/providers] Disabled provider '{provider_id}' by {user.get('wallet')}")
 
     return {"success": True, "message": "Provider desactivado"}
+
