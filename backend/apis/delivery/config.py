@@ -515,7 +515,7 @@ async def push_config_to_providers(user: dict = Depends(verify_session)):
 
     providers = list(PROVIDERS_COLL.find(
         {"status": "active", "$or": [{"domain": {"$exists": True, "$ne": ""}}, {"sync_url": {"$exists": True, "$ne": ""}}]},
-        {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic": 1, "api_key_id": 1},
+        {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic_enc": 1, "api_key_id": 1},
     ))
 
     if not providers:
@@ -526,7 +526,12 @@ async def push_config_to_providers(user: dict = Depends(verify_session)):
         slug = prov.get("slug", "?")
         domain = prov.get("domain", "")
         sync_url = prov.get("sync_url", "")
-        mnemonic = prov.get("dilithium_mnemonic", "")
+        mnemonic_enc = prov.get("dilithium_mnemonic_enc", "")
+        if mnemonic_enc:
+            from utils.vanellix_crypto import decrypt_b2b_mnemonic
+            mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
+        else:
+            mnemonic = ""
 
         if (not domain and not sync_url) or not mnemonic:
             results.append({"slug": slug, "ok": False, "reason": "Missing domain/sync_url or mnemonic"})
@@ -674,7 +679,7 @@ async def _push_config_to_providers():
     try:
         providers = list(PROVIDERS_COLL.find(
             {"status": "active", "$or": [{"domain": {"$exists": True, "$ne": ""}}, {"sync_url": {"$exists": True, "$ne": ""}}]},
-            {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic": 1, "api_key_id": 1},
+            {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic_enc": 1, "api_key_id": 1},
         ))
     except Exception as e:
         logger.error(f"[config-push] Error reading providers: {e}")
@@ -700,7 +705,12 @@ async def _push_config_to_providers():
             config_url = f"{base_url}/admin/config/sync"
 
         # Mnemonic is stored on the provider doc (set during auto-link)
-        mnemonic = prov.get("dilithium_mnemonic", "")
+        mnemonic_enc = prov.get("dilithium_mnemonic_enc", "")
+        if mnemonic_enc:
+            from utils.vanellix_crypto import decrypt_b2b_mnemonic
+            mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
+        else:
+            mnemonic = ""
         if not mnemonic:
             logger.warning(f"[config-push] Provider '{slug}' has no mnemonic — skipping (re-link to fix)")
             continue
@@ -755,7 +765,12 @@ async def get_sync_payload(request: Request):
 
     mnemonic = ""
     if provider:
-        mnemonic = provider.get("dilithium_mnemonic", "")
+        mnemonic_enc = provider.get("dilithium_mnemonic_enc", "")
+        if mnemonic_enc:
+            from utils.vanellix_crypto import decrypt_b2b_mnemonic
+            mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
+        else:
+            mnemonic = ""
 
     if not mnemonic:
         # Return config without encrypted transbank (no mnemonic = can't encrypt)

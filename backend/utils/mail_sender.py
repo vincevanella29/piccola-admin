@@ -186,13 +186,15 @@ def get_mail_config_from_db() -> Optional[dict]:
 
         # Get mnemonic from first active provider
         prov = db.delivery_providers.find_one(
-            {"status": "active", "dilithium_mnemonic": {"$exists": True, "$ne": ""}},
-            {"dilithium_mnemonic": 1}
+            {"status": "active", "dilithium_mnemonic_enc": {"$exists": True, "$ne": ""}},
+            {"dilithium_mnemonic_enc": 1}
         )
-        if not prov or not prov.get("dilithium_mnemonic"):
+        if not prov or not prov.get("dilithium_mnemonic_enc"):
             return None
 
-        config = decrypt_config(doc["encrypted_blob"], prov["dilithium_mnemonic"])
+        from utils.vanellix_crypto import decrypt_b2b_mnemonic
+        mnemonic = decrypt_b2b_mnemonic(prov["dilithium_mnemonic_enc"])
+        config = decrypt_config(doc["encrypted_blob"], mnemonic)
         logger.info(f"[mail] Using DB config: provider={config.get('provider')} host={config.get('host')}")
         return config
     except Exception as e:

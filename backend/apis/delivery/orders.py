@@ -187,10 +187,11 @@ async def _notify_delivery_provider(order: dict, status: str, carrier_status: st
         headers["X-Api-Key"] = api_key_id
 
     # Sign with Dilithium2 using provider's mnemonic
-    mnemonic = provider.get("dilithium_mnemonic", "")
-    if mnemonic:
+    mnemonic_enc = provider.get("dilithium_mnemonic_enc", "")
+    if mnemonic_enc:
         try:
-            from utils.vanellix_crypto import sign_with_mnemonic
+            from utils.vanellix_crypto import decrypt_b2b_mnemonic, sign_with_mnemonic
+            mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
             sig_hex, pk_hex = sign_with_mnemonic(mnemonic, body_bytes)
             headers["X-Dilithium-Signature"] = sig_hex
             headers["X-Dilithium-PK"] = pk_hex

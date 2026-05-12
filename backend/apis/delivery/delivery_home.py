@@ -383,7 +383,7 @@ async def publish_home_config(user: dict = Depends(require_home_role)):
             {"domain": {"$exists": True, "$ne": ""}},
             {"sync_url": {"$exists": True, "$ne": ""}},
         ]},
-        {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic": 1, "api_key_id": 1},
+        {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic_enc": 1, "api_key_id": 1},
     ))
 
     if not providers:
@@ -394,7 +394,12 @@ async def publish_home_config(user: dict = Depends(require_home_role)):
         slug = prov.get("slug", "?")
         domain = prov.get("domain", "")
         sync_url = prov.get("sync_url", "")
-        mnemonic = prov.get("dilithium_mnemonic", "")
+        mnemonic_enc = prov.get("dilithium_mnemonic_enc", "")
+        if mnemonic_enc:
+            from utils.vanellix_crypto import decrypt_b2b_mnemonic
+            mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
+        else:
+            mnemonic = ""
 
         if (not domain and not sync_url) or not mnemonic:
             results.append({"slug": slug, "ok": False, "reason": "Missing domain or mnemonic"})

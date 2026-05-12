@@ -37,15 +37,16 @@ PROVIDERS_COLL = db.delivery_providers
 def _get_mnemonic() -> str:
     """Get the Dilithium mnemonic from the first active delivery provider."""
     prov = PROVIDERS_COLL.find_one(
-        {"status": "active", "dilithium_mnemonic": {"$exists": True, "$ne": ""}},
-        {"dilithium_mnemonic": 1}
+        {"status": "active", "dilithium_mnemonic_enc": {"$exists": True, "$ne": ""}},
+        {"dilithium_mnemonic_enc": 1}
     )
-    if not prov or not prov.get("dilithium_mnemonic"):
+    if not prov or not prov.get("dilithium_mnemonic_enc"):
         raise HTTPException(
             status_code=500,
             detail="No hay mnemónica Dilithium configurada. Vincula un proveedor delivery primero.",
         )
-    return prov["dilithium_mnemonic"]
+    from utils.vanellix_crypto import decrypt_b2b_mnemonic
+    return decrypt_b2b_mnemonic(prov["dilithium_mnemonic_enc"])
 
 
 def _mask(s: str) -> str:
