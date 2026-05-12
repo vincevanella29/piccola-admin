@@ -233,10 +233,10 @@ def get_missing_products() -> dict:
 
         missing.append({
             "codigo": codig,
-            "nombre": mp.get("producto", "").strip(),
-            "precio_sugerido": mp.get("puven", 0.0),
-            "familia": mp.get("familia", "").strip(),
-            "subfamilia": mp.get("subfamilia", "").strip(),
+            "nombre": (mp.get("producto") or "").strip(),
+            "precio_sugerido": mp.get("puven") or 0.0,
+            "familia": (mp.get("familia") or "").strip(),
+            "subfamilia": (mp.get("subfamilia") or "").strip(),
             "latest_mesano": mp.get("latest_mesano"),
             "ventas_meses": last_3,       # last 3 months detail
             "total_vendido": total_vendido,   # units in last 3 months

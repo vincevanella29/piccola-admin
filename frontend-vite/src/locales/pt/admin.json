@@ -413,7 +413,9 @@
       "friday": "Sexta-feira",
       "saturday": "Sábado",
       "sunday": "Domingo"
-    }
+    },
+    "fill_required": "Preencha os campos obrigatórios",
+    "completed": "Concluído"
   },
   "tools": {
     "category": "Ferramentas",

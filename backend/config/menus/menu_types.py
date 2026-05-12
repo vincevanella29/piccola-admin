@@ -20,6 +20,7 @@ DEFAULTS = [
     {"slug": "promociones", "name": "Promociones",     "icon": "Zap",      "color": "#FF9800", "is_default": False, "priority": 1},
     {"slug": "ora_felice",  "name": "Ora Felice",      "icon": "Clock",    "color": "#9C27B0", "is_default": False, "priority": 2},
     {"slug": "bar",         "name": "Carta Bar",        "icon": "Wine",     "color": "#E91E63", "is_default": False, "priority": 3},
+    {"slug": "delivery",    "name": "Delivery",         "icon": "Truck",    "color": "#06b6d4", "is_default": False, "priority": 4},
 ]
 
 
@@ -94,12 +95,19 @@ def update_menu_type(slug: str, data: dict) -> int:
 
 
 def delete_menu_type(slug: str) -> dict:
-    """Delete a menu type. Cannot delete the default. Moves categories to 'carta'."""
+    """Delete a menu type. Cannot delete the default. Moves categories to 'carta'.
+    Delivery type is protected when an active delivery provider exists."""
     mt = db.menu_types.find_one({"slug": slug})
     if not mt:
         return {"deleted": False, "error": "not_found"}
     if mt.get("is_default"):
         return {"deleted": False, "error": "cannot_delete_default"}
+
+    # Protect 'delivery' when active provider exists
+    if slug == "delivery":
+        active_provider = db.delivery_providers.find_one({"status": "active"})
+        if active_provider:
+            return {"deleted": False, "error": "delivery_provider_active"}
 
     # Move categories with this type to 'carta'
     moved = db.categories.update_many(

@@ -10,7 +10,7 @@ import DeleteConfirmModal from './components/DeleteConfirmModal';
 import BulkActionsBar from './components/BulkActionsBar';
 import ProductsTable from './components/ProductsTable';
 import CategoriesTable from './components/CategoriesTable';
-import LocationButtonsManager from './components/LocationButtonsManager';
+
 import AIImagenModal from './components/AIImagenModal';
 import MtzMissingTable from './components/MtzMissingTable';
 import MenuOptionsManager from './components/MenuOptionsManager';
@@ -138,7 +138,7 @@ const AdminCarta = ({ appState }) => {
         fetchAll, refresh, patchProduct, updateProduct, createProduct, updateCategory, createCategory,
         uploadProductImage, triggerPublicSync, cleanDatabaseDuplicates,
         deleteProduct, deleteCategory, bulkDeleteProducts, bulkDeleteCategories,
-        fetchLocations, updateLocationButtons, createMenuType, deleteMenuType, reorderProducts, reorderGroups,
+        fetchLocations, updateLocationButtons, createMenuType, deleteMenuType, reorderProducts, reorderGroups, reorderCategoryProducts,
     } = useCartaAdmin(appState);
 
     // ── UI State ───────────────────────────────────────────────────────────────
@@ -168,6 +168,16 @@ const AdminCarta = ({ appState }) => {
         }
         return counts;
     }, [categories]);
+
+    // ── Categories filtered by menu type ─────────────────────────────────────
+    const categoriesByMenuType = useMemo(() => {
+        if (!selectedMenuType) return categories;
+        return categories.filter(c => (c.menu_type || 'carta') === selectedMenuType);
+    }, [categories, selectedMenuType]);
+
+    const categoryIdsForMenuType = useMemo(() =>
+        new Set(categoriesByMenuType.map(c => c.id)),
+    [categoriesByMenuType]);
 
     // ── Filtered Lists ─────────────────────────────────────────────────────────
     const filteredProducts = useMemo(() => {
@@ -327,6 +337,17 @@ const AdminCarta = ({ appState }) => {
         }
     }, [updateProduct, patchProduct]);
 
+    // Delivery price update — inline edit for precio_delivery
+    const handleQuickDeliveryPriceUpdate = useCallback(async (productId, newPrice) => {
+        try {
+            await updateProduct(productId, { precio_delivery: newPrice });
+            patchProduct(productId, { precio_delivery: newPrice });
+        } catch (err) {
+            console.error('Quick delivery price update error:', err);
+            throw err;
+        }
+    }, [updateProduct, patchProduct]);
+
     return (
         <div className="min-h-screen bg-light-background dark:bg-dark-background">
 
@@ -391,27 +412,25 @@ const AdminCarta = ({ appState }) => {
                             <SegmentedTab id="products"    active={activeTab === 'products'}    onClick={setActiveTab} icon={Package}          label={t('carta.tab_products')}    count={products.length} />
                             <SegmentedTab id="categories"  active={activeTab === 'categories'}  onClick={setActiveTab} icon={Tags}             label={t('carta.tab_categories')}  count={categories.length} />
                             <SegmentedTab id="options"     active={activeTab === 'options'}     onClick={setActiveTab} icon={Layers}           label={t('carta.tab_options')}     count={menuOptions.length} />
-                            <SegmentedTab id="locations"   active={activeTab === 'locations'}   onClick={setActiveTab} icon={SlidersHorizontal} label={t('carta.tab_locations')} />
+
                             <SegmentedTab id="mtz-missing" active={activeTab === 'mtz-missing'} onClick={setActiveTab} icon={Database}         label="MTZ" />
                         </div>
                     </div>
 
                     {/* Row 1.5: Menu Type pills — categories tab only */}
                     <AnimatePresence>
-                        {activeTab === 'categories' && (
+                        {(activeTab === 'categories' || activeTab === 'products') && menuTypes.length > 0 && (
                             <motion.div
                                 initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                                 className="overflow-hidden"
                             >
                                 <div className="relative flex items-center gap-1 flex-wrap">
-                                    {menuTypes.length > 0 && (
-                                        <MenuTypePill
-                                            mt={{ slug: '', name: 'Todas', icon: 'Tags', color: '#607D8B' }}
-                                            active={!selectedMenuType}
-                                            count={categories.length}
-                                            onClick={() => setSelectedMenuType('')}
-                                        />
-                                    )}
+                                    <MenuTypePill
+                                        mt={{ slug: '', name: 'Todas', icon: 'Tags', color: '#607D8B' }}
+                                        active={!selectedMenuType}
+                                        count={activeTab === 'products' ? products.length : categories.length}
+                                        onClick={() => setSelectedMenuType('')}
+                                    />
                                     {menuTypes.map(mt => (
                                         <MenuTypePill
                                             key={mt.slug}
@@ -421,13 +440,15 @@ const AdminCarta = ({ appState }) => {
                                             onClick={() => setSelectedMenuType(selectedMenuType === mt.slug ? '' : mt.slug)}
                                         />
                                     ))}
-                                    <button
-                                        onClick={() => setShowCreateMenuType(v => !v)}
-                                        className="flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent dark:hover:text-dark-accent transition-colors"
-                                        title="Crear nuevo tipo de menú"
-                                    >
-                                        {showCreateMenuType ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                                    </button>
+                                    {activeTab === 'categories' && (
+                                        <button
+                                            onClick={() => setShowCreateMenuType(v => !v)}
+                                            className="flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent dark:hover:text-dark-accent transition-colors"
+                                            title="Crear nuevo tipo de menú"
+                                        >
+                                            {showCreateMenuType ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                        </button>
+                                    )}
                                 </div>
                             </motion.div>
                         )}
@@ -451,7 +472,7 @@ const AdminCarta = ({ appState }) => {
                                 className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-light-text-primary dark:text-dark-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent shadow-sm" />
                         </div>
 
-                        {/* Category filter — products tab only */}
+                        {/* Category filter — products tab only, filtered by menu type */}
                         <AnimatePresence>
                             {activeTab === 'products' && (
                                 <motion.select
@@ -459,7 +480,7 @@ const AdminCarta = ({ appState }) => {
                                     value={selectedCategoryFilter} onChange={e => setSelectedCategoryFilter(e.target.value)}
                                     className="py-2.5 pl-3 pr-8 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-light-text-primary dark:text-dark-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent shadow-sm appearance-none cursor-pointer">
                                     <option value="">{t('carta.all_categories')}</option>
-                                    {categories.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                    {categoriesByMenuType.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                                 </motion.select>
                             )}
                         </AnimatePresence>
@@ -502,16 +523,19 @@ const AdminCarta = ({ appState }) => {
                     ) : (
                         <motion.div key={activeTab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
                             {activeTab === 'products' && (
-                                <ProductsTable products={filteredProducts} categories={categories}
+                                <ProductsTable products={filteredProducts} categories={categoriesByMenuType}
                                     menuOptions={menuOptions} mtzSummary={mtzSummary}
+                                    selectedMenuType={selectedMenuType}
                                     selectedIds={selectedProductIds} onToggle={toggleProduct} onToggleAll={setSelectedProductIds}
                                     onEdit={setEditingProduct} onDelete={(id, name) => handleDeleteIndividual('products', id, name)}
                                     onAIImagen={setAiImagenProduct}
                                     onReorder={reorderProducts}
                                     onReorderGroups={reorderGroups}
+                                    onReorderCategoryProducts={reorderCategoryProducts}
                                     onToggleStatus={handleToggleProductStatus}
                                     onRefresh={refresh}
                                     onQuickPriceUpdate={handleQuickPriceUpdate}
+                                    onQuickDeliveryPriceUpdate={handleQuickDeliveryPriceUpdate}
                                 />
                             )}
                             {activeTab === 'categories' && (
@@ -526,10 +550,7 @@ const AdminCarta = ({ appState }) => {
                                     onCopyCategory={handleCopyCategory}
                                 />
                             )}
-                            {activeTab === 'locations' && (
-                                <LocationButtonsManager locations={locations} fetchLocations={fetchLocations}
-                                    updateButtons={updateLocationButtons} categories={categories} isLoading={isLoading} />
-                            )}
+
                             {activeTab === 'mtz-missing' && (
                                 <MtzMissingTable
                                     appState={appState}
@@ -597,7 +618,7 @@ export default AdminCarta;
 export const pageMetadata = {
     path: '/app/admin/carta',
     label: 'carta.label',
-    category: 'admin.category',
+    category: 'carta.category',
     minRoleLevel: 3,
     maxRoleLevel: 5,
     order: 4,

@@ -54,6 +54,7 @@ const ChatMessage = ({
   t,
   client: clientProps,
   admin: adminProps,
+  delivery: deliveryProps,
   mediaMap = {},
   allProducts = [],
   locations = [],
@@ -61,6 +62,7 @@ const ChatMessage = ({
   onScrollToBottomReady,
 }) => {
   const isAdmin = variant === 'admin';
+  const isDelivery = variant === 'delivery';
   const listRef = useRef(null);
   const [showJump, setShowJump] = useState(false);
   
@@ -79,8 +81,9 @@ const ChatMessage = ({
   
   const prevLenRef = useRef(0);
 
-  const client = !isAdmin ? (clientProps || {}) : {};
+  const client = (!isAdmin && !isDelivery) ? (clientProps || {}) : {};
   const admin = isAdmin ? (adminProps || {}) : {};
+  const delivery = isDelivery ? (deliveryProps || {}) : {};
   const myProfile = appState?.profile;
 
   const isNearBottom = useCallback(() => {
@@ -97,9 +100,13 @@ const ChatMessage = ({
     setShowJump(false);
   }, []);
 
-  const messages = useMemo(() => (isAdmin ? (admin?.messages || []) : (client?.messages || [])), [isAdmin, admin?.messages, client?.messages]);
-  const isLoading = isAdmin ? Boolean(admin?.messagesLoading) : Boolean(client?.isLoading);
-  const adminTyping = isAdmin ? Boolean(admin?.typingClient) : Boolean(client?.adminTyping);
+  const messages = useMemo(() => {
+    if (isDelivery) return delivery?.messages || [];
+    if (isAdmin) return admin?.messages || [];
+    return client?.messages || [];
+  }, [isAdmin, isDelivery, admin?.messages, client?.messages, delivery?.messages]);
+  const isLoading = isDelivery ? Boolean(delivery?.loading) : (isAdmin ? Boolean(admin?.messagesLoading) : Boolean(client?.isLoading));
+  const adminTyping = isDelivery ? Boolean(delivery?.typingClient) : (isAdmin ? Boolean(admin?.typingClient) : Boolean(client?.adminTyping));
   const participants = isAdmin ? (admin?.participants || []) : [];
 
   useEffect(() => {
@@ -162,7 +169,7 @@ const ChatMessage = ({
           const isMe = (m?.role || '').toLowerCase() === 'user'; 
 
           const participant = (() => {
-            if (isAssistant) return { name: 'La Nonna', role: 'assistant' };
+            if (isAssistant) return { name: isDelivery ? 'La Nonna 🍕' : 'La Nonna', role: 'assistant' };
             if (isMe && !isAdmin && myProfile) {
                return {
                  name: myProfile.profile?.name || myProfile.name || 'Tú',

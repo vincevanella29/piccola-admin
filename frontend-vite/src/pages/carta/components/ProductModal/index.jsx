@@ -120,16 +120,17 @@ const ProductModal = ({
     // ── Core state ─────────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState('product');
     const [form, setForm] = useState({
-        nombre:       product?.nombre || '',
-        descripcion:  product?.descripcion || '',
-        precio:       product?.precio != null ? String(product.precio).replace(/[^0-9]/g, '') : '',
-        estado:       product?.estado ?? true,
-        prioridad:    product?.prioridad ?? 0,
-        media_r2:     product?.media_r2 || product?.media_url || '',
-        currency:     product?.currency || 'CLP',
-        codigo:       product?.codigo || '',
-        category_ids: product?.category_ids || [],
-        restriccion:  Array.isArray(product?.restriccion) ? product.restriccion : [],
+        nombre:          product?.nombre || '',
+        descripcion:     product?.descripcion || '',
+        precio:          product?.precio != null ? String(product.precio).replace(/[^0-9]/g, '') : '',
+        precio_delivery: product?.precio_delivery != null ? String(product.precio_delivery).replace(/[^0-9]/g, '') : '',
+        estado:          product?.estado ?? true,
+        prioridad:       product?.prioridad ?? 0,
+        media_r2:        product?.media_r2 || product?.media_url || '',
+        currency:        product?.currency || 'CLP',
+        codigo:          product?.codigo || '',
+        category_ids:    product?.category_ids || [],
+        restriccion:     Array.isArray(product?.restriccion) ? product.restriccion : [],
     });
     const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -145,14 +146,15 @@ const ProductModal = ({
     // ── Especial state ─────────────────────────────────────────────────────
     const esp = product?.especial || {};
     const [especial, setEspecial] = useState({
-        special_price:   esp.special_price ?? '',
-        special_status:  esp.special_status ?? false,
-        validity:        esp.validity || 'recurring',
-        recurring_every: Array.isArray(esp.recurring_every) ? esp.recurring_every : [],
-        recurring_from:  esp.recurring_from || '17:00:00',
-        recurring_to:    esp.recurring_to   || '23:55:00',
-        start_date:      esp.start_date || '',
-        end_date:        esp.end_date   || '',
+        special_price:          esp.special_price ?? '',
+        special_price_delivery: esp.special_price_delivery ?? '',
+        special_status:         esp.special_status ?? false,
+        validity:               esp.validity || 'recurring',
+        recurring_every:        Array.isArray(esp.recurring_every) ? esp.recurring_every : [],
+        recurring_from:         esp.recurring_from || '17:00:00',
+        recurring_to:           esp.recurring_to   || '23:55:00',
+        start_date:             esp.start_date || '',
+        end_date:               esp.end_date   || '',
     });
     const [savingEsp, setSavingEsp] = useState(false);
     const [espMsg, setEspMsg]       = useState(null);
@@ -218,6 +220,7 @@ const ProductModal = ({
             const payload = {
                 nombre: form.nombre, descripcion: form.descripcion,
                 precio: form.precio !== '' ? parseFloat(String(form.precio).replace(/[^0-9]/g, '')) : null,
+                precio_delivery: form.precio_delivery !== '' ? parseFloat(String(form.precio_delivery).replace(/[^0-9]/g, '')) : null,
                 estado: form.estado,
                 prioridad: form.prioridad !== '' ? parseInt(form.prioridad, 10) : 0,
                 media_r2:     finalPrincipal,
@@ -240,7 +243,8 @@ const ProductModal = ({
         setSavingEsp(true); setEspMsg(null);
         try {
             const payload = {
-                special_price:   especial.special_price !== '' ? parseFloat(especial.special_price) : null,
+                special_price:          especial.special_price !== '' ? parseFloat(especial.special_price) : null,
+                special_price_delivery: especial.special_price_delivery !== '' ? parseFloat(especial.special_price_delivery) : null,
                 special_status:  especial.special_status,
                 validity:        especial.validity,
                 recurring_every: especial.validity === 'recurring'   ? especial.recurring_every : null,

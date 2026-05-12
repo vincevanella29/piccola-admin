@@ -139,6 +139,31 @@ piccola_italia_web3/
 
 ---
 
+## 🚚 Delivery & Pagos (Transbank OneClick)
+
+La plataforma incluye un sistema de delivery con pagos integrados:
+
+- **Transbank OneClick Mall** — Inscripción de tarjetas + cobros automáticos
+- **Sync encriptado** — Las credenciales de Transbank se encriptan con Fernet (HKDF del dilithium_mnemonic) y se pushean al delivery app durante la sincronización
+- **3 triggers de sync**: push on save, catalog sync manual, cron nocturno
+
+### Dependencias adicionales (Delivery)
+```txt
+transbank-sdk>=6.1.0      # SDK oficial Transbank
+cryptography>=45.0.0       # Fernet encryption (ya incluido por web3)
+dilithium-py>=1.4.0        # Post-quantum signing
+mnemonic>=0.21             # BIP39 keypair derivation
+```
+
+### Flujo de pagos
+```
+Admin → Guarda creds → Encrypta con Fernet → Push a delivery providers
+Delivery → Almacena blob encriptado → Descifra in-memory solo al cobrar
+Cliente → Inscribe tarjeta → tbk_user local → Pagos con OneClick
+```
+
+---
+
 ## 🛡️ Buenas prácticas
 - Nunca subas `.env` ni llaves privadas a git.
 - Usa ramas y PRs para cambios.

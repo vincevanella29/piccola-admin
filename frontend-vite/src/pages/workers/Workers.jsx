@@ -42,7 +42,7 @@ export default Workers;
 export const pageMetadata = {
   path: '/app/workers',
   label: 'workers.label',
-  category: 'admin.tools.category',
+  category: 'admin.category',
   minRoleLevel: 3,
   maxRoleLevel: 4,
   order: 1,

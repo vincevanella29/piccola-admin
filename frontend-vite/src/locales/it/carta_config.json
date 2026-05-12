@@ -1,0 +1,22 @@
+{
+  "label": "Config Carta",
+  "description": "Configurazione della carta digitale pubblica",
+  "title": "Configurazione Carta",
+  "subtitle": "Banner, link di navigazione e pulsanti per sede",
+  "tab_banners": "Banner",
+  "tab_navigation": "Link di Navigazione",
+  "tab_buttons": "Pulsanti Sede",
+  "tab_provider": "Connessione",
+  "loading_links": "Caricamento link...",
+  "nav_title": "Link di Navigazione",
+  "nav_desc": "Link visibili nella sidebar, header e footer della carta digitale pubblica.",
+  "nav_i18n_key": "Chiave i18n",
+  "nav_fallback": "Testo visibile",
+  "nav_icon": "Icona",
+  "nav_show_in": "Mostra in",
+  "nav_add": "Aggiungi Link",
+  "nav_none_title": "Nessun link configurato",
+  "nav_none_desc": "Aggiungi link per la sidebar, header e footer della carta digitale.",
+  "saved": "Salvato!",
+  "save": "Salva"
+}

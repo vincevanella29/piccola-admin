@@ -138,7 +138,7 @@ export default AdminNotifications;
 export const pageMetadata = {
   path: '/app/admin/notifications',
   label: 'admin.notifications.label',
-  category: 'admin.category',
+  category: 'marketing.category',
   minRoleLevel: 3,
   maxRoleLevel: 4,
   order: 2,

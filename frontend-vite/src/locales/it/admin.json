@@ -414,7 +414,9 @@
       "friday": "Venerdì",
       "saturday": "Sabato",
       "sunday": "Domenica"
-    }
+    },
+    "fill_required": "Compila i campi obbligatori",
+    "completed": "Completato"
   },
   "heading_calendar": "Calendario",
   "heading_rules": "Regole Avanzate",

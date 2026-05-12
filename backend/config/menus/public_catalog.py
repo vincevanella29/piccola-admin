@@ -265,10 +265,24 @@ def get_public_catalog(api_key: str) -> dict:
             menus_by_id[mid] = serialize(p)
 
     # Embed options + normalize media + attach sales_units on every product
+    # Build stock overrides index: { codigo: { location_slug: False } }
+    try:
+        stock_docs = list(db.delivery_stock.find(
+            {"available": False},
+            {"_id": 0, "codigo": 1, "location_slug": 1}
+        ))
+        stock_idx = defaultdict(dict)
+        for s in stock_docs:
+            stock_idx[s["codigo"]][s["location_slug"]] = False
+    except Exception as e:
+        logger.warning(f"[public_catalog] stock_overrides error: {e}")
+        stock_idx = {}
+
     for mid in menus_by_id:
         prod = _embed_options_and_media(menus_by_id[mid], by_codigo, by_menu_id)
         codigo = str(prod.get("codigo") or "").strip()
         prod["sales_units"] = sales_idx.get(codigo)  # {mesano, total, por_local} or None
+        prod["stock_overrides"] = stock_idx.get(codigo, {})  # { location_slug: false }
         menus_by_id[mid] = prod
 
     # Build category output with nested menus
@@ -277,7 +291,7 @@ def get_public_catalog(api_key: str) -> dict:
         c_out = serialize(c)
         menu_ids = [str(x) for x in (c.get("menu_ids") or [])]
         cat_menus = [menus_by_id[mid] for mid in menu_ids if mid in menus_by_id]
-        cat_menus.sort(key=lambda x: int(x.get("prioridad") or 0))
+        # Respect menu_ids[] array order — the admin controls the ordering
         c_out["menus"] = cat_menus
         # Ensure menu_type is always present (defaults to 'carta')
         if "menu_type" not in c_out or not c_out.get("menu_type"):

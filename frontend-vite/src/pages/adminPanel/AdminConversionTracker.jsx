@@ -105,7 +105,7 @@ export default AdminConversionTracker;
 export const pageMetadata = {
   path: '/app/admin/conversion-tracker',
   label: 'conversion_tracker.label',
-  category: 'admin.category',
+  category: 'marketing.category',
   minRoleLevel: 3,
   maxRoleLevel: 5,
   order: 7,

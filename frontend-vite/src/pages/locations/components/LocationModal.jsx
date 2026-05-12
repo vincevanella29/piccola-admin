@@ -10,7 +10,7 @@ import MediaTab from './location-modal/MediaTab';
 import QrTab from './location-modal/QrTab';
 
 // ── Empty defaults ────────────────────────────────────────────────────────────
-const EMPTY_OPENING_HOURS = () => ({ dinein: {}, delivery: {} });
+const EMPTY_OPENING_HOURS = () => ({ dinein: {}, delivery: {}, pickup: {} });
 const EMPTY_SPECIAL_DATES = () => [];
 
 // ── Main Modal ────────────────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ const LocationModal = ({ location, isOpen, onClose, appState, liveVisitors = {} 
             });
             setOpeningHours(
                 location.opening_hours && typeof location.opening_hours === 'object'
-                    ? { dinein: location.opening_hours.dinein || {}, delivery: location.opening_hours.delivery || {} }
+                    ? { dinein: location.opening_hours.dinein || {}, delivery: location.opening_hours.delivery || {}, pickup: location.opening_hours.pickup || {} }
                     : EMPTY_OPENING_HOURS()
             );
             setSpecialDates(Array.isArray(location.special_dates) ? location.special_dates : EMPTY_SPECIAL_DATES());
@@ -123,7 +123,9 @@ const LocationModal = ({ location, isOpen, onClose, appState, liveVisitors = {} 
     const existingMedia = (location.media_urls || []).filter(Boolean);
     const dineinDays = Object.keys(openingHours.dinein || {}).length;
     const deliveryDays = Object.keys(openingHours.delivery || {}).length;
+    const pickupDays = Object.keys(openingHours.pickup || {}).length;
     const specialCount = specialDates.filter(d => d.date).length;
+    const totalScheduleCount = dineinDays + deliveryDays + pickupDays + specialCount;
 
     const TABS = [
         { id: 'info', label: tm('tabs.info') },
@@ -174,9 +176,9 @@ const LocationModal = ({ location, isOpen, onClose, appState, liveVisitors = {} 
                                             : 'border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
                                     }`}>
                                     {tab.label}
-                                    {tab.id === 'horarios' && (dineinDays + deliveryDays + specialCount > 0) && (
+                                    {tab.id === 'horarios' && totalScheduleCount > 0 && (
                                         <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-light-accent dark:bg-dark-accent text-white">
-                                            {dineinDays + deliveryDays + specialCount}
+                                            {totalScheduleCount}
                                         </span>
                                     )}
                                 </button>

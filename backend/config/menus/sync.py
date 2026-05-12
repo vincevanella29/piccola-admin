@@ -7,116 +7,198 @@ clean_database_duplicates():
     Modifier groups (menu_id != "") are exempt — their values are modifier options,
     not product references, so they can share codigos freely.
 
-trigger_public_sync():
-    Calls the carta digital frontend worker at:
-        POST https://frontcarta.lapiccolaitalia.cl/api/catalog/sync
-    Authenticated with EXTERNAL_API_KEY.
-    Both apps share the same MongoDB — this just tells the carta to refresh its cache.
+trigger_public_sync() / trigger_banners_sync() / trigger_nav_links_sync():
+    Read the active carta provider from MongoDB (carta_providers collection)
+    and POST to the appropriate route on the carta domain.
+    Authenticated with the auto-generated API key stored during claim.
+    No env vars — everything from the database.
 """
 
 import logging
-import os
+import time
 import asyncio
 import requests
 
 from .helpers import get_ts  # noqa: F401 (imported for caller compat)
+from utils.vanellix_crypto import sign_with_mnemonic
 
 logger = logging.getLogger(__name__)
 
-_CATALOG_SYNC_URL = os.getenv(
-    "CARTA_CATALOG_SYNC_URL",
-    "https://frontcarta.lapiccolaitalia.cl/api/catalog/sync",
-)
-# Default apunta al mismo catalog/sync que ya funciona en producción
-# (también sincroniza banners). Sobrescribir con CARTA_BANNERS_SYNC_URL
-# cuando la carta tenga desplegado el endpoint /api/banners/sync.
-_BANNERS_SYNC_URL = os.getenv(
-    "CARTA_BANNERS_SYNC_URL",
-    "https://frontcarta.lapiccolaitalia.cl/api/catalog/sync",
-)
-_EXTERNAL_API_KEY = os.getenv(
-    "CARTA_SYNC_API_KEY",
-    "1fSypihaCuh9g.ql4Ly8qqw7Usa3OMWRUVlM3YvO9eo1EDAVB_vkN3A0A",
-)
 
-logger.info(
-    f"[sync] URLs cargadas:"
-    f"\n  CATALOG → {_CATALOG_SYNC_URL}"
-    f"\n  BANNERS → {_BANNERS_SYNC_URL}"
-    f"\n  KEY_TAIL → ...{_EXTERNAL_API_KEY[-8:]}"
-)
+# ─── Carta Routes (must match carta_providers.py) ─────────────────────────────
+
+CARTA_ROUTES = {
+    "catalog_sync":   "/api/catalog/sync",
+    "banners_sync":   "/api/banners/sync",
+    "nav_links_sync": "/api/nav-links/sync",
+}
 
 
+# ─── Provider resolution from MongoDB ─────────────────────────────────────────
+
+def _get_carta_provider() -> dict:
+    """
+    Read the active carta provider from MongoDB.
+    Returns the provider doc or raises RuntimeError.
+    """
+    from utils.web3mongo import db as _db
+    prov = _db.carta_providers.find_one({"status": "active"})
+    if not prov:
+        raise RuntimeError(
+            "No hay carta provider configurado. "
+            "Ve a CartaConfig → Conexión → Auto-Link para vincular la carta."
+        )
+    return prov
+
+
+def _build_sync_url(route_key: str) -> tuple:
+    """
+    Build (url, api_key) from the active carta provider in DB.
+    Raises RuntimeError if no provider is configured.
+    """
+    prov = _get_carta_provider()
+    domain = prov.get("domain", "").rstrip("/")
+    if not domain:
+        raise RuntimeError(f"Carta provider '{prov.get('slug')}' no tiene dominio configurado")
+    path = CARTA_ROUTES.get(route_key, "")
+    url = f"{domain}{path}"
+    api_key = prov.get("api_key_value", "")
+    return url, api_key
+
+
+def _build_signed_headers(api_key: str, mnemonic: str, body: bytes = b"") -> dict:
+    """
+    Build request headers with API key + Dilithium signature.
+    If no mnemonic is available, falls back to API key only.
+    """
+    headers = {"X-API-Key": api_key}
+    if mnemonic:
+        try:
+            sig_hex, pk_hex = sign_with_mnemonic(mnemonic, body)
+            headers["X-Dilithium-Signature"] = sig_hex
+            headers["X-Dilithium-PK"] = pk_hex
+            headers["X-Dilithium-Algorithm"] = "dilithium2"
+            headers["X-Dilithium-Timestamp"] = str(time.time())
+        except Exception as e:
+            logger.warning(f"[sync] Dilithium signing failed (continuing with API key only): {e}")
+    return headers
+
+
+# ─── Generic sync helper ──────────────────────────────────────────────────────
+
+async def _trigger_sync(route_key: str, label: str) -> dict:
+    """
+    Generic sync trigger. Reads URL + API key + mnemonic from the carta
+    provider in DB, signs the request with Dilithium, and POSTs.
+    """
+    try:
+        prov = _get_carta_provider()
+        domain = prov.get("domain", "").rstrip("/")
+        path = CARTA_ROUTES.get(route_key, "")
+        url = f"{domain}{path}"
+        api_key = prov.get("api_key_value", "")
+        mnemonic = prov.get("dilithium_mnemonic", "")
+    except RuntimeError as e:
+        msg = str(e)
+        logger.warning(f"[sync] {label}: {msg}")
+        return {"ok": False, "status": 0, "detail": msg}
+
+    logger.info(f"[sync] Triggering {label} → {url}")
+    try:
+        headers = _build_signed_headers(api_key, mnemonic, body=b"")
+
+        def _do_post():
+            return requests.post(url, headers=headers, timeout=5)
+
+        resp = await asyncio.to_thread(_do_post)
+        logger.info(f"[sync] {label} response: {resp.status_code}")
+        try:
+            body = resp.json()
+        except Exception:
+            body = {"raw": resp.text[:300]}
+
+        ok = resp.status_code in (200, 202)
+        if not ok:
+            logger.warning(f"[sync] {label} returned {resp.status_code}: {body}")
+        return {"ok": ok, "status": resp.status_code, "detail": body}
+
+    except requests.exceptions.Timeout:
+        msg = f"Timeout (5s) conectando a {url}"
+        logger.error(f"[sync] {msg}")
+        return {"ok": False, "status": 0, "detail": msg}
+    except Exception as e:
+        logger.error(f"[sync] Error {label}: {e}")
+        return {"ok": False, "status": 0, "detail": str(e)}
+
+
+# ─── Public API ───────────────────────────────────────────────────────────────
 
 async def trigger_public_sync() -> dict:
     """
     Tell the carta digital worker to re-read MongoDB and refresh its catalog.
-    Usa asyncio.to_thread para no bloquear el event loop del admin.
-    La carta responde inmediatamente con {status: accepted} — timeout 5s max.
-    Returns { ok, status, detail }.
+    Also triggers delivery provider syncs in the background.
     """
-    logger.info(f"[sync] Triggering carta digital worker → {_CATALOG_SYNC_URL}")
-    try:
-        def _do_post():
-            return requests.post(
-                _CATALOG_SYNC_URL,
-                headers={"X-API-Key": _EXTERNAL_API_KEY},
-                timeout=5,  # carta responde inmediato — si no responde en 5s, está caída
-            )
-        resp = await asyncio.to_thread(_do_post)
-        logger.info(f"[sync] Worker response: {resp.status_code}")
-        try:
-            body = resp.json()
-        except Exception:
-            body = {"raw": resp.text[:300]}
-
-        ok = resp.status_code in (200, 202)
-        if not ok:
-            logger.warning(f"[sync] Worker returned {resp.status_code}: {body}")
-        return {"ok": ok, "status": resp.status_code, "detail": body}
-
-    except requests.exceptions.Timeout:
-        msg = f"Timeout (5s) conectando a {_CATALOG_SYNC_URL} — carta posiblemente caída"
-        logger.error(f"[sync] {msg}")
-        return {"ok": False, "status": 0, "detail": msg}
-    except Exception as e:
-        logger.error(f"[sync] Error triggering carta worker: {e}")
-        return {"ok": False, "status": 0, "detail": str(e)}
+    # Also notify delivery providers in the background (fire-and-forget)
+    asyncio.create_task(_sync_delivery_providers())
+    return await _trigger_sync("catalog_sync", "catalog sync")
 
 
 async def trigger_banners_sync() -> dict:
+    """Notifica a la carta digital para que re-sincronice SOLO los banners."""
+    return await _trigger_sync("banners_sync", "banner sync")
+
+
+async def trigger_nav_links_sync() -> dict:
+    """Notifica a la carta digital para que re-sincronice navigation links."""
+    return await _trigger_sync("nav_links_sync", "nav-links sync")
+
+
+# ─── Delivery providers (unchanged) ──────────────────────────────────────────
+
+async def _sync_delivery_providers():
     """
-    Notifica a la carta digital para que re-sincronice SOLO los banners.
-    Usa asyncio.to_thread — no bloquea el event loop.
+    Notify all active delivery providers that have a sync_url.
+    Each provider's sync_url gets a POST to tell it to refresh its catalog.
+    Fire-and-forget — errors are logged but never block the admin.
     """
-    logger.info(f"[sync] Triggering banner sync → {_BANNERS_SYNC_URL}")
+    from utils.web3mongo import db as _db
+
     try:
-        def _do_post():
-            return requests.post(
-                _BANNERS_SYNC_URL,
-                headers={"X-API-Key": _EXTERNAL_API_KEY},
-                timeout=5,
-            )
-        resp = await asyncio.to_thread(_do_post)
-        logger.info(f"[sync] Banner worker response: {resp.status_code}")
-        try:
-            body = resp.json()
-        except Exception:
-            body = {"raw": resp.text[:300]}
-
-        ok = resp.status_code in (200, 202)
-        if not ok:
-            logger.warning(f"[sync] Banner worker returned {resp.status_code}: {body}")
-        return {"ok": ok, "status": resp.status_code, "detail": body}
-
-    except requests.exceptions.Timeout:
-        msg = f"Timeout (5s) conectando a {_BANNERS_SYNC_URL}"
-        logger.error(f"[sync] {msg}")
-        return {"ok": False, "status": 0, "detail": msg}
+        providers = list(_db.delivery_providers.find(
+            {"status": "active", "sync_url": {"$exists": True, "$ne": ""}},
+            {"slug": 1, "sync_url": 1, "api_key_value": 1, "dilithium_mnemonic": 1},
+        ))
     except Exception as e:
-        logger.error(f"[sync] Error triggering banner sync: {e}")
-        return {"ok": False, "status": 0, "detail": str(e)}
+        logger.error(f"[sync] Error reading delivery providers: {e}")
+        return
 
+    if not providers:
+        return
+
+    logger.info(f"[sync] Notifying {len(providers)} delivery provider(s)")
+
+    for prov in providers:
+        slug = prov.get("slug", "?")
+        url = prov.get("sync_url", "")
+        if not url:
+            continue
+            
+        api_key = prov.get("api_key_value", "")
+        mnemonic = prov.get("dilithium_mnemonic", "")
+        
+        try:
+            headers = _build_signed_headers(api_key, mnemonic, body=b"")
+            
+            def _post(u=url, h=headers):
+                return requests.post(u, headers=h, timeout=5)
+                
+            resp = await asyncio.to_thread(_post)
+            logger.info(f"[sync] Provider '{slug}' sync → {resp.status_code}")
+        except Exception as e:
+            logger.warning(f"[sync] Provider '{slug}' sync failed: {e}")
+
+
+# ─── Database cleanup ─────────────────────────────────────────────────────────
 
 def clean_database_duplicates() -> str:
     """

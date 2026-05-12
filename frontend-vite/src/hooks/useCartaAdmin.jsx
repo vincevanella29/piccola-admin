@@ -175,6 +175,10 @@ const useCartaAdmin = (appState) => {
         await cartaApi.reorderGroups({ token, account, items });
     }, [token, account]);
 
+    const reorderCatProducts = useCallback(async (categoryId, productIds) => {
+        await cartaApi.reorderCategoryProducts({ token, account, categoryId, productIds });
+    }, [token, account]);
+
     return {
         products,
         categories,
@@ -210,6 +214,7 @@ const useCartaAdmin = (appState) => {
         deleteMenuType: deleteOneMenuType,
         reorderProducts: reorder,
         reorderGroups: reorderOptionGroups,
+        reorderCategoryProducts: reorderCatProducts,
     };
 };
 

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Eye, Loader2, AlertTriangle, Key, PlusCircle, RefreshCcw } from 'lucide-react';
+import { Settings, Eye, Loader2, AlertTriangle, Key, PlusCircle, RefreshCcw, Building2 } from 'lucide-react';
 import usePromotionAdmin from '../../hooks/usePromotionAdmin';
 import usePromotionsData from '../../hooks/usePromotionsData';
 import useRestaurantData from '../../hooks/useRestaurantData';
@@ -10,6 +10,7 @@ import AdminPromotionCreate from './components/promotions/AdminPromotionCreate';
 import AdminPromotionUpdate from './components/promotions/AdminPromotionUpdate';
 import AdminCouponList from './components/promotions/AdminCouponList';
 import AdminApiKeys from './components/promotions/AdminApiKeys';
+import AdminB2BPartners from './components/promotions/AdminB2BPartners';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -18,6 +19,7 @@ const TABS = [
   { key: 'update', icon: RefreshCcw,   labelKey: 'promotion.update'   },
   { key: 'coupons',icon: Eye,          labelKey: 'promotion.coupons'  },
   { key: 'api',    icon: Key,          labelKey: 'promotion.api_keys' },
+  { key: 'b2b',    icon: Building2,    labelKey: 'promotion.b2b_partners' },
 ];
 
 const PromotionDashboard = ({ appState }) => {
@@ -225,6 +227,12 @@ const PromotionDashboard = ({ appState }) => {
                   setFormError={setFormError}
                 />
               )}
+
+              {activeTab === 'b2b' && (
+                <AdminB2BPartners
+                  appState={appState}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -245,7 +253,7 @@ export default PromotionDashboard;
 export const pageMetadata = {
   path: '/app/promotions',
   label: 'promotion.label',
-  category: 'admin.category',
+  category: 'marketing.category',
   minRoleLevel: 3,
   maxRoleLevel: 5,
   order: 6,

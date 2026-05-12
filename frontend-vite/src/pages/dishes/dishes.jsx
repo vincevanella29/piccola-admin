@@ -178,7 +178,7 @@ export default function DishesPage({ appState }) {
 export const pageMetadata = {
   path: '/app/analytics/dishes',
   label: 'dishes.label',
-  category: 'analytics.Análisis',
+  category: 'analytics.category',
   minRoleLevel: 3,
   maxRoleLevel: 5,
   order: 2,

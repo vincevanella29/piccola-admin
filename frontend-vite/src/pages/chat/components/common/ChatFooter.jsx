@@ -21,7 +21,7 @@ const ChatFooter = ({
   showJump,
   onJump,
 }) => {
-  const isAdmin = variant === 'admin';
+  const isAdmin = variant === 'admin' || variant === 'delivery';
   const [text, setText] = useState('');
 
   const disabled = isAdmin ? adminDisabled : clientDisabled;

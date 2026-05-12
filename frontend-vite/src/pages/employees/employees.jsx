@@ -15,7 +15,7 @@ export default Employees;
 export const pageMetadata = {
   path: '/app/analytics/employees',
   label: 'employees.label',
-  category: 'employees.profiles.category',
+  category: 'team.category',
   minRoleLevel: 3,
   maxRoleLevel: 6,
   order: 1,

@@ -29,7 +29,7 @@ const CLP = (v) =>
 const fmtK = (v) => v == null ? '—' : v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v.toLocaleString('es-CL');
 
 // ── Inline Price Editor ───────────────────────────────────────────────────────
-const InlinePrice = ({ value, productId, onSave }) => {
+const InlinePrice = ({ value, productId, onSave, accentClass }) => {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
     const [saving, setSaving] = useState(false);
@@ -92,7 +92,7 @@ const InlinePrice = ({ value, productId, onSave }) => {
     return (
         <button
             onClick={startEdit}
-            className="group/price flex items-center gap-1 font-mono font-bold text-sm text-light-text-primary dark:text-dark-text-primary hover:text-light-accent dark:hover:text-dark-accent transition-colors cursor-text"
+            className={`group/price flex items-center gap-1 font-mono font-bold text-sm ${accentClass || 'text-light-text-primary dark:text-dark-text-primary'} hover:text-light-accent dark:hover:text-dark-accent transition-colors cursor-text`}
             title="Click para editar precio"
         >
             {CLP(value)}
@@ -201,7 +201,7 @@ const SortableRow = ({
     product, idx, catId, sortableId, isLast, extraClass, hasPending, multiCatCount,
     selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
     codigoToGroup, codigoToMods, getImages, cachebust, t, mtzSummary = {},
-    onQuickPriceUpdate,
+    onQuickPriceUpdate, onQuickDeliveryPriceUpdate, showDeliveryPrice,
 }) => {
     const p = product;
     const sel = selectedIds.includes(p.id);
@@ -306,6 +306,60 @@ const SortableRow = ({
                 )}
             </div>
 
+            {/* MTZ Price reference (puven) — read-only */}
+            <div className="w-20 shrink-0 px-1 py-2.5 whitespace-nowrap hidden lg:block">
+                {mtz?.puven != null ? (
+                    <div>
+                        <span className={`font-mono text-[11px] font-semibold ${
+                            p.precio && mtz.puven !== p.precio
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-light-text-secondary/60 dark:text-dark-text-secondary/60'
+                        }`}>
+                            {CLP(mtz.puven)}
+                        </span>
+                        {p.precio && mtz.puven !== p.precio && (() => {
+                            const diff = p.precio - mtz.puven;
+                            const pct = Math.round((diff / mtz.puven) * 100);
+                            return (
+                                <div className={`text-[9px] font-mono font-bold mt-0.5 ${
+                                    diff > 0
+                                        ? 'text-emerald-500'
+                                        : 'text-red-500'
+                                }`}>
+                                    {diff > 0 ? '+' : ''}{pct}%
+                                </div>
+                            );
+                        })()}
+                    </div>
+                ) : (
+                    <span className="text-[10px] text-light-text-secondary/30 dark:text-dark-text-secondary/30">—</span>
+                )}
+            </div>
+
+            {/* Delivery Price — inline editable, shown when menu type selected */}
+            {showDeliveryPrice && (
+                <div className="w-24 shrink-0 px-1 py-2.5 whitespace-nowrap hidden sm:block">
+                    <div className="flex items-center gap-1">
+                        <span className="text-[9px] text-cyan-500 font-bold">🛵</span>
+                        {onQuickDeliveryPriceUpdate ? (
+                            <InlinePrice
+                                value={p.precio_delivery || p.precio}
+                                productId={p.id}
+                                onSave={onQuickDeliveryPriceUpdate}
+                                accentClass="text-cyan-600 dark:text-cyan-400"
+                            />
+                        ) : (
+                            <span className="font-mono font-bold text-sm text-cyan-600 dark:text-cyan-400">{CLP(p.precio_delivery || p.precio)}</span>
+                        )}
+                    </div>
+                    {p.precio_delivery && p.precio_delivery !== p.precio && (
+                        <div className="text-[9px] text-light-text-secondary/50 dark:text-dark-text-secondary/50 font-mono mt-0.5">
+                            Local: {CLP(p.precio)}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* MTZ: Margin */}
             <div className="w-16 shrink-0 px-1 py-2.5 hidden lg:flex items-center justify-center">
                 <MarginPill pct={mtz?.margin_pct} />
@@ -399,7 +453,7 @@ const SortableGroupRow = ({
     sortableId, groupOpt, groupProducts, idx, isLast, hasPending,
     selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
     codigoToGroup, codigoToMods, getImages, cachebust, t, mtzSummary = {},
-    onQuickPriceUpdate,
+    onQuickPriceUpdate, onQuickDeliveryPriceUpdate, showDeliveryPrice,
 }) => {
     const [expanded, setExpanded] = useState(false);
     const groupName = groupOpt.option_name || 'Grupo';
@@ -545,6 +599,8 @@ const SortableGroupRow = ({
                                 t={t}
                                 mtzSummary={mtzSummary}
                                 onQuickPriceUpdate={onQuickPriceUpdate}
+                                onQuickDeliveryPriceUpdate={onQuickDeliveryPriceUpdate}
+                                showDeliveryPrice={showDeliveryPrice}
                             />
                         ))}
                     </motion.div>
@@ -562,7 +618,7 @@ const SortableCategory = ({
     catId, items, hasPending, isSaving, multiCatCounts,
     selectedIds, onToggle, onEdit, onDelete, onAIImagen, onToggleStatus, togglingId,
     codigoToGroup, codigoToMods, getImages, cachebust, t, mtzSummary = {},
-    onQuickPriceUpdate,
+    onQuickPriceUpdate, onQuickDeliveryPriceUpdate, showDeliveryPrice,
 }) => {
     // items = array of { type: 'product', product } | { type: 'group', groupId, groupOpt, products }
     const sortIds = useMemo(() => items.map(item =>
@@ -578,6 +634,8 @@ const SortableCategory = ({
                 <div className="w-14 shrink-0 px-2 py-2">{t('carta.col_image')}</div>
                 <div className="flex-1 px-2 py-2">{t('carta.col_name')}</div>
                 <div className="w-20 shrink-0 px-1 py-2 hidden sm:block">{t('carta.col_price')}</div>
+                <div className="w-20 shrink-0 px-1 py-2 hidden lg:block text-amber-600 dark:text-amber-400">MTZ $</div>
+                {showDeliveryPrice && <div className="w-24 shrink-0 px-1 py-2 hidden sm:block text-cyan-600 dark:text-cyan-400">🛵 Delivery</div>}
                 <div className="w-16 shrink-0 px-1 py-2 hidden lg:block text-center">Margen</div>
                 <div className="w-16 shrink-0 px-1 py-2 hidden lg:block text-right">Vendido</div>
                 <div className="w-20 shrink-0 px-1 py-2 hidden lg:block text-right">Venta $</div>
@@ -614,6 +672,8 @@ const SortableCategory = ({
                             t={t}
                             mtzSummary={mtzSummary}
                             onQuickPriceUpdate={onQuickPriceUpdate}
+                            onQuickDeliveryPriceUpdate={onQuickDeliveryPriceUpdate}
+                            showDeliveryPrice={showDeliveryPrice}
                         />
                     );
                 }
@@ -640,6 +700,8 @@ const SortableCategory = ({
                         getImages={getImages}
                         cachebust={cachebust}
                         onQuickPriceUpdate={onQuickPriceUpdate}
+                        onQuickDeliveryPriceUpdate={onQuickDeliveryPriceUpdate}
+                        showDeliveryPrice={showDeliveryPrice}
                         t={t}
                         mtzSummary={mtzSummary}
                     />
@@ -704,13 +766,17 @@ const MobileCard = ({ p, sel, imgs, onToggle, onEdit, onDelete, onAIImagen, onQu
 // ═══════════════════════════════════════════════════════════════════════════════
 const ProductsTable = ({
     products, categories, menuOptions = [], mtzSummary = {},
+    selectedMenuType,
     selectedIds, onToggle, onToggleAll,
-    onEdit, onDelete, onAIImagen, onReorder, onReorderGroups,
-    onToggleStatus, onRefresh, onQuickPriceUpdate,
+    onEdit, onDelete, onAIImagen, onReorder, onReorderGroups, onReorderCategoryProducts,
+    onToggleStatus, onRefresh, onQuickPriceUpdate, onQuickDeliveryPriceUpdate,
 }) => {
     const { t } = useTranslation();
     const allSelected  = products.length > 0 && selectedIds.length === products.length;
     const someSelected = selectedIds.length > 0 && selectedIds.length < products.length;
+
+    // Show delivery price column when a specific menu type is selected
+    const showDeliveryPrice = Boolean(selectedMenuType);
 
     const [collapsed, setCollapsed] = useState({});
     const toggleCollapse = (k) => setCollapsed(p => ({ ...p, [k]: !p[k] }));
@@ -770,29 +836,48 @@ const ProductsTable = ({
         return map;
     }, [categories]);
 
-    // ── Build mixed items list per category (products + groups interleaved) ──
+    // ── Build mixed items list per category using category.menu_ids as source of truth ──
     const grouped = useMemo(() => {
-        const buckets = {};
-        const uncategorized = [];
-        for (const p of products) {
-            const catIds = (p.category_ids || []).filter(Boolean);
-            if (catIds.length === 0) { uncategorized.push(p); continue; }
-            for (const cid of catIds) {
-                if (!buckets[cid]) {
-                    const cat = categories.find(c => c.id === cid);
-                    buckets[cid] = { catId: cid, cat, products: [] };
-                }
-                buckets[cid].products.push(p);
-            }
-        }
+        // Index all products by ID for O(1) lookup
+        const productById = {};
+        for (const p of products) productById[String(p.id)] = p;
 
-        // For each bucket, build a mixed items list
-        for (const b of Object.values(buckets)) {
+        const usedProductIds = new Set();
+        const buckets = [];
+
+        for (const cat of categories) {
+            const menuIds = (cat.menu_ids || []).map(String);
+            // Build position index from menu_ids (canonical ordering)
+            const posIndex = {};
+            menuIds.forEach((id, i) => { posIndex[id] = i; });
+
+            // Collect products from menu_ids that exist in our products list
+            const catProducts = menuIds
+                .map(mid => productById[mid])
+                .filter(Boolean);
+
+            // Also include products that have this category in their category_ids but aren't in menu_ids
+            for (const p of products) {
+                const pId = String(p.id);
+                if (!posIndex.hasOwnProperty(pId) && (p.category_ids || []).includes(cat.id)) {
+                    catProducts.push(p);
+                    posIndex[pId] = menuIds.length + catProducts.length; // append at end
+                }
+            }
+
+            if (catProducts.length === 0) {
+                // Still show empty categories so admin knows they exist
+                buckets.push({ catId: cat.id, cat, products: [], items: [] });
+                continue;
+            }
+
+            catProducts.forEach(p => usedProductIds.add(String(p.id)));
+
             const groupedProductIds = new Set();
             const groupItems = [];
 
             // Find all product groups and their members in this category
-            for (const p of b.products) {
+            for (const p of catProducts) {
                 const g = p.codigo ? codigoToGroup[p.codigo] : null;
                 if (g) {
                     groupedProductIds.add(p.id);
@@ -802,42 +887,47 @@ const ProductsTable = ({
                     } else {
                         const groupOpt = productGroupsById[g.key];
                         if (groupOpt) {
+                            const firstPos = posIndex[String(p.id)] ?? 9999;
                             groupItems.push({
                                 type: 'group',
                                 groupId: g.key,
                                 groupOpt,
                                 products: [p],
-                                sortPriority: groupOpt.category_priority ?? 9999,
+                                sortPriority: groupOpt.category_priority ?? firstPos,
                             });
                         }
                     }
                 }
             }
 
-            // Solo products
-            const soloItems = b.products
+            // Solo products — use position in menu_ids for ordering
+            const soloItems = catProducts
                 .filter(p => !groupedProductIds.has(p.id))
                 .map(p => ({
                     type: 'product',
                     product: p,
-                    sortPriority: p.prioridad ?? 9999,
+                    sortPriority: posIndex[String(p.id)] ?? (p.prioridad ?? 9999),
                 }));
 
-            // Merge and sort by priority
+            // Merge and sort by position in menu_ids
             const mixed = [...soloItems, ...groupItems].sort((a, b) => a.sortPriority - b.sortPriority);
-            b.items = mixed;
+            buckets.push({ catId: cat.id, cat, products: catProducts, items: mixed });
         }
 
-        const sorted = Object.values(buckets).sort((a, b) => (a.cat?.prioridad ?? 9999) - (b.cat?.prioridad ?? 9999));
+        // Sort categories by prioridad
+        buckets.sort((a, b) => (a.cat?.prioridad ?? 9999) - (b.cat?.prioridad ?? 9999));
+
+        // Uncategorized: products not in any category's menu_ids
+        const uncategorized = products.filter(p => !usedProductIds.has(String(p.id)));
         if (uncategorized.length) {
             uncategorized.sort((a, b) => (a.prioridad ?? 9999) - (b.prioridad ?? 9999));
-            sorted.push({
+            buckets.push({
                 catId: '__none__', cat: null,
                 products: uncategorized,
                 items: uncategorized.map(p => ({ type: 'product', product: p, sortPriority: p.prioridad ?? 9999 })),
             });
         }
-        return sorted;
+        return buckets;
     }, [products, categories, codigoToGroup, productGroupsById]);
 
     // Count how many categories each product belongs to (for badge)
@@ -915,31 +1005,41 @@ const ProductsTable = ({
         if (!list) return;
         setSaving(p => ({ ...p, [catId]: true }));
         try {
-            // Split items into products and groups, assign priorities by position
-            const productItems = [];
-            const groupItems = [];
-            list.forEach((item, i) => {
-                if (item.type === 'group') {
-                    groupItems.push({ id: item.groupId, category_priority: i });
-                } else {
-                    productItems.push({ id: item.product.id, prioridad: i });
-                }
-            });
-
             const promises = [];
-            if (productItems.length && onReorder) {
-                promises.push(onReorder(productItems));
+
+            if (catId === '__none__') {
+                // Uncategorized bucket: update global prioridad (no category to save menu_ids on)
+                const productItems = [];
+                const groupItems = [];
+                list.forEach((item, i) => {
+                    if (item.type === 'group') {
+                        groupItems.push({ id: item.groupId, category_priority: i });
+                    } else {
+                        productItems.push({ id: item.product.id, prioridad: i });
+                    }
+                });
+                if (productItems.length && onReorder) promises.push(onReorder(productItems));
+                if (groupItems.length && onReorderGroups) promises.push(onReorderGroups(groupItems));
+            } else {
+                // Real category: ONLY update menu_ids on this category
+                // This keeps each category's order independent — no global prioridad contamination
+                if (onReorderCategoryProducts) {
+                    const orderedProductIds = list.flatMap(item =>
+                        item.type === 'group'
+                            ? item.products.map(p => p.id)
+                            : [item.product.id]
+                    );
+                    promises.push(onReorderCategoryProducts(catId, orderedProductIds));
+                }
             }
-            if (groupItems.length && onReorderGroups) {
-                promises.push(onReorderGroups(groupItems));
-            }
+
             await Promise.all(promises);
             setPendingReorder(p => { const n = { ...p }; delete n[catId]; return n; });
             // Refresh data from backend so products reflect new priorities
             if (onRefresh) onRefresh();
         } catch (err) { alert(`Error: ${err.message}`); }
         finally { setSaving(p => ({ ...p, [catId]: false })); }
-    }, [pendingReorder, onReorder, onReorderGroups]);
+    }, [pendingReorder, onReorder, onReorderGroups, onReorderCategoryProducts]);
 
     const discard = useCallback((catId) => {
         setPendingReorder(p => { const n = { ...p }; delete n[catId]; return n; });
@@ -1018,6 +1118,8 @@ const ProductsTable = ({
                                     getImages={getImages} cachebust={cachebust} t={t}
                                     mtzSummary={mtzSummary}
                                     onQuickPriceUpdate={onQuickPriceUpdate}
+                                    onQuickDeliveryPriceUpdate={onQuickDeliveryPriceUpdate}
+                                    showDeliveryPrice={showDeliveryPrice}
                                 />
                             </div>
 

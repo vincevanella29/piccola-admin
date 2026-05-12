@@ -1,0 +1,22 @@
+{
+  "label": "Menu Config",
+  "description": "Public digital menu configuration",
+  "title": "Menu Configuration",
+  "subtitle": "Banners, navigation links, and location buttons",
+  "tab_banners": "Banners",
+  "tab_navigation": "Navigation Links",
+  "tab_buttons": "Location Buttons",
+  "tab_provider": "Connection",
+  "loading_links": "Loading links...",
+  "nav_title": "Navigation Links",
+  "nav_desc": "Links displayed in the sidebar, header, and footer of the public digital menu.",
+  "nav_i18n_key": "i18n Key",
+  "nav_fallback": "Display text",
+  "nav_icon": "Icon",
+  "nav_show_in": "Show in",
+  "nav_add": "Add Link",
+  "nav_none_title": "No links configured",
+  "nav_none_desc": "Add links for the sidebar, header, and footer of the digital menu.",
+  "saved": "Saved!",
+  "save": "Save"
+}

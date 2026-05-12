@@ -262,6 +262,6 @@
   "api_keys_description": "Gestiona las llaves de acceso para integraciones externas. Estos tokens permiten acceder a la API de Vanellix de forma programática.",
   "duration_recommended_suffix": "(Recomendado)",
   "duration_forever_warning_suffix": "(Sin expiración)",
-  "generate_first_token_help": "Genera tu primer token API arriba para comenzar a integrar tus servicios."
+  "generate_first_token_help": "Genera tu primer token API arriba para comenzar a integrar tus servicios.",
+  "b2b_partners": "Partners B2B"
 }
-

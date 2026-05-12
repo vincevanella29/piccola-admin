@@ -235,7 +235,7 @@ export default MeritsDashboardPage;
 export const pageMetadata = {
   path: '/app/venta-garzones',
   label: 'kpis.label',
-  category: 'analytics.Análisis',
+  category: 'merits.category',
   minRoleLevel: 3,
   maxRoleLevel: 6,
   order: 2,

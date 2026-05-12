@@ -379,7 +379,7 @@ export default Analytics;
 export const pageMetadata = {
   path: '/app/analytics/analysis',
   label: 'analytics.label',
-  category: 'analytics.Análisis',
+  category: 'analytics.category',
   minRoleLevel: 3,
   maxRoleLevel: 6,
   order: 1,

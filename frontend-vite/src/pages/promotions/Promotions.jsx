@@ -19,7 +19,7 @@ import useMiFicha from '../../hooks/useMiFicha';
 export const pageMetadata = {
   path: '/app/mi-ficha/promotions',
   label: 'promotion-front.title',
-  category: 'employees.profiles.category',
+  category: 'team.category',
   minRoleLevel: 1,
   maxRoleLevel: 7,
   order: 2,

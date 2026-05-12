@@ -1,4 +1,4 @@
-// src/pages/landing/components/LandingPanel.jsx
+// src/pages/home/components/LandingPanel.jsx
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';

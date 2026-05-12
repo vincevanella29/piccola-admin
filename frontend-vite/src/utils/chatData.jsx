@@ -186,3 +186,82 @@ export function buildAdminWsUrl(convId) {
 export function buildAdminListWsUrl() {
   return toWsUrl(`/ws/admin/list`);
 }
+
+
+// ─── Delivery Chat (admin) ─────────────────────────────────────────
+
+export async function deliveryListChats({ token, walletAddress, status = 'open', limit = 50, offset = 0 }) {
+  const params = {};
+  if (status && status !== 'all') params.status = status;
+  if (limit) params.limit = limit;
+  if (typeof offset === 'number' && offset > 0) params.offset = offset;
+  return api({
+    method: 'GET',
+    endpoint: '/delivery/chats',
+    params,
+    headers: {
+      ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+}
+
+export async function deliveryFetchHistory({ token, walletAddress, orderNumber }) {
+  return api({
+    method: 'GET',
+    endpoint: `/delivery/chats/${orderNumber}/history`,
+    headers: {
+      ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+}
+
+export async function deliveryReplyChat({ token, walletAddress, orderNumber, text }) {
+  return api({
+    method: 'POST',
+    endpoint: `/delivery/chats/${orderNumber}/reply`,
+    data: { text },
+    headers: {
+      ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+}
+
+export async function deliveryTakeChat({ token, walletAddress, orderNumber }) {
+  return api({
+    method: 'POST',
+    endpoint: `/delivery/chats/${orderNumber}/take`,
+    headers: {
+      ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+}
+
+export async function deliveryReleaseChat({ token, walletAddress, orderNumber }) {
+  return api({
+    method: 'POST',
+    endpoint: `/delivery/chats/${orderNumber}/release`,
+    headers: {
+      ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+}
+
+export async function deliveryCloseChat({ token, walletAddress, orderNumber }) {
+  return api({
+    method: 'POST',
+    endpoint: `/delivery/chats/${orderNumber}/close`,
+    headers: {
+      ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+}
+
+export function buildDeliveryChatAdminWsUrl(orderNumber) {
+  return toWsUrl(`/ws/delivery-chat-admin/${orderNumber}`);
+}

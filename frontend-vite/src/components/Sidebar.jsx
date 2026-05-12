@@ -22,6 +22,9 @@ const Sidebar = memo(({ isSidebarOpen, toggleSidebar, isAuthenticated, appState,
   // 1. Mantenemos tu lógica de Configuración de Datos
   const pagesConfig = useMemo(() => getSidebarConfig(appState.roleLevel, t), [appState.roleLevel, t]);
 
+  // Collect all known page paths for precise active-state matching
+  const allPaths = useMemo(() => pagesConfig.flatMap(c => c.items?.map(i => i.fullPath) || []), [pagesConfig]);
+
   // === Animations ===
   const containerVariants = { hidden: {}, show: { transition: { staggerChildren: 0.04, delayChildren: 0.05 } } };
 
@@ -133,7 +136,10 @@ const Sidebar = memo(({ isSidebarOpen, toggleSidebar, isAuthenticated, appState,
       <motion.div className="space-y-1 pl-3 mb-3 mt-1 border-l border-light-border/50 dark:border-dark-border/50 ml-2.5" variants={containerVariants} initial="hidden" animate="show">
         {category.items.map((item) => {
           const ItemIcon = Icons[item.icon] || Icons.FaFileAlt;
-          const isActive = location.pathname === item.fullPath || location.pathname.startsWith(item.fullPath + '/');
+          // Exact match OR prefix match only when no other registered path is more specific
+          const isActive = location.pathname === item.fullPath ||
+            (location.pathname.startsWith(item.fullPath + '/') &&
+              !allPaths.some(p => p !== item.fullPath && p.length > item.fullPath.length && location.pathname.startsWith(p)));
 
           const ItemContent = (
              <motion.div

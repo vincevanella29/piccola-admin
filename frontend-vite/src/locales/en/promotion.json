@@ -235,7 +235,7 @@
   "claimed_at": "Claimed at",
   "redeemed_at": "Redeemed at",
   "history": "History",
-  "burn_signature": "\ud83d\udd25 Token burn request\nPromotion: {{promotion}}\nID: {{id}}\nToken: {{token}}\nAmount: {{amount}}\nCompany: {{companyId}}",
+  "burn_signature": "🔥 Token burn request\nPromotion: {{promotion}}\nID: {{id}}\nToken: {{token}}\nAmount: {{amount}}\nCompany: {{companyId}}",
   "claim_success": "Promotion claimed successfully!",
   "claim_title": "Claim promotion {{name}}",
   "claim_signature_message": "You are about to claim the promotion \"{{name}}\" using wallet {{wallet}}. This signature does not move funds or spend gas; it only confirms that you own this wallet.",
@@ -262,5 +262,6 @@
   "api_keys_description": "Manage access keys for external integrations. These tokens allow programmatic access to the Vanellix API.",
   "duration_recommended_suffix": "(Recommended)",
   "duration_forever_warning_suffix": "(No expiration)",
-  "generate_first_token_help": "Generate your first API token above to start integrating your services."
+  "generate_first_token_help": "Generate your first API token above to start integrating your services.",
+  "b2b_partners": "B2B Partners"
 }

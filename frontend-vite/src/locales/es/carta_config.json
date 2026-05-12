@@ -1,0 +1,22 @@
+{
+  "label": "Config Carta",
+  "description": "Configuración de la carta digital pública",
+  "title": "Configuración Carta",
+  "subtitle": "Banners, links de navegación y botones por sucursal",
+  "tab_banners": "Banners",
+  "tab_navigation": "Navigation Links",
+  "tab_buttons": "Botones Sucursal",
+  "tab_provider": "Conexión",
+  "loading_links": "Cargando links...",
+  "nav_title": "Links de Navegación",
+  "nav_desc": "Links que aparecen en el sidebar, header y footer de la carta digital pública.",
+  "nav_i18n_key": "Key i18n",
+  "nav_fallback": "Texto visible",
+  "nav_icon": "Ícono",
+  "nav_show_in": "Mostrar en",
+  "nav_add": "Agregar Link",
+  "nav_none_title": "Sin links configurados",
+  "nav_none_desc": "Agrega links para el sidebar, header y footer de la carta digital.",
+  "saved": "¡Guardado!",
+  "save": "Guardar"
+}

@@ -44,13 +44,25 @@ const EspecialTab = ({ especial, setEsp, savingEsp, espMsg, setEspMsg, onSave, i
             </div>
 
             {/* Price */}
-            <Field label="Precio especial (CLP)">
-                <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-light-text-secondary dark:text-dark-text-secondary" />
-                    <input type="number" value={especial.special_price} onChange={e => setEsp('special_price', e.target.value)}
-                        className={`${INPUT} pl-9`} placeholder="0" />
-                </div>
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+                <Field label="Precio especial Local (CLP)">
+                    <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-light-text-secondary dark:text-dark-text-secondary" />
+                        <input type="number" value={especial.special_price} onChange={e => setEsp('special_price', e.target.value)}
+                            className={`${INPUT} pl-9`} placeholder="0" />
+                    </div>
+                </Field>
+                <Field label="Precio especial Delivery (CLP)">
+                    <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500 dark:text-cyan-400" />
+                        <input type="number" value={especial.special_price_delivery} onChange={e => setEsp('special_price_delivery', e.target.value)}
+                            className={`${INPUT} pl-9`} placeholder="= Local" />
+                    </div>
+                    <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                        Vacío = usa el precio especial local
+                    </p>
+                </Field>
+            </div>
 
             {/* Validity type */}
             <Field label="Tipo de vigencia">

@@ -35,7 +35,7 @@ async def verify_session(request: Request) -> dict:
     allowed_referers_env = os.getenv("ALLOWED_REFERERS")
     allowed = [r.strip() for r in allowed_referers_env.split(",")] if allowed_referers_env else _DEFAULT_ALLOWED
     if not any(referer.startswith(origin) for origin in allowed):
-        logger.error(f"Forbidden referer: {referer}")
+        logger.error(f"[AUTH] 403 Forbidden — referer='{referer}' endpoint={request.url.path} allowed={allowed}")
         raise HTTPException(status_code=403, detail="Forbidden: invalid referer")
 
     # Token

@@ -210,7 +210,7 @@ export default function CommandCenterPage({ appState }) {
 export const pageMetadata = {
   path: '/app/cameras',
   label: 'camera.label',
-  category: 'admin.tools.category',
+  category: 'team.category',
   minRoleLevel: 3,
   maxRoleLevel: 4,
   order: 2,

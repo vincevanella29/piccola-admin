@@ -3,6 +3,7 @@ import logging
 import json
 import asyncio
 from types import SimpleNamespace
+from typing import Optional
 from pathlib import Path
 import importlib
 from dotenv import load_dotenv
@@ -190,10 +191,22 @@ async def _attach_summary(intent: str, payload, text: str, context) -> dict:
                 payload["text"] = s
     return payload
 
-async def chat_complete(messages: list[dict]) -> str:
+# Intents permitidos en delivery mode (walled garden)
+_DELIVERY_SAFE_INTENTS = {"delivery_order", "chat"}
+
+
+async def chat_complete(messages: list, *, delivery_mode: bool = False, order_context: Optional[dict] = None) -> str:
     """Web chat router using utils.bot handlers with UI-friendly payloads.
     Supports intents declarados dinámicamente (ENGINE_ROUTES) más algunos legacy.
     Fallback a Grok para chat general.
+
+    Args:
+        messages: list of {role, content} dicts.
+        delivery_mode: if True, restricts to delivery-safe intents only,
+                       skips role guard, and uses delivery persona for Grok fallback.
+        order_context: dict with order data (required when delivery_mode=True):
+            order_number, customer_name, items_summary, status, status_label,
+            address, items, courier_info.
     """
     # Extract last user message text
     last_user_text = ""
@@ -205,14 +218,25 @@ async def chat_complete(messages: list[dict]) -> str:
 
     # Route intent
     intent = await _with_timeout(grok_route_intent(text), timeout=1.5, default={"intent": "chat"})
-    logger.info(f"Intent detected: {intent}")
+    logger.info(f"Intent detected: {intent} delivery_mode={delivery_mode}")
     itype = (intent or {}).get("intent") if isinstance(intent, dict) else None
-    if itype not in ACCEPTED_INTENTS:
+
+    # Delivery walled garden: only delivery-safe intents allowed
+    if delivery_mode:
+        if itype not in _DELIVERY_SAFE_INTENTS:
+            logger.info(f"[delivery_mode] Blocked intent '{itype}' → forced to 'chat'")
+            itype = "chat"
+    elif itype not in ACCEPTED_INTENTS:
         itype = "chat"
 
     # Minimal shim to reuse utils handlers and pass identity/role
     update = SimpleNamespace(message=SimpleNamespace(text=text))
     context = SimpleNamespace(user_data={})
+
+    # Delivery mode: inject order context into user_data (no identity parsing needed)
+    if delivery_mode and order_context:
+        context.user_data["order_number"] = order_context.get("order_number", "")
+        context.user_data["order_context"] = order_context
     # Try to parse identity from the first system message (User context JSON)
     try:
         sys0 = (messages or [{}])[0]
@@ -268,28 +292,30 @@ async def chat_complete(messages: list[dict]) -> str:
 
     # Guard global: esta API sólo acepta niveles 1-7. Si no hay nivel o está fuera de rango,
     # cortamos antes de rutear intents o llamar a Grok.
-    perms = context.user_data.get("permissions") or {}
-    # role_level ya viene resuelto en el contexto según access.compute_permissions_for_identity
-    role_level = context.user_data.get("role_level", perms.get("role_level"))
-    try:
-        role_level_int = int(role_level) if role_level is not None else None
-    except Exception:
-        role_level_int = None
+    # Delivery mode skips role guard — delivery users don't have admin roles.
+    if not delivery_mode:
+        perms = context.user_data.get("permissions") or {}
+        # role_level ya viene resuelto en el contexto según access.compute_permissions_for_identity
+        role_level = context.user_data.get("role_level", perms.get("role_level"))
+        try:
+            role_level_int = int(role_level) if role_level is not None else None
+        except Exception:
+            role_level_int = None
 
-    if role_level_int is None or not (1 <= role_level_int <= 7):
-        logger.info(
-            "[engine.chat_complete] access_denied_invalid_role role_level=%s role_level_int=%s perms=%s",
-            role_level,
-            role_level_int,
-            perms,
-        )
-        return {
-            "type": "text_block_list",
-            "intent": "chat",
-            "lines": [
-                "No tienes un nivel de acceso válido para usar esta API (se requiere nivel 1 a 7).",
-            ],
-        }
+        if role_level_int is None or not (1 <= role_level_int <= 7):
+            logger.info(
+                "[engine.chat_complete] access_denied_invalid_role role_level=%s role_level_int=%s perms=%s",
+                role_level,
+                role_level_int,
+                perms,
+            )
+            return {
+                "type": "text_block_list",
+                "intent": "chat",
+                "lines": [
+                    "No tienes un nivel de acceso válido para usar esta API (se requiere nivel 1 a 7).",
+                ],
+            }
 
     # Generic routing via ENGINE_ROUTES declared in *_spec.py modules
     route = ENGINE_ROUTES.get(itype)
@@ -409,18 +435,42 @@ async def chat_complete(messages: list[dict]) -> str:
             logger.exception(f"Error processing intent {itype} via ENGINE_ROUTES")
 
     # Fallback/general chat
-    perms = context.user_data.get("permissions") or {}
-    rut = perms.get("rut") or None
-    wallet = context.user_data.get("wallet") or None
-    reply = await _with_timeout(
-        ask_grok(
-            text,
-            rut=str(rut) if rut else None,
-            wallet=wallet,
-        ),
-        timeout=45.0,
-        default=None,
-    )
+    if delivery_mode and order_context:
+        # Delivery persona: amable, sabe del pedido, no tiene acceso a data admin
+        oc = order_context
+        delivery_persona = (
+            "Eres el asistente de delivery de Piccola Italia. Responde en español chileno, amable y conciso. "
+            "NO tienes acceso a datos internos de la empresa (ventas, gastos, sueldos, consumos). "
+            "Solo puedes ayudar con temas del pedido del cliente.\n\n"
+            f"Cliente: {oc.get('customer_name', 'Cliente')}\n"
+            f"Pedido #{oc.get('order_number', '')}: {oc.get('items_summary', '')}\n"
+            f"Estado actual: {oc.get('status_label', oc.get('status', ''))}\n"
+        )
+        addr = oc.get("address", "")
+        if addr:
+            delivery_persona += f"Dirección de entrega: {addr}\n"
+        ci = oc.get("courier_info")
+        if isinstance(ci, dict) and ci.get("name"):
+            delivery_persona += f"Repartidor: {ci['name']}\n"
+
+        reply = await _with_timeout(
+            ask_grok(text, extra_persona=delivery_persona),
+            timeout=15.0,
+            default=None,
+        )
+    else:
+        perms = context.user_data.get("permissions") or {}
+        rut = perms.get("rut") or None
+        wallet = context.user_data.get("wallet") or None
+        reply = await _with_timeout(
+            ask_grok(
+                text,
+                rut=str(rut) if rut else None,
+                wallet=wallet,
+            ),
+            timeout=45.0,
+            default=None,
+        )
     if reply is None:
         return {
             "type": "text_block_list",

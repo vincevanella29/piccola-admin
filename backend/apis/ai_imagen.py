@@ -199,6 +199,25 @@ class FeedbackRequest(BaseModel):
     comment:       Optional[str] = None
 
 
+class GenerateMarketingImageRequest(BaseModel):
+    """Request para generar imagen de marketing (banner, promo, hero)."""
+    product_ids:         list[str]           = []     # codigos de productos
+    style:               str                 = "banner"   # banner | promo | hero
+    prompt_extra:        Optional[str]       = ""
+    reference_image_url: Optional[str]       = None
+    wallet:              Optional[str]       = None
+    use_pro_model:       bool                = True
+
+
+class GenerateMarketingImageResponse(BaseModel):
+    generation_id: str
+    image_url:     str
+    model_used:    Optional[str] = None
+    rate_used:     Optional[int] = None
+    rate_limit:    Optional[int] = None
+    products_used: int = 0
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/carta/ai-imagen/generate", response_model=GenerateImageResponse)
@@ -278,6 +297,93 @@ async def generate_product_image(req: GenerateImageRequest, user: dict = Depends
         rate_used=used,
         rate_limit=limit,
         gallery_count=gallery_count,
+    )
+
+
+@router.post("/carta/ai-imagen/generate-marketing", response_model=GenerateMarketingImageResponse)
+async def generate_marketing_image(req: GenerateMarketingImageRequest, user: dict = Depends(verify_session)):
+    """
+    Genera imagen para email marketing (banner, promo, hero).
+    Usa los mismos créditos/rate limit que la generación de producto.
+    """
+    require_admin_level(user, "member")
+    wallet = _wallet(req.wallet)
+    used, limit = _check_rate_limit(wallet, kind="img")
+    model = IMAGE_MODEL_PRO if req.use_pro_model else IMAGE_MODEL_STD
+
+    # Fetch product data from DB
+    productos = []
+    if req.product_ids:
+        docs = list(db.menus.find(
+            {"codigo": {"$in": req.product_ids}},
+            {"nombre": 1, "descripcion": 1, "codigo": 1, "precio": 1, "media_r2": 1, "category_ids": 1},
+        ))
+        for d in docs:
+            productos.append({
+                "nombre": d.get("nombre", ""),
+                "descripcion": d.get("descripcion", ""),
+                "categoria": "",  # Could resolve from category_ids if needed
+                "precio": d.get("precio", 0),
+            })
+
+    logger.info(
+        f"\n{'='*60}\n"
+        f"[ai_imagen] GENERATE MARKETING IMAGE\n"
+        f"  style    : {req.style}\n"
+        f"  products : {len(productos)} ({', '.join(p['nombre'] for p in productos[:3])})\n"
+        f"  model    : {model}\n"
+        f"  ref_url  : {req.reference_image_url or '(none)'}\n"
+        f"  extra    : {req.prompt_extra or '(none)'}\n"
+        f"{'='*60}"
+    )
+
+    from config.ai_image.marketing_prompts import build_marketing_prompt
+
+    prompt = build_marketing_prompt(
+        productos=productos,
+        style=req.style,
+        prompt_extra=req.prompt_extra or "",
+    )
+
+    logger.info(f"[ai_imagen] Marketing prompt ({len(prompt)} chars):\n{prompt[:500]}")
+
+    aurora = AuroraClient()
+    image_bytes, revised_prompt = await aurora.generate_image_with_fallback(
+        prompt=prompt,
+        model=model,
+        ref_url=req.reference_image_url or None,
+    )
+
+    # Upload to R2 under mailing/ prefix
+    import io
+    safe_style = req.style[:20]
+    key = f"mailing/ai_generated/{safe_style}_{uuid.uuid4().hex[:8]}.png"
+    from utils.r2_upload import upload_to_r2
+    image_url = upload_to_r2(io.BytesIO(image_bytes), key=key, content_type="image/png", public=True)
+
+    generation_id = uuid.uuid4().hex
+    db.ai_imagen_generations.insert_one({
+        "_id":           generation_id,
+        "type":          "marketing",
+        "style":         req.style,
+        "product_ids":   req.product_ids,
+        "wallet":        wallet,
+        "image_url":     image_url,
+        "model":         model,
+        "prompt_extra":  req.prompt_extra,
+        "accepted":      None,
+        "created_at":    datetime.now(timezone.utc),
+    })
+
+    logger.info(f"[ai_imagen] ✅ MARKETING IMG OK gen_id={generation_id} url={image_url}")
+
+    return GenerateMarketingImageResponse(
+        generation_id=generation_id,
+        image_url=image_url,
+        model_used=model,
+        rate_used=used,
+        rate_limit=limit,
+        products_used=len(productos),
     )
 
 
@@ -493,3 +599,30 @@ async def get_product_generation_history(
 
     logger.info(f"[ai_imagen] History {product_id} → {len(items)} items")
     return {"product_id": product_id, "items": items, "total": len(items)}
+
+
+@router.get("/carta/ai-imagen/marketing-assets", summary="List all marketing AI-generated images")
+async def list_marketing_assets(
+    limit: int = 50,
+    user: dict = Depends(verify_session),
+):
+    """Returns all AI-generated marketing images for the asset library."""
+    require_admin_level(user, "member")
+
+    cursor = db.ai_imagen_generations.find(
+        {"type": "marketing", "image_url": {"$exists": True, "$ne": None}},
+        {"_id": 1, "image_url": 1, "style": 1, "prompt_extra": 1, "created_at": 1, "product_ids": 1}
+    ).sort("created_at", -1).limit(limit)
+
+    assets = []
+    for doc in cursor:
+        assets.append({
+            "id": doc["_id"],
+            "url": doc.get("image_url"),
+            "style": doc.get("style", ""),
+            "prompt": doc.get("prompt_extra", ""),
+            "created_at": doc.get("created_at", "").isoformat() if hasattr(doc.get("created_at", ""), "isoformat") else str(doc.get("created_at", "")),
+        })
+
+    return {"assets": assets, "total": len(assets)}
+

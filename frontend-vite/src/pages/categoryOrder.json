@@ -1,7 +1,10 @@
 {
-  "restaurant.category": { "order": 1, "icon": "FaUtensils" },
-  "employees.profiles.category": { "order": 2, "icon": "FaUsers" },
-  "analytics.Análisis": { "order": 3, "icon": "FaChartBar" },
-  "admin.category": { "order": 4, "icon": "FaShieldAlt" },
-  "admin.tools.category": { "order": 5, "icon": "FaTools" }
+  "restaurant.category":  { "order": 1, "icon": "FaUtensils" },
+  "carta.category":       { "order": 2, "icon": "FaBook" },
+  "delivery.category":    { "order": 3, "icon": "FaTruck" },
+  "analytics.category":   { "order": 4, "icon": "FaChartBar" },
+  "merits.category":      { "order": 5, "icon": "FaTrophy" },
+  "team.category":        { "order": 6, "icon": "FaUsers" },
+  "marketing.category":   { "order": 7, "icon": "FaBullhorn" },
+  "admin.category":       { "order": 8, "icon": "FaShieldAlt" }
 }

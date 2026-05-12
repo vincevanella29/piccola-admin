@@ -9,12 +9,12 @@
  * Al agregar un producto, también se llama `onAddProductToCategory` para que
  * AdminCarta pueda actualizar el campo `category_ids` del producto si es necesario.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Tags, X, Loader2, Save, AlertTriangle, Package,
-    Search, Plus, Minus, ImageIcon, ChevronRight,
+    Search, Plus, Minus, ImageIcon, ChevronUp, ChevronDown, GripVertical,
 } from 'lucide-react';
 
 const INPUT = 'w-full px-3.5 py-2.5 rounded-xl bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 border border-light-border dark:border-dark-border text-light-text-primary dark:text-dark-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent transition-shadow';
@@ -69,8 +69,8 @@ const CategoryModal = ({ category, onClose, onSave, products = [], menuTypes = [
         menu_type: category?.menu_type || 'carta',
     });
 
-    // menu_ids = product IDs linked to this category
-    const [linkedIds, setLinkedIds] = useState(() => new Set(category?.menu_ids || []));
+    // menu_ids = product IDs linked to this category (ORDERED array)
+    const [linkedIds, setLinkedIds] = useState(() => [...(category?.menu_ids || [])]);
 
     const [saving, setSaving]    = useState(false);
     const [msg, setMsg]          = useState(null);
@@ -78,28 +78,55 @@ const CategoryModal = ({ category, onClose, onSave, products = [], menuTypes = [
 
     const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-    // ── Products split: linked vs available ───────────────────────────────────
+    const linkedSet = useMemo(() => new Set(linkedIds), [linkedIds]);
+
+    // ── Products split: linked (in menu_ids order) vs available ───────────────
+    const productMap = useMemo(() => {
+        const m = {};
+        for (const p of products) m[p.id || p._id] = p;
+        return m;
+    }, [products]);
+
     const linkedProducts = useMemo(() =>
-        products.filter(p => linkedIds.has(p.id || p._id)),
-    [products, linkedIds]);
+        linkedIds.map(id => productMap[id]).filter(Boolean),
+    [linkedIds, productMap]);
 
     const searchLower = productSearch.toLowerCase();
     const availableProducts = useMemo(() =>
         products.filter(p => {
-            if (linkedIds.has(p.id || p._id)) return false;
+            if (linkedSet.has(p.id || p._id)) return false;
             if (!searchLower) return true;
             return p.nombre?.toLowerCase().includes(searchLower) || p.codigo?.toLowerCase().includes(searchLower);
         }),
-    [products, linkedIds, searchLower]);
+    [products, linkedSet, searchLower]);
 
-    const toggleLink = (p) => {
+    const addProduct = useCallback((p) => {
         const id = p.id || p._id;
+        setLinkedIds(prev => prev.includes(id) ? prev : [...prev, id]);
+    }, []);
+
+    const removeProduct = useCallback((p) => {
+        const id = p.id || p._id;
+        setLinkedIds(prev => prev.filter(x => x !== id));
+    }, []);
+
+    const moveUp = useCallback((idx) => {
+        if (idx <= 0) return;
         setLinkedIds(prev => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
+            const next = [...prev];
+            [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
             return next;
         });
-    };
+    }, []);
+
+    const moveDown = useCallback((idx) => {
+        setLinkedIds(prev => {
+            if (idx >= prev.length - 1) return prev;
+            const next = [...prev];
+            [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+            return next;
+        });
+    }, []);
 
     // ── Save ──────────────────────────────────────────────────────────────────
     const handleSave = async (e) => {
@@ -112,7 +139,7 @@ const CategoryModal = ({ category, onClose, onSave, products = [], menuTypes = [
                 alias:     form.alias.trim(),
                 estado:    form.estado,
                 prioridad: form.prioridad !== '' ? parseInt(form.prioridad, 10) : 0,
-                menu_ids:  [...linkedIds],
+                menu_ids:  linkedIds,
                 menu_type: form.menu_type || 'carta',
             });
             onClose();
@@ -123,7 +150,7 @@ const CategoryModal = ({ category, onClose, onSave, products = [], menuTypes = [
         }
     };
 
-    const linkedCount = linkedIds.size;
+    const linkedCount = linkedIds.length;
 
     return (
         <div className="fixed inset-0 z-[999999] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-md p-0 sm:p-4">
@@ -256,21 +283,41 @@ const CategoryModal = ({ category, onClose, onSave, products = [], menuTypes = [
                                             <p className="text-[11px] opacity-60">Búscalos abajo y toca + para agregar</p>
                                         </div>
                                     ) : (
-                                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                                            {linkedProducts.map(p => (
+                                        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                                            {linkedProducts.map((p, idx) => (
                                                 <div key={p.id || p._id}
-                                                    className="flex items-center gap-3 px-3 py-2 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/20 group">
+                                                    className="flex items-center gap-2 px-3 py-2 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/20 group">
+                                                    {/* Position number */}
+                                                    <span className="text-[10px] font-bold text-light-text-tertiary dark:text-dark-text-tertiary w-5 text-center shrink-0">
+                                                        {idx + 1}
+                                                    </span>
+                                                    {/* Move buttons */}
+                                                    <div className="flex flex-col gap-0.5 shrink-0">
+                                                        <button type="button" onClick={() => moveUp(idx)} disabled={idx === 0}
+                                                            className="p-0.5 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent dark:hover:text-dark-accent disabled:opacity-20 transition-colors">
+                                                            <ChevronUp className="w-3 h-3" />
+                                                        </button>
+                                                        <button type="button" onClick={() => moveDown(idx)} disabled={idx === linkedProducts.length - 1}
+                                                            className="p-0.5 rounded text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent dark:hover:text-dark-accent disabled:opacity-20 transition-colors">
+                                                            <ChevronDown className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
                                                     <ProductThumb p={p} />
                                                     <div className="flex-1 min-w-0">
                                                         <div className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary truncate">{p.nombre}</div>
-                                                        {p.codigo && <div className="text-[10px] font-mono text-light-text-secondary dark:text-dark-text-secondary">{p.codigo}</div>}
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            {p.codigo && <span className="text-[10px] font-mono text-light-text-secondary dark:text-dark-text-secondary">{p.codigo}</span>}
+                                                            {p.precio_delivery != null && p.precio_delivery > 0 && p.precio_delivery !== p.precio && (
+                                                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-500 font-bold">🛵 ${Math.round(p.precio_delivery).toLocaleString('es-CL')}</span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
                                                         p.estado ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/20 text-red-500'
                                                     }`}>
                                                         {p.estado ? 'Activo' : 'Inactivo'}
                                                     </span>
-                                                    <button type="button" onClick={() => toggleLink(p)}
+                                                    <button type="button" onClick={() => removeProduct(p)}
                                                         className="p-1.5 rounded-xl border border-red-200/60 dark:border-red-800/30 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 hover:text-red-600 transition-all shrink-0">
                                                         <Minus className="w-3.5 h-3.5" />
                                                     </button>
@@ -315,7 +362,7 @@ const CategoryModal = ({ category, onClose, onSave, products = [], menuTypes = [
                                                 }`}>
                                                     {p.estado ? 'Activo' : 'Inactivo'}
                                                 </span>
-                                                <button type="button" onClick={() => toggleLink(p)}
+                                                <button type="button" onClick={() => addProduct(p)}
                                                     className="p-1.5 rounded-xl border border-light-accent/30 dark:border-dark-accent/30 text-light-accent dark:text-dark-accent hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 transition-all shrink-0">
                                                     <Plus className="w-3.5 h-3.5" />
                                                 </button>

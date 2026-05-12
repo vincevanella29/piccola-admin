@@ -168,6 +168,16 @@ export const reorderGroups = async ({ token, account, items }) => {
     });
 };
 
+export const reorderCategoryProducts = async ({ token, account, categoryId, productIds }) => {
+    return api({
+        method: 'POST',
+        endpoint: '/carta/categories/reorder-products',
+        data: { category_id: categoryId, product_ids: productIds },
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
 // ── Categories ─────────────────────────────────────
 export const fetchCategories = async ({ token, account, only_active } = {}) => {
     const params = {};
@@ -311,6 +321,26 @@ export const updateLocationButtons = async ({ token, account, locationId, custom
         method: 'PUT',
         endpoint: `/carta/locations/${locationId}/buttons`,
         data: { custom_buttons },
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+// ── Navigation Links ───────────────────────────────
+export const fetchNavigationLinks = async ({ token, account } = {}) => {
+    return api({
+        method: 'GET',
+        endpoint: '/carta/navigation-links',
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const updateNavigationLinks = async ({ token, account, links }) => {
+    return api({
+        method: 'PUT',
+        endpoint: '/carta/navigation-links',
+        data: { links },
         headers: authHeaders(token, account),
         withCredentials: true,
     });
@@ -514,3 +544,62 @@ export const fetchProductNutrition = async ({ token, account, productId }) => {
     });
 };
 
+
+// ── Carta Providers (Dilithium-secured connection) ─────────────────────────
+
+export const fetchCartaProviderPresets = async ({ token, account }) => {
+    return api({
+        method: 'GET',
+        endpoint: '/carta/providers/presets',
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const probeCartaDomain = async ({ token, account, domain }) => {
+    return api({
+        method: 'POST',
+        endpoint: '/carta/providers/probe',
+        data: { domain },
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const autoLinkCarta = async ({ token, account, ...payload }) => {
+    return api({
+        method: 'POST',
+        endpoint: '/carta/providers/auto-link',
+        data: payload,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const fetchCartaProviders = async ({ token, account }) => {
+    return api({
+        method: 'GET',
+        endpoint: '/carta/providers',
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const updateCartaProvider = async ({ token, account, providerId, data }) => {
+    return api({
+        method: 'PATCH',
+        endpoint: `/carta/providers/${providerId}`,
+        data,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};
+
+export const deleteCartaProvider = async ({ token, account, providerId }) => {
+    return api({
+        method: 'DELETE',
+        endpoint: `/carta/providers/${providerId}`,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};

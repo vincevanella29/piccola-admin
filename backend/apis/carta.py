@@ -64,6 +64,7 @@ class ProductUpdate(BaseModel):
     nombre: Optional[str] = None
     descripcion: Optional[str] = None
     precio: Optional[float] = None
+    precio_delivery: Optional[float] = None
     precio_especial: Optional[float] = None
     estado: Optional[bool] = None
     prioridad: Optional[int] = None
@@ -105,12 +106,19 @@ class LocationUpdate(BaseModel):
     telefono:        Optional[str]        = None
     horario:         Optional[str]        = None
     color:           Optional[str]        = None
+    opening_hours:   Optional[dict]       = None
+    special_dates:   Optional[list]       = None
+    lat:             Optional[float]      = None
+    lng:             Optional[float]      = None
+    qr_url:          Optional[str]        = None
+    qr_redirect_url: Optional[str]       = None
 
 
 class ProductCreate(BaseModel):
     nombre: str
     descripcion: Optional[str] = ""
     precio: Optional[float] = 0.0
+    precio_delivery: Optional[float] = None
     precio_especial: Optional[float] = None
     estado: Optional[bool] = True
     prioridad: Optional[int] = 0
@@ -154,6 +162,7 @@ class MenuOptionValueUpdate(BaseModel):
 
 class EspecialUpdate(BaseModel):
     special_price: Optional[float] = None
+    special_price_delivery: Optional[float] = None
     special_status: Optional[bool] = None
     type: Optional[str] = None              # 'F' = fixed, 'P' = percent
     validity: Optional[str] = None          # 'forever' | 'recurring' | 'date_range'
@@ -210,15 +219,35 @@ async def _require_catalog_or_token(request: Request) -> dict:
     """
     Dual-auth guard para endpoints semi-públicos (ej: /carta/locations).
     Acepta:
-      1. Sesión admin válida (verify_session + require_admin_level)
-      2. Header X-API-Key con el token público (mismo que /public/menus_catalog)
+      1. Header X-API-Key validado contra DB (api_keys + api_tokens + legacy EXTERNAL_API_KEY)
+      2. Sesión admin válida (verify_session + require_admin_level)
     Útil para que la carta digital pueda consultar locations sin sesión.
     """
-    from config.menus.public_catalog import EXTERNAL_API_KEY
     api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
-    if api_key and api_key == EXTERNAL_API_KEY:
-        return {"role": "public", "api_key": api_key}
-    # Fallback: sesión admin
+    if api_key:
+        # 1a. Legacy hardcoded key (backwards compat)
+        from config.menus.public_catalog import EXTERNAL_API_KEY
+        if api_key == EXTERNAL_API_KEY:
+            return {"role": "public", "api_key": api_key}
+
+        # 1b. DB-backed API keys (api_keys collection — used by Dilithium-claimed providers)
+        from apis.apikeys import validate_api_key
+        try:
+            info = validate_api_key(api_key)
+            if info:
+                return {"role": "api_key", **info}
+        except Exception:
+            pass
+
+        # 1c. Legacy api_tokens collection
+        from datetime import datetime as _dt
+        token_doc = db.api_tokens.find_one({"token": api_key})
+        if token_doc:
+            exp = token_doc.get("expires_at")
+            if exp is None or exp > _dt.utcnow():
+                return {"role": "api_token", "token": api_key}
+
+    # 2. Fallback: sesión admin
     try:
         user = await verify_session(request)
         require_admin_level(user, "member")
@@ -312,6 +341,10 @@ class ReorderItem(BaseModel):
 class ReorderRequest(BaseModel):
     items: List[ReorderItem]
 
+class ReorderCategoryRequest(BaseModel):
+    category_id: str
+    product_ids: List[str]
+
 @router.post("/carta/products/reorder")
 async def reorder_products(data: ReorderRequest, user: dict = Depends(_require_catalog_access)):
     """Bulk update product priorities for drag-and-drop reordering."""
@@ -327,6 +360,17 @@ async def reorder_products(data: ReorderRequest, user: dict = Depends(_require_c
         result = db.menus.bulk_write(ops, ordered=False)
         logger.info(f"[carta] Reordered {result.modified_count}/{len(ops)} products")
     return {"success": True, "updated": len(ops)}
+
+@router.post("/carta/categories/reorder-products")
+async def reorder_category_products(data: ReorderCategoryRequest, user: dict = Depends(_require_catalog_access)):
+    """Update the menu_ids array order on a category — this is the canonical ordering
+    used by public_catalog for Carta and Delivery apps."""
+    result = db.categories.update_one(
+        get_id_query(data.category_id),
+        {"$set": {"menu_ids": data.product_ids}}
+    )
+    logger.info(f"[carta] Reordered category {data.category_id}: {len(data.product_ids)} products, matched={result.matched_count}")
+    return {"success": True, "category_id": data.category_id, "count": len(data.product_ids)}
 
 
 @router.post("/carta/products/upload-image")
@@ -471,6 +515,8 @@ async def delete_menu_type(slug: str, user: dict = Depends(_require_catalog_acce
             raise HTTPException(status_code=404, detail="Menu type not found")
         if result.get("error") == "cannot_delete_default":
             raise HTTPException(status_code=400, detail="Cannot delete the default menu type")
+        if result.get("error") == "delivery_provider_active":
+            raise HTTPException(status_code=400, detail="No se puede eliminar 'delivery' mientras haya un delivery provider activo")
     return {"success": True, "moved_categories": result.get("moved_categories", 0)}
 
 
@@ -956,6 +1002,51 @@ async def update_location_buttons(
         raise
     except Exception as e:
         logger.error(f"Error updating location buttons: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═════════════════════════════════════════════
+# Navigation Links (carta digital config)
+# ═════════════════════════════════════════════
+
+class NavigationLinksUpdate(BaseModel):
+    links: List[dict]
+
+
+@router.get("/carta/navigation-links")
+async def get_navigation_links(user: dict = Depends(_require_catalog_or_token)):
+    """Return the navigation links configuration for the carta digital."""
+    doc = db.carta_config.find_one({"type": "navigation_links"})
+    if not doc:
+        return {"links": []}
+    doc.pop("_id", None)
+    return {"links": doc.get("links", [])}
+
+
+@router.put("/carta/navigation-links")
+async def update_navigation_links(
+    data: NavigationLinksUpdate,
+    user: dict = Depends(_require_catalog_access),
+):
+    """Replace the full navigation links list for the carta digital."""
+    try:
+        result = db.carta_config.update_one(
+            {"type": "navigation_links"},
+            {"$set": {
+                "links": data.links,
+                "updated_at": datetime.now(timezone.utc),
+            }},
+            upsert=True,
+        )
+        logger.info(f"[carta] Navigation links updated: {len(data.links)} links")
+
+        # Auto-sync to carta (fire and forget)
+        import asyncio as _aio
+        _aio.create_task(sync_svc.trigger_nav_links_sync())
+
+        return {"success": True, "count": len(data.links)}
+    except Exception as e:
+        logger.error(f"Error updating navigation links: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

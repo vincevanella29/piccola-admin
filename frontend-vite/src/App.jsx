@@ -14,9 +14,9 @@ const App = ({ onLogout, appState, sidebarWidth }) => {
   const mainPageMetadata = pagesMetadata.find((page) => page.isMainPage === true);
   const mainPageModulePath = mainPageMetadata
     ? Object.keys(pageModules).find((fileName) => {
-        const module = pageModules[fileName];
-        return module.pageMetadata && module.pageMetadata.path === mainPageMetadata.path;
-      })
+      const module = pageModules[fileName];
+      return module.pageMetadata && module.pageMetadata.path === mainPageMetadata.path;
+    })
     : null;
   const MainPageComponent = mainPageModulePath ? pageModules[mainPageModulePath].default : null;
 

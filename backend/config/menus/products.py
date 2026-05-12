@@ -286,6 +286,10 @@ async def create_product(doc: dict) -> str:
 async def update_product(product_id: str, update_fields: dict) -> int:
     if "precio" in update_fields:
         update_fields["precio"] = clean_price(update_fields["precio"])
+    if "precio_delivery" in update_fields:
+        update_fields["precio_delivery"] = clean_price(update_fields["precio_delivery"])
+    if "precio_takeout" in update_fields:
+        update_fields["precio_takeout"] = clean_price(update_fields["precio_takeout"])
     update_fields["updated_at"] = datetime.now(timezone.utc)
 
     logger.info(f"Updating product {product_id} with fields: {list(update_fields.keys())}")

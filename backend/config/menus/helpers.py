@@ -75,7 +75,9 @@ def clean_price(value: Any) -> float:
 
 
 async def sync_to_frontend():
-    """Notify the frontend to sync its catalog."""
+    """Notify the frontend to sync its catalog + delivery providers."""
+    import asyncio
+
     frontend_url = "https://cartadigital.lapiccolaitalia.cl/api"
     sync_url = f"{frontend_url}/catalog/sync"
     logger.info(f"Triggering sync notification to frontend: {sync_url}")
@@ -84,6 +86,13 @@ async def sync_to_frontend():
         logger.info(f"Frontend notification response: {resp.status_code}")
     except Exception as e:
         logger.error(f"Error notifying frontend sync at {sync_url}: {e}")
+
+    # Fire-and-forget delivery provider sync
+    try:
+        from .sync import _sync_delivery_providers
+        asyncio.create_task(_sync_delivery_providers())
+    except Exception as e:
+        logger.warning(f"[sync_to_frontend] delivery provider sync skipped: {e}")
 
 
 def get_ts(doc):

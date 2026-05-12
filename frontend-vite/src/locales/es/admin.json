@@ -412,7 +412,9 @@
       "friday": "Viernes",
       "saturday": "Sábado",
       "sunday": "Domingo"
-    }
+    },
+    "fill_required": "Completa los campos requeridos",
+    "completed": "Completado"
   },
   "heading_calendar": "Calendario",
   "heading_rules": "Reglas Avanzadas",

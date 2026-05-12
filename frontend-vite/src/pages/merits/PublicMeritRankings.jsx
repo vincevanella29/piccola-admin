@@ -146,7 +146,7 @@ export default PublicMeritRankings;
 export const pageMetadata = {
   path: '/app/public-merit-rankings',
   label: 'merits.label',
-  category: 'analytics.Análisis',
+  category: 'merits.category',
   minRoleLevel: 1,
   maxRoleLevel: 7,
   order: 4,

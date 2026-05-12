@@ -78,7 +78,7 @@ const Swap = ({ appState }) => {
 export const pageMetadata = {
   path: '/app/admin/swap',
   label: 'swap.title',
-  category: 'admin.tools.category',
+  category: 'admin.category',
   minRoleLevel: -1,
   order: 2,
   orderWalletMenu: 6,

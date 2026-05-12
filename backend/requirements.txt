@@ -94,7 +94,6 @@ yarl==1.20.1
 python-multipart==0.0.20
 deepdiff>=6,<7
 python-telegram-bot==21.10
-websockets==15.0.1
 pytz==2025.2
 psutil==6.0.0
 onvif-zeep==0.2.12
@@ -106,3 +105,7 @@ opencv-python-headless
 scikit-learn
 paddleocr
 paddlepaddle
+dilithium-py>=1.4.0
+mnemonic>=0.21
+transbank-sdk>=6.1.0
+aiosmtplib>=3.0.0

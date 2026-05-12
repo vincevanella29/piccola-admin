@@ -162,6 +162,29 @@ async def get_public_banners(
         logger.error(f"Error fetching public banners: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/public/navigation-links")
+async def get_public_navigation_links(request: Request):
+    """
+    Public endpoint for Carta. Same auth pattern as /public/banners.
+    Returns the navigation links array from carta_config collection.
+    """
+    api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="X-API-Key header missing")
+
+    # Validate API key (same as banners)
+    if api_key != CARTA_API_KEY:
+        key_info = validate_api_key(api_key)
+        if not key_info:
+            raise HTTPException(status_code=403, detail="Invalid or inactive API Key")
+
+    doc = db.carta_config.find_one({"type": "navigation_links"})
+    if not doc:
+        return {"links": []}
+    doc.pop("_id", None)
+    return {"links": doc.get("links", [])}
+
 @router.put("/banners/{banner_id}")
 async def update_banner(banner_id: str, data: BannerUpdate, user: dict = Depends(require_banners_role)):
     try:

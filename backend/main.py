@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import time
+import asyncio
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Depends
@@ -70,6 +71,27 @@ async def lifespan(app: FastAPI):
         _ensure_menu_types()
     except Exception as e:
         logger.warning(f"[startup] menu_types ensure_defaults failed (non-fatal): {e}")
+
+    # Ensure Dilithium nonce TTL index (anti-replay)
+    try:
+        from utils.vanellix_crypto import ensure_nonce_ttl_index
+        ensure_nonce_ttl_index()
+    except Exception as e:
+        logger.warning(f"[startup] dilithium_guard TTL index failed (non-fatal): {e}")
+
+    # Start dispatch retry worker (background task)
+    try:
+        from workers.dispatch_worker import start_dispatch_worker
+        start_dispatch_worker()
+    except Exception as e:
+        logger.warning(f"[startup] dispatch_worker failed to start (non-fatal): {e}")
+
+    # Start mail queue worker (background task)
+    try:
+        from workers.mail_worker import start_mail_worker
+        asyncio.create_task(start_mail_worker())
+    except Exception as e:
+        logger.warning(f"[startup] mail_worker failed to start (non-fatal): {e}")
 
     yield
     # --- shutdown ---

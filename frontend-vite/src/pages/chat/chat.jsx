@@ -13,6 +13,7 @@ import ChatSidebar from './components/common/ChatSidebar';
 // Hooks
 import useChatClient from '../../hooks/useChatClient';
 import useAdminChat from '../../hooks/useAdminChat';
+import useDeliveryChatAdmin from '../../hooks/useDeliveryChatAdmin';
 import useRestaurantData from '../../hooks/useRestaurantData';
 
 // Estilo de la ventana flotante (Glassmorphism)
@@ -24,10 +25,12 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
   
   const adminLevel = useMemo(() => (appState?.companyRoleLevel ?? appState?.roleLevel ?? 0), [appState?.companyRoleLevel, appState?.roleLevel]);
   const isAdmin = (adminLevel === 3 || adminLevel === 4) || appState?.isAdmin === true;
+  const canDelivery = adminLevel >= 3 && adminLevel <= 6;
   const [activeTab, setActiveTab] = useState(() => (isAdmin ? 'admin' : 'client'));
 
   const msgClient = useChatClient({ appState, accessToken: appState?.token, account: appState?.account });
   const adminState = useAdminChat({ appState, enabled: isAdmin });
+  const deliveryChat = useDeliveryChatAdmin({ appState, enabled: canDelivery && activeTab === 'delivery' });
   const { data: restaurantData } = useRestaurantData();
 
   const [showSidebar, setShowSidebar] = useState(false);
@@ -35,6 +38,8 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
   const [showJumpAdmin, setShowJumpAdmin] = useState(false);
   const [clientScrollToBottom, setClientScrollToBottom] = useState(null);
   const [adminScrollToBottom, setAdminScrollToBottom] = useState(null);
+  const [deliveryScrollToBottom, setDeliveryScrollToBottom] = useState(null);
+  const [showJumpDelivery, setShowJumpDelivery] = useState(false);
 
   // Detectar si es Desktop para aplicar el margen dinámico
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
@@ -110,13 +115,13 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
           {/* --- HEADER (Dentro de la ventana) --- */}
           <div className="shrink-0 z-20">
             <ChatHeader
-              variant={isAdmin ? 'admin' : 'client'}
-              title={isAdmin ? (activeTab === 'admin' ? 'Panel de Comando' : 'Vista Cliente') : (t('chat.title') || 'Chat Soporte')}
-              connected={isAdmin ? (activeTab === 'admin' ? adminState.connected : msgClient.connected) : msgClient.connected}
-              status={!isAdmin || activeTab === 'client' ? msgClient.status : 'Online'}
-              onOpenInbox={isAdmin && activeTab === 'admin' ? (() => setShowSidebar(v => !v)) : undefined}
+              variant={activeTab === 'delivery' ? 'admin' : (isAdmin ? 'admin' : 'client')}
+              title={activeTab === 'delivery' ? 'Delivery 🍕' : (isAdmin ? (activeTab === 'admin' ? 'Panel de Comando' : 'Vista Cliente') : (t('chat.title') || 'Chat Soporte'))}
+              connected={activeTab === 'delivery' ? deliveryChat.connected : (isAdmin ? (activeTab === 'admin' ? adminState.connected : msgClient.connected) : msgClient.connected)}
+              status={activeTab === 'delivery' ? (deliveryChat.connected ? 'Online' : 'Offline') : (!isAdmin || activeTab === 'client' ? msgClient.status : 'Online')}
+              onOpenInbox={(activeTab === 'admin' || activeTab === 'delivery') ? (() => setShowSidebar(v => !v)) : undefined}
               onOpenConversations={!isAdmin || activeTab === 'client' ? (() => setShowSidebar(v => !v)) : undefined}
-              unreadInboxCount={isAdmin ? (adminState.unreadInboxCount || 0) : (msgClient.unreadCount || 0)}
+              unreadInboxCount={activeTab === 'delivery' ? (deliveryChat.items?.reduce((s, i) => s + (i.unread || 0), 0) || 0) : (isAdmin ? (adminState.unreadInboxCount || 0) : (msgClient.unreadCount || 0))}
               rightContent={isAdmin && (
                 <div className="flex p-1 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/50 dark:border-dark-border/50">
                   <button 
@@ -127,6 +132,12 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                     className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'admin' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
                     onClick={() => setActiveTab('admin')}
                   >Admin</button>
+                  {canDelivery && (
+                    <button 
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'delivery' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
+                      onClick={() => setActiveTab('delivery')}
+                    >Delivery 🍕</button>
+                  )}
                 </div>
               )}
             />
@@ -145,7 +156,7 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                 >
                    <div className="w-[300px] h-full overflow-hidden">
                     <ChatSidebar
-                      variant={isAdmin && activeTab === 'admin' ? 'admin' : 'client'}
+                      variant={activeTab === 'delivery' ? 'delivery' : (isAdmin && activeTab === 'admin' ? 'admin' : 'client')}
                       t={t}
                       admin={{
                         items: adminState.items, loading: adminState.loading, page: adminState.page, pageSize: adminState.pageSize, statusFilter: adminState.statusFilter,
@@ -164,6 +175,12 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                            } catch (_) {}
                         }
                       }}
+                      delivery={{
+                        items: deliveryChat.items, loading: deliveryChat.loading, statusFilter: deliveryChat.statusFilter,
+                        onChangeStatus: deliveryChat.setStatusFilter,
+                        onOpen: (orderNumber) => { deliveryChat.openConversation(orderNumber); setShowSidebar(false); },
+                        activeOrderNumber: deliveryChat.activeOrderNumber,
+                      }}
                     />
                    </div>
                 </motion.aside>
@@ -175,19 +192,22 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                   <Gate />
                ) : (
                   <ChatMessage
-                    variant={isAdmin && activeTab === 'admin' ? 'admin' : 'client'}
+                    variant={activeTab === 'delivery' ? 'delivery' : (isAdmin && activeTab === 'admin' ? 'admin' : 'client')}
                     appState={appState} t={t} 
-                    client={msgClient} admin={adminState} 
+                    client={msgClient} admin={adminState}
+                    delivery={deliveryChat}
                     mediaMap={restaurantData?.mediaMap || {}}
                     allProducts={restaurantData?.allLocationMenus || []} 
                     locations={restaurantData?.locations || []}
                     onShowJumpChange={(v) => {
-                      if (isAdmin && activeTab === 'admin') setShowJumpAdmin(Boolean(v));
+                      if (activeTab === 'delivery') setShowJumpDelivery(Boolean(v));
+                      else if (isAdmin && activeTab === 'admin') setShowJumpAdmin(Boolean(v));
                       else setShowJumpClient(Boolean(v));
                     }}
                     onScrollToBottomReady={(fn) => {
                       if (typeof fn !== 'function') return;
-                      if (isAdmin && activeTab === 'admin') setAdminScrollToBottom(() => fn);
+                      if (activeTab === 'delivery') setDeliveryScrollToBottom(() => fn);
+                      else if (isAdmin && activeTab === 'admin') setAdminScrollToBottom(() => fn);
                       else setClientScrollToBottom(() => fn);
                     }}
                   />
@@ -209,7 +229,7 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                       </div>
                       <div className="flex-1 overflow-auto">
                         <ChatSidebar
-                          variant={isAdmin && activeTab === 'admin' ? 'admin' : 'client'} t={t}
+                          variant={activeTab === 'delivery' ? 'delivery' : (isAdmin && activeTab === 'admin' ? 'admin' : 'client')} t={t}
                           admin={{
                             ...adminState, 
                             onOpen: (id) => { adminState.openConversation(id); setShowSidebar(false); }
@@ -227,6 +247,12 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                                } catch (_) {}
                             }
                           }}
+                          delivery={{
+                            items: deliveryChat.items, loading: deliveryChat.loading, statusFilter: deliveryChat.statusFilter,
+                            onChangeStatus: deliveryChat.setStatusFilter,
+                            onOpen: (orderNumber) => { deliveryChat.openConversation(orderNumber); setShowSidebar(false); },
+                            activeOrderNumber: deliveryChat.activeOrderNumber,
+                          }}
                         />
                       </div>
                    </div>
@@ -243,7 +269,7 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
           ) : (
             <div className="shrink-0 z-20">
               <ChatFooter
-                variant={isAdmin && activeTab === 'admin' ? 'admin' : 'client'}
+                variant={activeTab === 'delivery' ? 'delivery' : (isAdmin && activeTab === 'admin' ? 'admin' : 'client')}
                 t={t}
                 clientDisabled={msgClient.isClosed}
                 clientProfileReady={true}
@@ -257,15 +283,15 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                     await pageLoadClientConversations?.();
                   } catch (_) { }
                 }}
-                adminConvId={adminState.activeConvId} 
+                adminConvId={activeTab === 'delivery' ? deliveryChat.activeOrderNumber : adminState.activeConvId} 
                 adminDisabled={!appState?.isAuthenticated}
-                onAdminReply={adminState.reply} 
-                onAdminTake={adminState.take} 
-                onAdminRelease={adminState.release} 
-                onAdminClose={adminState.closeConv} 
-                onAdminTyping={adminState.notifyTyping}
-                showJump={(isAdmin && activeTab === 'admin') ? showJumpAdmin : showJumpClient}
-                onJump={(isAdmin && activeTab === 'admin') ? adminScrollToBottom : clientScrollToBottom}
+                onAdminReply={activeTab === 'delivery' ? deliveryChat.reply : adminState.reply} 
+                onAdminTake={activeTab === 'delivery' ? deliveryChat.take : adminState.take} 
+                onAdminRelease={activeTab === 'delivery' ? deliveryChat.release : adminState.release} 
+                onAdminClose={activeTab === 'delivery' ? deliveryChat.closeConv : adminState.closeConv} 
+                onAdminTyping={activeTab === 'delivery' ? deliveryChat.notifyTyping : adminState.notifyTyping}
+                showJump={activeTab === 'delivery' ? showJumpDelivery : ((isAdmin && activeTab === 'admin') ? showJumpAdmin : showJumpClient)}
+                onJump={activeTab === 'delivery' ? deliveryScrollToBottom : ((isAdmin && activeTab === 'admin') ? adminScrollToBottom : clientScrollToBottom)}
               />
             </div>
           )}
@@ -280,7 +306,7 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
 export const pageMetadata = {
   path: '/app/chat',
   label: 'chat.title',
-  category: 'employees.profiles.category',
+  category: 'marketing.category',
   minRoleLevel: 3,
   maxRoleLevel: 7,
   order: 3,

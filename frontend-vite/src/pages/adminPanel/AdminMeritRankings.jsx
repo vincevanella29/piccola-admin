@@ -532,7 +532,7 @@ export default AdminMeritRankings;
 export const pageMetadata = {
   path: '/app/admin/merit-rankings',
   label: 'admin_merit_rankings.label',
-  category: 'analytics.Análisis',
+  category: 'merits.category',
   minRoleLevel: 3,
   maxRoleLevel: 6,
   order: 6,

@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 import MyFichaPanel from './components/MyFichaPanel.jsx';
 import RegisterPanel from './components/RegisterPanel.jsx';
-import LandingPanel from './components/LandingPanel.jsx';
+import LandingPanel from '../home/components/LandingPanel.jsx';
 import useMiFicha from '../../hooks/useMiFicha.jsx';
 
 const EmployeesRegister = ({ appState }) => {
@@ -126,7 +126,7 @@ export default EmployeesRegister;
 export const pageMetadata = {
   path: '/app/mi-ficha/employees',
   label: 'employees.profiles.label',
-  category: 'employees.profiles.category',
+  category: 'team.category',
   minRoleLevel: -1,
   order: 3,
   orderWalletMenu: 3,
@@ -134,6 +134,5 @@ export const pageMetadata = {
   locations: ['sidebar', 'header', 'footer', 'walletMenu'],
   description: 'employees.profiles.description',
   icon: 'FaUserCheck',
-  isMainPage: true,
   isSearchable: true,
 };

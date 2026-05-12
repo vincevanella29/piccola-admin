@@ -33,7 +33,7 @@
     "schedule": {
       "dinein": "Dine-in",
       "delivery": "Delivery",
-      "dineinHint": "Set up **Dine-in** and **Delivery** hours separately for each day. You can also add special closures or dates.",
+      "dineinHint": "Set up **Dine-in**, **Delivery** and **Pickup** hours separately for each day. You can also add closures or special hours by date.",
       "copyMon": "Copy Mon hours → all",
       "daysActive_one": "{{count}} day active",
       "daysActive_other": "{{count}} days active",
@@ -43,7 +43,8 @@
       "noSpecialDates": "No special dates configured",
       "datePlaceholder": "e.g. Christmas, New Year…",
       "closedDay": "Closed this day",
-      "specialHours": "Open with special hours"
+      "specialHours": "Open with special hours",
+      "pickup": "Pickup"
     },
     "media": {
       "coverTitle": "Cover Image",

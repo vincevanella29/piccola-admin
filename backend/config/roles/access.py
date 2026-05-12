@@ -523,6 +523,18 @@ def require_admin_level(user: Dict[str, Any], role: str):
     elif role == "member":
         allowed = (3, 4, 5)
         deny_msg = "Solo niveles 3, 4 o 5"
+    elif role == "delivery":
+        # Delivery admin: on-chain members + offchain local mgmt (level 6)
+        allowed = (3, 4, 5, 6)
+        deny_msg = "Solo niveles 3, 4, 5 o 6"
+    elif role == "kds":
+        # Kitchen Display: all staff including kitchen workers (level 7)
+        allowed = (3, 4, 5, 6, 7)
+        deny_msg = "Solo personal autorizado (niveles 3-7)"
+    elif role == "marketing":
+        # Marketing/Mailing: admin + subadmin only
+        allowed = (3, 4, 5)
+        deny_msg = "Solo niveles 3 o 5"
     else:
         # Por defecto, cualquier miembro conocido
         allowed = (3, 4, 5)

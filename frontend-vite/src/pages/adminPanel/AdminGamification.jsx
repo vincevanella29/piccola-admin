@@ -169,7 +169,7 @@ export default AdminGamification;
 export const pageMetadata = {
   path: '/app/admin/gamification',
   label: 'gamification.label',
-  category: 'admin.category',
+  category: 'merits.category',
   minRoleLevel: 3,
   maxRoleLevel: 5,
   order: 8,

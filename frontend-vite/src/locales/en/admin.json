@@ -411,7 +411,9 @@
       "friday": "Friday",
       "saturday": "Saturday",
       "sunday": "Sunday"
-    }
+    },
+    "fill_required": "Fill in the required fields",
+    "completed": "Completed"
   },
   "heading_calendar": "Calendar",
   "heading_rules": "Advanced Rules",

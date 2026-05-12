@@ -33,7 +33,7 @@
     "schedule": {
       "dinein": "Dine-in (Sala)",
       "delivery": "Delivery",
-      "dineinHint": "Configura gli orari di **Dine-in** e **Delivery** separatamente per ogni giorno. Puoi anche aggiungere chiusure o date speciali.",
+      "dineinHint": "Configura gli orari di **Dine-in**, **Delivery** e **Ritiro** separatamente per ogni giorno. Puoi anche aggiungere chiusure o orari speciali per data.",
       "copyMon": "Copia orario Lun → tutti",
       "daysActive_one": "{{count}} giorno attivo",
       "daysActive_other": "{{count}} giorni attivi",
@@ -43,7 +43,8 @@
       "noSpecialDates": "Nessuna data speciale configurata",
       "datePlaceholder": "Es: Natale, Capodanno…",
       "closedDay": "Chiuso questo giorno",
-      "specialHours": "Aperto con orario speciale"
+      "specialHours": "Aperto con orario speciale",
+      "pickup": "Ritiro in negozio"
     },
     "media": {
       "coverTitle": "Immagine di copertina",

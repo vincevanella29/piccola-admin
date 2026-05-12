@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { UtensilsCrossed, Truck, CalendarDays, CalendarX2, Plus, Trash2 } from 'lucide-react';
+import { UtensilsCrossed, Truck, ShoppingBag, CalendarDays, CalendarX2, Plus, Trash2 } from 'lucide-react';
 import { inputCls, timeCls } from './shared';
 
 // ISO weekday labels (1=Mon … 7=Sun)
@@ -61,15 +61,18 @@ const ServiceSchedule = ({ icon: Icon, label, color, schedule, onChange, copyLab
 
     const openCount = Object.keys(schedule).length;
 
+    const colorMap = {
+        amber:   { border: 'border-amber-500/20 dark:border-amber-400/20',   bg: 'bg-amber-500/8 dark:bg-amber-400/8',     text: 'text-amber-500 dark:text-amber-400' },
+        blue:    { border: 'border-blue-500/20 dark:border-blue-400/20',     bg: 'bg-blue-500/8 dark:bg-blue-400/8',       text: 'text-blue-500 dark:text-blue-400' },
+        emerald: { border: 'border-emerald-500/20 dark:border-emerald-400/20', bg: 'bg-emerald-500/8 dark:bg-emerald-400/8', text: 'text-emerald-500 dark:text-emerald-400' },
+    };
+    const cm = colorMap[color] || colorMap.amber;
+
     return (
-        <div className={`rounded-2xl border overflow-hidden ${
-            color === 'amber' ? 'border-amber-500/20 dark:border-amber-400/20' : 'border-blue-500/20 dark:border-blue-400/20'
-        }`}>
-            <div className={`flex items-center justify-between px-4 py-3 ${
-                color === 'amber' ? 'bg-amber-500/8 dark:bg-amber-400/8' : 'bg-blue-500/8 dark:bg-blue-400/8'
-            }`}>
+        <div className={`rounded-2xl border overflow-hidden ${cm.border}`}>
+            <div className={`flex items-center justify-between px-4 py-3 ${cm.bg}`}>
                 <div className="flex items-center gap-2">
-                    <Icon className={`w-4 h-4 ${color === 'amber' ? 'text-amber-500 dark:text-amber-400' : 'text-blue-500 dark:text-blue-400'}`} />
+                    <Icon className={`w-4 h-4 ${cm.text}`} />
                     <span className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary">{label}</span>
                     <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
                         {openCount} día{openCount !== 1 ? 's' : ''} activo{openCount !== 1 ? 's' : ''}
@@ -174,6 +177,10 @@ const HorariosTab = ({ openingHours, setOpeningHours, specialDates, setSpecialDa
 
             <ServiceSchedule icon={Truck} label={s('delivery')} color="blue"
                 schedule={openingHours.delivery || {}} onChange={v => setOpeningHours(h => ({ ...h, delivery: v }))}
+                copyLabel={s('copyMon')} />
+
+            <ServiceSchedule icon={ShoppingBag} label={s('pickup')} color="emerald"
+                schedule={openingHours.pickup || {}} onChange={v => setOpeningHours(h => ({ ...h, pickup: v }))}
                 copyLabel={s('copyMon')} />
 
             <div className="rounded-2xl border border-light-border/40 dark:border-dark-border/40 overflow-hidden">
