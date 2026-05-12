@@ -243,7 +243,7 @@ async def auto_link_provider(
     wallet = user.get("wallet") or user.get("id")
     key_id, secret = generate_api_key_pair()
     secret_hash = hash_secret(secret)
-    company_id = 0  # Replaced os.getenv("COMPANY_ID", "0")
+    company_id = int(os.getenv("COMPANY_ID", "1"))
 
     now = datetime.now(timezone.utc)
     api_key_doc = {
@@ -533,7 +533,7 @@ async def resync_delivery_provider(
 
     rotate_url = build_provider_url(domain, "claim").replace("/claim", "/rotate")
     rotate_payload = {
-        "company_id": 0,
+        "company_id": int(os.getenv("COMPANY_ID", "1")),
         "provider_slug": provider.get("slug", ""),
         "api_key": api_key_value,
         "dilithium_mnemonic": mnemonic,
