@@ -901,7 +901,7 @@ async def visitor_heartbeat(request: Request):
             "t": datetime.now(timezone.utc).isoformat(),
         })
         await redis.set(key, payload, ex=90)
-        print(f"[HEARTBEAT] SET {key} → TTL=90s, device={device_type}")
+        # print(f"[HEARTBEAT] SET {key} → TTL=90s, device={device_type}")
     except Exception as e:
         logger.warning(f"Heartbeat redis error: {e}")
 

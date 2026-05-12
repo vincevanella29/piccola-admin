@@ -43,6 +43,13 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/api/public/heartbeat" not in record.getMessage()
+
+# Filter out heartbeat spam from uvicorn access logs
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- startup ---

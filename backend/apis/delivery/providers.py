@@ -11,7 +11,7 @@ Each provider has:
 
 import logging
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
@@ -203,6 +203,7 @@ async def probe_delivery_domain(
 @router.post("/delivery/providers/auto-link", summary="Crear proveedor con API key y Dilithium auto-generados")
 async def auto_link_provider(
     payload: AutoLinkCreate,
+    request: Request,
     user: dict = Depends(verify_session)
 ):
     """
@@ -241,7 +242,7 @@ async def auto_link_provider(
     wallet = user.get("wallet") or user.get("id")
     key_id, secret = generate_api_key_pair()
     secret_hash = hash_secret(secret)
-    company_id = int(os.getenv("COMPANY_ID", "0"))
+    company_id = 0  # Replaced os.getenv("COMPANY_ID", "0")
 
     now = datetime.now(timezone.utc)
     api_key_doc = {
@@ -308,7 +309,12 @@ async def auto_link_provider(
             base_url = sync_url.rsplit("/catalog/sync", 1)[0] if "/catalog/sync" in sync_url else sync_url.rsplit("/", 1)[0]
             claim_url = f"{base_url}/admin/claim"
 
-        admin_api_url = os.getenv("ADMIN_PUBLIC_URL", f"http://localhost:{os.getenv('PORT', '8081')}/api")
+        # Dynamic Admin URL reading from request
+        fwd_host = request.headers.get("x-forwarded-host")
+        if fwd_host:
+            admin_api_url = f"https://{fwd_host}/api"
+        else:
+            admin_api_url = f"{request.base_url}api"
 
         claim_payload = {
             "company_id": company_id,
