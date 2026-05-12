@@ -211,6 +211,7 @@ async def auto_link_carta_provider(
     # 4. Create provider doc
     domain = payload.domain.rstrip("/")
 
+    from utils.vanellix_crypto import encrypt_b2b_mnemonic
     provider_doc = {
         "name": payload.name,
         "slug": payload.slug,
@@ -222,7 +223,7 @@ async def auto_link_carta_provider(
         "domain": domain,
         "description": payload.description or CARTA_PRESETS.get(payload.slug, {}).get("description"),
         "dilithium_pk": pk_hex,
-        "dilithium_mnemonic": mnemonic,
+        "dilithium_mnemonic_enc": encrypt_b2b_mnemonic(mnemonic),
         "dilithium_algorithm": "Dilithium2",
         "created_at": now,
         "updated_at": now,

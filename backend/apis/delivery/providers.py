@@ -267,6 +267,7 @@ async def auto_link_provider(
     domain = payload.domain or preset.get("domain", "")
     sync_url = build_sync_url(domain) if domain else (payload.sync_url or preset.get("sync_url"))
 
+    from utils.vanellix_crypto import encrypt_b2b_mnemonic
     provider_doc = {
         "name": payload.name,
         "slug": payload.slug,
@@ -281,7 +282,7 @@ async def auto_link_provider(
         "allowed_origins": payload.allowed_origins,
         "timezone": payload.timezone,
         "dilithium_pk": pk_hex,
-        "dilithium_mnemonic": mnemonic,  # Needed to encrypt config for this provider
+        "dilithium_mnemonic_enc": encrypt_b2b_mnemonic(mnemonic),  # Needed to encrypt config for this provider
         "dilithium_algorithm": "Dilithium2",
         "commissions": {
             "delivery_pct": 0,

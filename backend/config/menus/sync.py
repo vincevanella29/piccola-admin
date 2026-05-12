@@ -97,7 +97,12 @@ async def _trigger_sync(route_key: str, label: str) -> dict:
         path = CARTA_ROUTES.get(route_key, "")
         url = f"{domain}{path}"
         api_key = prov.get("api_key_value", "")
-        mnemonic = prov.get("dilithium_mnemonic", "")
+        mnemonic_enc = prov.get("dilithium_mnemonic_enc", "")
+        if mnemonic_enc:
+            from utils.vanellix_crypto import decrypt_b2b_mnemonic
+            mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
+        else:
+            mnemonic = prov.get("dilithium_mnemonic", "")
     except RuntimeError as e:
         msg = str(e)
         logger.warning(f"[sync] {label}: {msg}")
@@ -166,7 +171,7 @@ async def _sync_delivery_providers():
     try:
         providers = list(_db.delivery_providers.find(
             {"status": "active", "sync_url": {"$exists": True, "$ne": ""}},
-            {"slug": 1, "sync_url": 1, "api_key_value": 1, "dilithium_mnemonic": 1},
+            {"slug": 1, "sync_url": 1, "api_key_value": 1, "dilithium_mnemonic": 1, "dilithium_mnemonic_enc": 1},
         ))
     except Exception as e:
         logger.error(f"[sync] Error reading delivery providers: {e}")
@@ -184,7 +189,12 @@ async def _sync_delivery_providers():
             continue
             
         api_key = prov.get("api_key_value", "")
-        mnemonic = prov.get("dilithium_mnemonic", "")
+        mnemonic_enc = prov.get("dilithium_mnemonic_enc", "")
+        if mnemonic_enc:
+            from utils.vanellix_crypto import decrypt_b2b_mnemonic
+            mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
+        else:
+            mnemonic = prov.get("dilithium_mnemonic", "")
         
         try:
             headers = _build_signed_headers(api_key, mnemonic, body=b"")
