@@ -603,3 +603,12 @@ export const deleteCartaProvider = async ({ token, account, providerId }) => {
         withCredentials: true,
     });
 };
+
+export const resyncCartaProvider = async ({ token, account, providerId }) => {
+    return api({
+        method: 'POST',
+        endpoint: `/carta/providers/${providerId}/resync`,
+        headers: authHeaders(token, account),
+        withCredentials: true,
+    });
+};

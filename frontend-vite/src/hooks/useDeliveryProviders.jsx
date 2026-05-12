@@ -94,10 +94,21 @@ const useDeliveryProviders = (appState, t) => {
     }
   }, [getAuth, fetchProviders, t]);
 
+  const resyncProvider = useCallback(async (providerId) => {
+    try {
+      const res = await deliveryApi.resyncProvider({ ...getAuth(), providerId });
+      toast.success(t?.('delivery.provider_resynced') || 'Config re-sincronizada ✅');
+      return res;
+    } catch (err) {
+      toast.error(err.message);
+      throw err;
+    }
+  }, [getAuth, t]);
+
   return {
     providers, providerPresets, isLoading, error,
     fetchProviders, fetchProviderPresets,
-    createProvider, autoLinkProvider, updateProvider, deleteProvider,
+    createProvider, autoLinkProvider, updateProvider, deleteProvider, resyncProvider,
   };
 };
 

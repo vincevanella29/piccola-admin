@@ -1,17 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Shield, Wifi, WifiOff, Link2, CheckCircle2, XCircle,
     Copy, RefreshCw, Loader2, Globe, Zap,
     AlertTriangle, ChevronDown, ChevronUp, Key
 } from 'lucide-react';
-import {
-    fetchCartaProviders,
-    fetchCartaProviderPresets,
-    probeCartaDomain,
-    autoLinkCarta,
-    deleteCartaProvider,
-} from '../../../utils/cartaData';
+import useCartaProviders from '../../../hooks/useCartaProviders';
 
 // ── Status Badge ─────────────────────────────────────────────────────────────
 const StatusBadge = ({ status }) => {
@@ -76,12 +70,11 @@ const ProbeResults = ({ probe }) => {
 // ── Main Component ───────────────────────────────────────────────────────────
 const CartaProviderManager = ({ appState }) => {
     const { t } = useTranslation();
+    const hook = useCartaProviders(appState);
 
-    const [providers, setProviders] = useState([]);
-    const [presets, setPresets] = useState({});
-    const [routes, setRoutes] = useState({});
-    const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
+    const [resyncLoading, setResyncLoading] = useState(false);
+    const [resyncResult, setResyncResult] = useState(null);
 
     // Setup form
     const [domain, setDomain] = useState('http://localhost:8083');
@@ -95,27 +88,7 @@ const CartaProviderManager = ({ appState }) => {
     // Detail toggle
     const [expandedId, setExpandedId] = useState(null);
 
-    const auth = { token: appState?.token, account: appState?.account };
-
-    // ── Load ──────────────────────────────────────────────────────────────────
-    const load = useCallback(async () => {
-        try {
-            setLoading(true);
-            const [provRes, presetRes] = await Promise.all([
-                fetchCartaProviders(auth),
-                fetchCartaProviderPresets(auth),
-            ]);
-            setProviders(provRes?.providers || []);
-            setPresets(presetRes?.presets || {});
-            setRoutes(presetRes?.routes || {});
-        } catch (e) {
-            console.error('Error loading carta providers:', e);
-        } finally {
-            setLoading(false);
-        }
-    }, [appState?.token, appState?.account]);
-
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => { hook.fetchProviders(); }, []);
 
     // ── Probe ─────────────────────────────────────────────────────────────────
     const handleProbe = async () => {
@@ -123,7 +96,7 @@ const CartaProviderManager = ({ appState }) => {
         setProbing(true);
         setProbeResult(null);
         try {
-            const res = await probeCartaDomain({ ...auth, domain: domain.trim() });
+            const res = await hook.probeDomain(domain.trim());
             setProbeResult(res);
         } catch (e) {
             setProbeResult({ healthy: false, available: 0, total: 0, routes: [], error: e.message });
@@ -138,18 +111,9 @@ const CartaProviderManager = ({ appState }) => {
         setActionLoading(true);
         setLinkResult(null);
         try {
-            const preset = presets?.carta || {};
-            const res = await autoLinkCarta({
-                ...auth,
-                name: preset.name || 'Carta Digital',
-                slug: preset.slug || 'carta',
-                type: 'api_key',
-                domain: domain.trim(),
-                description: preset.description || '',
-            });
+            const res = await hook.autoLink({ domain: domain.trim() });
             setLinkResult(res);
             setShowMnemonic(true);
-            await load();
         } catch (e) {
             setLinkResult({ success: false, claim_error: e.message || 'Error al vincular' });
         } finally {
@@ -161,16 +125,29 @@ const CartaProviderManager = ({ appState }) => {
     const handleDisable = async (id) => {
         if (!confirm('¿Desactivar esta conexión?')) return;
         try {
-            await deleteCartaProvider({ ...auth, providerId: id });
-            await load();
+            await hook.disableProvider(id);
         } catch (e) {
             console.error('Error disabling provider:', e);
         }
     };
 
-    const activeProvider = providers.find(p => p.status === 'active');
+    // ── Re-Sync ───────────────────────────────────────────────────────────────
+    const handleResync = async (id) => {
+        setResyncLoading(true);
+        setResyncResult(null);
+        try {
+            const res = await hook.resyncProvider(id);
+            setResyncResult({ success: true, admin_api_url: res.admin_api_url });
+        } catch (e) {
+            setResyncResult({ success: false, error: e.message || 'Error al re-sincronizar' });
+        } finally {
+            setResyncLoading(false);
+        }
+    };
 
-    if (loading) {
+    const activeProvider = hook.providers.find(p => p.status === 'active');
+
+    if (hook.loading) {
         return (
             <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-6 h-6 animate-spin text-light-accent dark:text-dark-accent" />
@@ -198,13 +175,35 @@ const CartaProviderManager = ({ appState }) => {
                             </p>
                         </div>
                     </div>
-                    <button
-                        onClick={() => handleDisable(activeProvider._id)}
-                        className="text-xs text-red-400 hover:text-red-500 transition-colors"
-                    >
-                        Desactivar
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handleResync(activeProvider._id)}
+                            disabled={resyncLoading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-light-accent/10 dark:bg-dark-accent/10 text-light-accent dark:text-dark-accent hover:bg-light-accent/20 dark:hover:bg-dark-accent/20 transition-colors disabled:opacity-50"
+                        >
+                            {resyncLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                            Re-Sync
+                        </button>
+                        <button
+                            onClick={() => handleDisable(activeProvider._id)}
+                            className="text-xs text-red-400 hover:text-red-500 transition-colors"
+                        >
+                            Desactivar
+                        </button>
+                    </div>
                 </div>
+
+                {/* Re-Sync result feedback */}
+                {resyncResult && (
+                    <div className={`p-3 rounded-xl border ${resyncResult.success ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                        <p className={`text-xs font-medium ${resyncResult.success ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {resyncResult.success
+                                ? `✅ Config re-sincronizada → ${resyncResult.admin_api_url}`
+                                : `❌ ${resyncResult.error}`
+                            }
+                        </p>
+                    </div>
+                )}
 
                 {/* Connection info — NO keys exposed */}
                 <div className="p-4 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border space-y-3">
@@ -242,7 +241,7 @@ const CartaProviderManager = ({ appState }) => {
                     </button>
                     {expandedId === 'routes' && (
                         <div className="mt-3 grid gap-1">
-                            {Object.entries(routes).map(([key, path]) => (
+                            {Object.entries(hook.routes).map(([key, path]) => (
                                 <div key={key} className="flex items-center gap-2 text-xs py-1.5 px-2 rounded bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50">
                                     <span className="font-mono text-light-accent dark:text-dark-accent">{key}</span>
                                     <span className="text-light-text-tertiary dark:text-dark-text-tertiary ml-auto font-mono">{activeProvider.domain}{path}</span>
@@ -292,7 +291,7 @@ const CartaProviderManager = ({ appState }) => {
 
                 {/* Refresh */}
                 <button
-                    onClick={load}
+                    onClick={hook.fetchProviders}
                     className="flex items-center gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-light-accent dark:hover:text-dark-accent transition-colors"
                 >
                     <RefreshCw className="w-3.5 h-3.5" /> Actualizar estado
@@ -403,12 +402,12 @@ const CartaProviderManager = ({ appState }) => {
             </div>
 
             {/* Disabled providers history */}
-            {providers.length > 0 && (
+            {hook.providers.length > 0 && (
                 <div className="p-4 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border">
                     <h4 className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider mb-2">
                         Historial de conexiones
                     </h4>
-                    {providers.map(p => (
+                    {hook.providers.map(p => (
                         <div key={p._id} className="flex items-center justify-between py-2 border-b border-light-border/50 dark:border-dark-border/50 last:border-0">
                             <div>
                                 <span className="text-xs font-medium text-light-text-primary dark:text-dark-text-primary">{p.name}</span>

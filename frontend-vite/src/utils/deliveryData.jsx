@@ -176,6 +176,16 @@ export async function deleteProvider({ token, walletAddress, providerId }) {
   });
 }
 
+export async function resyncProvider({ token, walletAddress, providerId }) {
+  if (!providerId) throw new Error('providerId es obligatorio');
+  return api({
+    method: 'POST',
+    endpoint: `/delivery/providers/${encodeURIComponent(providerId)}/resync`,
+    withCredentials: true,
+    headers: authHeaders({ token, walletAddress }),
+  });
+}
+
 // =====================================================================
 // Last-Mile Carriers
 // =====================================================================

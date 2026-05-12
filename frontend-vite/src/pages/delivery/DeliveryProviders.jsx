@@ -322,6 +322,7 @@ const DeliveryProviders = ({ appState }) => {
         onClose={() => { setIsModalOpen(false); setEditingProvider(null); }}
         onSave={handleSave}
         onAutoLink={handleAutoLink}
+        onResync={(providerId) => api.resyncProvider(providerId)}
         provider={editingProvider}
         presets={api.providerPresets}
         mode={modalMode}

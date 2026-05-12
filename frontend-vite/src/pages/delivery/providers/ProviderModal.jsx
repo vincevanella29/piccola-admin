@@ -3,7 +3,7 @@
 // On create: auto-generates Dilithium keypair + API key + BIP39 mnemonic
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaTimes, FaSave, FaSpinner, FaShieldAlt, FaCopy, FaCheck, FaExclamationTriangle, FaSearch, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { FaTimes, FaSave, FaSpinner, FaShieldAlt, FaCopy, FaCheck, FaExclamationTriangle, FaSearch, FaCheckCircle, FaTimesCircle, FaSync } from 'react-icons/fa';
 import * as deliveryApi from '../../../utils/deliveryData';
 
 const PROVIDER_TYPES = [
@@ -276,8 +276,58 @@ const CommissionsSection = ({ providerId, appState, t }) => {
     );
 };
 
+// ── Re-Sync Section (push updated admin_api_url) ─────────────
+const ResyncSection = ({ providerId, onResync, t }) => {
+    const [syncing, setSyncing] = useState(false);
+    const [result, setResult] = useState(null);
+
+    const handleResync = async () => {
+        setSyncing(true);
+        setResult(null);
+        try {
+            const res = await onResync(providerId);
+            setResult({ success: true, admin_api_url: res.admin_api_url });
+        } catch (e) {
+            setResult({ success: false, error: e.message || 'Error al re-sincronizar' });
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    return (
+        <div className="pt-5 mt-5 border-t border-light-border/8 dark:border-dark-border/8">
+            <h4 className="text-[13px] font-semibold text-light-text-primary dark:text-dark-text-primary mb-0.5 tracking-tight">
+                Re-Sync Config
+            </h4>
+            <p className="text-[11px] text-light-text-secondary dark:text-dark-text-secondary mb-3">
+                Actualizar la URL del admin en la delivery app (útil después de cambiar el dominio o mover a producción).
+            </p>
+            <button
+                onClick={handleResync}
+                disabled={syncing}
+                className="px-4 py-2 rounded-xl text-[13px] font-semibold bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-all flex items-center gap-2 disabled:opacity-50 active:scale-[0.97]"
+            >
+                {syncing ? <FaSpinner size={11} className="animate-spin" /> : <FaSync size={11} />}
+                Re-Sync Admin URL
+            </button>
+            {result && (
+                <div className={`mt-3 p-3 rounded-xl border text-xs font-medium ${
+                    result.success
+                        ? 'bg-green-500/5 border-green-500/20 text-green-500'
+                        : 'bg-red-500/5 border-red-500/20 text-red-500'
+                }`}>
+                    {result.success
+                        ? `✅ Config actualizada → ${result.admin_api_url}`
+                        : `❌ ${result.error}`
+                    }
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── Provider Modal ───────────────────────────────────────────
-const ProviderModal = ({ isOpen, onClose, onSave, onAutoLink, provider = null, presets = {}, mode = 'own', t, appState }) => {
+const ProviderModal = ({ isOpen, onClose, onSave, onAutoLink, onResync, provider = null, presets = {}, mode = 'own', t, appState }) => {
     const isEdit = !!provider;
     const isOwn = mode === 'own';
     const [form, setForm] = useState(EMPTY_FORM);
@@ -625,6 +675,11 @@ const ProviderModal = ({ isOpen, onClose, onSave, onAutoLink, provider = null, p
                                 {/* Commissions — only in edit mode */}
                                 {isEdit && provider?._id && (
                                     <CommissionsSection providerId={provider._id} appState={appState} t={t} />
+                                )}
+
+                                {/* Re-Sync — only in edit mode */}
+                                {isEdit && provider?._id && provider?.dilithium_pk && onResync && (
+                                    <ResyncSection providerId={provider._id} onResync={onResync} t={t} />
                                 )}
                             </div>
 
