@@ -59,7 +59,7 @@ const StarDistribution = ({ distribution = {}, total = 0 }) => {
                 style={{
                   background: star >= 4 ? 'linear-gradient(90deg, #22c55e, #4ade80)' :
                     star === 3 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' :
-                    'linear-gradient(90deg, #ef4444, #f87171)',
+                      'linear-gradient(90deg, #ef4444, #f87171)',
                 }}
               />
             </div>
@@ -77,7 +77,7 @@ const StarDistribution = ({ distribution = {}, total = 0 }) => {
 
 const TopDishesCarousel = ({ dishes = [] }) => {
   if (!dishes.length) return <p className="text-sm text-light-text-secondary">No hay platos rankeados aún.</p>;
-  
+
   return (
     <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
       {dishes.map((dish, i) => (
@@ -155,7 +155,7 @@ const TagCloud = ({ tags = [] }) => {
 const ReviewCard = ({ review }) => {
   const rev = review.review || {};
   const orderItems = review.items || [];
-  
+
   // Cross-reference order items with review items if available
   const reviewItemsMap = {};
   if (Array.isArray(rev.items)) {
@@ -259,7 +259,7 @@ const DeliveryReviews = ({ appState }) => {
   const [totalReviews, setTotalReviews] = useState(0);
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // List filters
   const [page, setPage] = useState(0);
   const [starFilter, setStarFilter] = useState(null);
@@ -328,13 +328,13 @@ const DeliveryReviews = ({ appState }) => {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-light-surface-secondary dark:bg-dark-surface-secondary p-1 rounded-xl border border-light-border/10 dark:border-dark-border/10">
-            <button 
+            <button
               onClick={() => setActiveTab('analytics')}
               className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'analytics' ? 'bg-light-surface dark:bg-dark-surface shadow-sm text-matrix-green' : 'text-light-text-tertiary'}`}
             >
               Dashboard
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('list')}
               className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'list' ? 'bg-light-surface dark:bg-dark-surface shadow-sm text-matrix-green' : 'text-light-text-tertiary'}`}
             >
@@ -352,7 +352,7 @@ const DeliveryReviews = ({ appState }) => {
         <div className="space-y-6">
           {/* Top Hero Row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            
+
             {/* Global Rating Card */}
             <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/15 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
               <motion.div
@@ -378,7 +378,7 @@ const DeliveryReviews = ({ appState }) => {
 
             {/* Tags Cloud Card */}
             <div className="bg-light-surface dark:bg-dark-surface border border-light-border/10 dark:border-dark-border/10 rounded-2xl p-6">
-               <h3 className="text-xs font-bold text-light-text-secondary uppercase mb-4 tracking-wider flex items-center gap-2">
+              <h3 className="text-xs font-bold text-light-text-secondary uppercase mb-4 tracking-wider flex items-center gap-2">
                 <FaTags size={10} /> Temas Recurrentes
               </h3>
               <TagCloud tags={stats.tags} />
@@ -388,7 +388,7 @@ const DeliveryReviews = ({ appState }) => {
 
           {/* Bottom Insights Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            
+
             {/* Top Dishes */}
             <div className="bg-light-surface dark:bg-dark-surface border border-light-border/10 dark:border-dark-border/10 rounded-2xl p-6">
               <div className="flex items-center justify-between mb-4">
@@ -433,7 +433,7 @@ const DeliveryReviews = ({ appState }) => {
                 ))}
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <FaStoreAlt className="text-light-text-tertiary" size={12} />
               <select
@@ -496,8 +496,8 @@ export const pageMetadata = {
   path: '/app/delivery/reviews',
   label: 'delivery.reviews_label',
   category: 'delivery.category',
-  minRoleLevel: 4,
-  maxRoleLevel: 5,
+  minRoleLevel: 3,
+  maxRoleLevel: 6,
   order: 5,
   locations: ['sidebar'],
   description: 'delivery.reviews_description',
