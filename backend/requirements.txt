@@ -108,4 +108,5 @@ paddlepaddle
 dilithium-py>=1.4.0
 mnemonic>=0.21
 transbank-sdk>=6.1.0
-aiosmtplib>=3.0.0email-validator>=2.0.0
+aiosmtplib>=3.0.0
+email-validator>=2.0.0
