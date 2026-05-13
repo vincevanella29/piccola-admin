@@ -10,7 +10,7 @@ import {
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-import useDeliveryCarriers from '../../hooks/useDeliveryCarriers';
+import useDeliveryCarriers from '../../hooks/delivery/useDeliveryCarriers';
 import CarrierModal from './carriers/CarrierModal';
 import TestOrderPanel from './carriers/TestOrderPanel';
 import CoverageTester from './carriers/CoverageTester';

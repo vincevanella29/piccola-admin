@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { FaWallet, FaTimes } from 'react-icons/fa';
+import CommunityTab from './components/community/CommunityTab';
 
 // Componentes Locales
 import ChatMessage from './components/message/ChatMessage';
@@ -13,7 +14,7 @@ import ChatSidebar from './components/common/ChatSidebar';
 // Hooks
 import useChatClient from '../../hooks/useChatClient';
 import useAdminChat from '../../hooks/useAdminChat';
-import useDeliveryChatAdmin from '../../hooks/useDeliveryChatAdmin';
+import useDeliveryChatAdmin from '../../hooks/delivery/useDeliveryChatAdmin';
 import useRestaurantData from '../../hooks/useRestaurantData';
 
 // Estilo de la ventana flotante (Glassmorphism)
@@ -26,7 +27,12 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
   const adminLevel = useMemo(() => (appState?.companyRoleLevel ?? appState?.roleLevel ?? 0), [appState?.companyRoleLevel, appState?.roleLevel]);
   const isAdmin = (adminLevel === 3 || adminLevel === 4) || appState?.isAdmin === true;
   const canDelivery = adminLevel >= 3 && adminLevel <= 6;
-  const [activeTab, setActiveTab] = useState(() => (isAdmin ? 'admin' : 'client'));
+  const canCommunity = adminLevel >= 3 && adminLevel <= 7;
+  const [activeTab, setActiveTab] = useState(() => {
+    if (isAdmin) return 'admin';
+    if (canCommunity && !isAdmin) return 'community';
+    return 'client';
+  });
 
   const msgClient = useChatClient({ appState, accessToken: appState?.token, account: appState?.account });
   const adminState = useAdminChat({ appState, enabled: isAdmin });
@@ -122,21 +128,29 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
               onOpenInbox={(activeTab === 'admin' || activeTab === 'delivery') ? (() => setShowSidebar(v => !v)) : undefined}
               onOpenConversations={!isAdmin || activeTab === 'client' ? (() => setShowSidebar(v => !v)) : undefined}
               unreadInboxCount={activeTab === 'delivery' ? (deliveryChat.items?.reduce((s, i) => s + (i.unread || 0), 0) || 0) : (isAdmin ? (adminState.unreadInboxCount || 0) : (msgClient.unreadCount || 0))}
-              rightContent={isAdmin && (
+              rightContent={(isAdmin || canCommunity) && (
                 <div className="flex p-1 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/50 dark:border-dark-border/50">
                   <button 
                     className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'client' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
                     onClick={() => setActiveTab('client')}
                   >Client</button>
-                  <button 
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'admin' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
-                    onClick={() => setActiveTab('admin')}
-                  >Admin</button>
+                  {isAdmin && (
+                    <button 
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'admin' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
+                      onClick={() => setActiveTab('admin')}
+                    >Admin</button>
+                  )}
                   {canDelivery && (
                     <button 
                       className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'delivery' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
                       onClick={() => setActiveTab('delivery')}
                     >Delivery 🍕</button>
+                  )}
+                  {canCommunity && (
+                    <button 
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'community' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
+                      onClick={() => setActiveTab('community')}
+                    >Community 🍝</button>
                   )}
                 </div>
               )}
@@ -146,7 +160,7 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
           {/* --- MAIN CONTENT (Sidebar Interno + Chat) --- */}
           <div className="flex-1 min-h-0 flex relative">
             <AnimatePresence>
-              {showSidebar && (
+              {showSidebar && activeTab !== 'community' && (
                 <motion.aside 
                   initial={{ width: 0, opacity: 0 }} 
                   animate={{ width: 300, opacity: 1 }} 
@@ -188,7 +202,9 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
             </AnimatePresence>
 
             <main className="flex-1 h-full relative min-w-0 bg-light-surface/30 dark:bg-dark-surface/30">
-               {(!isAdmin && (!isAuthenticated || !hasWallet)) ? (
+               {activeTab === 'community' ? (
+                  <CommunityTab appState={appState} />
+               ) : (!isAdmin && (!isAuthenticated || !hasWallet)) ? (
                   <Gate />
                ) : (
                   <ChatMessage
@@ -216,7 +232,7 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
 
             {/* Sidebar Mobile Overlay */}
             <AnimatePresence>
-              {showSidebar && (
+              {showSidebar && activeTab !== 'community' && (
                 <motion.aside 
                   initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -261,39 +277,41 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
             </AnimatePresence>
           </div>
 
-          {/* --- FOOTER (Dentro de la ventana) --- */}
-          {(!isAdmin && (!isAuthenticated || !hasWallet)) ? (
-             <div className="px-4 py-3 text-center text-[10px] font-medium opacity-50 border-t border-light-border/30 dark:border-dark-border/30 uppercase tracking-widest">
-               Acceso de lectura restringido
-             </div>
-          ) : (
-            <div className="shrink-0 z-20">
-              <ChatFooter
-                variant={activeTab === 'delivery' ? 'delivery' : (isAdmin && activeTab === 'admin' ? 'admin' : 'client')}
-                t={t}
-                clientDisabled={msgClient.isClosed}
-                clientProfileReady={true}
-                onClientSend={(text) => msgClient?.sendMessage && text ? msgClient.sendMessage({ text }) : undefined}
-                onClientTyping={(state) => msgClient?.setTyping && msgClient.setTyping(Boolean(state))}
-                onClientNew={async () => {
-                  try {
-                    msgClient.resetSession?.();
-                    await msgClient.initSession?.({ metadata: { force_new: true } });
-                    await msgClient.loadConversations?.();
-                    await pageLoadClientConversations?.();
-                  } catch (_) { }
-                }}
-                adminConvId={activeTab === 'delivery' ? deliveryChat.activeOrderNumber : adminState.activeConvId} 
-                adminDisabled={!appState?.isAuthenticated}
-                onAdminReply={activeTab === 'delivery' ? deliveryChat.reply : adminState.reply} 
-                onAdminTake={activeTab === 'delivery' ? deliveryChat.take : adminState.take} 
-                onAdminRelease={activeTab === 'delivery' ? deliveryChat.release : adminState.release} 
-                onAdminClose={activeTab === 'delivery' ? deliveryChat.closeConv : adminState.closeConv} 
-                onAdminTyping={activeTab === 'delivery' ? deliveryChat.notifyTyping : adminState.notifyTyping}
-                showJump={activeTab === 'delivery' ? showJumpDelivery : ((isAdmin && activeTab === 'admin') ? showJumpAdmin : showJumpClient)}
-                onJump={activeTab === 'delivery' ? deliveryScrollToBottom : ((isAdmin && activeTab === 'admin') ? adminScrollToBottom : clientScrollToBottom)}
-              />
-            </div>
+          {/* --- FOOTER (Dentro de la ventana) — hidden for Community tab (has its own input) --- */}
+          {activeTab !== 'community' && (
+            (!isAdmin && (!isAuthenticated || !hasWallet)) ? (
+              <div className="px-4 py-3 text-center text-[10px] font-medium opacity-50 border-t border-light-border/30 dark:border-dark-border/30 uppercase tracking-widest">
+                Acceso de lectura restringido
+              </div>
+            ) : (
+              <div className="shrink-0 z-20">
+                <ChatFooter
+                  variant={activeTab === 'delivery' ? 'delivery' : (isAdmin && activeTab === 'admin' ? 'admin' : 'client')}
+                  t={t}
+                  clientDisabled={msgClient.isClosed}
+                  clientProfileReady={true}
+                  onClientSend={(text) => msgClient?.sendMessage && text ? msgClient.sendMessage({ text }) : undefined}
+                  onClientTyping={(state) => msgClient?.setTyping && msgClient.setTyping(Boolean(state))}
+                  onClientNew={async () => {
+                    try {
+                      msgClient.resetSession?.();
+                      await msgClient.initSession?.({ metadata: { force_new: true } });
+                      await msgClient.loadConversations?.();
+                      await pageLoadClientConversations?.();
+                    } catch (_) { }
+                  }}
+                  adminConvId={activeTab === 'delivery' ? deliveryChat.activeOrderNumber : adminState.activeConvId} 
+                  adminDisabled={!appState?.isAuthenticated}
+                  onAdminReply={activeTab === 'delivery' ? deliveryChat.reply : adminState.reply} 
+                  onAdminTake={activeTab === 'delivery' ? deliveryChat.take : adminState.take} 
+                  onAdminRelease={activeTab === 'delivery' ? deliveryChat.release : adminState.release} 
+                  onAdminClose={activeTab === 'delivery' ? deliveryChat.closeConv : adminState.closeConv} 
+                  onAdminTyping={activeTab === 'delivery' ? deliveryChat.notifyTyping : adminState.notifyTyping}
+                  showJump={activeTab === 'delivery' ? showJumpDelivery : ((isAdmin && activeTab === 'admin') ? showJumpAdmin : showJumpClient)}
+                  onJump={activeTab === 'delivery' ? deliveryScrollToBottom : ((isAdmin && activeTab === 'admin') ? adminScrollToBottom : clientScrollToBottom)}
+                />
+              </div>
+            )
           )}
 
         </motion.div>

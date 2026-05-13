@@ -21,7 +21,7 @@ from utils.web3mongo import db
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
 from utils.vanellix_crypto import generate_dilithium_keypair as generate_keypair
-from apis.apikeys import generate_key_pair as generate_api_key_pair, hash_secret, COLL as API_KEYS_COLL
+from apis.admin.apikeys import generate_key_pair as generate_api_key_pair, hash_secret, COLL as API_KEYS_COLL
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

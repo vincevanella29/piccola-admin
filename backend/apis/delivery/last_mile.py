@@ -256,16 +256,21 @@ def _build_pedidosya_body(order: dict, loc: dict, is_test: bool = False) -> dict
     dropoff_phone = _normalize_phone(customer.get("phone", "")) or "+56900000001"
 
     items = order.get("items", [])
+    
+    # Calculate real total to check against PedidosYa's 100k insurance limit
+    raw_total = sum(int(it.get("unit_price", 0)) * int(it.get("quantity", 1)) for it in items)
+    cap_values = raw_total >= 95000
+    
     pya_items = [
         {
             "description": it.get("nombre") or it.get("name") or "Item",
-            "quantity": it.get("quantity", 1),
-            "value": int((it.get("unit_price", 0)) * 100) or 10000,
+            "quantity": int(it.get("quantity", 1)),
+            "value": 1000 if cap_values else (int(it.get("unit_price", 0)) or 1000),
         }
         for it in items
     ]
     if not pya_items:
-        pya_items = [{"description": "Pedido delivery", "quantity": 1, "value": 10000}]
+        pya_items = [{"description": "Pedido delivery", "quantity": 1, "value": 1000}]
 
     body = {
         "referenceId": str(order.get("_id", "")),

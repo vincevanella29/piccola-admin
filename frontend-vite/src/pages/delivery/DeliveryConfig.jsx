@@ -13,7 +13,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import * as deliveryApi from '../../utils/deliveryData';
 import { fetchLocations, updateLocation } from '../../utils/clubNonnaData';
-import useDeliveryCarriers from '../../hooks/useDeliveryCarriers';
+import useDeliveryCarriers from '../../hooks/delivery/useDeliveryCarriers';
 import { AIChatPanel } from '../../components/common/ai-chat';
 import StatusMappingTab from './config/StatusMappingTab';
 import DeliveryScheduleTab from './config/DeliveryScheduleTab';

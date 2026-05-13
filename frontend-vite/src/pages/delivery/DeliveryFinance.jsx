@@ -11,7 +11,7 @@ import {
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-import useDeliveryFinance from '../../hooks/useDeliveryFinance';
+import useDeliveryFinance from '../../hooks/delivery/useDeliveryFinance';
 
 const fmt = (n) => `$${(n || 0).toLocaleString('es-CL')}`;
 

@@ -33,7 +33,7 @@ import logging
 from fastapi import HTTPException
 from utils.web3mongo import db
 import os
-from apis.roles import get_company_role_level
+from apis.admin.roles import get_company_role_level
 from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)

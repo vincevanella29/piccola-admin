@@ -55,7 +55,7 @@ const StatusBadge = ({ status, statusesMap }) => {
 
 // ─── Main Component ──────────────────────────────────────
 
-const OrderHistory = ({ orders = [], statuses = [], onSelectOrder, isLoading, t }) => {
+const OrderHistory = ({ orders = [], statuses = [], pickupStatuses = [], onSelectOrder, onStatusChange, canEdit, isLoading, t }) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -292,8 +292,26 @@ const OrderHistory = ({ orders = [], statuses = [], onSelectOrder, isLoading, t 
                         {order.location_name || order.location_slug || '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={order.status} statusesMap={statusesMap} />
+                    <td className="px-4 py-3" onClick={(e) => { if (canEdit) e.stopPropagation(); }}>
+                      {canEdit ? (
+                        <select
+                          value={order.status}
+                          onChange={(e) => onStatusChange && onStatusChange(order._id, e.target.value)}
+                          className="text-[10px] font-semibold px-2 py-1 rounded-md border-none outline-none cursor-pointer"
+                          style={{
+                            backgroundColor: `${statusesMap[order.status]?.color || '#6b7280'}18`,
+                            color: statusesMap[order.status]?.color || '#6b7280'
+                          }}
+                        >
+                          {(order.order_type === 'pickup' ? pickupStatuses : statuses).map(s => (
+                            <option key={s.key} value={s.key} className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary">
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <StatusBadge status={order.status} statusesMap={statusesMap} />
+                      )}
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
                       {order.carrier_slug ? (

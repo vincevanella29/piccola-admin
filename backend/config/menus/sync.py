@@ -102,7 +102,7 @@ async def _trigger_sync(route_key: str, label: str) -> dict:
             from utils.vanellix_crypto import decrypt_b2b_mnemonic
             mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
         else:
-            mnemonic = prov.get("dilithium_mnemonic", "")
+            mnemonic = ""
     except RuntimeError as e:
         msg = str(e)
         logger.warning(f"[sync] {label}: {msg}")
@@ -194,7 +194,7 @@ async def _sync_delivery_providers():
             from utils.vanellix_crypto import decrypt_b2b_mnemonic
             mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
         else:
-            mnemonic = prov.get("dilithium_mnemonic", "")
+            mnemonic = ""
         
         try:
             headers = _build_signed_headers(api_key, mnemonic, body=b"")

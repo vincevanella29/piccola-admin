@@ -228,7 +228,7 @@ def _build_sales_index() -> dict:
 
 
 
-def get_public_catalog(api_key: str) -> dict:
+def get_public_catalog(api_key: str, menu_type_filter: str = None) -> dict:
     """
     Único endpoint público de la carta digital.
 
@@ -285,18 +285,63 @@ def get_public_catalog(api_key: str) -> dict:
         prod["stock_overrides"] = stock_idx.get(codigo, {})  # { location_slug: false }
         menus_by_id[mid] = prod
 
-    # Build category output with nested menus
+    # Build category output with nested menus and filter products
     categories_out = []
+    included_product_ids = set()
+    valid_cat_ids = set()
+    
     for c in categories:
         c_out = serialize(c)
-        menu_ids = [str(x) for x in (c.get("menu_ids") or [])]
-        cat_menus = [menus_by_id[mid] for mid in menu_ids if mid in menus_by_id]
-        # Respect menu_ids[] array order — the admin controls the ordering
-        c_out["menus"] = cat_menus
-        # Ensure menu_type is always present (defaults to 'carta')
-        if "menu_type" not in c_out or not c_out.get("menu_type"):
-            c_out["menu_type"] = "carta"
+        c_menu_type = c_out.get("menu_type") or "carta"
+        c_out["menu_type"] = c_menu_type
+        
+        # Apply menu_type filter
+        if menu_type_filter == "delivery" and c_menu_type != "delivery":
+            continue
+        if menu_type_filter == "carta" and c_menu_type == "delivery":
+            continue
+            
         categories_out.append(c_out)
+        valid_cat_ids.add(str(c_out["id"]))
+
+    # First pass: identify all products that belong to the filtered categories
+    for p in menus_by_id.values():
+        pid = str(p.get("id") or "")
+        # Check by category_ids
+        p_cat_ids = {str(x) for x in (p.get("category_ids") or [])}
+        if p_cat_ids.intersection(valid_cat_ids):
+            included_product_ids.add(pid)
+            
+    # Also check by menu_ids from categories
+    for c_out in categories_out:
+        menu_ids = [str(x) for x in (c_out.get("menu_ids") or [])]
+        for mid in menu_ids:
+            if mid in menus_by_id:
+                included_product_ids.add(mid)
+
+    # Second pass: recursively include products referenced as options (codigos)
+    # Since depth is max 1 or 2, a simple loop over currently included products is enough
+    extra_ids = set()
+    for pid in included_product_ids:
+        prod = menus_by_id.get(pid, {})
+        for opt in prod.get("options", []):
+            for val in opt.get("values", []):
+                ref_cod = str(val.get("codigo") or "")
+                if ref_cod:
+                    # Find product by codigo
+                    for target_p in menus_by_id.values():
+                        if str(target_p.get("codigo") or "") == ref_cod:
+                            extra_ids.add(str(target_p.get("id")))
+    included_product_ids.update(extra_ids)
+
+    # Now populate cat_menus for categories_out using only included products
+    for c_out in categories_out:
+        menu_ids = [str(x) for x in (c_out.get("menu_ids") or [])]
+        cat_menus = [menus_by_id[mid] for mid in menu_ids if mid in menus_by_id]
+        c_out["menus"] = cat_menus
+
+    # Filter final products list
+    filtered_products = [p for pid, p in menus_by_id.items() if pid in included_product_ids]
 
     # Build locations output with ALL rich fields from the DB document
     locations_out = []
@@ -340,7 +385,7 @@ def get_public_catalog(api_key: str) -> dict:
 
     return {
         "categories": categories_out,
-        "products":   list(menus_by_id.values()),
+        "products":   filtered_products,
         "locations":  locations_out,
     }
 

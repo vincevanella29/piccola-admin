@@ -8,7 +8,7 @@ import {
   FaBoxOpen, FaVolumeUp, FaVolumeMute, FaWifi,
 } from 'react-icons/fa';
 import useKDS from '../../../hooks/useKDS';
-import useDeliveryStock from '../../../hooks/useDeliveryStock';
+import useDeliveryStock from '../../../hooks/delivery/useDeliveryStock';
 import KDSOrderCard from './KDSOrderCard';
 import StockDrawer from './StockDrawer';
 

@@ -29,7 +29,7 @@ from config.roles.access_locals import (
     allowed_local_filter,
     validate_include_local_or_403,
 )
-from apis.apikeys import validate_api_key
+from apis.admin.apikeys import validate_api_key
 from utils.vanellix_crypto import verify_dilithium as dilithium_verify
 from utils.time_utils import get_chile_time, to_chile_time, CHILE_TZ
 

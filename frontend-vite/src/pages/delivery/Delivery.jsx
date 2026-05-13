@@ -11,7 +11,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 // Hook
-import useDeliveryOrders from '../../hooks/useDeliveryOrders';
+import useDeliveryOrders from '../../hooks/delivery/useDeliveryOrders';
 
 // Components
 import OrderKanban from './orders/OrderKanban';
@@ -341,7 +341,10 @@ const Delivery = ({ appState }) => {
             <OrderHistory
               orders={api.orders}
               statuses={api.statuses}
+              pickupStatuses={api.pickupStatuses}
               onSelectOrder={api.fetchOrderDetail}
+              onStatusChange={api.updateOrderStatus}
+              canEdit={canDispatch}
               isLoading={api.isLoading}
               t={t}
             />
@@ -356,6 +359,10 @@ const Delivery = ({ appState }) => {
           <OrderDetailModal
             order={api.selectedOrder}
             statusesMap={statusesMap}
+            allStatuses={api.statuses}
+            pickupStatuses={api.pickupStatuses}
+            onUpdateStatus={api.updateOrderStatus}
+            canEdit={canDispatch}
             onClose={() => api.setSelectedOrder(null)}
           />
         )}

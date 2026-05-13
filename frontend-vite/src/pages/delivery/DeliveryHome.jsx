@@ -12,7 +12,7 @@ import {
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-import useDeliveryHome from '../../hooks/useDeliveryHome';
+import useDeliveryHome from '../../hooks/delivery/useDeliveryHome';
 
 // Components — home/ subfolder
 import LivePreview from './home/LivePreview';

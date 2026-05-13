@@ -85,6 +85,124 @@ async def _status_poll_loop():
 
 
 # =====================================================================
+# Job 3: Process Scheduled Orders
+# =====================================================================
+
+async def _scheduled_dispatch_loop():
+    logger.info("[scheduled-dispatch] 🚀 Started — polling every 60s")
+    await asyncio.sleep(15)  # Offset to avoid running exactly at the same time as Job 1
+    while True:
+        try:
+            await _process_scheduled_orders()
+        except Exception as e:
+            logger.error(f"[scheduled-dispatch] ❌ Poll cycle error: {e}")
+        await asyncio.sleep(60)
+
+async def _process_scheduled_orders():
+    active_slugs = [c["slug"] for c in CARRIERS_COLL.find({"status": "active"}, {"slug": 1})]
+    if not active_slugs:
+        return
+
+    query = {
+        "order_type": "delivery",
+        "status": {"$in": list(RETRY_STATUSES)},
+        "carrier_delivery_id": {"$in": [None, ""]},
+        "carrier_slug": {"$in": active_slugs},
+        "asap": False,
+        "dispatch_retries": {"$not": {"$gte": MAX_RETRIES}},
+        "dispatch_failed": {"$ne": True},
+    }
+
+    orders = list(DELIVERY_COLL.find(query))
+    if not orders:
+        return
+
+    from dateutil.parser import parse
+    from utils.time_utils import get_chile_time, CHILE_TZ
+    now = get_chile_time()
+
+    ready_to_dispatch = []
+    for order in orders:
+        scheduled_for_str = order.get("scheduled_for")
+        if not scheduled_for_str:
+            continue
+        try:
+            scheduled_dt = parse(scheduled_for_str)
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = CHILE_TZ.localize(scheduled_dt)
+            # Dispatch 60 minutes before scheduled time
+            if (scheduled_dt - now).total_seconds() <= 60 * 60:
+                ready_to_dispatch.append(order)
+        except Exception:
+            pass
+
+    if not ready_to_dispatch:
+        return
+
+    logger.info(f"[scheduled-dispatch] Found {len(ready_to_dispatch)} scheduled orders ready to dispatch (within 60m)")
+
+    for order in ready_to_dispatch:
+        order_id = str(order["_id"])
+        retries = order.get("dispatch_retries", 0)
+        carrier_slug = order.get("carrier_slug", "auto")
+
+        loc = _resolve_location(order)
+        if not loc:
+            continue
+
+        logger.info(f"[scheduled-dispatch] Dispatching scheduled order {order_id} (carrier={carrier_slug})")
+
+        try:
+            from apis.delivery.last_mile import create_carrier_delivery
+
+            carrier = CARRIERS_COLL.find_one({"slug": carrier_slug, "status": "active"})
+            if not carrier:
+                carrier = CARRIERS_COLL.find_one({"status": "active"})
+            if not carrier:
+                continue
+
+            carrier_delivery_id = await create_carrier_delivery(carrier, order, loc)
+
+            update_now = datetime.now()
+            DELIVERY_COLL.update_one(
+                {"_id": order["_id"]},
+                {"$set": {
+                    "carrier_slug": carrier["slug"],
+                    "carrier_delivery_id": carrier_delivery_id,
+                    "carrier_status": "pending",
+                    "dispatch_retries": retries + 1,
+                    "dispatched_at": update_now,
+                    "updated_at": update_now,
+                    "asap": True, # Promoted to standard active flow
+                }}
+            )
+            logger.info(f"[scheduled-dispatch] ✅ Scheduled Order {order_id} dispatched → {carrier['slug']} → {carrier_delivery_id}")
+
+            try:
+                from utils.kds_ws import kds_manager
+                asyncio.create_task(kds_manager.broadcast(
+                    {"type": "dispatch", "order_id": order_id, "carrier_slug": carrier["slug"],
+                     "carrier_delivery_id": carrier_delivery_id, "location_id": order.get("location_id")},
+                    location_id=order.get("location_id"),
+                ))
+            except Exception:
+                pass
+
+        except Exception as e:
+            logger.error(f"[scheduled-dispatch] ❌ Scheduled Order {order_id} attempt {retries + 1}: {e}")
+            DELIVERY_COLL.update_one(
+                {"_id": order["_id"]},
+                {"$set": {"dispatch_retries": retries + 1, "last_dispatch_retry": datetime.now(), "asap": True, "updated_at": datetime.now()}}
+            )
+
+        if retries + 1 >= MAX_RETRIES:
+            DELIVERY_COLL.update_one(
+                {"_id": order["_id"]},
+                {"$set": {"dispatch_failed": True}}
+            )
+
+
+# =====================================================================
 # Job 1: Retry dispatch for unassigned orders
 # =====================================================================
 
@@ -103,9 +221,13 @@ async def _process_unassigned_orders():
         "status": {"$in": list(RETRY_STATUSES)},
         "carrier_delivery_id": {"$in": [None, ""]},
         "carrier_slug": {"$in": active_slugs},
-        "created_at": {"$gte": cutoff},
         "dispatch_retries": {"$not": {"$gte": MAX_RETRIES}},
         "dispatch_failed": {"$ne": True},
+        "asap": {"$ne": False},
+        "$or": [
+            {"created_at": {"$gte": cutoff}},
+            {"updated_at": {"$gte": cutoff}}
+        ]
     }
 
     orders = list(DELIVERY_COLL.find(query).sort("created_at", 1).limit(20))
@@ -454,7 +576,8 @@ def start_dispatch_worker():
     """
     asyncio.ensure_future(_dispatch_worker_loop())
     asyncio.ensure_future(_status_poll_loop())
-    logger.info("[dispatch-worker] ✅ Background tasks scheduled (dispatch + status poll)")
+    asyncio.ensure_future(_scheduled_dispatch_loop())
+    logger.info("[dispatch-worker] ✅ Background tasks scheduled (dispatch + status poll + scheduled)")
 
 
 

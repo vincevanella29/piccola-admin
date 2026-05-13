@@ -7,7 +7,7 @@ import {
   FaTimes, FaSearch, FaBoxOpen, FaCheck,
   FaBan, FaFilter, FaStoreAlt,
 } from 'react-icons/fa';
-import useDeliveryStock from '../../../hooks/useDeliveryStock';
+import useDeliveryStock from '../../../hooks/delivery/useDeliveryStock';
 import api from '../../../utils/api';
 
 const StockDrawer = ({ isOpen, onClose, appState, t }) => {

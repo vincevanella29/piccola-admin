@@ -7,7 +7,7 @@ import {
   FaFilter, FaChartBar, FaStoreAlt, FaExclamationTriangle,
   FaHistory, FaCheckDouble,
 } from 'react-icons/fa';
-import useDeliveryStock from '../../../hooks/useDeliveryStock';
+import useDeliveryStock from '../../../hooks/delivery/useDeliveryStock';
 
 const DeliveryStock = ({ appState, locations = [], t }) => {
   const stock = useDeliveryStock(appState);

@@ -21,7 +21,7 @@ from bson import ObjectId
 from utils.web3mongo import db
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
-from apis.apikeys import validate_api_key
+from apis.admin.apikeys import validate_api_key
 from utils.vanellix_crypto import verify_dilithium as dilithium_verify
 
 router = APIRouter()

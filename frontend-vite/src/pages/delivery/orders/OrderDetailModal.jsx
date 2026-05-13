@@ -63,7 +63,7 @@ const Row = ({ label, value, mono, bold, color }) => (
 
 // ── Main Modal ─────────────────────────────────────────────
 
-const OrderDetailModal = ({ order, statusesMap = {}, onClose }) => {
+const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupStatuses = [], onUpdateStatus, canEdit, onClose }) => {
   if (!order) return null;
 
   const items = order.items || [];
@@ -71,6 +71,15 @@ const OrderDetailModal = ({ order, statusesMap = {}, onClose }) => {
   const review = order.review;
   const statusMeta = statusesMap[order.status] || {};
   const statusColor = statusMeta.color || '#6b7280';
+  
+  const availableStatuses = order.order_type === 'pickup' ? pickupStatuses : allStatuses;
+
+  const handleStatusChange = (e) => {
+    const newStatus = e.target.value;
+    if (newStatus !== order.status && onUpdateStatus) {
+      onUpdateStatus(order._id, newStatus);
+    }
+  };
 
   return (
     <>
@@ -93,11 +102,26 @@ const OrderDetailModal = ({ order, statusesMap = {}, onClose }) => {
             <span className="font-bold text-light-text-primary dark:text-dark-text-primary font-mono">
               #{(order.order_number || order._id || '').slice(-8).toUpperCase()}
             </span>
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full"
-              style={{ backgroundColor: `${statusColor}18`, color: statusColor }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor }} />
-              {statusMeta.label || order.status}
-            </span>
+            {canEdit ? (
+              <select
+                value={order.status}
+                onChange={handleStatusChange}
+                className="text-[10px] font-semibold px-2.5 py-1 rounded-full border-none appearance-none outline-none cursor-pointer"
+                style={{ backgroundColor: `${statusColor}18`, color: statusColor }}
+              >
+                {availableStatuses.map(s => (
+                  <option key={s.key} value={s.key} className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary">
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full"
+                style={{ backgroundColor: `${statusColor}18`, color: statusColor }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor }} />
+                {statusMeta.label || order.status}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {order.order_type && (

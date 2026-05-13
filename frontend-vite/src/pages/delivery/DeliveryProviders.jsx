@@ -11,7 +11,7 @@ import {
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-import useDeliveryProviders from '../../hooks/useDeliveryProviders';
+import useDeliveryProviders from '../../hooks/delivery/useDeliveryProviders';
 import ProviderModal from './providers/ProviderModal';
 
 /* ── Status mapping ───────────────────────────────────────────── */

@@ -398,7 +398,7 @@ async def delivery_chat_message(
     """
     from utils.vanellix_crypto import verify_dilithium_request
 
-    from apis.apikeys import validate_api_key
+    from apis.admin.apikeys import validate_api_key
 
     # Verify API key (same format as delivery/orders: keyId.secret)
     api_key = request.headers.get("X-Api-Key", "")
