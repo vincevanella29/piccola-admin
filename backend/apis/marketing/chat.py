@@ -87,6 +87,59 @@ def _admin_guard(user: dict):
     return wallet.lower(), level
 
 
+# ─── Single source of truth: trabajadores_vpn profile ────────────
+_profile_cache: dict = {}  # wallet → {name, profile_image_url, seccion, cargo} — lives per-process, refreshes on restart
+
+def _resolve_worker_profile(wallet: str) -> tuple:
+    """Look up employee name + avatar from empleados_usuarios → trabajadores_vpn.
+    Returns (name: str, avatar_url: str|None).
+    This is THE ONLY place that resolves employee identity.
+    """
+    if not wallet:
+        logger.warning("[AVATAR] wallet is None/empty — skipping")
+        return None, None
+    wallet = wallet.lower()
+    if wallet in _profile_cache:
+        cached = _profile_cache[wallet]
+        logger.info(f"[AVATAR] CACHE HIT wallet={wallet} → name={cached['name']} avatar={cached['profile_image_url']}")
+        return cached["name"], cached["profile_image_url"]
+    # empleados_usuarios maps wallet → rut
+    eu = db.empleados_usuarios.find_one({"wallet": wallet}, {"rut": 1})
+    if not eu or not eu.get("rut"):
+        logger.warning(f"[AVATAR] wallet={wallet} → NOT FOUND in empleados_usuarios")
+        _profile_cache[wallet] = {"name": wallet, "profile_image_url": None}
+        return wallet, None
+    # trabajadores_vpn.rut is stored as int, empleados_usuarios.rut as string
+    # Try both types to handle the mismatch
+    rut_raw = eu["rut"]
+    logger.info(f"[AVATAR] wallet={wallet} → rut={rut_raw} (type={type(rut_raw).__name__})")
+    tv = db.trabajadores_vpn.find_one(
+        {"rut": rut_raw, "activo": 1},
+        {"nombres": 1, "apellidopaterno": 1, "profile_image_url": 1}
+    )
+    if not tv:
+        # Type mismatch: try int if string, or string if int
+        try:
+            rut_alt = int(rut_raw) if isinstance(rut_raw, str) else str(rut_raw)
+        except (ValueError, TypeError):
+            rut_alt = None
+        logger.info(f"[AVATAR] String match failed, trying rut_alt={rut_alt} (type={type(rut_alt).__name__ if rut_alt else 'None'})")
+        if rut_alt is not None:
+            tv = db.trabajadores_vpn.find_one(
+                {"rut": rut_alt, "activo": 1},
+                {"nombres": 1, "apellidopaterno": 1, "profile_image_url": 1}
+            )
+    if not tv:
+        logger.warning(f"[AVATAR] wallet={wallet} rut={rut_raw} → NOT FOUND in trabajadores_vpn")
+        _profile_cache[wallet] = {"name": wallet, "profile_image_url": None}
+        return wallet, None
+    name = " ".join(p.strip() for p in [tv.get("nombres", ""), tv.get("apellidopaterno", "")] if p.strip()) or wallet
+    avatar = tv.get("profile_image_url")
+    logger.info(f"[AVATAR] ✅ wallet={wallet} → name={name} avatar={avatar}")
+    _profile_cache[wallet] = {"name": name, "profile_image_url": avatar}
+    return name, avatar
+
+
 # Client APIs
 @router.get("/chat/conversations")
 async def chat_conversations(user: dict = Depends(verify_session)):
@@ -212,8 +265,9 @@ async def chat_message(data: ChatMessageRequest, user: dict = Depends(verify_ses
     db.chat_messages.insert_one(msg_doc)
     db.chat_conversations.update_one({"conv_id": data.conv_id}, {"$set": {"updated_at": now}})
 
-    sender_name = (conv.get("wallet") or "User")
-    sender_avatar_url = None
+    user_wallet = conv.get("wallet")
+    sender_name, sender_avatar_url = _resolve_worker_profile(user_wallet)
+    sender_name = sender_name or user_wallet or "User"
     await manager.broadcast(
         data.conv_id,
         {
@@ -221,7 +275,7 @@ async def chat_message(data: ChatMessageRequest, user: dict = Depends(verify_ses
             "role": "user",
             "text": data.text,
             "at": now.isoformat(),
-            "sender_wallet": conv.get("wallet"),
+            "sender_wallet": user_wallet,
             "sender_privy_id": conv.get("privy_id"),
             "sender_profile": None,
             "sender_name": sender_name,
@@ -441,9 +495,8 @@ async def admin_reply(conv_id: int, data: AdminReplyRequest, user: dict = Depend
         "admin_wallet": admin_wallet,
     })
     db.chat_conversations.update_one({"conv_id": conv_id}, {"$set": {"updated_at": now, "assigned_admin": admin_wallet, "mode": "human"}})
-    # Admin display fields without profiles
-    admin_name = admin_wallet or "Admin"
-    admin_avatar_url = None
+    admin_name, admin_avatar_url = _resolve_worker_profile(admin_wallet)
+    admin_name = admin_name or admin_wallet or "Admin"
     await manager.broadcast(
         conv_id,
         {
@@ -451,7 +504,7 @@ async def admin_reply(conv_id: int, data: AdminReplyRequest, user: dict = Depend
             "role": "admin",
             "text": data.text,
             "at": now.isoformat(),
-            "sender_wallet": None,
+            "sender_wallet": admin_wallet,
             "sender_privy_id": None,
             "sender_profile": None,
             "sender_name": admin_name,
@@ -473,7 +526,6 @@ async def admin_chat_history(conv_id: int, user: dict = Depends(verify_session))
         raise HTTPException(status_code=404, detail="Conversation not found")
     msgs = list(db.chat_messages.find({"conv_id": conv_id}).sort("created_at", 1))
     out = []
-    # Minimal identity only
     wallet = conv.get("wallet")
     privy_id = conv.get("privy_id")
     for m in msgs:
@@ -482,18 +534,18 @@ async def admin_chat_history(conv_id: int, user: dict = Depends(verify_session))
         if m.get("role") == "user" and (not sender_wallet and not sender_privy_id):
             sender_wallet = wallet
             sender_privy_id = privy_id
-        if m.get("role") == "user":
-            sender_name = sender_wallet or "User"
-            sender_avatar_url = None
-            sender_prof = None
-        elif m.get("role") == "admin":
-            sender_name = m.get("admin_wallet") or "Admin"
-            sender_avatar_url = None
-            sender_prof = None
-        else:
+        if m.get("role") == "admin":
+            sender_wallet = m.get("admin_wallet")
+        # ONE source: trabajadores_vpn
+        sender_name, sender_avatar_url = _resolve_worker_profile(sender_wallet)
+        if m.get("role") == "assistant":
             sender_name = "Bot"
             sender_avatar_url = None
-            sender_prof = None
+        elif not sender_name:
+            sender_name = sender_wallet or "Usuario"
+
+        logger.info(f"[CHAT HISTORY] msg_role={m.get('role')} wallet={sender_wallet} resolved_avatar={sender_avatar_url}")
+
         out.append({
             "_id": str(m.get("_id")),
             "conv_id": m["conv_id"],
@@ -503,7 +555,7 @@ async def admin_chat_history(conv_id: int, user: dict = Depends(verify_session))
             "created_at": m["created_at"],
             "sender_wallet": sender_wallet,
             "sender_privy_id": sender_privy_id,
-            "sender_profile": sender_prof,
+            "sender_profile": None,
             "sender_name": sender_name,
             "sender_avatar_url": sender_avatar_url,
         })
@@ -522,24 +574,26 @@ async def admin_chat_participants(conv_id: int, user: dict = Depends(verify_sess
     wallet = conv.get("wallet")
     privy_id = conv.get("privy_id")
     participants: List[AdminParticipantOut] = []
-    # End user without profile
+    # End user — resolve from trabajadores_vpn
+    user_name, user_avatar = _resolve_worker_profile(wallet)
     participants.append(AdminParticipantOut(
         role="user",
         wallet=wallet,
         privy_id=privy_id,
         profile=None,
-        display_name=wallet or "User",
-        avatar_url=None,
+        display_name=user_name or wallet or "User",
+        avatar_url=user_avatar,
     ))
-    # Admins who wrote
+    # Admins who wrote — resolve each from trabajadores_vpn
     admin_wallets = db.chat_messages.distinct("admin_wallet", {"conv_id": conv_id, "role": "admin"})
     for aw in [w for w in admin_wallets if w]:
+        a_name, a_avatar = _resolve_worker_profile(aw)
         participants.append(AdminParticipantOut(
             role="admin",
             wallet=aw,
             profile=None,
-            display_name=aw,
-            avatar_url=None,
+            display_name=a_name or aw,
+            avatar_url=a_avatar,
         ))
     # Assistant
     participants.append(AdminParticipantOut(

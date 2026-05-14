@@ -262,6 +262,17 @@ export async function deliveryCloseChat({ token, walletAddress, orderNumber }) {
   });
 }
 
+export async function deliveryReopenChat({ token, walletAddress, orderNumber }) {
+  return api({
+    method: 'POST',
+    endpoint: `/delivery/chats/${orderNumber}/reopen`,
+    headers: {
+      ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+}
+
 export function buildDeliveryChatAdminWsUrl(orderNumber) {
   return toWsUrl(`/ws/delivery-chat-admin/${orderNumber}`);
 }

@@ -45,7 +45,7 @@ const ClientRow = ({ t, item, isActive, onOpen }) => {
       className={`w-full max-w-full overflow-hidden break-words text-left px-3 py-2 rounded border transition min-h-[80px] max-h-[85px] ${isActive ? 'border-matrix-green/60 bg-matrix-green/10' : 'border-light-border/60 dark:border-dark-border/60 hover:bg-light-surface-tertiary/60 dark:hover:bg-dark-surface-tertiary/60'}`}
     >
       <div className="flex items-center justify-between gap-2 text-sm w-full max-w-full overflow-hidden">
-        <div className="font-medium truncate min-w-0 max-w-full overflow-hidden">{t('chat.conversation')} #{item.conv_id}</div>
+        <div className="font-medium truncate min-w-0 max-w-full flex-1">{t('chat.conversation')} #{item.conv_id}</div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className="px-1.5 py-0.5 text-[10px] rounded border bg-light-surface-tertiary/60 border-light-border/40 dark:bg-dark-surface-tertiary/60 dark:border-dark-border/40">{item.status}</span>
           {item.mode && <span className="px-1.5 py-0.5 text-[10px] rounded border bg-light-surface-tertiary/60 border-light-border/40 dark:bg-dark-surface-tertiary/60 dark:border-dark-border/40">{item.mode}</span>}
@@ -202,8 +202,8 @@ const DeliveryRow = ({ item, isActive, onOpen }) => {
       onClick={() => onOpen?.(item.order_number)}
       className={`w-full text-left px-3 py-2.5 rounded-lg border transition ${isActive ? 'border-orange-500/60 bg-orange-500/10' : 'border-light-border/60 dark:border-dark-border/60 hover:bg-light-surface-tertiary/60 dark:hover:bg-dark-surface-tertiary/60'}`}
     >
-      <div className="flex items-center justify-between gap-2 text-sm">
-        <div className="font-medium truncate">#{item.order_number}</div>
+      <div className="flex items-center justify-between gap-2 text-sm w-full min-w-0">
+        <div className="font-medium truncate min-w-0 flex-1">#{item.order_number}</div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className={`px-1.5 py-0.5 text-[10px] rounded border ${modeBadge.cls}`}>{modeBadge.text}</span>
           {item.unread > 0 && (

@@ -12,6 +12,7 @@ import {
   deliveryTakeChat,
   deliveryReleaseChat,
   deliveryCloseChat,
+  deliveryReopenChat,
   buildDeliveryChatAdminWsUrl,
 } from '../../utils/chatData';
 
@@ -30,6 +31,7 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
   const [typingClient, setTypingClient] = useState(false);
   const wsRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const lastTypingRef = useRef(0);
 
   // Normalize message fields
   const normalizeMessage = useCallback((m) => {
@@ -103,18 +105,29 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
           const data = JSON.parse(event.data);
           if (data?.type === 'message' || data?.role) {
             const incoming = normalizeMessage(data?.message || data);
-            setMessages((prev) => [...prev, incoming]);
+            setMessages((prev) => {
+              // Avoid duplicates if WS sends it again
+              if (prev.some(m => 
+                (m.id && incoming.id && m.id === incoming.id) || 
+                (m.text === incoming.text && m.role === incoming.role && Math.abs(new Date(m.created_at) - new Date(incoming.created_at)) < 2000)
+              )) return prev;
+              return [...prev, incoming];
+            });
+            // Update sidebar immediately
+            loadList();
           } else if (data?.type === 'mode') {
             setChatState((prev) => ({ ...prev, mode: data.mode, admin_id: data.admin_id }));
+            loadList();
           } else if (data?.type === 'status') {
             setChatState((prev) => ({ ...prev, status: data.status }));
+            loadList();
           } else if (data?.type === 'typing' && data?.side === 'client') {
             setTypingClient(Boolean(data?.state));
           }
         } catch { /* ignore non-JSON */ }
       };
     } catch { }
-  }, [enabled, normalizeMessage]);
+  }, [enabled, normalizeMessage, loadList]);
 
   const disconnectWs = useCallback(() => {
     if (wsRef.current) {
@@ -149,14 +162,24 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
   const notifyTyping = useCallback((state) => {
     const ws = wsRef.current;
     if (!enabled || !ws) return;
-    try {
-      ws.send(JSON.stringify({ type: 'typing', state: Boolean(state) }));
-    } catch { }
+    
     if (state) {
+      const now = Date.now();
+      // Only send 'true' if it has been more than 2 seconds since the last one
+      if (now - lastTypingRef.current > 2000) {
+        try { ws.send(JSON.stringify({ type: 'typing', state: true })); } catch { }
+        lastTypingRef.current = now;
+      }
+      
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         try { ws.send(JSON.stringify({ type: 'typing', state: false })); } catch { }
+        lastTypingRef.current = 0;
       }, 2500);
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      try { ws.send(JSON.stringify({ type: 'typing', state: false })); } catch { }
+      lastTypingRef.current = 0;
     }
   }, [enabled]);
 
@@ -181,6 +204,13 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
     await loadList();
   }, [enabled, activeOrderNumber, token, walletAddress, loadList]);
 
+  const reopenConv = useCallback(async () => {
+    if (!enabled || !activeOrderNumber) return;
+    await deliveryReopenChat({ token, walletAddress, orderNumber: activeOrderNumber });
+    setChatState((prev) => ({ ...prev, status: 'open' }));
+    await loadList();
+  }, [enabled, activeOrderNumber, token, walletAddress, loadList]);
+
   // ── Lifecycle ──────────────────────────────────────────────────
 
   useEffect(() => {
@@ -189,7 +219,12 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
       return;
     }
     loadList();
-    return () => disconnectWs();
+    // Live update polling for sidebar
+    const iv = setInterval(loadList, 10000);
+    return () => {
+      clearInterval(iv);
+      disconnectWs();
+    };
   }, [enabled, loadList, disconnectWs]);
 
   return {
@@ -213,6 +248,7 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
     take,
     release,
     closeConv,
+    reopenConv,
     notifyTyping,
   };
 }

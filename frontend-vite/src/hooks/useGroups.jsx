@@ -21,12 +21,15 @@ export default function useGroups({ appState, enabled = true }) {
   const [activeGroupId, setActiveGroupId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [connected, setConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const wsRef = useRef(null);
   const wsGroupRef = useRef(null);
   const reconnectRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const lastTypingRef = useRef(0);
 
   const canCallApi = enabled && Boolean(token || walletAddress);
 
@@ -67,12 +70,24 @@ export default function useGroups({ appState, enabled = true }) {
   // Load messages
   const loadMessages = useCallback(async (groupId, before = null) => {
     if (!canCallApi || !groupId) return [];
-    if (!before) setMessagesLoading(true);
+    if (!before) {
+      setMessagesLoading(true);
+      setHasMore(true);
+    } else {
+      setLoadingOlder(true);
+    }
     try {
       const res = await fetchGroupMessages({ token, walletAddress, groupId, limit: 50, before });
       const list = (Array.isArray(res) ? res : []).map(normalizeMessage);
+      
+      if (list.length < 50) setHasMore(false);
+
       if (before) {
-        setMessages(prev => [...list, ...prev]);
+        setMessages(prev => {
+          const newIds = new Set(list.map(m => m.id));
+          const filteredPrev = prev.filter(m => !newIds.has(m.id));
+          return [...list, ...filteredPrev];
+        });
       } else {
         setMessages(list);
       }
@@ -81,7 +96,8 @@ export default function useGroups({ appState, enabled = true }) {
       if (!before) setMessages([]);
       return [];
     } finally {
-      setMessagesLoading(false);
+      if (!before) setMessagesLoading(false);
+      else setLoadingOlder(false);
     }
   }, [canCallApi, token, walletAddress, normalizeMessage]);
 
@@ -238,30 +254,41 @@ export default function useGroups({ appState, enabled = true }) {
   const notifyTyping = useCallback((state) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    try {
-      ws.send(JSON.stringify({
-        type: 'typing',
-        wallet: walletAddress,
-        name: appState?.profile?.profile?.name || walletAddress || '',
-        state: Boolean(state),
-      }));
-    } catch {}
+    
     if (state) {
+      const now = Date.now();
+      if (now - lastTypingRef.current > 2000) {
+        try {
+          ws.send(JSON.stringify({
+            type: 'typing',
+            wallet: walletAddress,
+            name: appState?.profile?.profile?.name || walletAddress || '',
+            state: true,
+          }));
+        } catch {}
+        lastTypingRef.current = now;
+      }
+      
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         try { ws.send(JSON.stringify({ type: 'typing', wallet: walletAddress, state: false })); } catch {}
+        lastTypingRef.current = 0;
       }, 2500);
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      try { ws.send(JSON.stringify({ type: 'typing', wallet: walletAddress, state: false })); } catch {}
+      lastTypingRef.current = 0;
     }
   }, [walletAddress, appState?.profile?.profile?.name]);
 
   // Load older
   const loadOlder = useCallback(async () => {
-    if (!activeGroupId || !messages.length) return;
+    if (!activeGroupId || !messages.length || !hasMore || loadingOlder) return;
     const oldest = messages[0];
     const beforeId = oldest?.id;
     if (!beforeId || beforeId.startsWith('opt-')) return;
     return loadMessages(activeGroupId, beforeId);
-  }, [activeGroupId, messages, loadMessages]);
+  }, [activeGroupId, messages, hasMore, loadingOlder, loadMessages]);
 
   // Active group info
   const activeGroup = useMemo(() => {

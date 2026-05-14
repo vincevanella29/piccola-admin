@@ -71,12 +71,16 @@ function buildLocationInfoHtml(loc) {
     </div>`;
 }
 
-function buildOrderInfoHtml(order, statusesMap, t) {
+function buildOrderInfoHtml(order, statusesMap, t, locations = []) {
   const elapsed = elapsedMin(order.created_at);
   const color = statusesMap[order.status]?.color || '#6b7280';
   const carrier = order.carrier_slug
     ? `<span style="color:#06b6d4;font-weight:600;text-transform:capitalize">${order.carrier_slug}</span>`
     : `<span style="color:#ef4444;font-style:italic">${t?.('delivery.dispatch_no_carrier') || 'Sin asignar'}</span>`;
+
+  const locationName = locations.find(l => String(l._id) === String(order.location_id))?.nombre || order.location_name || 'Sucursal';
+  const deliveryAddress = order.delivery_info?.address || order.delivery_info?.street || order.dropoff_address || order.customer?.address || 'Retiro en local';
+  const deliveryDepto = order.delivery_info?.depto || order.customer?.depto;
 
   // Items list
   const itemsHtml = (order.items || []).slice(0, 5).map(i =>
@@ -110,11 +114,14 @@ function buildOrderInfoHtml(order, statusesMap, t) {
           <span style="width:6px;height:6px;border-radius:50%;background:${color}"></span>
           ${statusLabel(order.status, statusesMap, t)}
         </span>
+        <span style="font-size:9px;font-weight:800;color:#16a34a;padding:2px 6px;border-radius:4px;background:#16a34a1a;">
+          ${locationName}
+        </span>
       </div>
 
       <div style="font-size:12px;color:#334155;margin-bottom:3px">👤 ${order.customer?.name || 'Cliente'} ${order.customer?.phone ? `· ${order.customer.phone}` : ''}</div>
-      <div style="font-size:11px;color:#64748b;margin-bottom:3px">📍 ${order.dropoff_address || order.customer?.address || '—'}</div>
-      ${order.customer?.depto ? `<div style="font-size:11px;color:#64748b;margin-bottom:3px">🏢 Depto: ${order.customer.depto}</div>` : ''}
+      <div style="font-size:11px;color:#64748b;margin-bottom:3px">📍 ${deliveryAddress}</div>
+      ${deliveryDepto ? `<div style="font-size:11px;color:#64748b;margin-bottom:3px">🏢 Depto: ${deliveryDepto}</div>` : ''}
 
       <div style="display:flex;align-items:center;gap:12px;margin:6px 0;padding:4px 0;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0">
         <div style="font-size:11px">🛵 ${carrier}</div>
@@ -293,7 +300,7 @@ const DispatchMap = ({ orders = [], locations = [], statuses = [], selectedOrder
 
       marker.addListener('click', () => {
         onSelectOrder?.(order._id);
-        infoWindowRef.current.setContent(buildOrderInfoHtml(order, statusesMap, t));
+        infoWindowRef.current.setContent(buildOrderInfoHtml(order, statusesMap, t, locations));
         infoWindowRef.current.open(map, marker);
       });
 

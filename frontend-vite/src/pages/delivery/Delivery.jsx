@@ -255,6 +255,7 @@ const Delivery = ({ appState }) => {
               onSelectOrder={api.fetchOrderDetail}
               isLoading={api.isLoading}
               onDispatch={api.dispatchOrder}
+              locations={api.locations}
               t={t}
             />
           </motion.div>
@@ -292,6 +293,7 @@ const Delivery = ({ appState }) => {
                   statusFilter={statusFilter}
                   setStatusFilter={setStatusFilter}
                   carriers={api.carriers}
+                  locations={api.locations}
                   onManualDispatch={api.dispatchOrder}
                   t={t}
                   canDispatch={canDispatch}
@@ -299,7 +301,7 @@ const Delivery = ({ appState }) => {
               </div>
             </div>
             {/* Status Bar */}
-            <DispatchStatusBar orders={api.orders} statuses={api.statuses} t={t} />
+            <DispatchStatusBar orders={api.orders} statuses={api.statuses} locations={api.locations} t={t} />
           </motion.div>
         )}
 
@@ -311,7 +313,13 @@ const Delivery = ({ appState }) => {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            <DeliveryStats stats={api.stats} t={t} expanded />
+            <DeliveryStats 
+              stats={api.stats} 
+              appState={appState} 
+              locationId={selectedLocation === 'all' ? null : selectedLocation} 
+              t={t} 
+              expanded 
+            />
           </motion.div>
         )}
         {activeTab === 'stock' && (
@@ -346,6 +354,7 @@ const Delivery = ({ appState }) => {
               onStatusChange={api.updateOrderStatus}
               canEdit={canDispatch}
               isLoading={api.isLoading}
+              locations={api.locations}
               t={t}
             />
           </motion.div>
@@ -363,6 +372,7 @@ const Delivery = ({ appState }) => {
             pickupStatuses={api.pickupStatuses}
             onUpdateStatus={api.updateOrderStatus}
             canEdit={canDispatch}
+            locations={api.locations}
             onClose={() => api.setSelectedOrder(null)}
           />
         )}

@@ -30,8 +30,11 @@ const PROVIDER_EMOJI = {
   unknown: '⚪',
 };
 
-const OrderCard = ({ order, onSelect, onStatusChange, nextStatus, statusColor }) => {
+const OrderCard = ({ order, onSelect, onStatusChange, nextStatus, statusColor, locations = [] }) => {
   const itemCount = (order.items || []).reduce((sum, i) => sum + (i.quantity || 1), 0);
+  
+  const locationName = locations.find(l => l._id === order.location_id)?.nombre || order.location_name || 'Sucursal';
+  const deliveryAddress = order.delivery_info?.address || order.delivery_info?.street || order.customer?.address || 'Retiro en local';
 
   return (
     <motion.div
@@ -57,15 +60,20 @@ const OrderCard = ({ order, onSelect, onStatusChange, nextStatus, statusColor })
         </div>
       </div>
 
-      {/* Customer */}
+      {/* Customer & Location */}
       <div className="mb-2">
-        <div className="flex items-center gap-1.5 text-sm font-bold text-light-text-primary dark:text-dark-text-primary truncate">
-          <FaUser size={10} className="text-light-text-tertiary dark:text-dark-text-tertiary shrink-0" />
-          {order.customer?.name || 'Cliente'}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-sm font-bold text-light-text-primary dark:text-dark-text-primary truncate">
+            <FaUser size={10} className="text-light-text-tertiary dark:text-dark-text-tertiary shrink-0" />
+            {order.customer?.name || 'Cliente'}
+          </div>
+          <div className="text-[10px] font-bold text-matrix-green px-1.5 py-0.5 rounded bg-matrix-green/10 truncate max-w-[90px]">
+            {locationName}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5 truncate">
+        <div className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 truncate">
           <FaMapMarkerAlt size={10} className="text-light-text-tertiary dark:text-dark-text-tertiary shrink-0" />
-          {order.customer?.address || '—'}
+          {deliveryAddress}
         </div>
       </div>
 

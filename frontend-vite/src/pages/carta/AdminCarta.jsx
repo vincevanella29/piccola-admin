@@ -25,14 +25,14 @@ const SegmentedTab = ({ id, active, onClick, icon: Icon, label, count }) => (
         className={`relative flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${active
             ? 'text-light-text-primary dark:text-dark-text-primary bg-white dark:bg-dark-surface shadow-sm'
             : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'
-        }`}>
+            }`}>
         <Icon className="w-3.5 h-3.5" />
         <span>{label}</span>
         {count != null && (
             <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${active
                 ? 'bg-light-accent/10 dark:bg-dark-accent/20 text-light-accent dark:text-dark-accent'
                 : 'bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'
-            }`}>{count}</span>
+                }`}>{count}</span>
         )}
     </button>
 );
@@ -45,7 +45,7 @@ const MenuTypePill = ({ mt, active, count, onClick }) => {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${active
                 ? 'shadow-sm'
                 : 'border-transparent hover:border-light-border dark:hover:border-dark-border/40'
-            }`}
+                }`}
             style={active ? {
                 backgroundColor: `${mt.color}18`,
                 borderColor: `${mt.color}40`,
@@ -55,11 +55,10 @@ const MenuTypePill = ({ mt, active, count, onClick }) => {
             <Icon className="w-3 h-3" style={active ? { color: mt.color } : undefined} />
             <span className={active ? '' : 'text-light-text-secondary dark:text-dark-text-secondary'}>{mt.name}</span>
             {count > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[9px] leading-none font-bold ${
-                    active
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] leading-none font-bold ${active
                         ? 'bg-white/40 dark:bg-black/20'
                         : 'bg-light-surface-secondary dark:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'
-                }`}>{count}</span>
+                    }`}>{count}</span>
             )}
         </button>
     );
@@ -92,37 +91,37 @@ const CreateMenuTypeInline = ({ onSave, onCancel }) => {
             className="overflow-hidden w-full"
         >
             <div className="bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-2xl shadow-xl p-4 w-full max-w-sm space-y-3 mt-2">
-            <p className="text-xs font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">Nuevo tipo de menú</p>
-            <input
-                value={name}
-                onChange={e => { setName(e.target.value); if (!slug || slug === name.toLowerCase().replace(/\s+/g, '_')) setSlug(e.target.value.toLowerCase().replace(/\s+/g, '_')); }}
-                placeholder="Nombre (ej: Happy Hour)"
-                className="w-full px-3 py-2 text-sm rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
-                autoFocus
-            />
-            <input
-                value={slug}
-                onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                placeholder="slug (ej: happy_hour)"
-                className="w-full px-3 py-2 text-xs font-mono rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
-            />
-            <div className="flex gap-1.5 flex-wrap">
-                {COLOR_PRESETS.map(c => (
-                    <button key={c} onClick={() => setColor(c)}
-                        className={`w-6 h-6 rounded-full border-2 transition-all ${color === c ? 'border-light-text-primary dark:border-dark-text-primary scale-110' : 'border-transparent hover:scale-105'}`}
-                        style={{ backgroundColor: c }}
-                    />
-                ))}
-            </div>
-            <div className="flex gap-2">
-                <button onClick={onCancel} className="flex-1 py-2 rounded-xl border border-light-border dark:border-dark-border text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-colors">
-                    Cancelar
-                </button>
-                <button onClick={handleSave} disabled={!slug.trim() || !name.trim() || saving}
-                    className="flex-1 py-2 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-xs font-bold hover:opacity-90 transition-opacity disabled:opacity-40">
-                    {saving ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Crear'}
-                </button>
-            </div>
+                <p className="text-xs font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-wider">Nuevo tipo de menú</p>
+                <input
+                    value={name}
+                    onChange={e => { setName(e.target.value); if (!slug || slug === name.toLowerCase().replace(/\s+/g, '_')) setSlug(e.target.value.toLowerCase().replace(/\s+/g, '_')); }}
+                    placeholder="Nombre (ej: Happy Hour)"
+                    className="w-full px-3 py-2 text-sm rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
+                    autoFocus
+                />
+                <input
+                    value={slug}
+                    onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    placeholder="slug (ej: happy_hour)"
+                    className="w-full px-3 py-2 text-xs font-mono rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent"
+                />
+                <div className="flex gap-1.5 flex-wrap">
+                    {COLOR_PRESETS.map(c => (
+                        <button key={c} onClick={() => setColor(c)}
+                            className={`w-6 h-6 rounded-full border-2 transition-all ${color === c ? 'border-light-text-primary dark:border-dark-text-primary scale-110' : 'border-transparent hover:scale-105'}`}
+                            style={{ backgroundColor: c }}
+                        />
+                    ))}
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={onCancel} className="flex-1 py-2 rounded-xl border border-light-border dark:border-dark-border text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-colors">
+                        Cancelar
+                    </button>
+                    <button onClick={handleSave} disabled={!slug.trim() || !name.trim() || saving}
+                        className="flex-1 py-2 rounded-xl bg-light-accent dark:bg-dark-accent text-white text-xs font-bold hover:opacity-90 transition-opacity disabled:opacity-40">
+                        {saving ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Crear'}
+                    </button>
+                </div>
             </div>
         </motion.div>
     );
@@ -151,9 +150,9 @@ const AdminCarta = ({ appState }) => {
     const [selectedProductIds, setSelectedProductIds] = useState([]);
     const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
     const [confirmDelete, setConfirmDelete] = useState(null);
-    const [isDeleting, setIsDeleting]   = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [aiImagenProduct, setAiImagenProduct] = useState(null);
-    const [syncMsg, setSyncMsg]         = useState(null);
+    const [syncMsg, setSyncMsg] = useState(null);
     const [isSyncingLocal, setIsSyncingLocal] = useState(false);
     const [showCreateMenuType, setShowCreateMenuType] = useState(false);
 
@@ -177,7 +176,7 @@ const AdminCarta = ({ appState }) => {
 
     const categoryIdsForMenuType = useMemo(() =>
         new Set(categoriesByMenuType.map(c => c.id)),
-    [categoriesByMenuType]);
+        [categoriesByMenuType]);
 
     // ── Filtered Lists ─────────────────────────────────────────────────────────
     const filteredProducts = useMemo(() => {
@@ -213,7 +212,7 @@ const AdminCarta = ({ appState }) => {
         return products.filter(p => {
             const matchSearch = !q || p.nombre?.toLowerCase().includes(q) || p.codigo?.toLowerCase().includes(q);
             const matchCat = !selectedCategoryFilter || (p.category_ids || []).includes(selectedCategoryFilter);
-            
+
             let matchMenuType = true;
             if (selectedMenuType) {
                 matchMenuType = productsInMenuType.has(String(p.id));
@@ -325,11 +324,11 @@ const AdminCarta = ({ appState }) => {
             const sourceCat = categories.find(c => c.id === categoryId);
             if (!sourceCat) return;
             await createCategory({
-                nombre:    sourceCat.nombre,
-                alias:     sourceCat.alias || '',
-                estado:    sourceCat.estado ?? true,
+                nombre: sourceCat.nombre,
+                alias: sourceCat.alias || '',
+                estado: sourceCat.estado ?? true,
                 prioridad: sourceCat.prioridad ?? 0,
-                menu_ids:  sourceCat.menu_ids || [],
+                menu_ids: sourceCat.menu_ids || [],
                 menu_type: targetMenuType,
             });
             refresh();
@@ -371,16 +370,7 @@ const AdminCarta = ({ appState }) => {
         }
     }, [updateProduct, patchProduct]);
 
-    // Delivery price update — inline edit for precio_delivery
-    const handleQuickDeliveryPriceUpdate = useCallback(async (productId, newPrice) => {
-        try {
-            await updateProduct(productId, { precio_delivery: newPrice });
-            patchProduct(productId, { precio_delivery: newPrice });
-        } catch (err) {
-            console.error('Quick delivery price update error:', err);
-            throw err;
-        }
-    }, [updateProduct, patchProduct]);
+
 
     return (
         <div className="min-h-screen bg-light-background dark:bg-dark-background">
@@ -414,21 +404,19 @@ const AdminCarta = ({ appState }) => {
                                     <span className="hidden xs:inline">{t('carta.clean_db')}</span>
                                 </button>
                                 <button onClick={handleSyncWeb} disabled={isSyncingLocal}
-                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] sm:text-xs font-semibold transition-all disabled:opacity-40 shadow-sm ${
-                                        isSyncingLocal
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] sm:text-xs font-semibold transition-all disabled:opacity-40 shadow-sm ${isSyncingLocal
                                             ? 'bg-green-500/10 border-green-400/30 text-green-600 dark:text-green-400'
                                             : 'bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border text-light-text-secondary dark:text-dark-text-secondary hover:bg-green-500/5 hover:border-green-400/30 hover:text-green-600 dark:hover:text-green-400'
-                                    }`}>
+                                        }`}>
                                     {isSyncingLocal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-green-500" />}
                                     <span className="hidden xs:inline">{t('carta.sync_web')}</span>
                                 </button>
                             </div>
                             {syncMsg && (
-                                <div className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl ${
-                                    syncMsg.type === 'success'
+                                <div className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl ${syncMsg.type === 'success'
                                         ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
                                         : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                                } max-w-xs text-right leading-snug`}>
+                                    } max-w-xs text-right leading-snug`}>
                                     {syncMsg.text}
                                 </div>
                             )}
@@ -443,11 +431,11 @@ const AdminCarta = ({ appState }) => {
                     {/* Row 1: Tabs — scrollable on mobile */}
                     <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto pb-0.5 scrollbar-hide">
                         <div className="flex items-center bg-light-surface-secondary/70 dark:bg-dark-surface-secondary/70 backdrop-blur-sm p-1 rounded-2xl gap-0.5 border border-light-border/50 dark:border-dark-border/50 w-max min-w-full sm:min-w-0">
-                            <SegmentedTab id="products"    active={activeTab === 'products'}    onClick={setActiveTab} icon={Package}          label={t('carta.tab_products')}    count={products.length} />
-                            <SegmentedTab id="categories"  active={activeTab === 'categories'}  onClick={setActiveTab} icon={Tags}             label={t('carta.tab_categories')}  count={categories.length} />
-                            <SegmentedTab id="options"     active={activeTab === 'options'}     onClick={setActiveTab} icon={Layers}           label={t('carta.tab_options')}     count={menuOptions.length} />
+                            <SegmentedTab id="products" active={activeTab === 'products'} onClick={setActiveTab} icon={Package} label={t('carta.tab_products')} count={products.length} />
+                            <SegmentedTab id="categories" active={activeTab === 'categories'} onClick={setActiveTab} icon={Tags} label={t('carta.tab_categories')} count={categories.length} />
+                            <SegmentedTab id="options" active={activeTab === 'options'} onClick={setActiveTab} icon={Layers} label={t('carta.tab_options')} count={menuOptions.length} />
 
-                            <SegmentedTab id="mtz-missing" active={activeTab === 'mtz-missing'} onClick={setActiveTab} icon={Database}         label="MTZ" />
+                            <SegmentedTab id="mtz-missing" active={activeTab === 'mtz-missing'} onClick={setActiveTab} icon={Database} label="MTZ" />
                         </div>
                     </div>
 
@@ -569,7 +557,6 @@ const AdminCarta = ({ appState }) => {
                                     onToggleStatus={handleToggleProductStatus}
                                     onRefresh={refresh}
                                     onQuickPriceUpdate={handleQuickPriceUpdate}
-                                    onQuickDeliveryPriceUpdate={handleQuickDeliveryPriceUpdate}
                                 />
                             )}
                             {activeTab === 'categories' && (

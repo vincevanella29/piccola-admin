@@ -394,6 +394,20 @@ async def create_carrier_delivery(carrier: dict, order: dict, loc: dict) -> str:
         logger.error(f"[last_mile] ❌ {slug} returned 200 but no delivery ID: {data}")
         raise HTTPException(status_code=502, detail=f"{slug} returned no delivery ID")
 
+    # PedidosYa requires a 2nd step to confirm the shipping
+    if slug == "pedidosya":
+        confirm_url = f"{base_url}/v2/shippings/{carrier_delivery_id}/confirm"
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            c_resp = await client.post(confirm_url, headers=headers)
+        
+        if c_resp.status_code not in (200, 201):
+            logger.error(f"[last_mile] ❌ PedidosYa confirm failed for {carrier_delivery_id}: {c_resp.status_code} {c_resp.text[:200]}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"PedidosYa confirm failed: {c_resp.status_code}",
+            )
+        logger.info(f"[last_mile] ✅ PedidosYa shipping {carrier_delivery_id} CONFIRMED")
+
     logger.info(f"[last_mile] ✅ Order {order_id} dispatched to {slug} → {carrier_delivery_id}")
     return carrier_delivery_id
 
@@ -652,6 +666,7 @@ class QuoteDeliveryRequest(BaseModel):
     dropoff_lat: float = Field(...)
     dropoff_lng: float = Field(...)
     dropoff_address: str = Field("", description="Dirección destino")
+    order_total: float = Field(0, description="Total del pedido para calcular delivery gratis")
 
 
 def _apply_platform_fee(carrier_fee: float, fee_config: dict, order_total: float = 0) -> dict:
@@ -714,6 +729,8 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
     if not key_doc:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
+    print(f"[quote-delivery] Received quote request for location {payload.location_id} with order_total=${payload.order_total}", flush=True)
+
     # ── Resolve location ──
     loc = None
     if ObjectId.is_valid(payload.location_id):
@@ -744,6 +761,21 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
     from apis.delivery.config import _get_config, DEFAULT_FEE_CONFIG
     config = _get_config()
     fee_config = config.get("delivery_fee_config", DEFAULT_FEE_CONFIG)
+
+    # ── Apply location overrides ──
+    loc_id_str = str(loc.get("_id", ""))
+    loc_slug = loc.get("permalink_slug", "")
+    overrides = fee_config.get("location_overrides", {})
+    
+    print(f"[quote-delivery] Checking overrides for loc_id={loc_id_str}, loc_slug={loc_slug}", flush=True)
+    print(f"[quote-delivery] Available overrides: {list(overrides.keys())}", flush=True)
+    
+    if loc_slug and loc_slug in overrides:
+        fee_config = overrides[loc_slug]
+        print(f"[quote-delivery] Applied override by loc_slug: {fee_config}", flush=True)
+    elif loc_id_str and loc_id_str in overrides:
+        fee_config = overrides[loc_id_str]
+        print(f"[quote-delivery] Applied override by loc_id_str: {fee_config}", flush=True)
 
     # ── Quote all active carriers ──
     carriers = list(CARRIERS_COLL.find({"status": "active"}))
@@ -820,7 +852,9 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
                     if raw_quotes:
                         best = raw_quotes[0]
                         raw_fee = best.get("deliveryCost") or best.get("total") or 0
-                        fees = _apply_platform_fee(raw_fee, fee_config)
+                        print(f"[quote-delivery] PedidosYa raw_fee={raw_fee}, order_total={payload.order_total}, fee_config={fee_config}", flush=True)
+                        fees = _apply_platform_fee(raw_fee, fee_config, payload.order_total)
+                        print(f"[quote-delivery] PedidosYa calculated fees={fees}", flush=True)
                         quote.update({"available": True, "eta_min": best.get("estimatedDeliveryTime"), **fees})
 
                     # Cancel preorder
@@ -866,7 +900,7 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
                     logger.info(f"[quote-delivery] UBER DIRECT RAW DATA: fee={raw_fee}, currency={data.get('currency_type')}, raw_response={json.dumps(data)}")
                     
                     # CLP is zero-decimal — fee is already in CLP
-                    fees = _apply_platform_fee(raw_fee, fee_config)
+                    fees = _apply_platform_fee(raw_fee, fee_config, payload.order_total)
                     quote.update({"available": True, "eta_min": data.get("duration"), **fees})
                 else:
                     error_data = resp.json() if resp.text else {}
@@ -1016,40 +1050,11 @@ async def dispatch_to_carrier(
         if ObjectId.is_valid(order["location_id"]):
             loc = LOCATIONS_COLL.find_one({"_id": ObjectId(order["location_id"])})
 
-    pickup_address = loc.get("direccion", "") if loc else ""
-    dropoff_address = order.get("customer", {}).get("address", "")
-
-    # Build delivery request body
-    delivery_body = {
-        "pickup": {
-            "address": pickup_address,
-            "name": loc.get("nombre", "La Piccola Italia") if loc else "La Piccola Italia",
-            "phone": loc.get("telefono", "") if loc else "",
-            "notes": "Pedido de delivery para retirar",
-        },
-        "dropoff": {
-            "address": dropoff_address,
-            "name": order.get("customer", {}).get("name", ""),
-            "phone": order.get("customer", {}).get("phone", ""),
-            "notes": order.get("notes", ""),
-        },
-        "quote_id": payload.quote_id,
-        "external_id": str(order["_id"]),
-    }
-
-    create_endpoint = carrier.get("endpoints", {}).get("create_delivery")
-    if not create_endpoint:
-        raise HTTPException(status_code=400, detail="Carrier no tiene endpoint de creación de delivery configurado")
-
-    result = await _carrier_request(carrier, "POST", create_endpoint, delivery_body)
-
-    # Extract delivery ID from carrier response (varies by carrier)
-    carrier_delivery_id = (
-        result.get("id") or
-        result.get("delivery_id") or
-        result.get("shipping_id") or
-        str(result.get("_id", ""))
-    )
+    try:
+        carrier_delivery_id = await create_carrier_delivery(carrier, order, loc)
+    except Exception as e:
+        logger.error(f"[dispatch_to_carrier] Error dispatching to {payload.carrier_slug}: {e}")
+        raise
 
     now = datetime.now(timezone.utc)
 
@@ -1065,6 +1070,8 @@ async def dispatch_to_carrier(
             "dispatched_at": now,
             "updated_at": now,
             "updated_by": user.get("wallet") or user.get("id"),
+        }, "$inc": {
+            "dispatch_count": 1
         }}
     )
 

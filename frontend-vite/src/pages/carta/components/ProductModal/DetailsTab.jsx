@@ -90,29 +90,6 @@ const DetailsTab = ({ form, set, categories }) => {
                 </div>
             </div>
 
-            {/* ── Delivery Pricing ──────────── */}
-            <div className="p-3.5 rounded-xl bg-cyan-50/50 dark:bg-cyan-900/10 border border-cyan-200/60 dark:border-cyan-800/30 space-y-3">
-                <div className="flex items-center gap-2">
-                    <Truck className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                    <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wide">
-                        Precio Delivery
-                    </span>
-                    <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">
-                        (vacío = usa precio local: ${form.precio || '—'})
-                    </span>
-                </div>
-                <Field label={`Precio Delivery (${form.currency})`}>
-                    <div className="relative">
-                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400 pointer-events-none" />
-                        <input
-                            type="number" value={form.precio_delivery}
-                            onChange={e => set('precio_delivery', e.target.value)}
-                            className={`${INPUT} pl-8`}
-                            placeholder={form.precio || '—'}
-                        />
-                    </div>
-                </Field>
-            </div>
 
             {/* ── Channel Restriction ─────────────────── */}
             <div className="p-3.5 rounded-xl bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/15 border border-light-border/50 dark:border-dark-border/30 space-y-2.5">

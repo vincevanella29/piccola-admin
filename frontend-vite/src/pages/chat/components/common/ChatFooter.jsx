@@ -17,7 +17,9 @@ const ChatFooter = ({
   onAdminTake,
   onAdminRelease,
   onAdminClose,
+  onAdminReopen,
   onAdminTyping,
+  isClosed,
   showJump,
   onJump,
 }) => {
@@ -73,21 +75,33 @@ const ChatFooter = ({
 
                {isAdmin && (
                  <>
-                   <button
-                     onClick={onAdminTake} disabled={disabled}
-                     className="p-1.5 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 hover:bg-green-500/20"
-                     title="Take Ticket"
-                   ><UserCheck size={14} /></button>
-                   <button
-                     onClick={onAdminRelease} disabled={disabled}
-                     className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20"
-                     title="Release Ticket"
-                   ><UserX size={14} /></button>
-                   <button
-                     onClick={onAdminClose} disabled={disabled}
-                     className="p-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20"
-                     title="Close Ticket"
-                   ><XCircle size={14} /></button>
+                   {isClosed ? (
+                     <button
+                       onClick={onAdminReopen} disabled={adminDisabled}
+                       className="px-2 py-1.5 flex items-center gap-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 text-[10px] font-bold uppercase"
+                       title="Reabrir Ticket"
+                     >
+                       Reabrir
+                     </button>
+                   ) : (
+                     <>
+                       <button
+                         onClick={onAdminTake} disabled={disabled}
+                         className="p-1.5 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 hover:bg-green-500/20"
+                         title="Take Ticket"
+                       ><UserCheck size={14} /></button>
+                       <button
+                         onClick={onAdminRelease} disabled={disabled}
+                         className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20"
+                         title="Release Ticket"
+                       ><UserX size={14} /></button>
+                       <button
+                         onClick={onAdminClose} disabled={disabled}
+                         className="p-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20"
+                         title="Close Ticket"
+                       ><XCircle size={14} /></button>
+                     </>
+                   )}
                  </>
                )}
             </div>

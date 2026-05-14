@@ -33,6 +33,8 @@ DISPATCH_INTERVAL = 60             # retry unassigned every 60s
 STATUS_POLL_INTERVAL = 30          # poll carrier status every 30s
 MAX_RETRIES = 5
 MAX_ORDER_AGE_HOURS = 12
+RECOVERY_INTERVAL = 120            # recovery loop every 120s
+MAX_RECOVERY_ATTEMPTS = 10
 
 CONFIG_COLL = db.delivery_config
 
@@ -103,14 +105,22 @@ async def _process_scheduled_orders():
     if not active_slugs:
         return
 
+    # Include orders that already failed dispatch — recovery will handle them,
+    # but scheduled orders whose time passed should still be attempted here
     query = {
         "order_type": "delivery",
         "status": {"$in": list(RETRY_STATUSES)},
         "carrier_delivery_id": {"$in": [None, ""]},
         "carrier_slug": {"$in": active_slugs},
         "asap": False,
-        "dispatch_retries": {"$not": {"$gte": MAX_RETRIES}},
-        "dispatch_failed": {"$ne": True},
+        "$or": [
+            # Normal scheduled: not yet failed, under retry limit
+            {"dispatch_failed": {"$ne": True}, "dispatch_retries": {"$not": {"$gte": MAX_RETRIES}}},
+            # Past-due failed: scheduled time already passed — force re-attempt
+            {"dispatch_failed": True},
+            # Carrier rejected — needs re-dispatch
+            {"carrier_rejected": True},
+        ],
     }
 
     orders = list(DELIVERY_COLL.find(query))
@@ -130,8 +140,13 @@ async def _process_scheduled_orders():
             scheduled_dt = parse(scheduled_for_str)
             if scheduled_dt.tzinfo is None:
                 scheduled_dt = CHILE_TZ.localize(scheduled_dt)
-            # Dispatch 60 minutes before scheduled time
-            if (scheduled_dt - now).total_seconds() <= 60 * 60:
+
+            is_past_due = scheduled_dt <= now
+            is_within_window = (scheduled_dt - now).total_seconds() <= 60 * 60
+            was_failed = order.get("dispatch_failed") or order.get("carrier_rejected")
+
+            # Dispatch if within 60min window OR if time already passed (past-due recovery)
+            if is_within_window or (is_past_due and was_failed):
                 ready_to_dispatch.append(order)
         except Exception:
             pass
@@ -139,7 +154,7 @@ async def _process_scheduled_orders():
     if not ready_to_dispatch:
         return
 
-    logger.info(f"[scheduled-dispatch] Found {len(ready_to_dispatch)} scheduled orders ready to dispatch (within 60m)")
+    logger.info(f"[scheduled-dispatch] Found {len(ready_to_dispatch)} scheduled orders ready to dispatch")
 
     for order in ready_to_dispatch:
         order_id = str(order["_id"])
@@ -150,7 +165,7 @@ async def _process_scheduled_orders():
         if not loc:
             continue
 
-        logger.info(f"[scheduled-dispatch] Dispatching scheduled order {order_id} (carrier={carrier_slug})")
+        logger.info(f"[scheduled-dispatch] Dispatching scheduled order {order_id} (carrier={carrier_slug}, past_failed={order.get('dispatch_failed')})")
 
         try:
             from apis.delivery.last_mile import create_carrier_delivery
@@ -173,7 +188,11 @@ async def _process_scheduled_orders():
                     "dispatch_retries": retries + 1,
                     "dispatched_at": update_now,
                     "updated_at": update_now,
-                    "asap": True, # Promoted to standard active flow
+                    "asap": True,
+                    "dispatch_failed": False,
+                    "carrier_rejected": False,
+                    "needs_recovery": False,
+                    "dispatch_error": None,
                 }}
             )
             logger.info(f"[scheduled-dispatch] ✅ Scheduled Order {order_id} dispatched → {carrier['slug']} → {carrier_delivery_id}")
@@ -189,16 +208,23 @@ async def _process_scheduled_orders():
                 pass
 
         except Exception as e:
-            logger.error(f"[scheduled-dispatch] ❌ Scheduled Order {order_id} attempt {retries + 1}: {e}")
+            err_msg = str(e)[:200]
+            logger.error(f"[scheduled-dispatch] ❌ Scheduled Order {order_id} attempt {retries + 1}: {err_msg}")
             DELIVERY_COLL.update_one(
                 {"_id": order["_id"]},
-                {"$set": {"dispatch_retries": retries + 1, "last_dispatch_retry": datetime.now(), "asap": True, "updated_at": datetime.now()}}
+                {"$set": {
+                    "dispatch_retries": retries + 1,
+                    "last_dispatch_retry": datetime.now(),
+                    "dispatch_error": err_msg,
+                    "asap": True,
+                    "updated_at": datetime.now(),
+                }}
             )
 
         if retries + 1 >= MAX_RETRIES:
             DELIVERY_COLL.update_one(
                 {"_id": order["_id"]},
-                {"$set": {"dispatch_failed": True}}
+                {"$set": {"dispatch_failed": True, "needs_recovery": True}}
             )
 
 
@@ -290,18 +316,23 @@ async def _process_unassigned_orders():
                 pass
 
         except Exception as e:
-            logger.error(f"[dispatch-worker] ❌ Order {order_id} attempt {retries + 1}: {e}")
+            err_msg = str(e)[:200]
+            logger.error(f"[dispatch-worker] ❌ Order {order_id} attempt {retries + 1}: {err_msg}")
             DELIVERY_COLL.update_one(
                 {"_id": order["_id"]},
-                {"$set": {"dispatch_retries": retries + 1, "last_dispatch_retry": datetime.now()}}
+                {"$set": {
+                    "dispatch_retries": retries + 1,
+                    "last_dispatch_retry": datetime.now(),
+                    "dispatch_error": err_msg,
+                }}
             )
 
         if retries + 1 >= MAX_RETRIES:
             DELIVERY_COLL.update_one(
                 {"_id": order["_id"]},
-                {"$set": {"dispatch_failed": True}}
+                {"$set": {"dispatch_failed": True, "needs_recovery": True}}
             )
-            logger.warning(f"[dispatch-worker] 🛑 Order {order_id} marked dispatch_failed after {MAX_RETRIES} attempts")
+            logger.warning(f"[dispatch-worker] 🛑 Order {order_id} marked dispatch_failed + needs_recovery after {MAX_RETRIES} attempts")
 
 
 # =====================================================================
@@ -364,6 +395,36 @@ async def _poll_carrier_statuses():
             else:
                 # Status unchanged but courier may have moved — update position
                 await _update_courier_position(order, carrier_data)
+
+            # Detect carrier acceptance: courier assigned for the first time
+            courier = carrier_data.get("courier") or carrier_data.get("data", {}).get("courier")
+            if courier and not order.get("carrier_accepted"):
+                DELIVERY_COLL.update_one(
+                    {"_id": order["_id"]},
+                    {"$set": {"carrier_accepted": True, "carrier_accepted_at": datetime.now(timezone.utc)}}
+                )
+                logger.info(f"[status-poll] ✅ Carrier accepted order {order_id} (courier: {courier.get('name', '?')})")
+
+            # Detect carrier rejection/cancellation
+            carrier_terminal = {"cancelled", "canceled", "rejected", "returned", "failed"}
+            if new_status and new_status.lower() in carrier_terminal:
+                internal = order.get("status", "")
+                # Only trigger recovery if the internal status is still active (not delivered)
+                if internal not in {"delivered", "cancelled"}:
+                    DELIVERY_COLL.update_one(
+                        {"_id": order["_id"]},
+                        {"$set": {
+                            "carrier_rejected": True,
+                            "carrier_rejection_reason": new_status,
+                            "carrier_delivery_id": "",
+                            "carrier_status": "",
+                            "needs_recovery": True,
+                            "dispatch_failed": False,
+                            "dispatch_retries": 0,
+                            "updated_at": datetime.now(timezone.utc),
+                        }}
+                    )
+                    logger.warning(f"[status-poll] ⚠️ Carrier rejected order {order_id} ({new_status}) — marked for recovery")
 
         except Exception as e:
             logger.warning(f"[status-poll] Order {order_id}: poll failed — {e}")
@@ -569,15 +630,154 @@ def _resolve_location(order):
 # Entry point
 # =====================================================================
 
+# =====================================================================
+# Job 4: Recovery loop for orphaned/failed/rejected orders
+# =====================================================================
+
+async def _recovery_loop():
+    logger.info("[recovery] 🚀 Started — polling every %ds", RECOVERY_INTERVAL)
+    await asyncio.sleep(45)  # Offset from other loops
+    while True:
+        try:
+            await _process_recovery_orders()
+        except Exception as e:
+            logger.error(f"[recovery] ❌ Recovery cycle error: {e}")
+        await asyncio.sleep(RECOVERY_INTERVAL)
+
+
+async def _process_recovery_orders():
+    """Pick up orders that are stuck: dispatch_failed, carrier_rejected, or needs_recovery.
+    Reset their flags and re-attempt dispatch. After MAX_RECOVERY_ATTEMPTS, cancel."""
+
+    active_slugs = [c["slug"] for c in CARRIERS_COLL.find({"status": "active"}, {"slug": 1})]
+    if not active_slugs:
+        return
+
+    query = {
+        "order_type": "delivery",
+        "status": {"$in": list(RETRY_STATUSES)},
+        "carrier_delivery_id": {"$in": [None, ""]},
+        "$or": [
+            {"dispatch_failed": True},
+            {"carrier_rejected": True},
+            {"needs_recovery": True},
+        ],
+    }
+
+    orders = list(DELIVERY_COLL.find(query).sort("updated_at", 1).limit(15))
+    if not orders:
+        return
+
+    logger.info(f"[recovery] Found {len(orders)} orders needing recovery")
+
+    for order in orders:
+        order_id = str(order["_id"])
+        recovery_attempts = order.get("recovery_attempts", 0)
+
+        # Exhausted recovery — cancel the order
+        if recovery_attempts >= MAX_RECOVERY_ATTEMPTS:
+            DELIVERY_COLL.update_one(
+                {"_id": order["_id"]},
+                {"$set": {
+                    "status": "cancelled",
+                    "cancel_reason": "dispatch_recovery_exhausted",
+                    "needs_recovery": False,
+                    "updated_at": datetime.now(),
+                }}
+            )
+            logger.warning(f"[recovery] 🛑 Order {order_id} CANCELLED after {recovery_attempts} recovery attempts")
+
+            # Notify delivery provider about cancellation
+            try:
+                from apis.delivery.orders import _notify_delivery_provider
+                order_updated = {**order, "status": "cancelled"}
+                asyncio.create_task(_notify_delivery_provider(order_updated, "cancelled"))
+            except Exception:
+                pass
+
+            # Broadcast to KDS
+            try:
+                from utils.kds_ws import kds_manager
+                asyncio.create_task(kds_manager.broadcast(
+                    {"type": "status_change", "order_id": order_id, "status": "cancelled",
+                     "cancel_reason": "dispatch_recovery_exhausted", "location_id": order.get("location_id")},
+                    location_id=order.get("location_id"),
+                ))
+            except Exception:
+                pass
+            continue
+
+        # Reset flags and re-attempt dispatch
+        carrier_slug = order.get("carrier_slug", "auto")
+        loc = _resolve_location(order)
+        if not loc:
+            logger.warning(f"[recovery] Order {order_id}: location not found — skipping")
+            continue
+
+        logger.info(f"[recovery] Re-dispatching order {order_id} (recovery attempt {recovery_attempts + 1}/{MAX_RECOVERY_ATTEMPTS})")
+
+        try:
+            from apis.delivery.last_mile import create_carrier_delivery
+
+            carrier = CARRIERS_COLL.find_one({"slug": carrier_slug, "status": "active"})
+            if not carrier:
+                carrier = CARRIERS_COLL.find_one({"status": "active"})
+            if not carrier:
+                logger.warning(f"[recovery] No active carrier for {order_id}")
+                continue
+
+            carrier_delivery_id = await create_carrier_delivery(carrier, order, loc)
+
+            now = datetime.now()
+            DELIVERY_COLL.update_one(
+                {"_id": order["_id"]},
+                {"$set": {
+                    "carrier_slug": carrier["slug"],
+                    "carrier_delivery_id": carrier_delivery_id,
+                    "carrier_status": "pending",
+                    "dispatched_at": now,
+                    "updated_at": now,
+                    "dispatch_failed": False,
+                    "carrier_rejected": False,
+                    "needs_recovery": False,
+                    "dispatch_retries": 0,
+                    "dispatch_error": None,
+                    "recovery_attempts": recovery_attempts + 1,
+                    "carrier_accepted": False,
+                }}
+            )
+            logger.info(f"[recovery] ✅ Order {order_id} recovered → {carrier['slug']} → {carrier_delivery_id}")
+
+            try:
+                from utils.kds_ws import kds_manager
+                asyncio.create_task(kds_manager.broadcast(
+                    {"type": "dispatch", "order_id": order_id, "carrier_slug": carrier["slug"],
+                     "carrier_delivery_id": carrier_delivery_id, "location_id": order.get("location_id")},
+                    location_id=order.get("location_id"),
+                ))
+            except Exception:
+                pass
+
+        except Exception as e:
+            err_msg = str(e)[:200]
+            logger.error(f"[recovery] ❌ Order {order_id} recovery attempt {recovery_attempts + 1}: {err_msg}")
+            DELIVERY_COLL.update_one(
+                {"_id": order["_id"]},
+                {"$set": {
+                    "recovery_attempts": recovery_attempts + 1,
+                    "dispatch_error": err_msg,
+                    "updated_at": datetime.now(),
+                }}
+            )
+
+
 def start_dispatch_worker():
     """
-    Start both background tasks. Call from async lifespan startup.
+    Start all background tasks. Call from async lifespan startup.
     Uses ensure_future which works in Python 3.9 within a running loop.
     """
     asyncio.ensure_future(_dispatch_worker_loop())
     asyncio.ensure_future(_status_poll_loop())
     asyncio.ensure_future(_scheduled_dispatch_loop())
-    logger.info("[dispatch-worker] ✅ Background tasks scheduled (dispatch + status poll + scheduled)")
-
-
-
+    asyncio.ensure_future(_recovery_loop())
+    logger.info("[dispatch-worker] ✅ Background tasks scheduled (dispatch + status poll + scheduled + recovery)")

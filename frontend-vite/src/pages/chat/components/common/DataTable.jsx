@@ -331,7 +331,7 @@ export default function DataTable({
 
           {/* Tabla */}
           <div className="overflow-x-auto w-full">
-            <table className="min-w-full text-left border-collapse">
+            <table className="table-fixed min-w-full text-left border-collapse">
               <thead className="bg-gray-50 dark:bg-dark-surface-secondary border-b border-gray-200 dark:border-gray-800">
                 <tr>
                   {columns.map((c, idx) => (
@@ -349,7 +349,7 @@ export default function DataTable({
                 {pageRows.map((r, ridx) => (
                   <tr key={ridx} onClick={onRowClick ? () => onRowClick(r, start + ridx) : undefined} className={`group transition-colors ${onRowClick ? 'cursor-pointer hover:bg-light-accent/5 dark:hover:bg-dark-accent/20' : ''}`}>
                     {columns.map((c, cidx) => (
-                      <td key={cidx} className={`px-2 sm:px-4 py-2.5 whitespace-normal sm:whitespace-nowrap break-words text-xs text-gray-700 dark:text-gray-300 tabular-nums ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}>
+                      <td key={cidx} className={`px-2 sm:px-4 py-2.5 whitespace-normal sm:truncate break-words text-xs text-gray-700 dark:text-gray-300 tabular-nums ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}>
                         {renderCell(r, c)}
                       </td>
                     ))}

@@ -29,6 +29,7 @@ export default function useAdminChat({ appState, enabled = true }) {
   const [participants, setParticipants] = useState([]);
   const wsRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const lastTypingRef = useRef(0);
 
   // Normalize message fields coming from API/WS
   const normalizeMessage = useCallback((m) => {
@@ -168,14 +169,23 @@ export default function useAdminChat({ appState, enabled = true }) {
   const notifyTyping = useCallback((state) => {
     const ws = wsRef.current;
     if (!enabled || !ws) return;
-    try {
-      ws.send(JSON.stringify({ type: 'typing', state: Boolean(state) }));
-    } catch {}
+    
     if (state) {
+      const now = Date.now();
+      if (now - lastTypingRef.current > 2000) {
+        try { ws.send(JSON.stringify({ type: 'typing', state: true })); } catch {}
+        lastTypingRef.current = now;
+      }
+      
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         try { ws.send(JSON.stringify({ type: 'typing', state: false })); } catch {}
+        lastTypingRef.current = 0;
       }, 2500);
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      try { ws.send(JSON.stringify({ type: 'typing', state: false })); } catch {}
+      lastTypingRef.current = 0;
     }
   }, [enabled]);
 

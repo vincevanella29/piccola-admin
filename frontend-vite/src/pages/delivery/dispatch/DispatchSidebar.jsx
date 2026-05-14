@@ -35,7 +35,7 @@ function formatCurrency(amount) {
 
 // ─── Order Detail Card ──────────────────────────────────
 
-const OrderCard = ({ order, isSelected, onSelect, carriers = [], onManualDispatch, statusesMap, t, canDispatch = false }) => {
+const OrderCard = ({ order, isSelected, onSelect, carriers = [], onManualDispatch, statusesMap, t, canDispatch = false, locations = [] }) => {
   const [expanded, setExpanded] = useState(false);
   const [showCarrierPicker, setShowCarrierPicker] = useState(false);
   const [dispatching, setDispatching] = useState(false);
@@ -46,6 +46,8 @@ const OrderCard = ({ order, isSelected, onSelect, carriers = [], onManualDispatc
   const customerName = order.customer?.name || 'Cliente';
   const carrierName = order.carrier_slug || null;
   const ci = order.courier_info;
+  const locationName = locations.find(l => String(l._id) === String(order.location_id))?.nombre || order.location_name || 'Sucursal';
+  const deliveryAddress = order.delivery_info?.address || order.delivery_info?.street || order.dropoff_address || order.customer?.address || 'Retiro en local';
 
   const timeClass = elapsed > 45 ? 'text-red-400 font-bold animate-pulse' : elapsed > 25 ? 'text-amber-400 font-bold' : 'text-dark-text-secondary';
 
@@ -91,10 +93,17 @@ const OrderCard = ({ order, isSelected, onSelect, carriers = [], onManualDispatc
           )}
         </div>
 
-        {/* Address */}
+        {/* Address & Location */}
         <div className="flex items-start gap-1.5 text-[11px] text-dark-text-secondary/70 mb-1.5">
           <FaMapMarkerAlt size={9} className="opacity-40 mt-0.5 shrink-0" />
-          <span className="truncate">{order.dropoff_address || order.customer?.address || '—'}</span>
+          <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate">{deliveryAddress}</span>
+              <span className="text-[9px] font-bold text-matrix-green px-1.5 py-0.5 rounded bg-matrix-green/10 shrink-0">
+                {locationName}
+              </span>
+            </div>
+          </div>
         </div>
         {order.customer?.depto && (
           <div className="flex items-center gap-1.5 text-[10px] text-dark-text-secondary/60 mb-1">
@@ -193,9 +202,9 @@ const OrderCard = ({ order, isSelected, onSelect, carriers = [], onManualDispatc
                 </div>
               )}
 
-              {/* Manual dispatch — only for admin level 3-5 */}
-              {canDispatch && !carrierName && order.status !== 'delivered' && (
-                <div className="mt-2">
+              {/* Manual dispatch — only for delivery orders and admin level 3-5 */}
+              {canDispatch && order.order_type === 'delivery' && order.status !== 'delivered' && order.status !== 'cancelled' && (
+                <div className="mt-2 pt-2 border-t border-white/5">
                   {!showCarrierPicker ? (
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowCarrierPicker(true); }}
@@ -224,6 +233,17 @@ const OrderCard = ({ order, isSelected, onSelect, carriers = [], onManualDispatc
                             disabled={dispatching}
                             onClick={async (e) => {
                               e.stopPropagation();
+                              if (carrierName || order.carrier_delivery_id || order.carrier_status) {
+                                const ok = window.confirm('⚠️ ALERTA FINANCIERA: Este pedido ya tiene un carrier asignado o está en proceso de búsqueda. Forzar un re-despacho manual generará un cobro adicional de Comisión de Delivery para el local. Además, podría causar doble envío de motoristas. ¿Estás absolutamente seguro de que quieres continuar?');
+                                if (!ok) {
+                                  setShowCarrierPicker(false);
+                                  return;
+                                }
+                                console.warn(`[MANUAL DISPATCH FORCE] Administrador forzó dispatch manual en pedido ${order._id} hacia ${c.slug}. Carrier anterior: ${carrierName}`);
+                              } else {
+                                console.log(`[MANUAL DISPATCH] Iniciando dispatch manual para ${order._id} con ${c.slug}`);
+                              }
+                              
                               setDispatching(true);
                               try {
                                 await onManualDispatch?.(order._id, c.slug);
@@ -263,7 +283,7 @@ const OrderCard = ({ order, isSelected, onSelect, carriers = [], onManualDispatc
 
 // ─── Main Sidebar ──────────────────────────────────────
 
-const DispatchSidebar = ({ orders = [], statuses = [], selectedOrderId, onSelectOrder, statusFilter, setStatusFilter, carriers = [], onManualDispatch, t, canDispatch = false }) => {
+const DispatchSidebar = ({ orders = [], statuses = [], selectedOrderId, onSelectOrder, statusFilter, setStatusFilter, carriers = [], locations = [], onManualDispatch, t, canDispatch = false }) => {
   // Build a lookup map from the mongo-driven statuses array
   const statusesMap = useMemo(() => {
     const map = {};
@@ -357,6 +377,7 @@ const DispatchSidebar = ({ orders = [], statuses = [], selectedOrderId, onSelect
                 statusesMap={statusesMap}
                 t={t}
                 canDispatch={canDispatch}
+                locations={locations}
               />
             ))
           )}

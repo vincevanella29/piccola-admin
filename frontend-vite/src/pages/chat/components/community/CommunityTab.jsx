@@ -12,19 +12,26 @@ import { CreateChannelModal, DmPickerModal } from './CreateModals';
 import { FaComments, FaPaperPlane, FaArrowLeft } from 'react-icons/fa';
 import useCommunityTab from '../../../../hooks/chat/useCommunityTab';
 
-// ─── Inline DM View ────────────────────────────────────────────
-const DmView = ({ peer, messages, onSend, onBack, myWallet }) => {
+// ─── Inline DM View (now with WS support) ────────────────────────
+const DmView = ({ peer, messages, connected, typingUsers = [], onSend, onTyping, onBack, myWallet }) => {
   const [text, setText] = useState('');
   const handleSend = () => {
     if (!text.trim()) return;
     onSend(text.trim());
     setText('');
   };
+  const handleChange = (val) => {
+    setText(val);
+    onTyping?.(!!val.trim());
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-light-border/40 dark:border-dark-border/40 bg-light-surface/40 dark:bg-dark-surface/40 backdrop-blur-md">
-        <button onClick={onBack} className="text-light-text-tertiary hover:text-light-text-primary"><FaArrowLeft size={14} /></button>
+        <button onClick={onBack} className="text-light-text-tertiary hover:text-light-text-primary transition">
+          <FaArrowLeft size={14} />
+        </button>
         <div className="w-8 h-8 rounded-full bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center text-sm font-bold overflow-hidden">
           {peer?.profile_image_url
             ? <img src={peer.profile_image_url} className="w-8 h-8 rounded-full object-cover" alt="" />
@@ -35,20 +42,33 @@ const DmView = ({ peer, messages, onSend, onBack, myWallet }) => {
           <h3 className="text-sm font-bold truncate">{peer?.name}</h3>
           <p className="text-[11px] text-light-text-tertiary truncate">{peer?.cargo} · {peer?.seccion}</p>
         </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-light-text-tertiary">
+          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-500'}`} />
+        </div>
       </div>
+
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3 custom-scrollbar">
         {messages.length === 0 && (
-          <div className="text-center py-8 text-sm text-light-text-tertiary">
-            Inicia la conversación con {peer?.name}
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
+            <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center text-2xl mb-3">💬</div>
+            <p className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary">
+              Inicia la conversación con {peer?.name}
+            </p>
+            <p className="text-[11px] text-light-text-tertiary mt-1">Los mensajes son directos y privados</p>
           </div>
         )}
         {messages.map((m, i) => {
           const isMine = m.sender_wallet?.toLowerCase() === myWallet?.toLowerCase();
           return (
-            <div key={m.id || i} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm ${isMine
-                  ? 'bg-matrix-green/15 text-matrix-green rounded-br-sm'
+            <motion.div
+              key={m.id || i}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`max-w-[70%] px-3.5 py-2.5 rounded-2xl text-sm ${isMine
+                  ? 'bg-blue-500/15 text-blue-400 rounded-br-sm'
                   : 'bg-light-surface-tertiary/50 dark:bg-dark-surface-tertiary/50 rounded-bl-sm'
                 }`}>
                 <p className="whitespace-pre-wrap break-words">{m.text}</p>
@@ -56,22 +76,30 @@ const DmView = ({ peer, messages, onSend, onBack, myWallet }) => {
                   {m.created_at ? new Date(m.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''}
                 </p>
               </div>
-            </div>
+            </motion.div>
           );
         })}
       </div>
+
+      {/* Typing indicator */}
+      {typingUsers.length > 0 && (
+        <div className="px-4 py-1 text-xs text-light-text-tertiary dark:text-dark-text-tertiary">
+          {typingUsers.map(u => u.name || u.wallet?.slice(0,8)).join(', ')} escribiendo...
+        </div>
+      )}
+
       {/* Input */}
       <div className="shrink-0 px-4 py-3 border-t border-light-border/40 dark:border-dark-border/40">
         <div className="flex items-center gap-2 bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 rounded-xl border border-light-border/30 dark:border-dark-border/30 px-3 py-2">
           <textarea
             value={text}
-            onChange={e => setText(e.target.value)}
+            onChange={e => handleChange(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder={`Mensaje a ${peer?.name}...`}
             rows={1}
-            className="flex-1 bg-transparent resize-none text-sm outline-none max-h-32"
+            className="flex-1 bg-transparent resize-none text-sm outline-none max-h-32 text-light-text-primary dark:text-dark-text-primary placeholder:text-light-text-tertiary/60"
           />
-          <button onClick={handleSend} disabled={!text.trim()} className="p-1.5 rounded-lg bg-matrix-green text-dark-bg disabled:opacity-30">
+          <button onClick={handleSend} disabled={!text.trim()} className="p-1.5 rounded-lg bg-blue-500 text-white disabled:opacity-30 hover:bg-blue-600 transition">
             <FaPaperPlane size={14} />
           </button>
         </div>
@@ -83,7 +111,7 @@ const DmView = ({ peer, messages, onSend, onBack, myWallet }) => {
 // ─── Main Community Tab ────────────────────────────────────────
 const CommunityTab = ({ appState }) => {
   const {
-    token, walletAddress, isAdmin,
+    token, walletAddress, isAdmin, canPin,
     channelHook, groupHook, presence,
     mode, setMode,
     showCreateChannel, setShowCreateChannel,
@@ -94,9 +122,10 @@ const CommunityTab = ({ appState }) => {
     selectedGroupForSettings, setSelectedGroupForSettings,
     selectedMemberProfile, setSelectedMemberProfile,
     dmPeer, setDmPeer,
-    dmMessages,
+    dmChat,
+    dmConversations,
     handleSelectChannel, handleSelectGroup, handlePinMessage,
-    handleSelectDmPeer, handleSendDm, handleMemberClick
+    handleSelectDmPeer, handleSelectDmConvo, handleSendDm, handleMemberClick
   } = useCommunityTab({ appState });
 
   const mainContent = useMemo(() => {
@@ -104,9 +133,12 @@ const CommunityTab = ({ appState }) => {
       return (
         <DmView
           peer={dmPeer}
-          messages={dmMessages}
+          messages={dmChat.messages}
+          connected={dmChat.connected}
+          typingUsers={dmChat.typingUsers}
           onSend={handleSendDm}
-          onBack={() => { setMode(null); setDmPeer(null); }}
+          onTyping={dmChat.notifyTyping}
+          onBack={() => { setMode(null); dmChat.disconnectWs(); setDmPeer(null); }}
           myWallet={walletAddress}
         />
       );
@@ -128,8 +160,10 @@ const CommunityTab = ({ appState }) => {
           myWallet={walletAddress}
           token={token}
           isAdmin={isAdmin}
+          canPin={canPin}
           messagesLoading={channelHook.messagesLoading}
           members={presence.members}
+          employeeMap={presence.employeeMap}
         />
       );
     }
@@ -150,10 +184,12 @@ const CommunityTab = ({ appState }) => {
           myWallet={walletAddress}
           token={token}
           isAdmin={isAdmin}
+          canPin={false}
           messagesLoading={groupHook.messagesLoading}
           isGroup={true}
           groupName={groupHook.activeGroup?.name}
           members={presence.members}
+          employeeMap={presence.employeeMap}
         />
       );
     }
@@ -167,7 +203,7 @@ const CommunityTab = ({ appState }) => {
           🍝 Piccola Community
         </h2>
         <p className="text-sm text-light-text-tertiary dark:text-dark-text-tertiary max-w-sm">
-          Selecciona un canal o grupo, o envía un mensaje directo.
+          Selecciona un canal, grupo, o mensaje directo.
           {isAdmin && ' Como admin, puedes crear nuevos canales y gestionar permisos.'}
         </p>
         <p className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary mt-4 opacity-60">
@@ -175,7 +211,7 @@ const CommunityTab = ({ appState }) => {
         </p>
       </div>
     );
-  }, [mode, channelHook, groupHook, dmPeer, dmMessages, walletAddress, isAdmin, handlePinMessage, handleSendDm]);
+  }, [mode, channelHook, groupHook, dmPeer, dmChat, walletAddress, isAdmin, canPin, handlePinMessage, handleSendDm]);
 
   return (
     <div className="h-full flex">
@@ -204,6 +240,9 @@ const CommunityTab = ({ appState }) => {
             walletAddress={walletAddress}
             onlineCount={presence.onlineCount}
             showMembersPanel={showMembersPanel}
+            dmConversations={dmConversations}
+            activeDmPeer={mode === 'dm' ? dmPeer : null}
+            onSelectDmConvo={handleSelectDmConvo}
           />
         </div>
       </motion.div>
@@ -228,11 +267,14 @@ const CommunityTab = ({ appState }) => {
                 onlineBySection={presence.onlineBySection}
                 idleBySection={presence.idleBySection}
                 offlineBySection={presence.offlineBySection}
+                unregisteredBySection={presence.unregisteredBySection}
                 onlineCount={presence.onlineCount}
                 idleCount={presence.idleCount}
                 offlineCount={presence.offlineCount}
+                unregisteredCount={presence.unregisteredCount}
                 activeGroup={mode === 'group' ? groupHook.activeGroup : null}
                 onClickMember={handleMemberClick}
+                onDmMember={handleSelectDmPeer}
                 onClose={() => setShowMembersPanel(false)}
               />
             </div>
@@ -298,6 +340,7 @@ const CommunityTab = ({ appState }) => {
             open={!!selectedMemberProfile}
             member={selectedMemberProfile}
             onClose={() => setSelectedMemberProfile(null)}
+            onDm={handleSelectDmPeer}
             token={token}
             walletAddress={walletAddress}
             appState={appState}

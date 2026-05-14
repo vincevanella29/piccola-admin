@@ -30,8 +30,8 @@ const YearHeader = ({ year, open, firstItem, count, onToggle }) => (
     aria-expanded={open}
   >
     {/* Timeline dot */}
-    <div className="relative hidden md:block">
-      <div className="w-2 h-2 rounded-full bg-pink-500 shadow ring-2 ring-pink-500/20" />
+    <div className="relative hidden md:flex w-4 items-center justify-center shrink-0">
+      <div className="w-2.5 h-2.5 rounded-full bg-pink-500 shadow ring-4 ring-pink-500/20 z-10" />
     </div>
     {/* Year label */}
     <div className="shrink-0 w-12 md:w-16 text-right pr-2 mr-1 text-light-text/80 dark:text-dark-text/80">
@@ -126,8 +126,8 @@ const HistoryTimeline = ({ payload }) => {
       </div>
 
       <div className="relative">
-        {/* Central vertical line (hidden on mobile for more width) */}
-        <div className="absolute left-6 top-0 bottom-0 w-px bg-light-border/60 dark:bg-dark-border/40 hidden md:block" aria-hidden="true" />
+        {/* Central vertical line */}
+        <div className="absolute left-[20px] top-4 bottom-4 w-0.5 bg-light-border/60 dark:bg-dark-border/40 hidden md:block" aria-hidden="true" />
         <div className="space-y-2">
           {years.map((y) => {
             const list = grouped.get(y) || [];

@@ -157,31 +157,29 @@ const CheckBtn = ({ checked, indeterminate, onClick, className = '' }) => (
 
 const StatusToggle = ({ active, loading, onToggle }) => (
     <button onClick={e => { e.stopPropagation(); onToggle?.(); }} disabled={loading}
-        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
-            active ? 'bg-light-success dark:bg-dark-success' : 'bg-light-surface-secondary dark:bg-dark-surface-secondary'
-        }`}
+        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${active ? 'bg-light-success dark:bg-dark-success' : 'bg-light-surface-secondary dark:bg-dark-surface-secondary'
+            }`}
         role="switch" aria-checked={active}>
         {loading
             ? <Loader2 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 animate-spin text-white" />
-            : <span className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition-transform duration-200 ease-in-out ${
-                active ? 'translate-x-4' : 'translate-x-0.5'
-            }`} />}
+            : <span className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition-transform duration-200 ease-in-out ${active ? 'translate-x-4' : 'translate-x-0.5'
+                }`} />}
     </button>
 );
 
 const REST_COLORS = {
-    dinein:     'bg-blue-100/80 dark:bg-blue-900/25 text-blue-600 dark:text-blue-400',
-    delivery:   'bg-orange-100/80 dark:bg-orange-900/25 text-orange-600 dark:text-orange-400',
+    dinein: 'bg-blue-100/80 dark:bg-blue-900/25 text-blue-600 dark:text-blue-400',
+    delivery: 'bg-orange-100/80 dark:bg-orange-900/25 text-orange-600 dark:text-orange-400',
     collection: 'bg-purple-100/80 dark:bg-purple-900/25 text-purple-600 dark:text-purple-400',
 };
 
 const CAT_PALETTES = [
     { bg: 'bg-violet-50  dark:bg-violet-900/10', border: 'border-violet-200/60 dark:border-violet-800/30', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500', chip: 'bg-violet-100 dark:bg-violet-900/25 text-violet-700 dark:text-violet-400' },
-    { bg: 'bg-sky-50     dark:bg-sky-900/10',    border: 'border-sky-200/60    dark:border-sky-800/30',    text: 'text-sky-700    dark:text-sky-300',    dot: 'bg-sky-500',    chip: 'bg-sky-100    dark:bg-sky-900/25    text-sky-700    dark:text-sky-400'    },
+    { bg: 'bg-sky-50     dark:bg-sky-900/10', border: 'border-sky-200/60    dark:border-sky-800/30', text: 'text-sky-700    dark:text-sky-300', dot: 'bg-sky-500', chip: 'bg-sky-100    dark:bg-sky-900/25    text-sky-700    dark:text-sky-400' },
     { bg: 'bg-emerald-50 dark:bg-emerald-900/10', border: 'border-emerald-200/60 dark:border-emerald-800/30', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500', chip: 'bg-emerald-100 dark:bg-emerald-900/25 text-emerald-700 dark:text-emerald-400' },
-    { bg: 'bg-amber-50   dark:bg-amber-900/10',  border: 'border-amber-200/60  dark:border-amber-800/30',  text: 'text-amber-700  dark:text-amber-300',  dot: 'bg-amber-500',  chip: 'bg-amber-100  dark:bg-amber-900/25  text-amber-700  dark:text-amber-400'  },
-    { bg: 'bg-rose-50    dark:bg-rose-900/10',   border: 'border-rose-200/60   dark:border-rose-800/30',   text: 'text-rose-700   dark:text-rose-300',   dot: 'bg-rose-500',   chip: 'bg-rose-100   dark:bg-rose-900/25   text-rose-700   dark:text-rose-400'   },
-    { bg: 'bg-teal-50    dark:bg-teal-900/10',   border: 'border-teal-200/60   dark:border-teal-800/30',   text: 'text-teal-700   dark:text-teal-300',   dot: 'bg-teal-500',   chip: 'bg-teal-100   dark:bg-teal-900/25   text-teal-700   dark:text-teal-400'   },
+    { bg: 'bg-amber-50   dark:bg-amber-900/10', border: 'border-amber-200/60  dark:border-amber-800/30', text: 'text-amber-700  dark:text-amber-300', dot: 'bg-amber-500', chip: 'bg-amber-100  dark:bg-amber-900/25  text-amber-700  dark:text-amber-400' },
+    { bg: 'bg-rose-50    dark:bg-rose-900/10', border: 'border-rose-200/60   dark:border-rose-800/30', text: 'text-rose-700   dark:text-rose-300', dot: 'bg-rose-500', chip: 'bg-rose-100   dark:bg-rose-900/25   text-rose-700   dark:text-rose-400' },
+    { bg: 'bg-teal-50    dark:bg-teal-900/10', border: 'border-teal-200/60   dark:border-teal-800/30', text: 'text-teal-700   dark:text-teal-300', dot: 'bg-teal-500', chip: 'bg-teal-100   dark:bg-teal-900/25   text-teal-700   dark:text-teal-400' },
 ];
 
 
@@ -225,22 +223,20 @@ const SortableRow = ({
         <div
             ref={setNodeRef}
             style={style}
-            className={`flex items-center gap-0 border-b border-light-border/30 dark:border-dark-border/30 ${isLast ? 'border-b-0' : ''} transition-shadow duration-200 ${
-                isDragging
+            className={`flex items-center gap-0 border-b border-light-border/30 dark:border-dark-border/30 ${isLast ? 'border-b-0' : ''} transition-shadow duration-200 ${isDragging
                     ? 'opacity-50 shadow-2xl shadow-light-accent/10 dark:shadow-dark-accent/10 ring-1 ring-light-accent/20 dark:ring-dark-accent/20 bg-light-surface dark:bg-dark-surface rounded-xl scale-[1.02]'
                     : sel
                         ? 'bg-light-accent/5 dark:bg-dark-accent/8'
                         : 'hover:bg-light-surface-secondary/30 dark:hover:bg-dark-surface-secondary/15'
-            } ${extraClass}`}
+                } ${extraClass}`}
         >
             {/* Drag handle */}
             <div className="w-9 shrink-0 flex items-center justify-center py-3"
                 {...attributes} {...listeners}>
-                <div className={`cursor-grab active:cursor-grabbing p-1.5 rounded-xl transition-all ${
-                    isDragging
+                <div className={`cursor-grab active:cursor-grabbing p-1.5 rounded-xl transition-all ${isDragging
                         ? 'text-light-accent dark:text-dark-accent bg-light-accent/15 dark:bg-dark-accent/15'
                         : 'text-light-text-secondary/30 dark:text-dark-text-secondary/30 hover:text-light-accent dark:hover:text-dark-accent hover:bg-light-accent/10 dark:hover:bg-dark-accent/10'
-                }`}>
+                    }`}>
                     <GripVertical className="w-4 h-4" />
                 </div>
             </div>
@@ -310,22 +306,20 @@ const SortableRow = ({
             <div className="w-20 shrink-0 px-1 py-2.5 whitespace-nowrap hidden lg:block">
                 {mtz?.puven != null ? (
                     <div>
-                        <span className={`font-mono text-[11px] font-semibold ${
-                            p.precio && mtz.puven !== p.precio
+                        <span className={`font-mono text-[11px] font-semibold ${p.precio && mtz.puven !== p.precio
                                 ? 'text-amber-600 dark:text-amber-400'
                                 : 'text-light-text-secondary/60 dark:text-dark-text-secondary/60'
-                        }`}>
+                            }`}>
                             {CLP(mtz.puven)}
                         </span>
                         {p.precio && mtz.puven !== p.precio && (() => {
                             const diff = p.precio - mtz.puven;
                             const pct = Math.round((diff / mtz.puven) * 100);
                             return (
-                                <div className={`text-[9px] font-mono font-bold mt-0.5 ${
-                                    diff > 0
+                                <div className={`text-[9px] font-mono font-bold mt-0.5 ${diff > 0
                                         ? 'text-emerald-500'
                                         : 'text-red-500'
-                                }`}>
+                                    }`}>
                                     {diff > 0 ? '+' : ''}{pct}%
                                 </div>
                             );
@@ -336,29 +330,7 @@ const SortableRow = ({
                 )}
             </div>
 
-            {/* Delivery Price — inline editable, shown when menu type selected */}
-            {showDeliveryPrice && (
-                <div className="w-24 shrink-0 px-1 py-2.5 whitespace-nowrap hidden sm:block">
-                    <div className="flex items-center gap-1">
-                        <span className="text-[9px] text-cyan-500 font-bold">🛵</span>
-                        {onQuickDeliveryPriceUpdate ? (
-                            <InlinePrice
-                                value={p.precio_delivery || p.precio}
-                                productId={p.id}
-                                onSave={onQuickDeliveryPriceUpdate}
-                                accentClass="text-cyan-600 dark:text-cyan-400"
-                            />
-                        ) : (
-                            <span className="font-mono font-bold text-sm text-cyan-600 dark:text-cyan-400">{CLP(p.precio_delivery || p.precio)}</span>
-                        )}
-                    </div>
-                    {p.precio_delivery && p.precio_delivery !== p.precio && (
-                        <div className="text-[9px] text-light-text-secondary/50 dark:text-dark-text-secondary/50 font-mono mt-0.5">
-                            Local: {CLP(p.precio)}
-                        </div>
-                    )}
-                </div>
-            )}
+
 
             {/* MTZ: Margin */}
             <div className="w-16 shrink-0 px-1 py-2.5 hidden lg:flex items-center justify-center">
@@ -478,20 +450,18 @@ const SortableGroupRow = ({
         <div ref={setNodeRef} style={style}>
             {/* Group header row */}
             <div
-                className={`flex items-center gap-0 border-b border-light-border/30 dark:border-dark-border/30 ${isLast ? 'border-b-0' : ''} transition-shadow duration-200 ${
-                    isDragging
+                className={`flex items-center gap-0 border-b border-light-border/30 dark:border-dark-border/30 ${isLast ? 'border-b-0' : ''} transition-shadow duration-200 ${isDragging
                         ? 'opacity-50 shadow-2xl ring-1 ring-amber-400/30 bg-amber-50/50 dark:bg-amber-900/10 rounded-xl scale-[1.01]'
                         : 'bg-amber-50/30 dark:bg-amber-900/8 hover:bg-amber-50/60 dark:hover:bg-amber-900/15'
-                }`}
+                    }`}
             >
                 {/* Drag handle */}
                 <div className="w-9 shrink-0 flex items-center justify-center py-3"
                     {...attributes} {...listeners}>
-                    <div className={`cursor-grab active:cursor-grabbing p-1.5 rounded-xl transition-all ${
-                        isDragging
+                    <div className={`cursor-grab active:cursor-grabbing p-1.5 rounded-xl transition-all ${isDragging
                             ? 'text-amber-500 bg-amber-500/15'
                             : 'text-amber-400/40 hover:text-amber-500 hover:bg-amber-500/10'
-                    }`}>
+                        }`}>
                         <GripVertical className="w-4 h-4" />
                     </div>
                 </div>
@@ -523,7 +493,7 @@ const SortableGroupRow = ({
                 </div>
 
                 {/* Group name + badges */}
-                <div className="flex-1 min-w-0 px-2 py-2.5" onClick={() => setExpanded(e => !e)} style={{cursor:'pointer'}}>
+                <div className="flex-1 min-w-0 px-2 py-2.5" onClick={() => setExpanded(e => !e)} style={{ cursor: 'pointer' }}>
                     <div className="font-bold text-sm text-amber-700 dark:text-amber-400 leading-tight truncate flex items-center gap-2">
                         <Layers className="w-3.5 h-3.5 shrink-0" />
                         {groupName}
@@ -635,7 +605,7 @@ const SortableCategory = ({
                 <div className="flex-1 px-2 py-2">{t('carta.col_name')}</div>
                 <div className="w-20 shrink-0 px-1 py-2 hidden sm:block">{t('carta.col_price')}</div>
                 <div className="w-20 shrink-0 px-1 py-2 hidden lg:block text-amber-600 dark:text-amber-400">MTZ $</div>
-                {showDeliveryPrice && <div className="w-24 shrink-0 px-1 py-2 hidden sm:block text-cyan-600 dark:text-cyan-400">🛵 Delivery</div>}
+
                 <div className="w-16 shrink-0 px-1 py-2 hidden lg:block text-center">Margen</div>
                 <div className="w-16 shrink-0 px-1 py-2 hidden lg:block text-right">Vendido</div>
                 <div className="w-20 shrink-0 px-1 py-2 hidden lg:block text-right">Venta $</div>
@@ -772,11 +742,10 @@ const ProductsTable = ({
     onToggleStatus, onRefresh, onQuickPriceUpdate, onQuickDeliveryPriceUpdate,
 }) => {
     const { t } = useTranslation();
-    const allSelected  = products.length > 0 && selectedIds.length === products.length;
+    const allSelected = products.length > 0 && selectedIds.length === products.length;
     const someSelected = selectedIds.length > 0 && selectedIds.length < products.length;
 
-    // Show delivery price column when a specific menu type is selected
-    const showDeliveryPrice = Boolean(selectedMenuType);
+
 
     const [collapsed, setCollapsed] = useState({});
     const toggleCollapse = (k) => setCollapsed(p => ({ ...p, [k]: !p[k] }));
@@ -1119,7 +1088,7 @@ const ProductsTable = ({
                                     mtzSummary={mtzSummary}
                                     onQuickPriceUpdate={onQuickPriceUpdate}
                                     onQuickDeliveryPriceUpdate={onQuickDeliveryPriceUpdate}
-                                    showDeliveryPrice={showDeliveryPrice}
+
                                 />
                             </div>
 

@@ -27,6 +27,7 @@ from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
 from utils.time_utils import get_chile_time
 from utils.bot.engine import chat_complete
+from apis.marketing.chat import _resolve_worker_profile
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -52,8 +53,78 @@ class DeliveryChatManager:
         self.client_conns: dict[str, set[WebSocket]] = {}
         self.admin_conns: dict[str, set[WebSocket]] = {}
         self._lock = asyncio.Lock()
+        
+        self.s2s_ws = None
+        self.s2s_task = None
+        self.s2s_queue = asyncio.Queue(maxsize=500)
+
+    def _ensure_s2s_task(self):
+        if self.s2s_task is None or self.s2s_task.done():
+            try:
+                self.s2s_task = asyncio.create_task(self._maintain_s2s_connection())
+            except RuntimeError:
+                pass # Event loop not running yet
+
+    async def _maintain_s2s_connection(self):
+        while True:
+            try:
+                import websockets
+                import time, uuid, json
+                from utils.vanellix_crypto import generate_dilithium_keypair, sign_dilithium
+                
+                provider = db.delivery_providers.find_one({"status": "active", "domain": {"$exists": True, "$ne": ""}})
+                delivery_url = provider.get("domain") if provider else None
+                    
+                if not delivery_url:
+                    await asyncio.sleep(10)
+                    continue
+                
+                delivery_url = delivery_url.rstrip("/")
+                if delivery_url.endswith("/api"): delivery_url = delivery_url[:-4]
+                
+                ws_url = delivery_url.replace("http://", "ws://").replace("https://", "wss://") + "/api/delivery-chat/s2s-tunnel"
+                
+                async with websockets.connect(ws_url, open_timeout=5, ping_timeout=20, ping_interval=20) as ws:
+                    self.s2s_ws = ws
+                    
+                    # Handshake Dilithium
+                    payload = {"timestamp": time.time(), "nonce": uuid.uuid4().hex}
+                    body_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+                    kp = generate_dilithium_keypair()
+                    sig_hex = sign_dilithium(bytes.fromhex(kp["sk_hex"]), body_bytes)
+                    
+                    await ws.send(json.dumps({
+                        "type": "s2s_auth", "payload": payload,
+                        "signature": sig_hex, "public_key": kp["pk_hex"]
+                    }))
+                    
+                    resp = await ws.recv()
+                    if json.loads(resp).get("type") == "s2s_auth_ok":
+                        logger.info("[S2S CLIENT] Túnel persistente conectado exitosamente.")
+                    
+                    # Consumidor de la cola
+                    while True:
+                        msg = await self.s2s_queue.get()
+                        await ws.send(json.dumps(msg))
+                        self.s2s_queue.task_done()
+                        
+            except Exception as e:
+                self.s2s_ws = None
+                await asyncio.sleep(5)
+
+    async def s2s_push(self, payload: dict):
+        self._ensure_s2s_task()
+        # Encolar para que el túnel persistente lo mande (no bloquea ni satura CPU)
+        try:
+            self.s2s_queue.put_nowait(payload)
+        except asyncio.QueueFull:
+            if payload.get("type") == "typing":
+                pass # Dropear silenciosamente eventos de typing para no colapsar la cola
+            else:
+                logger.warning(f"[S2S TUNNEL] Cola llena (max 500). Dropeando mensaje: {payload.get('type')}")
 
     async def connect(self, order_number: str, ws: WebSocket, is_admin: bool = False):
+        self._ensure_s2s_task()
         await ws.accept()
         async with self._lock:
             bucket = self.admin_conns if is_admin else self.client_conns
@@ -70,16 +141,22 @@ class DeliveryChatManager:
         logger.info(f"[delivery_chat] WS disconnected: order={order_number} admin={is_admin}")
 
     async def broadcast(self, order_number: str, message: dict, to_admins: Optional[bool] = None):
+        # Transmisión a WebSockets Locales (Admins conectados a esta API)
         targets: set[WebSocket] = set()
-        if to_admins is None or to_admins is False:
-            targets |= self.client_conns.get(order_number, set())
+        a_conns = self.admin_conns.get(order_number, set())
+        
         if to_admins is None or to_admins is True:
-            targets |= self.admin_conns.get(order_number, set())
+            targets |= a_conns
+            
+        print(f"\n[ADMIN-WS BROADCAST] order={order_number} | admins={len(a_conns)} | targets={len(targets)} | msg={str(message.get('text', ''))[:50]}")
+        logger.info(f"[ADMIN-WS BROADCAST] order={order_number} | admins={len(a_conns)} | targets={len(targets)}")
+            
         stale = []
         for ws in list(targets):
             try:
                 await ws.send_json(message)
-            except Exception:
+            except Exception as e:
+                print(f"[BROADCAST ERROR] ws send error: {e}")
                 stale.append(ws)
         if stale:
             async with self._lock:
@@ -89,7 +166,22 @@ class DeliveryChatManager:
                             conns.discard(ws)
                             if not conns:
                                 del bucket[on]
-
+                                
+        # Transmisión S2S (Empujar al backend del Delivery para que los clientes lo vean instantáneo)
+        if to_admins is None or to_admins is False:
+            if message.get("type") == "message":
+                await self.s2s_push({
+                    "type": "admin_reply",
+                    "order_number": order_number,
+                    "role": message.get("role", "admin"),
+                    "content": message.get("text", ""),
+                    "sender_name": message.get("sender_name", "Local")
+                })
+            else:
+                await self.s2s_push({
+                    "order_number": order_number,
+                    **message
+                })
 
 dchat_manager = DeliveryChatManager()
 
@@ -127,26 +219,72 @@ def _build_order_context(order: dict) -> dict:
     elif isinstance(address, str):
         address_str = address
 
+    customer_name = order.get("customer", {}).get("name") or order.get("customer_name") or order.get("contact_name", "Cliente")
     return {
         "order_number": order.get("order_number", ""),
-        "customer_name": order.get("customer_name") or order.get("contact_name", "Cliente"),
+        "customer_name": customer_name,
         "items_summary": items_summary,
         "items": items,
         "status": order.get("status", "unknown"),
         "status_label": STATUS_LABELS.get(order.get("status", ""), order.get("status", "")),
         "address": address_str,
         "courier_info": order.get("courier_info"),
+        "tracking_url": order.get("tracking_url") or order.get("tracking_link"),
+        "carrier": order.get("carrier_slug"),
+        "carrier_status": order.get("carrier_status"),
+        "order_type": order.get("order_type", "delivery"),
+        "scheduled_for": order.get("scheduled_for"),
+        "asap": order.get("asap", True),
     }
 
 
 def _get_admin_location_filter(user: dict, level: int) -> dict:
-    """Build MongoDB query filter for level 6 admins (only their locations)."""
+    """Build MongoDB query filter for level 6 and 7 admins (only their locations)."""
+    perms = (user or {}).get("permissions") or {}
     if level == 6:
-        perms = (user or {}).get("permissions") or {}
         allowed_sucs = perms.get("sucursal_ids", [])
         if allowed_sucs:
             return {"location_id": {"$in": [str(s) for s in allowed_sucs]}}
+    elif level == 7:
+        own_suc = perms.get("own_id_sucursal")
+        if own_suc is not None:
+            return {"location_id": str(own_suc)}
     return {}
+
+
+def _verify_chat_access(user: dict, order_number: str):
+    """Verifies access to a specific chat, including level 6/7 location and level 7 cargo checks."""
+    rl = require_admin_level(user, "delivery_chat")
+    state = CHAT_STATE.find_one({"order_number": order_number})
+    if not state:
+        raise HTTPException(status_code=404, detail="Chat no encontrado")
+        
+    if rl in (6, 7):
+        perms = (user or {}).get("permissions") or {}
+        
+        if rl == 6:
+            allowed_sucs = [str(s) for s in perms.get("sucursal_ids", [])]
+            if str(state.get("location_id")) not in allowed_sucs:
+                raise HTTPException(status_code=403, detail="No tienes acceso a este chat (local diferente)")
+                
+        if rl == 7:
+            own_suc = str(perms.get("own_id_sucursal", ""))
+            if str(state.get("location_id")) != own_suc:
+                raise HTTPException(status_code=403, detail="No tienes acceso a este chat (local diferente)")
+                
+            cargo = perms.get("cargo")
+            seccion = perms.get("seccion")
+            config = db.delivery_config.find_one({}) or {}
+            allowed_cargos = [c.lower().strip() for c in config.get("chat_allowed_cargos", [])]
+            allowed_secciones = [s.lower().strip() for s in config.get("chat_allowed_secciones", [])]
+            
+            has_cargo_access = cargo and cargo.lower().strip() in allowed_cargos
+            has_seccion_access = seccion and seccion.lower().strip() in allowed_secciones
+            
+            if not (has_cargo_access or has_seccion_access):
+                raise HTTPException(status_code=403, detail="Tu cargo o sección no tiene permisos para el chat de delivery")
+                
+    return rl, state
 
 
 def _ensure_chat_state(order_number: str, order: dict) -> dict:
@@ -156,10 +294,11 @@ def _ensure_chat_state(order_number: str, order: dict) -> dict:
         return state
 
     now = get_chile_time()
+    customer_name = order.get("customer", {}).get("name") or order.get("customer_name") or order.get("contact_name", "Cliente")
     state_doc = {
         "order_number": order_number,
         "location_id": str(order.get("location_id", "")),
-        "customer_name": order.get("customer_name") or order.get("contact_name", "Cliente"),
+        "customer_name": customer_name,
         "privy_id": order.get("privy_id", ""),
         "status": "open",
         "mode": "bot",
@@ -187,10 +326,23 @@ async def list_delivery_chats(
     offset: int = 0,
     user: dict = Depends(verify_session),
 ):
-    rl = require_admin_level(user, "delivery")
-    query = {}
+    rl = require_admin_level(user, "delivery_chat")
+    
+    if rl == 7:
+        perms = (user or {}).get("permissions") or {}
+        cargo = perms.get("cargo")
+        seccion = perms.get("seccion")
+        config = db.delivery_config.find_one({}) or {}
+        allowed_cargos = [c.lower().strip() for c in config.get("chat_allowed_cargos", [])]
+        allowed_secciones = [s.lower().strip() for s in config.get("chat_allowed_secciones", [])]
+        
+        has_cargo_access = cargo and cargo.lower().strip() in allowed_cargos
+        has_seccion_access = seccion and seccion.lower().strip() in allowed_secciones
+        
+        if not (has_cargo_access or has_seccion_access):
+            return {"success": True, "items": []}
 
-    # Level 6 location filter
+    query = {}
     loc_filter = _get_admin_location_filter(user, rl)
     query.update(loc_filter)
 
@@ -228,19 +380,7 @@ async def list_delivery_chats(
 
 @router.get("/delivery/chats/{order_number}/history", summary="Historial de chat delivery")
 async def delivery_chat_history(order_number: str, user: dict = Depends(verify_session)):
-    rl = require_admin_level(user, "delivery")
-
-    # Verify location access for level 6
-    state = CHAT_STATE.find_one({"order_number": order_number})
-    if not state:
-        raise HTTPException(status_code=404, detail="Chat no encontrado")
-
-    if rl == 6:
-        loc_filter = _get_admin_location_filter(user, rl)
-        if loc_filter and state.get("location_id") not in [
-            str(s) for s in ((user or {}).get("permissions") or {}).get("sucursal_ids", [])
-        ]:
-            raise HTTPException(status_code=403, detail="No tienes acceso a este chat")
+    rl, state = _verify_chat_access(user, order_number)
 
     msgs = list(CHAT_MSGS.find({"order_number": order_number}).sort("created_at", 1))
 
@@ -249,6 +389,9 @@ async def delivery_chat_history(order_number: str, user: dict = Depends(verify_s
         {"order_number": order_number, "role": "user", "read": {"$ne": True}},
         {"$set": {"read": True}},
     )
+
+    order_data = db.delivery_orders.find_one({"order_number": order_number}, {"_id": 0})
+    order_context = _build_order_context(order_data) if order_data else None
 
     return {
         "success": True,
@@ -261,6 +404,7 @@ async def delivery_chat_history(order_number: str, user: dict = Depends(verify_s
                 "payload": m.get("payload"),
                 "created_at": m.get("created_at"),
                 "admin_wallet": m.get("admin_wallet"),
+                "sender_avatar_url": m.get("sender_avatar_url"),
             }
             for m in msgs
         ],
@@ -269,6 +413,7 @@ async def delivery_chat_history(order_number: str, user: dict = Depends(verify_s
             "mode": state.get("mode", "bot"),
             "admin_id": state.get("admin_id"),
             "customer_name": state.get("customer_name"),
+            "order": order_context,
         },
     }
 
@@ -279,19 +424,19 @@ async def delivery_chat_reply(
     data: AdminReplyPayload,
     user: dict = Depends(verify_session),
 ):
-    rl = require_admin_level(user, "delivery")
+    rl, state = _verify_chat_access(user, order_number)
+    
     admin_wallet = (user.get("wallet") or "").lower()
     if not admin_wallet:
         raise HTTPException(status_code=403, detail="Requiere wallet para responder")
 
-    state = CHAT_STATE.find_one({"order_number": order_number})
-    if not state:
-        raise HTTPException(status_code=404, detail="Chat no encontrado")
     if state.get("status") != "open":
         raise HTTPException(status_code=400, detail="Chat cerrado")
     if state.get("admin_id") and state.get("admin_id") != admin_wallet:
         raise HTTPException(status_code=403, detail="Chat asignado a otro admin")
 
+    name, avatar = _resolve_worker_profile(admin_wallet)
+    
     now = get_chile_time()
     msg_doc = {
         "order_number": order_number,
@@ -299,6 +444,8 @@ async def delivery_chat_reply(
         "text": data.text,
         "created_at": now,
         "admin_wallet": admin_wallet,
+        "sender_name": name or "Local",
+        "sender_avatar_url": avatar,
     }
     CHAT_MSGS.insert_one(msg_doc)
 
@@ -313,22 +460,22 @@ async def delivery_chat_reply(
         "role": "admin",
         "text": data.text,
         "at": now.isoformat() if hasattr(now, "isoformat") else str(now),
-        "sender_name": "La Nonna",
+        "sender_name": name or "Local",
+        "sender_avatar_url": avatar,
     }, to_admins=None)
+
+    logger.info(f"[delivery_chat_reply] Mensaje de {name or admin_wallet} procesado por dchat_manager (order: {order_number}): '{data.text}'")
 
     return {"ok": True}
 
 
-@router.post("/delivery/chats/{order_number}/take", summary="Admin toma chat delivery")
+@router.post("/delivery/chats/{order_number}/take", summary="Admin asume el chat delivery")
 async def delivery_chat_take(order_number: str, user: dict = Depends(verify_session)):
-    rl = require_admin_level(user, "delivery")
+    rl, state = _verify_chat_access(user, order_number)
     admin_wallet = (user.get("wallet") or "").lower()
     if not admin_wallet:
         raise HTTPException(status_code=403, detail="Requiere wallet")
 
-    state = CHAT_STATE.find_one({"order_number": order_number})
-    if not state:
-        raise HTTPException(status_code=404, detail="Chat no encontrado")
     if state.get("status") != "open":
         raise HTTPException(status_code=400, detail="Chat cerrado")
 
@@ -344,9 +491,12 @@ async def delivery_chat_take(order_number: str, user: dict = Depends(verify_sess
     return {"ok": True}
 
 
-@router.post("/delivery/chats/{order_number}/release", summary="Admin libera chat delivery al bot")
+@router.post("/delivery/chats/{order_number}/release", summary="Devolver chat delivery al bot")
 async def delivery_chat_release(order_number: str, user: dict = Depends(verify_session)):
-    rl = require_admin_level(user, "delivery")
+    rl, state = _verify_chat_access(user, order_number)
+    
+    if state.get("status") != "open":
+        raise HTTPException(status_code=400, detail="Chat cerrado")
 
     CHAT_STATE.update_one(
         {"order_number": order_number},
@@ -362,7 +512,10 @@ async def delivery_chat_release(order_number: str, user: dict = Depends(verify_s
 
 @router.post("/delivery/chats/{order_number}/close", summary="Admin cierra chat delivery")
 async def delivery_chat_close(order_number: str, user: dict = Depends(verify_session)):
-    rl = require_admin_level(user, "delivery")
+    rl, state = _verify_chat_access(user, order_number)
+
+    if state.get("status") != "open":
+        raise HTTPException(status_code=400, detail="Chat ya está cerrado")
     now = get_chile_time()
 
     CHAT_STATE.update_one(
@@ -373,6 +526,27 @@ async def delivery_chat_close(order_number: str, user: dict = Depends(verify_ses
     await dchat_manager.broadcast(order_number, {
         "type": "status", "status": "closed",
     }, to_admins=None)
+
+    return {"ok": True}
+
+
+@router.post("/delivery/chats/{order_number}/reopen", summary="Admin reabre chat delivery")
+async def delivery_chat_reopen(order_number: str, user: dict = Depends(verify_session)):
+    rl, state = _verify_chat_access(user, order_number)
+
+    if state.get("status") == "open":
+        raise HTTPException(status_code=400, detail="El chat ya está abierto")
+
+    CHAT_STATE.update_one(
+        {"order_number": order_number},
+        {"$set": {"status": "open", "closed_at": None}},
+    )
+
+    await dchat_manager.broadcast(order_number, {
+        "type": "status", "status": "open",
+    }, to_admins=None)
+
+    return {"ok": True}
 
 
 # ─── REST: Delivery Backend → Admin (Dilithium-signed message proxy) ──
@@ -396,117 +570,135 @@ async def delivery_chat_message(
     Authenticated via Dilithium signature + API key (same as order creation).
     Processes the message through the bot engine and returns the response.
     """
-    from utils.vanellix_crypto import verify_dilithium_request
+    try:
+        logger.info(f"[delivery_chat_message] Empezando a procesar mensaje para orden {payload.order_number}")
+        from utils.vanellix_crypto import verify_dilithium_request
+        from apis.admin.apikeys import validate_api_key
 
-    from apis.admin.apikeys import validate_api_key
+        # Verify API key (same format as delivery/orders: keyId.secret)
+        api_key = request.headers.get("X-Api-Key", "")
+        if not api_key:
+            logger.error("[delivery_chat_message] No API Key provided")
+            raise HTTPException(status_code=401, detail="API key required")
 
-    # Verify API key (same format as delivery/orders: keyId.secret)
-    api_key = request.headers.get("X-Api-Key", "")
-    if not api_key:
-        raise HTTPException(status_code=401, detail="API key required")
+        logger.info(f"[delivery_chat_message] Validando API Key: {api_key[:10]}...")
+        key_doc = validate_api_key(api_key)
+        if not key_doc:
+            logger.error(f"[delivery_chat_message] API Key inválida: {api_key}")
+            raise HTTPException(status_code=401, detail="Invalid API key")
 
-    key_doc = validate_api_key(api_key)
-    if not key_doc:
-        raise HTTPException(status_code=401, detail="Invalid API key")
+        # Verify Dilithium signature
+        logger.info(f"[delivery_chat_message] Verificando firma Dilithium para la request")
+        await verify_dilithium_request(request, key_doc, context="delivery/chat")
 
-    # Verify Dilithium signature
-    await verify_dilithium_request(request, key_doc, context="delivery/chat")
+        # Find order
+        logger.info(f"[delivery_chat_message] Buscando orden en DELIVERY_COLL: {payload.order_number}")
+        order = DELIVERY_COLL.find_one({"order_number": payload.order_number})
+        if not order:
+            logger.error(f"[delivery_chat_message] Orden {payload.order_number} no encontrada")
+            raise HTTPException(status_code=404, detail="Order not found")
 
-    # Find order
-    order = DELIVERY_COLL.find_one({"order_number": payload.order_number})
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        # Ensure chat state
+        logger.info(f"[delivery_chat_message] Asegurando estado de chat (_ensure_chat_state)")
+        state = _ensure_chat_state(payload.order_number, order)
 
-    # Ensure chat state
-    _ensure_chat_state(payload.order_number, order)
-
-    now = get_chile_time()
-
-    # Store user message
-    CHAT_MSGS.insert_one({
-        "order_number": payload.order_number,
-        "role": "user",
-        "text": payload.content,
-        "created_at": now,
-        "privy_id": payload.privy_id,
-        "source": "delivery_proxy",
-    })
-
-    # Broadcast to admin WS clients
-    order_context = _build_order_context(order)
-    await dchat_manager.broadcast(payload.order_number, {
-        "type": "message",
-        "role": "user",
-        "text": payload.content,
-        "at": now.isoformat() if hasattr(now, "isoformat") else str(now),
-        "sender_name": order_context.get("customer_name", "Cliente"),
-    }, to_admins=True)
-
-    # Check chat mode
-    state = CHAT_STATE.find_one({"order_number": payload.order_number})
-    mode = (state or {}).get("mode", "bot")
-
-    response_text = None
-
-    if mode == "bot":
-        # Get recent messages for context
-        last_msgs = list(CHAT_MSGS.find(
-            {"order_number": payload.order_number}
-        ).sort("created_at", 1))[-12:]
-
-        messages = [
-            {"role": "user" if m["role"] == "user" else "assistant", "content": m.get("text", "")}
-            for m in last_msgs
-        ]
-
-        try:
-            reply = await asyncio.wait_for(
-                chat_complete(messages, delivery_mode=True, order_context=order_context),
-                timeout=30,
+        # Si el chat estaba cerrado y el cliente manda mensaje, lo reabrimos automáticamente
+        if state.get("status") == "closed":
+            logger.info(f"[delivery_chat_message] El chat estaba cerrado, reabriendo automáticamente.")
+            CHAT_STATE.update_one(
+                {"order_number": payload.order_number},
+                {"$set": {"status": "open", "closed_at": None}}
             )
+            await dchat_manager.broadcast(payload.order_number, {
+                "type": "status", "status": "open",
+            }, to_admins=True)
 
-            if isinstance(reply, dict):
-                response_text = reply.get("text") or " ".join(reply.get("lines", []))
-            elif isinstance(reply, str):
-                response_text = reply
+        now = get_chile_time()
 
-            if not response_text or not response_text.strip():
-                response_text = f"Tu pedido #{payload.order_number[-6:]} está en estado: {order.get('status', 'procesando')}. ¿En qué más te puedo ayudar?"
-
-        except asyncio.TimeoutError:
-            response_text = "Estoy tardando más de lo normal. Intenta de nuevo en un momento."
-        except Exception as e:
-            logger.error(f"[delivery_chat] Bot reply error: {e}")
-            response_text = f"Tu pedido #{payload.order_number[-6:]} está en estado: {order.get('status', 'procesando')}. Un miembro del equipo te responderá pronto."
-
-        # Store bot reply
+        # Store user message
+        logger.info(f"[delivery_chat_message] Insertando mensaje de usuario en CHAT_MSGS")
         CHAT_MSGS.insert_one({
             "order_number": payload.order_number,
-            "role": "assistant",
-            "text": response_text,
-            "created_at": get_chile_time(),
+            "role": "user",
+            "text": payload.content,
+            "created_at": now,
+            "privy_id": payload.privy_id,
+            "source": "delivery_proxy",
         })
 
-        # Broadcast bot reply to admin
+        # Broadcast to admin WS clients
+        logger.info(f"[delivery_chat_message] Construyendo order context y transmitiendo a WS de administradores")
+        order_context = _build_order_context(order)
         await dchat_manager.broadcast(payload.order_number, {
             "type": "message",
-            "role": "assistant",
-            "text": response_text,
-            "at": get_chile_time().isoformat(),
-            "sender_name": "La Nonna",
+            "role": "user",
+            "text": payload.content,
+            "at": now.isoformat() if hasattr(now, "isoformat") else str(now),
+            "sender_name": order_context.get("customer_name", "Cliente"),
         }, to_admins=True)
 
-    else:
-        # Human mode — admin will reply manually
+        # Check chat mode
+        logger.info(f"[delivery_chat_message] Comprobando modo del chat")
+        state = CHAT_STATE.find_one({"order_number": payload.order_number})
+        mode = (state or {}).get("mode", "bot")
+        
         response_text = None
+        
+        if mode == "bot":
+            logger.info(f"[delivery_chat_message] Chat está en modo BOT. Invocando chat_complete")
+            # Fetch recent chat history
+            recent_msgs = list(CHAT_MSGS.find(
+                {"order_number": payload.order_number},
+                {"_id": 0, "role": 1, "text": 1}
+            ).sort("created_at", -1).limit(10))
+            recent_msgs.reverse()
+            
+            # Format for bot engine (ensure standard roles)
+            formatted_msgs = [{"role": msg.get("role", "user"), "content": msg.get("text", "")} for msg in recent_msgs]
+            
+            # Invoke La Nonna AI
+            response_text = await chat_complete(
+                messages=formatted_msgs,
+                delivery_mode=True,
+                order_context=order_context
+            )
+            
+            logger.info(f"[delivery_chat_message] Respuesta recibida de chat_complete: {type(response_text)}")
+            
+            # Normalize response_text to string
+            if isinstance(response_text, dict):
+                lines = response_text.get("lines", [])
+                response_text = " ".join(lines) if lines else response_text.get("text", "...")
+            elif not isinstance(response_text, str):
+                response_text = str(response_text)
+            
+            # Save bot response
+            bot_now = get_chile_time()
+            CHAT_MSGS.insert_one({
+                "order_number": payload.order_number,
+                "role": "assistant",
+                "text": response_text,
+                "created_at": bot_now,
+            })
+            
+            logger.info(f"[delivery_chat_message] Transmitiendo respuesta del bot")
+            await dchat_manager.broadcast(payload.order_number, {
+                "type": "message",
+                "role": "assistant",
+                "text": response_text,
+                "at": bot_now.isoformat() if hasattr(bot_now, "isoformat") else str(bot_now),
+                "sender_name": "La Nonna 🍕",
+            }, to_admins=None)
+            
+            logger.info("[delivery_chat_message] Todo procesado con éxito (modo bot)")
+            return {"ok": True, "bot_response": response_text}
 
-    logger.info(f"[delivery_chat] Message from {payload.privy_id[:20]}… for order {payload.order_number} mode={mode}")
+        logger.info("[delivery_chat_message] Todo procesado con éxito (modo humano)")
+        return {"ok": True}
 
-    return {
-        "success": True,
-        "response": response_text,
-        "mode": mode,
-    }
+    except Exception as e:
+        logger.exception(f"[delivery_chat_message] CRITICAL ERROR 500: {e}")
+        raise
 
 
 
@@ -618,10 +810,7 @@ async def ws_delivery_chat_client(websocket: WebSocket, order_number: str):
                 "sender_name": order_context.get("customer_name", "Cliente"),
             }, to_admins=None)
 
-            # Bot reply if in bot mode
-            state = CHAT_STATE.find_one({"order_number": order_number})
-            if state and state.get("mode") == "bot":
-                asyncio.create_task(_delivery_bot_reply(order_number, order_context))
+
 
     except WebSocketDisconnect:
         pass
@@ -631,75 +820,7 @@ async def ws_delivery_chat_client(websocket: WebSocket, order_number: str):
         await dchat_manager.disconnect(order_number, websocket, is_admin=False)
 
 
-async def _delivery_bot_reply(order_number: str, order_context: dict):
-    """Generate bot reply using delivery_chat_complete (fire-and-forget)."""
-    try:
-        # Get last N messages for context
-        last_msgs = await asyncio.to_thread(
-            lambda: list(CHAT_MSGS.find({"order_number": order_number}).sort("created_at", 1))[-12:]
-        )
-        messages = [
-            {"role": "user" if m["role"] == "user" else "assistant", "content": m.get("text", "")}
-            for m in last_msgs
-        ]
 
-        # Refresh order data for latest status
-        fresh_order = await asyncio.to_thread(
-            lambda: DELIVERY_COLL.find_one({"order_number": order_number})
-        )
-        if fresh_order:
-            order_context = _build_order_context(fresh_order)
-
-        # Call the engine with delivery_mode flag (walled garden)
-        reply = await asyncio.wait_for(
-            chat_complete(messages, delivery_mode=True, order_context=order_context),
-            timeout=30,
-        )
-
-        # Extract text from reply
-        reply_text = ""
-        payload = None
-        if isinstance(reply, dict):
-            payload = reply
-            reply_text = reply.get("text") or " ".join(reply.get("lines", []))
-        elif isinstance(reply, str):
-            reply_text = reply
-
-        if not reply_text.strip():
-            reply_text = "Disculpa, no pude procesar tu consulta."
-
-        now = get_chile_time()
-        await asyncio.to_thread(lambda: CHAT_MSGS.insert_one({
-            "order_number": order_number,
-            "role": "assistant",
-            "text": reply_text,
-            "payload": payload,
-            "created_at": now,
-        }))
-
-        await dchat_manager.broadcast(order_number, {
-            "type": "message",
-            "role": "assistant",
-            "text": reply_text,
-            "payload": payload,
-            "at": now.isoformat() if hasattr(now, "isoformat") else str(now),
-            "sender_name": "La Nonna",
-        }, to_admins=None)
-
-    except asyncio.TimeoutError:
-        now = get_chile_time()
-        timeout_text = "Estoy tardando más de lo normal. Intenta de nuevo en un momento."
-        await asyncio.to_thread(lambda: CHAT_MSGS.insert_one({
-            "order_number": order_number, "role": "assistant",
-            "text": timeout_text, "created_at": now,
-        }))
-        await dchat_manager.broadcast(order_number, {
-            "type": "message", "role": "assistant", "text": timeout_text,
-            "at": now.isoformat() if hasattr(now, "isoformat") else str(now),
-            "sender_name": "La Nonna",
-        }, to_admins=None)
-    except Exception as e:
-        logger.error(f"[delivery_chat] Bot reply error for {order_number}: {e}")
 
 
 # ─── WebSocket: Admin Panel (session-based) ────────────────────────────

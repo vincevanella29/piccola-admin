@@ -7,6 +7,7 @@ import CommunityTab from './components/community/CommunityTab';
 
 // Componentes Locales
 import ChatMessage from './components/message/ChatMessage';
+import DeliveryChatMessage from './components/message/DeliveryChatMessage';
 import ChatHeader from './components/common/ChatHeader';
 import ChatFooter from './components/common/ChatFooter';
 import ChatSidebar from './components/common/ChatSidebar';
@@ -206,24 +207,28 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                   <CommunityTab appState={appState} />
                ) : (!isAdmin && (!isAuthenticated || !hasWallet)) ? (
                   <Gate />
+               ) : activeTab === 'delivery' ? (
+                  <DeliveryChatMessage
+                    appState={appState} t={t}
+                    delivery={deliveryChat}
+                    onShowJumpChange={(v) => setShowJumpDelivery(Boolean(v))}
+                    onScrollToBottomReady={(fn) => { if (typeof fn === 'function') setDeliveryScrollToBottom(() => fn); }}
+                  />
                ) : (
                   <ChatMessage
-                    variant={activeTab === 'delivery' ? 'delivery' : (isAdmin && activeTab === 'admin' ? 'admin' : 'client')}
+                    variant={isAdmin && activeTab === 'admin' ? 'admin' : 'client'}
                     appState={appState} t={t} 
                     client={msgClient} admin={adminState}
-                    delivery={deliveryChat}
                     mediaMap={restaurantData?.mediaMap || {}}
                     allProducts={restaurantData?.allLocationMenus || []} 
                     locations={restaurantData?.locations || []}
                     onShowJumpChange={(v) => {
-                      if (activeTab === 'delivery') setShowJumpDelivery(Boolean(v));
-                      else if (isAdmin && activeTab === 'admin') setShowJumpAdmin(Boolean(v));
+                      if (isAdmin && activeTab === 'admin') setShowJumpAdmin(Boolean(v));
                       else setShowJumpClient(Boolean(v));
                     }}
                     onScrollToBottomReady={(fn) => {
                       if (typeof fn !== 'function') return;
-                      if (activeTab === 'delivery') setDeliveryScrollToBottom(() => fn);
-                      else if (isAdmin && activeTab === 'admin') setAdminScrollToBottom(() => fn);
+                      if (isAdmin && activeTab === 'admin') setAdminScrollToBottom(() => fn);
                       else setClientScrollToBottom(() => fn);
                     }}
                   />
@@ -306,7 +311,9 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                   onAdminTake={activeTab === 'delivery' ? deliveryChat.take : adminState.take} 
                   onAdminRelease={activeTab === 'delivery' ? deliveryChat.release : adminState.release} 
                   onAdminClose={activeTab === 'delivery' ? deliveryChat.closeConv : adminState.closeConv} 
+                  onAdminReopen={activeTab === 'delivery' ? deliveryChat.reopenConv : undefined}
                   onAdminTyping={activeTab === 'delivery' ? deliveryChat.notifyTyping : adminState.notifyTyping}
+                  isClosed={activeTab === 'delivery' ? deliveryChat.chatState?.status === 'closed' : false}
                   showJump={activeTab === 'delivery' ? showJumpDelivery : ((isAdmin && activeTab === 'admin') ? showJumpAdmin : showJumpClient)}
                   onJump={activeTab === 'delivery' ? deliveryScrollToBottom : ((isAdmin && activeTab === 'admin') ? adminScrollToBottom : clientScrollToBottom)}
                 />

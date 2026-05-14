@@ -69,6 +69,20 @@ export async function fetchDeliveryStats({ token, walletAddress, locationId }) {
   });
 }
 
+export async function fetchAdvancedAnalytics({ token, walletAddress, locationId, dateFrom, dateTo }) {
+  const params = {};
+  if (locationId) params.location_id = locationId;
+  if (dateFrom) params.date_from = dateFrom;
+  if (dateTo) params.date_to = dateTo;
+  return api({
+    method: 'GET',
+    endpoint: '/delivery/orders/analytics/advanced',
+    withCredentials: true,
+    headers: authHeaders({ token, walletAddress }),
+    params,
+  });
+}
+
 export async function fetchReviewStats({ token, walletAddress }) {
   return api({
     method: 'GET',
@@ -483,6 +497,16 @@ export async function updateCarrierMapping({ token, walletAddress, carrierId, st
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
     data: { carrier_id: carrierId, status_mapping: statusMapping },
+  });
+}
+
+export async function updateChatAccess({ token, walletAddress, allowedCargos, allowedSecciones }) {
+  return api({
+    method: 'PUT',
+    endpoint: '/delivery/config/chat-access',
+    withCredentials: true,
+    headers: authHeaders({ token, walletAddress }),
+    data: { chat_allowed_cargos: allowedCargos, chat_allowed_secciones: allowedSecciones },
   });
 }
 

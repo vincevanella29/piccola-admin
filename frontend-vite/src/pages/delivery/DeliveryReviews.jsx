@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   FaStar, FaChevronLeft, FaChevronRight, FaFilter, FaSync,
-  FaSpinner, FaStoreAlt, FaQuoteLeft, FaCrown, FaTags, FaUtensils, FaUserTag,
+  FaSpinner, FaStoreAlt, FaQuoteLeft, FaCrown, FaTags, FaUtensils, FaUserTag, FaWhatsapp,
 } from 'react-icons/fa';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -155,6 +155,10 @@ const TagCloud = ({ tags = [] }) => {
 const ReviewCard = ({ review }) => {
   const rev = review.review || {};
   const orderItems = review.items || [];
+  const customer = review.customer || {};
+  const phone = customer.phone || '';
+  const orderCount = review.customer_order_count || 1;
+  const isVip = orderCount >= 3;
 
   // Cross-reference order items with review items if available
   const reviewItemsMap = {};
@@ -164,30 +168,50 @@ const ReviewCard = ({ review }) => {
     });
   }
 
+  const handleWhatsapp = (e) => {
+    e.stopPropagation();
+    if (!phone) return;
+    const cleanPhone = phone.replace(/\D/g, '');
+    const finalPhone = cleanPhone.startsWith('56') ? cleanPhone : `56${cleanPhone}`;
+    window.open(`https://wa.me/${finalPhone}?text=Hola%20${encodeURIComponent(customer.name || '')},%20somos%20de%20La%20Piccola%20Italia!%20Vimos%20tu%20reciente%20reseña...`, '_blank');
+  };
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-light-surface dark:bg-dark-surface border border-light-border/10 dark:border-dark-border/10 rounded-xl p-4 hover:shadow-lg transition-shadow"
+      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      className="relative flex flex-col bg-white/70 dark:bg-[#151515]/70 backdrop-blur-md border border-light-border/20 dark:border-dark-border/20 rounded-3xl p-5 shadow-xl shadow-black/5 hover:shadow-2xl hover:-translate-y-1 transition-all"
     >
       {/* Top: stars + date */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <Stars count={rev.overall_stars || 0} size={14} />
-          <span className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary">
-            {rev.overall_stars || 0}/5
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <Stars count={rev.overall_stars || 0} size={18} />
+            <span className="text-lg font-black text-light-text-primary dark:text-dark-text-primary tracking-tight">
+              {rev.overall_stars || 0}.0
+            </span>
+          </div>
+          <span className="text-[10px] font-bold text-light-text-tertiary uppercase tracking-wider">
+            {fmtDate(rev.received_at || review.delivered_at)} a las {fmtTime(rev.received_at || review.delivered_at)}
           </span>
         </div>
-        <span className="text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary">
-          {fmtDate(rev.received_at || review.delivered_at)} {fmtTime(rev.received_at || review.delivered_at)}
-        </span>
+        
+        {/* Customer Badge */}
+        {orderCount > 0 && (
+          <div className={`flex flex-col items-end`}>
+             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide ${isVip ? 'bg-amber-400/20 text-amber-600 dark:text-amber-400 border border-amber-400/30' : 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20'}`}>
+                {isVip && <FaCrown size={10} />}
+                {orderCount} {orderCount === 1 ? 'PEDIDO' : 'PEDIDOS'}
+             </div>
+          </div>
+        )}
       </div>
 
       {/* Tags */}
       {Array.isArray(rev.overall_tags) && rev.overall_tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
+        <div className="flex flex-wrap gap-1.5 mb-4">
           {rev.overall_tags.map((tag, i) => (
-            <span key={i} className="px-2 py-0.5 bg-light-surface-secondary dark:bg-dark-surface-secondary rounded text-[9px] font-medium text-light-text-secondary">
+            <span key={i} className="px-2.5 py-1 bg-light-surface dark:bg-[#222] border border-light-border/10 dark:border-dark-border/10 shadow-sm rounded-lg text-[10px] font-bold text-light-text-secondary dark:text-gray-300">
               {tag}
             </span>
           ))}
@@ -196,30 +220,38 @@ const ReviewCard = ({ review }) => {
 
       {/* Comment */}
       {rev.comment && (
-        <div className="mb-4 pl-3 border-l-2 border-amber-400/30">
-          <FaQuoteLeft size={8} className="text-amber-400/40 mb-1" />
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary italic leading-relaxed">
-            {rev.comment}
+        <div className="mb-5 relative">
+          <FaQuoteLeft size={16} className="absolute -left-1 -top-2 text-amber-400/20 dark:text-amber-400/10" />
+          <p className="text-sm text-light-text-primary dark:text-gray-200 font-medium italic leading-relaxed pl-5 relative z-10">
+            "{rev.comment}"
           </p>
         </div>
       )}
 
-      {/* Item-level ratings */}
+      {/* Item-level ratings with Images */}
       {orderItems.length > 0 && (
-        <div className="mb-4 space-y-1.5 bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 p-2.5 rounded-lg">
-          <p className="text-[10px] font-bold text-light-text-tertiary mb-1.5">Platos Evaluados:</p>
+        <div className="mb-5 space-y-2 bg-light-surface-secondary/40 dark:bg-black/20 rounded-2xl p-3 border border-light-border/5 dark:border-white/5">
+          <p className="text-[10px] font-bold text-light-text-tertiary uppercase tracking-wider mb-2">Platos Evaluados</p>
           {orderItems.map((item, idx) => {
             const ri = reviewItemsMap[item.codigo];
             return (
-              <div key={idx} className="flex items-center justify-between text-[11px]">
-                <span className="text-light-text-secondary line-clamp-1 flex-1 pr-2">{item.nombre}</span>
+              <div key={idx} className="flex items-center justify-between gap-3 bg-white/50 dark:bg-[#222]/50 p-2 rounded-xl">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {item.image_url ? (
+                     <img src={item.image_url} alt={item.nombre} className="w-10 h-10 rounded-lg object-cover shadow-sm border border-light-border/10 dark:border-dark-border/10 flex-shrink-0" />
+                  ) : (
+                     <div className="w-10 h-10 rounded-lg bg-light-surface-tertiary dark:bg-[#333] flex items-center justify-center flex-shrink-0 text-light-text-tertiary border border-light-border/10 dark:border-dark-border/10">
+                       <FaUtensils size={14} />
+                     </div>
+                  )}
+                  <span className="text-xs font-bold text-light-text-secondary dark:text-gray-300 line-clamp-2 leading-tight">{item.nombre}</span>
+                </div>
                 {ri && ri.stars ? (
-                  <div className="flex items-center gap-1 w-16 justify-end">
-                    <FaStar size={8} className="text-amber-400" />
-                    <span className="font-bold text-light-text-primary">{ri.stars}</span>
+                  <div className="flex items-center gap-1 bg-amber-400/10 px-2 py-1 rounded-lg text-amber-600 dark:text-amber-400 font-bold text-xs flex-shrink-0 border border-amber-400/10">
+                    <FaStar size={10} /> {ri.stars}
                   </div>
                 ) : (
-                  <span className="text-[9px] text-light-text-tertiary italic w-16 text-right">No evaluado</span>
+                  <span className="text-[10px] font-medium text-light-text-tertiary italic flex-shrink-0">No evaluado</span>
                 )}
               </div>
             );
@@ -227,23 +259,32 @@ const ReviewCard = ({ review }) => {
         </div>
       )}
 
-      {/* Customer + order info */}
-      <div className="flex items-center justify-between pt-3 border-t border-light-border/5 dark:border-dark-border/5">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-matrix-green/10 rounded-full flex items-center justify-center text-matrix-green text-[10px] font-bold">
-            {(review.customer?.name || '?')[0].toUpperCase()}
+      <div className="mt-auto pt-4 border-t border-light-border/10 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Customer Info */}
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black shadow-inner ${isVip ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white' : 'bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200'}`}>
+            {(customer.name || '?')[0].toUpperCase()}
           </div>
           <div>
-            <p className="text-xs font-semibold text-light-text-primary dark:text-dark-text-primary">
-              {review.customer?.name || 'Cliente'}
+            <p className="text-sm font-black text-light-text-primary dark:text-white">
+              {customer.name || 'Cliente'}
             </p>
-            <p className="text-[9px] text-light-text-tertiary">
-              #{(review.order_number || review._id || '').slice(-8).toUpperCase()} · {fmt(review.total_amount)}
+            <p className="text-[10px] font-bold text-light-text-tertiary">
+              <span className="text-matrix-green">#{String(review.order_number || review._id || '').slice(-6).toUpperCase()}</span> • {fmt(review.total_amount)}
             </p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] text-light-text-tertiary">{review.location_name || '—'}</p>
+
+        {/* Action / Contact */}
+        <div className="flex items-center justify-end gap-2">
+           {phone && (
+             <button
+                onClick={handleWhatsapp}
+                className="flex items-center justify-center gap-1.5 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white transition-colors border border-[#25D366]/20 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm"
+             >
+                <FaWhatsapp size={14} /> {phone}
+             </button>
+           )}
         </div>
       </div>
     </motion.div>

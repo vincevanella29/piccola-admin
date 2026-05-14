@@ -18,7 +18,7 @@ export function loadGoogleMapsScript(apiKey) {
   return new Promise((resolve, reject) => {
     script = document.createElement('script');
     script.id = 'google-maps-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&libraries=visualization,places`;
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();

@@ -282,6 +282,17 @@ const DeliveryFinance = ({ appState }) => {
                     <span className="px-2 py-1 rounded-lg bg-cyan-500/10 text-cyan-500 font-mono">Plataforma: {fmt(api.preview.commission_platform)}</span>
                     <span className="px-2 py-1 rounded-lg bg-purple-500/10 text-purple-500 font-mono">Pago: {fmt(api.preview.commission_payment)}</span>
                   </div>
+
+                  {api.preview.incomplete_orders_count > 0 && (
+                    <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-semibold flex items-start gap-2">
+                      <FaSpinner className="mt-0.5 shrink-0" />
+                      <span>
+                        ⚠️ Hay {api.preview.incomplete_orders_count} pedido(s) sin completar (pendientes/en reparto) en este período. 
+                        Aún no han sido cobrados. ¿Seguro que deseas cerrar el período ahora?
+                      </span>
+                    </div>
+                  )}
+
                   <button
                     onClick={() => api.handleGenerateClosing(closingFrom, closingTo)}
                     className="px-5 py-2 rounded-xl text-sm font-bold bg-matrix-green text-white hover:bg-matrix-green/90 transition-colors flex items-center gap-2 shadow-sm"

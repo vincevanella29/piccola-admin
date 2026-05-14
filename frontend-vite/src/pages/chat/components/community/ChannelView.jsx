@@ -3,11 +3,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaHashtag, FaBullhorn, FaThumbtack, FaUsers, FaSmile, FaReply, FaPaperPlane, FaPaperclip, FaImage, FaArrowDown, FaTrophy } from 'react-icons/fa';
 import useChannelView from '../../../../hooks/chat/useChannelView';
+import { getSectionColor } from './sectionColors';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '🔥', '👏', '🍕', '👵'];
 
 // ─── Message Bubble ────────────────────────────────────────────────
-const MessageBubble = ({ msg, myWallet, onReact, onReply, onPin, isAdmin, members }) => {
+const MessageBubble = ({ msg, myWallet, onReact, onReply, onPin, isAdmin, canPin = false, members, employeeMap = {} }) => {
   const isMine = msg.sender_wallet && myWallet && msg.sender_wallet.toLowerCase() === myWallet.toLowerCase();
   const isBot = msg.sender_name === 'La Nonna 👵';
   const [showEmoji, setShowEmoji] = useState(false);
@@ -16,11 +17,17 @@ const MessageBubble = ({ msg, myWallet, onReact, onReply, onPin, isAdmin, member
     msg.sender_role_level <= 4 ? '👑' : msg.sender_role_level <= 5 ? '⭐' : ''
   ) : '';
 
-  // Fallback to presence members for old messages
+  // Fallback chain: msg data → presence member → employee directory
   const senderWallet = (msg.sender_wallet || '').toLowerCase();
   const presenceMember = members?.find(m => m.wallet?.toLowerCase() === senderWallet);
-  const avatarUrl = msg.sender_avatar_url || presenceMember?.profile_image_url;
-  const displayName = msg.sender_name || presenceMember?.name || 'Anónimo';
+  const employee = senderWallet ? employeeMap[senderWallet] : null;
+  const avatarUrl = msg.sender_avatar_url || presenceMember?.profile_image_url || employee?.profile_image_url;
+  const displayName = msg.sender_name || presenceMember?.name || employee?.name || 'Anónimo';
+
+  // Resolve section from msg or presence member or employee directory
+  const senderSeccion = msg.sender_seccion || presenceMember?.seccion || employee?.seccion || '';
+  const sectionColor = getSectionColor(senderSeccion);
+
 
   return (
     <motion.div
@@ -42,11 +49,15 @@ const MessageBubble = ({ msg, myWallet, onReact, onReply, onPin, isAdmin, member
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
-          <span className={`text-sm font-semibold ${isBot ? 'text-purple-400' : isMine ? 'text-matrix-green' : 'text-light-text-primary dark:text-dark-text-primary'}`}>
+          <span
+            className="text-sm font-semibold"
+            style={{ color: isBot ? '#a855f7' : isMine ? undefined : sectionColor.color }}
+          >
             {displayName} {roleLabel}
           </span>
           {msg.sender_cargo && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-light-surface-tertiary/50 dark:bg-dark-surface-tertiary/50 text-light-text-tertiary dark:text-dark-text-tertiary">
+            <span className="text-[10px] px-1.5 py-0.5 rounded text-light-text-tertiary dark:text-dark-text-tertiary"
+              style={{ backgroundColor: `${sectionColor.color}15`, color: sectionColor.color }}>
               {msg.sender_cargo}
             </span>
           )}
@@ -111,8 +122,8 @@ const MessageBubble = ({ msg, myWallet, onReact, onReply, onPin, isAdmin, member
           ))}
           <button onClick={() => setShowEmoji(v => !v)} className="p-1 rounded hover:bg-light-surface-tertiary/50 dark:hover:bg-dark-surface-tertiary/50 text-light-text-tertiary transition"><FaSmile size={12} /></button>
           <button onClick={() => onReply?.(msg)} className="p-1 rounded hover:bg-light-surface-tertiary/50 dark:hover:bg-dark-surface-tertiary/50 text-light-text-tertiary transition"><FaReply size={12} /></button>
-          {isAdmin && (
-            <button onClick={() => onPin?.(msg.id)} className="p-1 rounded hover:bg-light-surface-tertiary/50 dark:hover:bg-dark-surface-tertiary/50 text-light-text-tertiary transition"><FaThumbtack size={12} /></button>
+          {(canPin || isAdmin) && onPin && (
+            <button onClick={() => onPin(msg.id)} className="p-1 rounded hover:bg-light-surface-tertiary/50 dark:hover:bg-dark-surface-tertiary/50 text-light-text-tertiary transition"><FaThumbtack size={12} /></button>
           )}
         </div>
         {showEmoji && (
@@ -141,13 +152,15 @@ const ChannelView = ({
   onNotifyTyping,
   myWallet,
   isAdmin = false,
+  canPin = false,
   messagesLoading = false,
   // For group mode reuse
   isGroup = false,
   groupName,
   token,
   appState,
-  members
+  members,
+  employeeMap = {},
 }) => {
   const {
     text, replyTo, showJump, sharingMerits,
@@ -202,7 +215,9 @@ const ChannelView = ({
               onReply={setReplyTo}
               onPin={onPin}
               isAdmin={isAdmin}
+              canPin={canPin}
               members={members}
+              employeeMap={employeeMap}
             />
           ))}
         </div>

@@ -80,10 +80,6 @@ ENGINE_ROUTES = {
         "handler_timeout": 5.0,
         "filter_to_context": {"__full__": "delivery_spec"},
         # No access guard needed — delivery_chat_complete bypasses role checks
-        "access": {
-            "min_role_level": 1,
-            "max_role_level": 7,
-        },
         "default_payload": {
             "type": "text_block_list",
             "intent": "delivery_order",

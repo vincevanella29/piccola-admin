@@ -6,7 +6,7 @@ import { useCreateChannelModal, useDmPickerModal } from '../../../../hooks/chat/
 
 const Overlay = ({ children, onClose }) => (
   <motion.div
-    className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] backdrop-blur-sm"
+    className="absolute inset-0 bg-black/60 flex items-center justify-center z-[60] backdrop-blur-sm"
     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     onClick={onClose}
   >

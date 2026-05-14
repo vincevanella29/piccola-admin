@@ -279,7 +279,7 @@ const SchedulingTab = ({ appState }) => {
               description="Limita la cantidad de horarios mostrados por día"
               value={config.max_slots_per_day}
               min={1}
-              max={50}
+              max={150}
               onChange={(v) => updateField('max_slots_per_day', v)}
               displayLabel={`${config.max_slots_per_day}`}
             />

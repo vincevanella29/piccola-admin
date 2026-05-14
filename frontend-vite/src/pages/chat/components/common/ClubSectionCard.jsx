@@ -30,7 +30,7 @@ export default function ClubSectionCard({ payload }) {
   const actions = useMemo(() => normalizeActions(payload), [payload]);
 
   return (
-    <div className="w-full max-w-full rounded-xl border border-light-border/60 dark:border-dark-border/60 bg-light-surface/90 dark:bg-dark-surface/60 shadow-sm">
+    <div className="flex flex-col h-full w-full max-w-full rounded-xl border border-light-border/60 dark:border-dark-border/60 bg-light-surface/90 dark:bg-dark-surface/60 shadow-sm hover:shadow-md transition-shadow">
       <div className="px-4 py-3 border-b border-light-border/50 dark:border-dark-border/50 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="inline-flex items-center px-2 py-0.5 text-[10px] rounded-full bg-matrix-green/15 text-matrix-green uppercase tracking-wide">{section}</span>
@@ -43,12 +43,12 @@ export default function ClubSectionCard({ payload }) {
         )}
       </div>
       {text && (
-        <div className="px-4 pt-3 pb-1 text-sm whitespace-pre-wrap break-words text-light-text-primary dark:text-dark-text-primary">
+        <div className="flex-1 px-4 pt-3 pb-3 text-sm whitespace-pre-wrap break-words text-light-text-primary dark:text-dark-text-primary">
           {text}
         </div>
       )}
       {actions.length > 0 && (
-        <div className="px-4 py-3 flex flex-wrap gap-2">
+        <div className="px-4 py-3 flex flex-wrap gap-2 mt-auto border-t border-light-border/10 dark:border-dark-border/10">
           {actions.map((act, idx) => {
             const variant = (act?.variant || 'secondary').toLowerCase();
             const cls = VARIANT_CLASSES[variant] || VARIANT_CLASSES.secondary;

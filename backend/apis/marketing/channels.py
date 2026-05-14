@@ -142,20 +142,38 @@ async def community_members(
 
     workers = list(db.trabajadores_vpn.aggregate(pipeline))
 
+    # Fetch wallets + email + sub from empleados_usuarios for these workers
+    ruts = [w.get("rut") for w in workers if w.get("rut")]
+    str_ruts = [str(r) for r in ruts]
+    int_ruts = [int(r) for r in ruts if str(r).isdigit()]
+    eu_docs = list(db.empleados_usuarios.find(
+        {"rut": {"$in": str_ruts + int_ruts}},
+        {"rut": 1, "wallet": 1, "email": 1, "sub": 1}
+    ))
+    rut_to_eu = {}
+    for eu in eu_docs:
+        if eu.get("rut"):
+            rut_to_eu[str(eu["rut"])] = {
+                "wallet": (eu.get("wallet") or "").lower() or None,
+                "email": eu.get("email"),
+                "has_user": bool(eu.get("sub") or eu.get("email")),
+            }
+
     members = []
     for w in workers:
         name_parts = [w.get("nombres", ""), w.get("apellidopaterno", "")]
         name = " ".join(p.strip() for p in name_parts if p.strip()) or "Worker"
-        wallet = w.get("wallet")
-        if wallet:
-            wallet = wallet.lower()
+        eu_data = rut_to_eu.get(str(w.get("rut")), {})
         members.append({
             "name": name,
-            "wallet": wallet,
+            "wallet": eu_data.get("wallet"),
             "cargo": w.get("cargo", ""),
             "seccion": w.get("seccion", ""),
+            "sucursal": w.get("sucursal", ""),
             "profile_image_url": w.get("profile_image_url"),
             "rut": w.get("rut"),
+            "email": eu_data.get("email"),
+            "has_user": eu_data.get("has_user", False),
         })
 
     return {"ok": True, "members": members}
@@ -246,20 +264,10 @@ def _enrich_sender(user: dict, perms: dict) -> dict:
     ident = _user_identity(user)
     wallet = ident.get("wallet")
 
-    # Try to get profile info from trabajadores_vpn / empleados_usuarios
-    display_name = wallet or "User"
-    avatar_url = None
-    try:
-        if wallet:
-            eu = db.empleados_usuarios.find_one({"wallet": wallet.lower()}, {"rut": 1})
-            if eu and eu.get("rut"):
-                tv = db.trabajadores_vpn.find_one({"rut": eu["rut"]})
-                if tv:
-                    name_parts = [tv.get("nombres", ""), tv.get("apellidopaterno", "")]
-                    display_name = " ".join(p.strip() for p in name_parts if p.strip()) or display_name
-                    avatar_url = tv.get("profile_image_url")
-    except Exception:
-        pass
+    # ONE source of truth: trabajadores_vpn via _resolve_worker_profile
+    from apis.marketing.chat import _resolve_worker_profile
+    display_name, avatar_url = _resolve_worker_profile(wallet)
+    display_name = display_name or wallet or "User"
 
     return {
         "sender_wallet": wallet,
@@ -283,13 +291,21 @@ def _msg_to_out(m: dict, channel_slug: str) -> dict:
         pass
 
     msg_id = str(m.get("_id", ""))
+
+    # Enrich old messages that were saved with null avatar
+    saved_avatar = m.get("sender_avatar_url")
+    if not saved_avatar and m.get("sender_wallet"):
+        from apis.marketing.chat import _resolve_worker_profile
+        _, saved_avatar = _resolve_worker_profile(m["sender_wallet"])
+        logger.info(f"[AVATAR MSG] channel={channel_slug} wallet={m['sender_wallet']} resolved_avatar={saved_avatar}")
+
     return {
         "id": msg_id,
         "channel_slug": m.get("channel_slug", channel_slug),
         "sender_wallet": m.get("sender_wallet"),
         "sender_privy_id": m.get("sender_privy_id"),
         "sender_name": m.get("sender_name"),
-        "sender_avatar_url": m.get("sender_avatar_url"),
+        "sender_avatar_url": saved_avatar,
         "sender_cargo": m.get("sender_cargo"),
         "sender_seccion": m.get("sender_seccion"),
         "sender_role_level": m.get("sender_role_level"),
@@ -591,8 +607,8 @@ async def react_to_channel_message(
 
 @router.post("/community/channels/{slug}/pin/{message_id}")
 async def pin_channel_message(slug: str, message_id: str, user: dict = Depends(verify_session)):
-    """Pin/unpin a message in a channel. Admin only."""
-    require_admin_level(user, "admin")
+    """Pin/unpin a message in a channel. Levels 3-5 (on-chain members)."""
+    require_admin_level(user, "member")
     ch = db.chat_channels.find_one({"slug": slug})
     if not ch:
         raise HTTPException(status_code=404, detail="Channel not found")
@@ -906,6 +922,21 @@ async def dm_send(data: DmSendRequest, user: dict = Depends(verify_session)):
         "created_at": now,
     }
     result = db.chat_dm_messages.insert_one(msg_doc)
+
+    # Broadcast via WebSocket to both peers
+    out_msg = {
+        "type": "dm_message",
+        "id": str(result.inserted_id),
+        "conv_key": conv_key,
+        "sender_wallet": wallet,
+        "sender_name": sender.get("sender_name", wallet),
+        "peer_wallet": peer_wallet,
+        "peer_name": peer_name,
+        "text": data.text,
+        "created_at": now.isoformat() if hasattr(now, 'isoformat') else str(now),
+    }
+    await manager.broadcast_dm(conv_key, out_msg)
+
     return {"ok": True, "id": str(result.inserted_id)}
 
 
@@ -927,6 +958,49 @@ async def ws_channel(websocket: WebSocket, slug: str):
                 })
     except WebSocketDisconnect:
         await manager.disconnect_channel(slug, websocket)
+
+
+# ─── DM WebSocket ─────────────────────────────────────────────────
+
+@router.websocket("/ws/dm/{wallet}")
+async def ws_dm(websocket: WebSocket, wallet: str):
+    """DM WebSocket. Client sends {type: 'init', peer: '<peer_wallet>'} to join the conv room."""
+    wallet = wallet.lower()
+    conv_key = None
+    try:
+        # Accept immediately, then wait for init message with peer wallet
+        await websocket.accept()
+        init_data = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        peer = (init_data.get("peer") or "").lower()
+        if not peer:
+            await websocket.close(1008, "Missing peer")
+            return
+        conv_key = _dm_conv_key(wallet, peer)
+
+        # Register in manager (re-accept handled inside won't work, use raw add)
+        async with manager._lock:
+            if conv_key not in manager.dm_clients:
+                manager.dm_clients[conv_key] = set()
+            manager.dm_clients[conv_key].add(websocket)
+        logger.info(f"DM WS connected: {conv_key}")
+
+        while True:
+            data = await websocket.receive_json()
+            t = data.get("type")
+            if t == "typing":
+                await manager.broadcast_dm(conv_key, {
+                    "type": "typing",
+                    "wallet": wallet,
+                    "name": data.get("name"),
+                    "state": bool(data.get("state", True)),
+                })
+    except (WebSocketDisconnect, asyncio.TimeoutError):
+        pass
+    except Exception as e:
+        logger.error(f"DM WS error: {e}")
+    finally:
+        if conv_key:
+            await manager.disconnect_dm(conv_key, websocket)
 
 
 # ─── Presence WebSocket ───────────────────────────────────────────
@@ -1115,6 +1189,7 @@ class SectionPermsUpdate(BaseModel):
     can_invite_members: Optional[bool] = None
     can_pin_messages: Optional[bool] = None
     max_groups: Optional[int] = None
+    color: Optional[str] = None
 
 
 @router.get("/community/section-perms")
@@ -1142,6 +1217,7 @@ async def list_section_perms(user: dict = Depends(verify_session)):
         entry = {"seccion": sec}
         for k, default_val in DEFAULT_SECTION_PERMS.items():
             entry[k] = doc.get(k, default_val)
+        entry["color"] = doc.get("color")
         entry["updated_by"] = doc.get("updated_by")
         entry["updated_at"] = doc.get("updated_at")
         result.append(entry)
@@ -1157,7 +1233,7 @@ async def update_section_perms(seccion: str, data: SectionPermsUpdate, user: dic
 
     update = {}
     for field in ("can_create_groups", "can_create_channels", "can_post_announcements",
-                  "can_upload_media", "can_invite_members", "can_pin_messages", "max_groups"):
+                  "can_upload_media", "can_invite_members", "can_pin_messages", "max_groups", "color"):
         val = getattr(data, field, None)
         if val is not None:
             update[field] = val

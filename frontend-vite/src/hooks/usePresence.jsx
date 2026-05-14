@@ -1,6 +1,6 @@
 // src/hooks/usePresence.jsx — Presence WebSocket hook for community
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { buildPresenceWsUrl, fetchPresence } from '../utils/communityData';
+import { buildPresenceWsUrl, fetchPresence, fetchCommunityMembers } from '../utils/communityData';
 
 const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
 const RECONNECT_DELAY = 5_000;     // 5 seconds
@@ -193,12 +193,94 @@ const usePresence = ({ appState, enabled = true }) => {
     }
   }, [token, walletAddress]);
 
-  // Load REST fallback once on mount
+  // ─── Unregistered Employees (no wallet/account) ──────────────
+  const [allEmployees, setAllEmployees] = useState([]);
+
+  const loadAllEmployees = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetchCommunityMembers({ token, walletAddress });
+      const list = res?.members || res?.data?.members || [];
+      setAllEmployees(list);
+    } catch {
+      // ignore
+    }
+  }, [token, walletAddress]);
+
+  const unregisteredEmployees = useMemo(() => {
+    if (!allEmployees.length) return [];
+    const registeredWallets = new Set(members.map(m => (m.wallet || '').toLowerCase()).filter(Boolean));
+    return allEmployees.filter(e => !e.wallet || !registeredWallets.has(e.wallet.toLowerCase()));
+  }, [allEmployees, members]);
+
+  const unregisteredBySection = useMemo(() => {
+    const map = {};
+    unregisteredEmployees.forEach(e => {
+      const sec = (e.seccion || 'General').trim();
+      if (!map[sec]) map[sec] = [];
+      map[sec].push({ ...e, status: 'unregistered' });
+    });
+    return map;
+  }, [unregisteredEmployees]);
+
+  // Load REST fallback + employee directory once on mount
   useEffect(() => {
     if (enabled && token) {
       loadPresenceRest();
+      loadAllEmployees();
     }
-  }, [enabled, token, loadPresenceRest]);
+  }, [enabled, token, loadPresenceRest, loadAllEmployees]);
+
+  // Build a wallet → employee lookup for enriching avatars in chat messages
+  const employeeMap = useMemo(() => {
+    const map = {};
+    allEmployees.forEach(e => {
+      if (e.wallet) map[e.wallet.toLowerCase()] = e;
+    });
+    return map;
+  }, [allEmployees]);
+
+  // Enrich presence members with profile photos and contact data from employee directory
+  // The heartbeat doesn't send profile_image_url, email, etc., so we patch it in from trabajadores_vpn
+  useEffect(() => {
+    if (!allEmployees.length) return;
+    setMembers(prev => {
+      let changed = false;
+      const next = prev.map(m => {
+        const w = (m.wallet || '').toLowerCase();
+        const emp = w ? employeeMap[w] : null;
+        
+        if (!emp) return m;
+
+        let enriched = { ...m };
+        let modified = false;
+
+        if (!m.profile_image_url && emp.profile_image_url) {
+          enriched.profile_image_url = emp.profile_image_url;
+          modified = true;
+        }
+        if (m.email !== emp.email) {
+          enriched.email = emp.email;
+          modified = true;
+        }
+        if (m.has_user !== emp.has_user) {
+          enriched.has_user = emp.has_user;
+          modified = true;
+        }
+        if (m.sucursal !== emp.sucursal) {
+          enriched.sucursal = emp.sucursal;
+          modified = true;
+        }
+
+        if (modified) {
+          changed = true;
+          return enriched;
+        }
+        return m;
+      });
+      return changed ? next : prev;
+    });
+  }, [allEmployees, employeeMap]);
 
   return {
     members,
@@ -212,6 +294,9 @@ const usePresence = ({ appState, enabled = true }) => {
     onlineBySection,
     idleBySection,
     offlineBySection,
+    unregisteredBySection,
+    unregisteredCount: unregisteredEmployees.length,
+    employeeMap,
     loadPresenceRest,
   };
 };

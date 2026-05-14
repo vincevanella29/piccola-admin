@@ -4,6 +4,16 @@ import { Check, Clock } from 'lucide-react';
 // Helper simple para detectar URLs y hacerlas clickeables
 const formatText = (text) => {
   if (!text) return null;
+  
+  // Resiliencia contra objetos en la DB
+  if (typeof text !== 'string') {
+    if (text.lines && Array.isArray(text.lines)) {
+      text = text.lines.join(' ');
+    } else {
+      text = JSON.stringify(text);
+    }
+  }
+
   // Regex simple para URLs
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   return text.split(urlRegex).map((part, i) => {

@@ -12,6 +12,7 @@ const OrderKanban = ({
   onStatusChange,
   onSelectOrder,
   isLoading,
+  locations = [],
   t,
 }) => {
   // Build merged columns from both pipelines
@@ -155,6 +156,7 @@ const OrderKanban = ({
                       onStatusChange={onStatusChange}
                       nextStatus={nextStatus}
                       statusColor={col.color}
+                      locations={locations}
                     />
                   );
                 })

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   FaCog, FaExchangeAlt, FaClock, FaCreditCard, FaMapMarkedAlt, FaSync, FaSpinner,
-  FaTruck, FaGlobe, FaCalendarAlt,
+  FaTruck, FaGlobe, FaCalendarAlt, FaComments
 } from 'react-icons/fa';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -21,6 +21,7 @@ import PaymentsTab from './config/PaymentsTab';
 import DeliveryFeeTab from './config/DeliveryFeeTab';
 import SchedulingTab from './config/SchedulingTab';
 import WebhooksTab from './config/WebhooksTab';
+import ChatConfigTab from './config/ChatConfigTab';
 
 // ── Tab Config ──────────────────────────────────────────────────
 const TABS = [
@@ -30,7 +31,7 @@ const TABS = [
   { id: 'delivery_fee', label: 'Tarifa', icon: FaTruck },
   { id: 'scheduling', label: 'Programación', icon: FaCalendarAlt },
   { id: 'webhooks', label: 'Webhooks', icon: FaGlobe },
-  { id: 'zones', label: 'Zonas', icon: FaMapMarkedAlt },
+  { id: 'chat', label: 'Chat', icon: FaComments },
 ];
 
 
@@ -79,6 +80,7 @@ const DeliveryConfig = ({ appState }) => {
   const [internalStatuses, setInternalStatuses] = useState([]);
   const [pickupStatuses, setPickupStatuses] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [fullConfig, setFullConfig] = useState(null);
 
   // Dirty flags
   const [statusesDirty, setStatusesDirty] = useState(false);
@@ -109,6 +111,7 @@ const DeliveryConfig = ({ appState }) => {
         }));
         setInternalStatuses(normalize(configRes.config.internal_statuses));
         setPickupStatuses(normalize(configRes.config.pickup_statuses));
+        setFullConfig(configRes.config);
       }
       setLocations(Array.isArray(locsData) ? locsData : locsData?.locations || []);
     } catch (err) {
@@ -219,7 +222,7 @@ const DeliveryConfig = ({ appState }) => {
             <FaCog className="text-matrix-green" /> Configuración Delivery
           </h1>
           <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-            Estados, horarios, métodos de pago y zonas de cobertura
+            Estados, horarios, métodos de pago y tarifas
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -314,12 +317,8 @@ const DeliveryConfig = ({ appState }) => {
                 <WebhooksTab appState={appState} />
               )}
 
-              {activeTab === 'zones' && (
-                <div className="text-center py-16 border border-dashed border-light-border/20 dark:border-dark-border/20 rounded-xl">
-                  <FaMapMarkedAlt size={32} className="mx-auto text-light-text-tertiary dark:text-dark-text-tertiary mb-3" />
-                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary font-medium">Zonas de Cobertura</p>
-                  <p className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary mt-1">Próximamente — usa el chat IA para configurar</p>
-                </div>
+              {activeTab === 'chat' && (
+                <ChatConfigTab appState={appState} currentConfig={fullConfig} fetchConfig={fetchAll} />
               )}
             </>
           )}
@@ -329,7 +328,7 @@ const DeliveryConfig = ({ appState }) => {
         <div className="w-[340px] border-l border-light-border/10 dark:border-dark-border/10 bg-light-surface/50 dark:bg-dark-surface/50 flex flex-col">
           <AIChatPanel
             title="Asistente Delivery"
-            welcomeMessage={'¡Hola! 👋 Soy tu asistente de delivery. Puedo ayudarte con:\n\n• **Horarios**: _"Pon delivery Lun-Vie de 12 a 22, Sáb 12 a 23"_\n• **Zonas**: _"Zona circular de 5km, mínimo $10.000"_\n• **Configuración**: _"¿Qué tenemos configurado?"_\n\n¿Qué necesitas?'}
+            welcomeMessage={'¡Hola! 👋 Soy tu asistente de delivery. Puedo ayudarte con:\n\n• **Horarios**: _"Pon delivery Lun-Vie de 12 a 22, Sáb 12 a 23"_\n• **Tarifas y Descuentos**: _"Pon delivery gratis sobre $20.000 en Vitacura"_\n• **Configuración**: _"¿Qué tenemos configurado?"_\n\n¿Qué necesitas?'}
             placeholder="Ej: Pon delivery Lun-Vie 12:00 a 22:00..."
             onSend={async (message, history) => {
               const context = {
@@ -339,6 +338,7 @@ const DeliveryConfig = ({ appState }) => {
                   opening_hours: l.opening_hours || {},
                 })),
                 statuses: internalStatuses,
+                delivery_fee_config: fullConfig?.delivery_fee_config || {},
               };
               return deliveryApi.deliveryAIChat({
                 token: appState?.token,
@@ -354,7 +354,7 @@ const DeliveryConfig = ({ appState }) => {
               if (actionType === 'update_schedule') {
                 const { location_id, service, schedule } = action;
                 const targetLocs = location_id
-                  ? locations.filter(l => l._id === location_id)
+                  ? locations.filter(l => String(l._id) === String(location_id))
                   : locations;
 
                 for (const loc of targetLocs) {
@@ -373,27 +373,24 @@ const DeliveryConfig = ({ appState }) => {
                 fetchAll();
               }
 
-              if (actionType === 'update_zone') {
-                const { location_id, delivery_zone } = action;
-                const targetLocs = location_id
-                  ? locations.filter(l => l._id === location_id)
-                  : locations;
+              if (actionType === 'update_fee_config') {
+                const { delivery_fee_config } = action;
+                await deliveryApi.updateDeliveryFeeConfig({ ...getAuth(), data: delivery_fee_config });
+                toast.success('✅ Configuración de tarifas actualizada');
+                fetchAll();
+              }
 
-                for (const loc of targetLocs) {
-                  await updateLocation({
-                    locationId: loc._id,
-                    data: { delivery_zone },
-                    walletAddress: appState?.account,
-                    token: appState?.token,
-                  });
-                }
-                toast.success(`✅ Zona de delivery configurada en ${targetLocs.length} sucursal(es)`);
+              if (actionType === 'update_scheduling_config') {
+                const { scheduling_config } = action;
+                await deliveryApi.updateSchedulingConfig({ ...getAuth(), data: scheduling_config });
+                toast.success('✅ Configuración de programación actualizada');
                 fetchAll();
               }
             }}
             actionLabel={(a) => {
               if (a.action === 'update_schedule') return '📅 Actualizar horarios';
-              if (a.action === 'update_zone') return '🗺️ Configurar zona';
+              if (a.action === 'update_fee_config') return '🚚 Configurar tarifa / descuento';
+              if (a.action === 'update_scheduling_config') return '⏱️ Actualizar programación';
               return a.action;
             }}
           />

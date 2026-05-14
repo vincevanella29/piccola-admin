@@ -31,7 +31,7 @@ const elapsed = (from, to) => {
 
 const mapsUrl = (addr) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
 
-// ── Stars ──────────────────────────────────────────────────
+// ── Shared UI ──────────────────────────────────────────────
 
 const Stars = ({ count = 0, size = 14 }) => (
   <div className="flex items-center gap-0.5">
@@ -41,29 +41,41 @@ const Stars = ({ count = 0, size = 14 }) => (
   </div>
 );
 
-// ── Section ────────────────────────────────────────────────
-
-const Section = ({ icon: Icon, title, color = 'text-light-text-secondary dark:text-dark-text-secondary', bgColor = 'bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50', borderColor = '', children }) => (
-  <div className={`${bgColor} rounded-xl p-4 ${borderColor}`}>
-    <h4 className={`text-[10px] font-bold uppercase tracking-wider ${color} mb-3 flex items-center gap-2`}>
-      <Icon size={10} /> {title}
+const Section = ({ icon: Icon, title, color = 'text-light-text-secondary dark:text-dark-text-secondary', bgColor = 'bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50', borderColor = 'border-light-border/40 dark:border-dark-border/40', children }) => (
+  <div className={`${bgColor} rounded-2xl p-5 border shadow-sm ${borderColor}`}>
+    <h4 className={`text-xs font-bold uppercase tracking-widest ${color} mb-4 flex items-center gap-2`}>
+      <Icon size={12} /> {title}
     </h4>
     {children}
   </div>
 );
 
-// ── Row ────────────────────────────────────────────────────
-
 const Row = ({ label, value, mono, bold, color }) => (
-  <div className="flex justify-between text-xs py-0.5">
+  <div className="flex justify-between items-center text-sm py-1.5 border-b border-light-border/5 dark:border-dark-border/5 last:border-0">
     <span className="text-light-text-secondary dark:text-dark-text-secondary">{label}</span>
     <span className={`${bold ? 'font-bold' : 'font-medium'} ${color || 'text-light-text-primary dark:text-dark-text-primary'} ${mono ? 'font-mono' : ''}`}>{value}</span>
   </div>
 );
 
+// ── Contact Pill ───────────────────────────────────────────
+const ContactPill = ({ icon: Icon, text, href, colorCls }) => {
+  const content = (
+    <>
+      <Icon size={10} className="shrink-0" />
+      <span className="truncate">{text}</span>
+    </>
+  );
+  const baseCls = `flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors max-w-full overflow-hidden ${colorCls}`;
+  
+  if (href) {
+    return <a href={href} target="_blank" rel="noopener noreferrer" className={baseCls}>{content}</a>;
+  }
+  return <div className={baseCls}>{content}</div>;
+};
+
 // ── Main Modal ─────────────────────────────────────────────
 
-const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupStatuses = [], onUpdateStatus, canEdit, onClose }) => {
+const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupStatuses = [], onUpdateStatus, canEdit, onClose, locations = [] }) => {
   if (!order) return null;
 
   const items = order.items || [];
@@ -73,6 +85,10 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
   const statusColor = statusMeta.color || '#6b7280';
   
   const availableStatuses = order.order_type === 'pickup' ? pickupStatuses : allStatuses;
+  
+  const locationName = locations.find(l => String(l._id) === String(order.location_id))?.nombre || order.location_name || 'Sucursal';
+  const deliveryAddress = order.delivery_info?.address || order.delivery_info?.street || order.customer?.address;
+  const deliveryDepto = order.delivery_info?.depto || order.customer?.depto;
 
   const handleStatusChange = (e) => {
     const newStatus = e.target.value;
@@ -86,189 +102,297 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
         onClick={onClose}
       />
 
-      {/* Panel */}
-      <motion.div
-        initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-        className="fixed inset-y-0 right-0 w-full sm:w-[440px] bg-light-surface dark:bg-dark-surface border-l border-light-border/10 dark:border-dark-border/10 shadow-2xl z-50 flex flex-col"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-light-border/10 dark:border-dark-border/10">
-          <div className="flex items-center gap-3">
-            <FaFileInvoiceDollar className="text-matrix-green" />
-            <span className="font-bold text-light-text-primary dark:text-dark-text-primary font-mono">
-              #{(order.order_number || order._id || '').slice(-8).toUpperCase()}
-            </span>
-            {canEdit ? (
-              <select
-                value={order.status}
-                onChange={handleStatusChange}
-                className="text-[10px] font-semibold px-2.5 py-1 rounded-full border-none appearance-none outline-none cursor-pointer"
-                style={{ backgroundColor: `${statusColor}18`, color: statusColor }}
-              >
-                {availableStatuses.map(s => (
-                  <option key={s.key} value={s.key} className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary">
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: `${statusColor}18`, color: statusColor }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor }} />
-                {statusMeta.label || order.status}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {order.order_type && (
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${order.order_type === 'pickup' ? 'bg-purple-500/10 text-purple-400' : 'bg-cyan-500/10 text-cyan-400'}`}>
-                {order.order_type === 'pickup' ? <><FaStore size={8} className="inline mr-1" />Pickup</> : <><FaTruck size={8} className="inline mr-1" />Delivery</>}
-              </span>
-            )}
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary transition-colors">
-              <FaTimes className="text-light-text-secondary dark:text-dark-text-secondary" size={14} />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-
-          {/* Customer */}
-          <Section icon={FaUser} title="Cliente">
-            <p className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary mb-2">
-              {order.customer?.name || '—'}
-            </p>
-
-            {order.customer?.phone && (
-              <a href={`tel:${order.customer.phone}`}
-                className="flex items-center gap-2 text-xs text-matrix-green hover:underline mb-1.5">
-                <FaPhone size={9} /> {order.customer.phone}
-              </a>
-            )}
-
-            {order.customer?.email && (
-              <a href={`mailto:${order.customer.email}`}
-                className="flex items-center gap-2 text-xs text-blue-400 hover:underline mb-1.5">
-                <FaEnvelope size={9} /> {order.customer.email}
-              </a>
-            )}
-
-            {order.customer?.address && (
-              <a href={mapsUrl(order.customer.address)} target="_blank" rel="noopener noreferrer"
-                className="flex items-start gap-2 text-xs text-light-text-secondary dark:text-dark-text-secondary hover:text-matrix-green transition-colors group mt-2">
-                <FaMapMarkerAlt size={10} className="mt-0.5 shrink-0 text-red-400" />
-                <span className="flex-1">{order.customer.address}</span>
-                <FaExternalLinkAlt size={8} className="opacity-0 group-hover:opacity-100 shrink-0 mt-0.5" />
-              </a>
-            )}
-
-            {order.customer?.depto && (
-              <p className="flex items-center gap-2 text-xs text-light-text-tertiary mt-1">
-                <FaBuilding size={9} /> Depto: {order.customer.depto}
-              </p>
-            )}
-          </Section>
-
-          {/* Location */}
-          {order.location_name && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-matrix-green/5 rounded-xl border border-matrix-green/10">
-              <FaStore size={10} className="text-matrix-green" />
-              <span className="text-xs font-semibold text-matrix-green">{order.location_name}</span>
-              {order.location_slug && <span className="text-[9px] text-light-text-tertiary ml-auto font-mono">{order.location_slug}</span>}
+      {/* Contenedor Flex para centrado perfecto */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
+        {/* Panel - Ensanchado a 850px para 2 columnas */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+          animate={{ opacity: 1, scale: 1, y: 0 }} 
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="pointer-events-auto w-full md:w-[850px] max-h-[95vh] md:max-h-[90vh] bg-light-surface dark:bg-dark-surface rounded-2xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-light-border/20 dark:border-dark-border/20"
+        >
+        {/* Dynamic Header Banner */}
+        <div className="relative px-6 py-5 flex items-center justify-between border-b border-light-border/10 dark:border-dark-border/10 overflow-hidden">
+          {/* Subtle colored background based on status */}
+          <div className="absolute inset-0 opacity-10" style={{ backgroundColor: statusColor }} />
+          
+          <div className="relative z-10 flex items-center gap-4">
+            <div className="p-3 rounded-2xl bg-light-surface dark:bg-dark-surface shadow-sm border border-light-border/10 dark:border-dark-border/10">
+              <FaFileInvoiceDollar size={24} style={{ color: statusColor }} />
             </div>
-          )}
-
-          {/* Timeline */}
-          <Section icon={FaCalendarAlt} title="Tiempos">
-            <div className="space-y-1.5">
-              <Row label="Creado" value={`${fmtDate(order.created_at)} ${fmtTime(order.created_at)}`} />
-              {order.dispatched_at && <Row label="Despachado" value={`${fmtDate(order.dispatched_at)} ${fmtTime(order.dispatched_at)}`} />}
-              {order.delivered_at && <Row label="Entregado" value={`${fmtDate(order.delivered_at)} ${fmtTime(order.delivered_at)}`} />}
-              {order.delivered_at && (
-                <div className="pt-2 mt-1 border-t border-light-border/10 dark:border-dark-border/10">
-                  <Row label="Tiempo total" value={elapsed(order.created_at, order.delivered_at)} bold color="text-matrix-green" />
-                </div>
-              )}
-            </div>
-          </Section>
-
-          {/* Payment */}
-          {(order.payment_method || order.payment_status) && (
-            <Section icon={FaCreditCard} title="Pago">
-              <div className="flex items-center gap-3">
-                {order.payment_method && (
-                  <span className="text-xs font-semibold text-light-text-primary dark:text-dark-text-primary capitalize">{order.payment_method}</span>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-bold text-2xl text-light-text-primary dark:text-dark-text-primary font-mono tracking-tight">
+                  #{(order.order_number || order._id || '').slice(-8).toUpperCase()}
+                </span>
+                {order.order_type && (
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${order.order_type === 'pickup' ? 'bg-purple-500/20 text-purple-500' : 'bg-cyan-500/20 text-cyan-500'}`}>
+                    {order.order_type === 'pickup' ? <><FaStore className="inline mr-1 mb-0.5" />Pickup</> : <><FaTruck className="inline mr-1 mb-0.5" />Delivery</>}
+                  </span>
                 )}
-                {order.payment_status && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${order.payment_status === 'paid' ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                    {order.payment_status === 'paid' ? '✅ Pagado' : order.payment_status}
+                <span className="text-[10px] font-bold text-matrix-green px-2 py-1 rounded bg-matrix-green/10 truncate max-w-[150px]">
+                  {locationName}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {canEdit ? (
+                  <select
+                    value={order.status}
+                    onChange={handleStatusChange}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg border-none appearance-none outline-none cursor-pointer shadow-sm transition-transform hover:scale-105"
+                    style={{ backgroundColor: statusColor, color: '#fff' }}
+                  >
+                    {availableStatuses.map(s => (
+                      <option key={s.key} value={s.key} className="bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary">
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm"
+                    style={{ backgroundColor: statusColor, color: '#fff' }}>
+                    {statusMeta.label || order.status}
                   </span>
                 )}
               </div>
-            </Section>
-          )}
+            </div>
+          </div>
 
-          {/* Carrier */}
-          {order.carrier_slug && (
-            <Section icon={FaMotorcycle} title="Carrier" color="text-cyan-400" bgColor="bg-cyan-500/5" borderColor="border border-cyan-500/10">
-              <p className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary capitalize">{order.carrier_slug}</p>
-              {order.carrier_status && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1 font-mono">{order.carrier_status}</p>}
-              {ci?.name && (
-                <div className="mt-2 pt-2 border-t border-cyan-500/10">
-                  <p className="text-xs font-medium text-cyan-400">🏍️ {ci.name}</p>
-                  {ci.phone && <p className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">{ci.phone}</p>}
+          <button onClick={onClose} className="relative z-10 p-2.5 rounded-xl bg-light-surface/50 dark:bg-dark-surface/50 hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary backdrop-blur border border-light-border/10 dark:border-dark-border/10 transition-colors">
+            <FaTimes className="text-light-text-secondary dark:text-dark-text-secondary" size={16} />
+          </button>
+        </div>
+
+        {/* Scrollable Content - 2 Column Grid */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* LEFT COLUMN: Logistics & Customer */}
+            <div className="space-y-6">
+              
+              {/* Premium Address Card */}
+              <div className="rounded-2xl p-5 bg-gradient-to-br from-matrix-green/10 to-transparent border border-matrix-green/20 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <FaMapMarkerAlt size={64} className="text-matrix-green" />
                 </div>
-              )}
-            </Section>
-          )}
+                
+                <h4 className="text-xs font-bold uppercase tracking-widest text-matrix-green mb-3 flex items-center gap-2 relative z-10">
+                  <FaUser size={12} /> Cliente & Dirección
+                </h4>
+                
+                <div className="relative z-10">
+                  <p className="text-lg font-black text-light-text-primary dark:text-dark-text-primary mb-3">
+                    {order.customer?.name || 'Cliente sin nombre'}
+                  </p>
+                  
+                  {deliveryAddress ? (
+                    <a href={mapsUrl(deliveryAddress)} target="_blank" rel="noopener noreferrer"
+                      className="group flex items-start gap-3 p-3 rounded-xl bg-light-surface/60 dark:bg-dark-surface/60 border border-light-border/10 dark:border-dark-border/10 hover:border-matrix-green/50 transition-colors mb-4">
+                      <div className="mt-0.5 p-2 rounded-full bg-red-500/10 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-colors">
+                        <FaMapMarkerAlt size={14} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary leading-tight group-hover:text-matrix-green transition-colors">
+                          {deliveryAddress}
+                        </p>
+                        {deliveryDepto && (
+                          <p className="text-xs text-light-text-tertiary mt-1 flex items-center gap-1">
+                            <FaBuilding size={10} /> Depto/Oficina: {deliveryDepto}
+                          </p>
+                        )}
+                      </div>
+                      <FaExternalLinkAlt size={12} className="text-light-text-tertiary group-hover:text-matrix-green transition-colors opacity-0 group-hover:opacity-100 mt-1" />
+                    </a>
+                  ) : (
+                    <div className="group flex items-start gap-3 p-3 rounded-xl bg-light-surface/60 dark:bg-dark-surface/60 border border-light-border/10 dark:border-dark-border/10 mb-4">
+                      <div className="mt-0.5 p-2 rounded-full bg-matrix-green/10 text-matrix-green">
+                        <FaStore size={14} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary leading-tight">
+                          Retiro en {locationName}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
-          {/* Items */}
-          <Section icon={FaBoxOpen} title={`Productos (${items.length})`}>
-            <div className="space-y-1.5">
-              {items.map((item, i) => (
-                <div key={i} className="flex items-center justify-between text-xs py-1.5 border-b border-light-border/5 dark:border-dark-border/5 last:border-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-light-text-secondary dark:text-dark-text-secondary shrink-0">{item.quantity}x</span>
-                    <span className="text-light-text-primary dark:text-dark-text-primary font-medium truncate">{item.nombre || item.codigo}</span>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {order.customer?.phone && (
+                      <ContactPill 
+                        icon={FaPhone} text={order.customer.phone} href={`tel:${order.customer.phone}`}
+                        colorCls="bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500 hover:text-white"
+                      />
+                    )}
+                    {order.customer?.email && (
+                      <ContactPill 
+                        icon={FaEnvelope} text={order.customer.email} href={`mailto:${order.customer.email}`}
+                        colorCls="bg-purple-500/10 text-purple-500 border-purple-500/20 hover:bg-purple-500 hover:text-white"
+                      />
+                    )}
                   </div>
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary shrink-0 ml-2">{fmt(item.unit_price * item.quantity)}</span>
                 </div>
-              ))}
-            </div>
-            {order.delivery_fee > 0 && (
-              <Row label="Envío" value={fmt(order.delivery_fee)} />
-            )}
-            <div className="flex justify-between text-sm font-bold text-light-text-primary dark:text-dark-text-primary pt-2 mt-1 border-t border-light-border/10 dark:border-dark-border/10">
-              <span>Total</span><span>{fmt(order.total_amount)}</span>
-            </div>
-          </Section>
-
-          {/* Notes */}
-          {order.notes && (
-            <Section icon={FaStickyNote} title="Notas" color="text-amber-400" bgColor="bg-amber-500/5" borderColor="border border-amber-500/10">
-              <p className="text-xs text-amber-200">{order.notes}</p>
-            </Section>
-          )}
-
-          {/* Review */}
-          {review && (
-            <Section icon={FaStar} title="Calificación" color="text-amber-400" bgColor="bg-amber-500/5" borderColor="border border-amber-500/10">
-              <div className="flex items-center gap-3 mb-2">
-                <Stars count={review.overall_stars || 0} size={16} />
-                <span className="text-lg font-bold text-amber-400">{review.overall_stars || 0}/5</span>
               </div>
-              {review.comment && <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary italic">"{review.comment}"</p>}
-              {review.food_stars && <Row label="Comida" value={`${'⭐'.repeat(review.food_stars)} ${review.food_stars}/5`} />}
-              {review.delivery_stars && <Row label="Delivery" value={`${'⭐'.repeat(review.delivery_stars)} ${review.delivery_stars}/5`} />}
-            </Section>
-          )}
+
+              {/* Carrier */}
+              {order.carrier_slug && (
+                <Section icon={FaMotorcycle} title="Información del Repartidor" color="text-cyan-500" bgColor="bg-cyan-500/5" borderColor="border-cyan-500/20">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-cyan-500/20 text-cyan-500">
+                      <FaMotorcycle size={20} />
+                    </div>
+                    <div>
+                      <p className="text-base font-bold text-light-text-primary dark:text-dark-text-primary capitalize">{order.carrier_slug}</p>
+                      {order.carrier_status && (
+                        <p className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-500 inline-block mt-1">
+                          {order.carrier_status}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {ci?.name && (
+                    <div className="mt-4 pt-4 border-t border-cyan-500/10 grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-[10px] text-light-text-secondary uppercase font-bold tracking-wider mb-1">Nombre</p>
+                        <p className="text-sm font-semibold text-cyan-500">{ci.name}</p>
+                      </div>
+                      {ci.phone && (
+                        <div>
+                          <p className="text-[10px] text-light-text-secondary uppercase font-bold tracking-wider mb-1">Teléfono</p>
+                          <a href={`tel:${ci.phone}`} className="text-sm font-semibold text-light-text-primary hover:text-cyan-500">{ci.phone}</a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Section>
+              )}
+
+              {/* Timeline */}
+              <Section icon={FaCalendarAlt} title="Trazabilidad">
+                <div className="space-y-1">
+                  <Row label="Recibido" value={`${fmtDate(order.created_at)} ${fmtTime(order.created_at)}`} />
+                  {order.dispatched_at && <Row label="Despachado" value={`${fmtDate(order.dispatched_at)} ${fmtTime(order.dispatched_at)}`} color="text-amber-500" />}
+                  {order.delivered_at && <Row label="Entregado" value={`${fmtDate(order.delivered_at)} ${fmtTime(order.delivered_at)}`} color="text-matrix-green" />}
+                  {order.delivered_at && (
+                    <Row label="Tiempo Total" value={elapsed(order.created_at, order.delivered_at)} bold color="text-matrix-green" mono />
+                  )}
+                </div>
+              </Section>
+            </div>
+
+            {/* RIGHT COLUMN: Items & Summary */}
+            <div className="space-y-6">
+              
+              {/* Items List */}
+              <Section icon={FaBoxOpen} title={`Detalle del Pedido (${items.length} ítems)`}>
+                <div className="space-y-3 mb-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                  {items.map((item, i) => {
+                    const imgUrl = item.image_url || item.image || item.photo;
+                    return (
+                      <div key={i} className="flex items-center gap-3 p-2 rounded-xl hover:bg-light-surface/50 dark:hover:bg-dark-surface/50 transition-colors border border-transparent hover:border-light-border/10 dark:hover:border-dark-border/10 group">
+                        {/* Image with Quantity Badge */}
+                        <div className="relative w-14 h-14 shrink-0 rounded-lg bg-light-surface-tertiary dark:bg-dark-surface-tertiary border border-light-border/10 dark:border-dark-border/10 flex items-center justify-center overflow-hidden">
+                          {imgUrl ? (
+                            <img src={imgUrl} alt={item.nombre} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                          ) : (
+                            <FaBoxOpen className="text-light-text-tertiary opacity-50" size={20} />
+                          )}
+                          <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-matrix-green text-dark-bg text-xs font-bold flex items-center justify-center shadow-md border-2 border-light-surface dark:border-dark-surface">
+                            {item.quantity}
+                          </div>
+                        </div>
+                        
+                        {/* Details */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary truncate">{item.nombre || item.codigo}</p>
+                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
+                            {fmt(item.unit_price)} c/u
+                          </p>
+                        </div>
+                        
+                        {/* Subtotal */}
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-black text-light-text-primary dark:text-dark-text-primary font-mono">
+                            {fmt(item.unit_price * item.quantity)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Totals */}
+                <div className="pt-3 border-t border-light-border/10 dark:border-dark-border/10 space-y-1">
+                  {order.delivery_fee > 0 && (
+                    <Row label="Costo de Envío" value={fmt(order.delivery_fee)} />
+                  )}
+                  <div className="flex justify-between items-center pt-3 pb-1 mt-2 border-t border-light-border/10 dark:border-dark-border/10">
+                    <span className="text-sm font-bold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">Total a Pagar</span>
+                    <span className="text-2xl font-black text-matrix-green font-mono">{fmt(order.total_amount)}</span>
+                  </div>
+                </div>
+              </Section>
+
+              {/* Payment & Notes */}
+              <div className="grid grid-cols-2 gap-4">
+                {(order.payment_method || order.payment_status) && (
+                  <Section icon={FaCreditCard} title="Pago">
+                    <div className="flex flex-col gap-2">
+                      {order.payment_status && (
+                        <span className={`text-xs font-bold px-3 py-1.5 rounded-lg text-center ${order.payment_status === 'paid' ? 'bg-matrix-green/10 text-matrix-green border border-matrix-green/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
+                          {order.payment_status === 'paid' ? '✅ Pagado' : order.payment_status.toUpperCase()}
+                        </span>
+                      )}
+                      {order.payment_method && (
+                        <span className="text-sm font-semibold text-light-text-primary dark:text-dark-text-primary capitalize text-center">
+                          {order.payment_method}
+                        </span>
+                      )}
+                    </div>
+                  </Section>
+                )}
+
+                {order.notes ? (
+                  <Section icon={FaStickyNote} title="Notas" color="text-amber-500" bgColor="bg-amber-500/5" borderColor="border-amber-500/20">
+                    <p className="text-sm font-medium text-amber-600 dark:text-amber-400 italic line-clamp-3">"{order.notes}"</p>
+                  </Section>
+                ) : (
+                  <div className="rounded-2xl p-5 border border-dashed border-light-border/20 dark:border-dark-border/20 flex flex-col items-center justify-center opacity-50">
+                    <FaStickyNote size={16} className="mb-2 text-light-text-tertiary" />
+                    <span className="text-xs font-medium">Sin notas adicionales</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Review */}
+              {review && (
+                <Section icon={FaStar} title="Evaluación del Cliente" color="text-amber-400" bgColor="bg-amber-500/5" borderColor="border border-amber-500/10">
+                  <div className="flex items-center gap-4 mb-3">
+                    <Stars count={review.overall_stars || 0} size={20} />
+                    <span className="text-2xl font-black text-amber-400">{review.overall_stars || 0}<span className="text-sm text-amber-400/50">/5</span></span>
+                  </div>
+                  {review.comment && (
+                    <div className="p-3 bg-light-surface/50 dark:bg-dark-surface/50 rounded-xl mb-3 border border-amber-500/10">
+                      <p className="text-sm text-light-text-primary dark:text-dark-text-primary italic">"{review.comment}"</p>
+                    </div>
+                  )}
+                  <div className="flex gap-4">
+                    {review.food_stars && <p className="text-xs font-bold text-light-text-secondary"><span className="text-amber-400 mr-1">🍔</span> Comida: {review.food_stars}/5</p>}
+                    {review.delivery_stars && <p className="text-xs font-bold text-light-text-secondary"><span className="text-amber-400 mr-1">🛵</span> Envío: {review.delivery_stars}/5</p>}
+                  </div>
+                </Section>
+              )}
+
+            </div>
+          </div>
         </div>
       </motion.div>
+      </div>
     </>
   );
 };

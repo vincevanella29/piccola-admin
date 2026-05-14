@@ -63,9 +63,18 @@ def _calculate_closing(provider_slug: str, commissions: dict, date_from: datetim
     query = {
         "provider_slug": provider_slug,
         "created_at": {"$gte": date_from, "$lt": date_to},
-        "status": {"$in": ["completed", "delivered", "entregado"]},
     }
-    orders = list(ORDERS_COLL.find(query))
+    all_orders = list(ORDERS_COLL.find(query))
+
+    incomplete_orders_count = 0
+    orders = []
+
+    for order in all_orders:
+        status = order.get("status")
+        if status in ("completed", "delivered", "entregado"):
+            orders.append(order)
+        elif status not in ("cancelled", "canceled"):
+            incomplete_orders_count += 1
 
     delivery_pct = commissions.get("delivery_pct", 0)
     platform_pct = commissions.get("platform_pct", 0)
@@ -83,19 +92,23 @@ def _calculate_closing(provider_slug: str, commissions: dict, date_from: datetim
         subtotal = order.get("subtotal", 0) or order.get("total_amount", 0) or 0
         delivery_fee = order.get("delivery_fee", 0) or 0
         payment_method = order.get("payment_method", "cash")
+        order_type = order.get("order_type", "delivery")
+        dispatch_count = max(1, order.get("dispatch_count", 1))
+
         order_total = subtotal + delivery_fee
 
         total_subtotal += subtotal
         total_delivery_fees += delivery_fee
 
-        # Delivery commission
-        commission_delivery += delivery_fee * delivery_pct / 100
+        # Delivery commission: Total de la cuenta * % (solo para delivery) * dispatch_count
+        if order_type == "delivery":
+            commission_delivery += (order_total * delivery_pct / 100) * dispatch_count
 
-        # Platform commission (on subtotal)
+        # Platform commission: Subtotal sin delivery * % (para todos los pedidos)
         commission_platform += subtotal * platform_pct / 100
 
-        # Payment commission (only on card/oneclick)
-        if payment_method in ("card", "oneclick", "webpay", "tarjeta"):
+        # Payment commission: Total pagado * % (solo pago electrónico)
+        if payment_method in ("card", "oneclick", "webpay", "tarjeta", "transfer"):
             total_payment_amount += order_total
             commission_payment += order_total * payment_pct / 100
 
@@ -112,6 +125,7 @@ def _calculate_closing(provider_slug: str, commissions: dict, date_from: datetim
         "commission_platform": round(commission_platform),
         "commission_payment": round(commission_payment),
         "total_commission": total_commission,
+        "incomplete_orders_count": incomplete_orders_count,
         "rates": {
             "delivery_pct": delivery_pct,
             "platform_pct": platform_pct,
@@ -151,16 +165,17 @@ async def generate_closing(
 
     commissions = prov.get("commissions", {})
 
-    # Check if closing already exists for this period
+    # Check if closing already exists overlapping this period
     existing = CLOSINGS_COLL.find_one({
         "provider_slug": payload.provider_slug,
-        "period_from": date_from,
-        "period_to": date_to,
+        "$or": [
+            {"period_from": {"$lte": date_to}, "period_to": {"$gte": date_from}}
+        ]
     })
     if existing:
         raise HTTPException(
             status_code=409,
-            detail=f"Ya existe un cierre para {payload.period_from} → {payload.period_to}"
+            detail=f"Ya existe un cierre (estado: {existing.get('status')}) que se superpone con estas fechas"
         )
 
     # Calculate

@@ -55,7 +55,7 @@ const GroupModal = ({ open, onClose, group, token, walletAddress, isAdmin, onUpd
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="absolute inset-0 z-[100] flex items-center justify-center p-4">
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} 
@@ -217,7 +217,7 @@ const GroupModal = ({ open, onClose, group, token, walletAddress, isAdmin, onUpd
               {members.map(member => {
                 const isTargetOwner = member.role === 'owner';
                 const isTargetMod = member.role === 'mod';
-                const isMe = member.wallet?.toLowerCase() === safeWallet;
+                const isMe = member.wallet?.toLowerCase() === walletAddress?.toLowerCase();
                 
                 const canChangeThisRole = canManageRoles && !isTargetOwner;
                 

@@ -221,11 +221,9 @@ async def chat_complete(messages: list, *, delivery_mode: bool = False, order_co
     logger.info(f"Intent detected: {intent} delivery_mode={delivery_mode}")
     itype = (intent or {}).get("intent") if isinstance(intent, dict) else None
 
-    # Delivery walled garden: only delivery-safe intents allowed
+    # Delivery walled garden: force 'chat' so La Nonna answers naturally using the rich persona
     if delivery_mode:
-        if itype not in _DELIVERY_SAFE_INTENTS:
-            logger.info(f"[delivery_mode] Blocked intent '{itype}' → forced to 'chat'")
-            itype = "chat"
+        itype = "chat"
     elif itype not in ACCEPTED_INTENTS:
         itype = "chat"
 
@@ -438,20 +436,58 @@ async def chat_complete(messages: list, *, delivery_mode: bool = False, order_co
     if delivery_mode and order_context:
         # Delivery persona: amable, sabe del pedido, no tiene acceso a data admin
         oc = order_context
+        from utils.time_utils import get_chile_time
+        now_cl = get_chile_time()
+        
         delivery_persona = (
-            "Eres el asistente de delivery de Piccola Italia. Responde en español chileno, amable y conciso. "
+            "Eres La Nonna Marriana, la cariñosa y maternal abuela italo-chilena de la familia Piccola Italia. "
+            "Estás encargada de ayudar a tus 'bambinos' (los clientes) con sus pedidos de delivery o retiro. "
+            "Responde con mucho cariño, usando un español chileno súper natural mezclado con algunas palabras italianas ("
+            "como 'mio caro', 'bambino', 'mangiare', 'po', 'wn'). Eres chistosa, te preocupas de que coman rico, pero "
+            "también eres concisa y vas al grano con la información del pedido.\n"
             "NO tienes acceso a datos internos de la empresa (ventas, gastos, sueldos, consumos). "
             "Solo puedes ayudar con temas del pedido del cliente.\n\n"
+            f"Hora actual del sistema: {now_cl.strftime('%Y-%m-%d %H:%M')}\n"
             f"Cliente: {oc.get('customer_name', 'Cliente')}\n"
             f"Pedido #{oc.get('order_number', '')}: {oc.get('items_summary', '')}\n"
-            f"Estado actual: {oc.get('status_label', oc.get('status', ''))}\n"
+            f"Tipo de Pedido: {oc.get('order_type', 'delivery').upper()}\n"
         )
+        
+        sched = oc.get("scheduled_for")
+        sched_str = "Lo antes posible (ASAP)"
+        if not oc.get("asap", True) and sched:
+            try:
+                from datetime import datetime
+                from zoneinfo import ZoneInfo
+                dt = datetime.fromisoformat(str(sched).replace("Z", "+00:00"))
+                dt_cl = dt.astimezone(ZoneInfo("America/Santiago"))
+                sched_str = dt_cl.strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                sched_str = str(sched)
+                
+        delivery_persona += f"Horario Solicitado: {sched_str}\n"
+        delivery_persona += f"Estado actual: {oc.get('status_label', oc.get('status', ''))}\n"
         addr = oc.get("address", "")
         if addr:
             delivery_persona += f"Dirección de entrega: {addr}\n"
+        
+        carrier = oc.get("carrier")
+        if carrier:
+            c_status = oc.get("carrier_status", "asignando")
+            delivery_persona += f"Transportista: {carrier.upper()} (Estado logístico: {c_status})\n"
+        
         ci = oc.get("courier_info")
         if isinstance(ci, dict) and ci.get("name"):
-            delivery_persona += f"Repartidor: {ci['name']}\n"
+            delivery_persona += f"Repartidor/Moto: {ci['name']}"
+            if ci.get("phone"):
+                delivery_persona += f" (Fono: {ci['phone']})"
+            delivery_persona += "\n"
+            
+        t_url = oc.get("tracking_url")
+        if t_url:
+            delivery_persona += f"Link de Tracking GPS (donde va la moto en vivo): {t_url}\n"
+            
+        delivery_persona += "\nSi el cliente te pide información sobre donde va su pedido, y tienes el link de tracking, entrégaselo y dile que puede seguirlo por ahí para ver donde va la moto de verdad."
 
         reply = await _with_timeout(
             ask_grok(text, extra_persona=delivery_persona),

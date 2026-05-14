@@ -63,6 +63,7 @@ DEFAULT_FEE_CONFIG = {
     "min_fee": 0,              # minimum fee charged (0 = no minimum)
     "max_fee": 0,              # maximum fee cap (0 = no cap)
     "free_above": 0,           # free delivery if order > X (0 = never free)
+    "location_overrides": {},  # per-location overrides
 }
 
 DEFAULT_SCHEDULING_CONFIG = {
@@ -83,6 +84,8 @@ DEFAULT_CONFIG = {
     "payment_methods": ["cash", "card", "transfer"],
     "delivery_fee_config": DEFAULT_FEE_CONFIG,
     "scheduling_config": DEFAULT_SCHEDULING_CONFIG,
+    "chat_allowed_cargos": [],
+    "chat_allowed_secciones": [],
 }
 
 
@@ -247,8 +250,47 @@ async def update_payments(
 
 
 # =====================================================================
+# PUT chat access
+# =====================================================================
+
+class UpdateChatAccessRequest(BaseModel):
+    chat_allowed_cargos: List[str]
+    chat_allowed_secciones: List[str] = []
+
+@router.put("/delivery/config/chat-access", summary="Update allowed cargos for delivery chat")
+async def update_chat_access(
+    payload: UpdateChatAccessRequest,
+    user: dict = Depends(verify_session)
+):
+    """Update allowed cargos for delivery chat access."""
+    require_admin_level(user, "admin")
+
+    now = datetime.now(timezone.utc)
+    _get_config()
+    CONFIG_COLL.update_one(
+        {"_id": "delivery_config"},
+        {"$set": {
+            "chat_allowed_cargos": payload.chat_allowed_cargos,
+            "chat_allowed_secciones": payload.chat_allowed_secciones,
+            "updated_at": now,
+            "updated_by": user.get("wallet") or user.get("id"),
+        }}
+    )
+
+    logger.info(f"[delivery/config] Chat allowed cargos updated: {payload.chat_allowed_cargos}, secciones: {payload.chat_allowed_secciones}")
+    return {"success": True, "message": "Permisos de chat actualizados"}
+
+
+# =====================================================================
 # GET / PUT delivery fee config (platform markup)
 # =====================================================================
+
+class FeeOverride(BaseModel):
+    type: str = Field("percentage", description="percentage | fixed | none")
+    value: float = Field(0)
+    min_fee: float = Field(0)
+    max_fee: float = Field(0)
+    free_above: float = Field(0)
 
 class UpdateDeliveryFeeRequest(BaseModel):
     type: str = Field("percentage", description="percentage | fixed | none")
@@ -256,6 +298,7 @@ class UpdateDeliveryFeeRequest(BaseModel):
     min_fee: float = Field(0, description="Minimum delivery fee")
     max_fee: float = Field(0, description="Maximum fee cap (0=no cap)")
     free_above: float = Field(0, description="Free delivery above this order total (0=never)")
+    location_overrides: dict[str, FeeOverride] = Field(default_factory=dict, description="Per-location overrides")
 
 
 @router.get("/delivery/config/delivery-fee", summary="Get platform delivery fee config")
@@ -307,7 +350,7 @@ class UpdateSchedulingConfigRequest(BaseModel):
     advance_days: int = Field(1, ge=0, le=10)
     slot_interval_minutes: int = Field(30, ge=15, le=120)
     min_lead_time_minutes: int = Field(30, ge=0, le=180)
-    max_slots_per_day: int = Field(20, ge=1, le=50)
+    max_slots_per_day: int = Field(20, ge=1, le=150)
 
 
 @router.get("/delivery/config/scheduling", summary="Get scheduling config")

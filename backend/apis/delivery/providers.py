@@ -10,6 +10,7 @@ Each provider has:
 """
 
 import logging
+import os
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -521,10 +522,40 @@ async def resync_delivery_provider(
         raise HTTPException(status_code=400, detail="Provider no tiene credenciales Dilithium. Necesitas re-crear con auto-link.")
 
     mnemonic = decrypt_b2b_mnemonic(mnemonic_enc)
-    api_key_value = provider.get("api_key_value", "")
     wallet = user.get("wallet") or user.get("id")
 
-    # Build admin URL dynamically
+    # Si el proveedor usa API key, generamos una nueva para rotar (ya que no guardamos el secreto)
+    api_key_value = ""
+    if provider.get("type") == "api_key":
+        import time
+        key_name = f"Resync-{provider.get('slug', 'prov')}-{int(time.time())}"
+        key_id, secret = generate_api_key_pair()
+        api_key_value = f"{key_id}.{secret}"
+        
+        # Guardar nueva key
+        API_KEYS_COLL.insert_one({
+            "_id": key_id,
+            "secret_hash": hash_secret(secret),
+            "name": key_name,
+            "provider_slug": provider.get("slug"),
+            "scopes": ["*"],
+            "active": True,
+            "created_at": datetime.now(timezone.utc),
+            "owner": wallet.lower(),
+            "company_id": int(os.getenv("COMPANY_ID", "1")),
+            "last_used": None,
+        })
+        
+        # Desactivar la key anterior si existe
+        old_key_id = provider.get("api_key_id")
+        if old_key_id:
+            API_KEYS_COLL.update_one({"_id": old_key_id}, {"$set": {"active": False}})
+            
+        # Actualizar el ID en el proveedor
+        PROVIDERS_COLL.update_one(
+            {"_id": ObjectId(provider_id)},
+            {"$set": {"api_key_id": key_id}}
+        )
     fwd_host = request.headers.get("x-forwarded-host")
     if fwd_host:
         admin_api_url = f"https://{fwd_host}/api"
@@ -558,8 +589,10 @@ async def resync_delivery_provider(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[delivery/providers] ❌ Re-sync error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        err_msg = traceback.format_exc()
+        logger.error(f"[delivery/providers] ❌ Re-sync error:\n{err_msg}")
+        raise HTTPException(status_code=500, detail=str(e) or repr(e))
 
 
 @router.delete("/delivery/providers/{provider_id}", summary="Desactivar proveedor")

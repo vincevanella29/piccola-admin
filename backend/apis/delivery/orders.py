@@ -87,6 +87,9 @@ class DeliveryOrderCreate(BaseModel):
 class OrderStatusUpdate(BaseModel):
     status: str = Field(..., description="pending, confirmed, preparing, ready, dispatched, delivered, cancelled")
 
+class BatchStatusRequest(BaseModel):
+    order_ids: List[str] = Field(..., description="Lista de IDs de ordenes (Admin) para verificar estado")
+
 # =====================================================================
 # Auth helpers
 # =====================================================================
@@ -109,7 +112,7 @@ def _resolve_provider(key_doc: dict) -> Optional[dict]:
 def _serialize_order(doc: dict) -> dict:
     """Convert a MongoDB order doc to a JSON-serializable dict."""
     doc["_id"] = str(doc["_id"])
-    for dt_field in ("created_at", "updated_at", "dispatched_at", "delivered_at", "last_dispatch_retry"):
+    for dt_field in ("created_at", "updated_at", "dispatched_at", "delivered_at", "last_dispatch_retry", "carrier_accepted_at"):
         if doc.get(dt_field) and isinstance(doc[dt_field], datetime):
             dt = doc[dt_field]
             # Naive datetimes (legacy) — assume Chile local time
@@ -210,7 +213,7 @@ async def _notify_delivery_provider(order: dict, status: str, carrier_status: st
         else:
             logger.warning(f"[status-push] ⚠️ {provider_slug} returned {resp.status_code}: {resp.text[:200]}")
     except Exception as e:
-        logger.warning(f"[status-push] ❌ Failed to push to {provider_slug}: {e}")
+        logger.warning(f"[status-push] ❌ Failed to push to {provider_slug}: {repr(e)}")
 
 
 # =====================================================================
@@ -228,15 +231,11 @@ async def _auto_dispatch(order_id: str, carrier_slug: str, loc: dict):
     try:
         from apis.delivery.last_mile import create_carrier_delivery
 
-        # Resolve carrier (auto-pick if slug is 'auto' or unknown)
+        # Resolve carrier exactly as requested
         carrier = CARRIERS_COLL.find_one({"slug": carrier_slug, "status": "active"})
         if not carrier:
-            active_carriers = list(CARRIERS_COLL.find({"status": "active"}).limit(1))
-            if not active_carriers:
-                logger.warning("[auto-dispatch] No active carriers — order stays pending")
-                return
-            carrier = active_carriers[0]
-            logger.info(f"[auto-dispatch] Auto-picked carrier: {carrier['slug']}")
+            logger.warning(f"[auto-dispatch] No active carrier found for slug '{carrier_slug}' — order stays pending")
+            return
 
         # Fetch full order doc (we need items for manifest)
         order = DELIVERY_COLL.find_one({"_id": ObjectId(order_id)})
@@ -258,6 +257,8 @@ async def _auto_dispatch(order_id: str, carrier_slug: str, loc: dict):
                 "status": "confirmed",
                 "dispatched_at": now,
                 "updated_at": now,
+            }, "$inc": {
+                "dispatch_count": 1
             }}
         )
 
@@ -411,13 +412,15 @@ async def create_delivery_order(
     ))
 
     # Auto-dispatch to last-mile carrier (fire-and-forget)
-    # If carrier_slug is None, _auto_dispatch will auto-pick the first active carrier
     if payload.order_type == "delivery":
-        asyncio.create_task(_auto_dispatch(
-            order_id=order_id,
-            carrier_slug=payload.carrier_slug or "auto",
-            loc=loc,
-        ))
+        if payload.carrier_slug:
+            asyncio.create_task(_auto_dispatch(
+                order_id=order_id,
+                carrier_slug=payload.carrier_slug,
+                loc=loc,
+            ))
+        else:
+            logger.warning(f"[delivery/orders] Order {order_id} created without carrier_slug. Dispatch deferred.")
 
     # Fire outgoing webhooks (fire-and-forget)
     try:
@@ -474,12 +477,45 @@ async def get_delivery_locations(user: dict = Depends(verify_session)):
         loc["_id"] = str(loc["_id"])
     return {"locations": locs}
 
+@router.post("/delivery/orders/batch-status", summary="Sincronización por lotes de estado de pedidos")
+async def get_batch_order_statuses(payload: BatchStatusRequest, api_key_doc: dict = Depends(verify_external_api_key)):
+    """
+    Returns the current status, carrier_status, and courier_info for a batch of order IDs.
+    Extremely efficient O(1) query used by the delivery app to recover dropped webhooks.
+    """
+    valid_ids = []
+    for oid in payload.order_ids:
+        try:
+            valid_ids.append(ObjectId(oid))
+        except Exception:
+            pass
+
+    if not valid_ids:
+        return {"statuses": {}}
+
+    cursor = DELIVERY_COLL.find(
+        {"_id": {"$in": valid_ids}},
+        {"status": 1, "carrier_status": 1, "courier_info": 1, "updated_at": 1}
+    )
+
+    results = {}
+    for doc in cursor:
+        results[str(doc["_id"])] = {
+            "status": doc.get("status", "pending"),
+            "carrier_status": doc.get("carrier_status", ""),
+            "courier_info": doc.get("courier_info"),
+            "updated_at": doc.get("updated_at").isoformat() if isinstance(doc.get("updated_at"), datetime) else str(doc.get("updated_at")),
+        }
+
+    return {"statuses": results}
+
 @router.get("/delivery/orders", summary="Listar pedidos para gestor de sucursal")
 async def get_delivery_orders(
     location_id: Optional[str] = None,
     status: Optional[str] = None,
     provider: Optional[str] = None,
     carrier: Optional[str] = None,
+    dispatch_status: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     skip: int = 0,
@@ -490,6 +526,12 @@ async def get_delivery_orders(
     Retorna la lista de pedidos con filtros opcionales.
     Level 3-5: ve todos los locales, puede filtrar con location_id.
     Level 6: ve solo sus sucursales asignadas (access_locals pattern).
+
+    dispatch_status filter:
+      - 'failed': dispatch_failed=True
+      - 'rejected': carrier_rejected=True
+      - 'recovery': needs_recovery=True
+      - 'accepted': carrier_accepted=True
     """
     require_admin_level(user, "delivery")
     perms = get_perms_from_user(user)
@@ -514,6 +556,17 @@ async def get_delivery_orders(
         query["provider_slug"] = provider
     if carrier:
         query["carrier_slug"] = carrier
+
+    # Dispatch status filter
+    if dispatch_status == "failed":
+        query["dispatch_failed"] = True
+    elif dispatch_status == "rejected":
+        query["carrier_rejected"] = True
+    elif dispatch_status == "recovery":
+        query["needs_recovery"] = True
+    elif dispatch_status == "accepted":
+        query["carrier_accepted"] = True
+
     if date_from:
         try:
             query.setdefault("created_at", {})["$gte"] = datetime.fromisoformat(date_from)
@@ -611,6 +664,127 @@ async def get_delivery_stats(
             "today_revenue": today_revenue,
             "active": active_count,
         },
+    }
+
+
+
+@router.get("/delivery/orders/analytics/advanced", summary="Analíticas avanzadas de delivery: Heatmap y Ventas por hora/producto")
+async def get_advanced_analytics(
+    location_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    user: dict = Depends(verify_session)
+):
+    """
+    Returns advanced metrics:
+    1. Heatmap points (lat, lng, weight) for delivered orders.
+    2. Sales by Hour & Product (combines $hour and item grouping).
+    Filtered by user permissions (access_locals pattern).
+    """
+    require_admin_level(user, "delivery")
+    perms = get_perms_from_user(user)
+    allowed_slugs = allowed_local_filter(perms)
+
+    base_query = {}
+    if allowed_slugs is not None:
+        if not allowed_slugs:
+            return {"success": True, "heatmap": [], "sales_by_hour": []}
+        base_query["location_slug"] = {"$in": list(allowed_slugs)}
+
+    if location_id:
+        validate_include_local_or_403(perms, [location_id])
+        base_query["location_slug"] = location_id
+
+    # Date range
+    now = get_chile_time()
+    # Default to last 30 days if no date provided
+    if not date_from:
+        date_from_dt = now - timedelta(days=30)
+    else:
+        try:
+            date_from_dt = datetime.fromisoformat(date_from)
+        except ValueError:
+            date_from_dt = now - timedelta(days=30)
+
+    if date_to:
+        try:
+            date_to_dt = datetime.fromisoformat(date_to)
+        except ValueError:
+            date_to_dt = now
+    else:
+        date_to_dt = now
+
+    base_query["created_at"] = {"$gte": date_from_dt, "$lte": date_to_dt}
+    base_query["status"] = {"$ne": "cancelled"}  # don't count cancelled orders
+
+    # ── Pipeline 1: Heatmap ──
+    # Extract dropoff coordinates
+    pipeline_heatmap = [
+        {"$match": base_query},
+        {"$match": {"dropoff_lat": {"$exists": True, "$ne": None}, "dropoff_lng": {"$exists": True, "$ne": None}}},
+        {"$project": {
+            "_id": 0,
+            "lat": "$dropoff_lat",
+            "lng": "$dropoff_lng",
+            "total_amount": 1
+        }}
+    ]
+    heatmap_res = list(DELIVERY_COLL.aggregate(pipeline_heatmap))
+    
+    # Format for leaflet-heat: [lat, lng, intensity]
+    # Let's map intensity based on total amount or just 1. We'll use 1 for standard heat.
+    heatmap_points = [[r["lat"], r["lng"], 1.0] for r in heatmap_res]
+
+    # ── Pipeline 2: Sales by Hour and Product ──
+    # Unwind items, group by hour and item code
+    pipeline_sales = [
+        {"$match": base_query},
+        {"$match": {"items": {"$type": "array", "$not": {"$size": 0}}}},
+        {"$unwind": "$items"},
+        {"$group": {
+            "_id": {
+                "hour": {"$hour": {"date": "$created_at", "timezone": "America/Santiago"}},
+                "codigo": "$items.codigo",
+            },
+            "quantity": {"$sum": "$items.quantity"},
+            "revenue": {"$sum": {"$multiply": ["$items.quantity", {"$ifNull": ["$items.unit_price", "$items.precio", 0]}]}}
+        }},
+        {"$sort": {"_id.hour": 1, "revenue": -1}}
+    ]
+    
+    sales_res = list(DELIVERY_COLL.aggregate(pipeline_sales))
+
+    # Enrich with product names and images from MENUS_COLL
+    codigos = set(r["_id"]["codigo"] for r in sales_res if r["_id"].get("codigo"))
+    items_map = {}
+    if codigos:
+        db_items = list(MENUS_COLL.find(
+            {"codigo": {"$in": list(codigos)}},
+            {"codigo": 1, "nombre": 1, "media_r2": 1, "media_url": 1}
+        ))
+        items_map = {i["codigo"]: i for i in db_items}
+
+    # Format Sales by Hour
+    sales_by_hour = []
+    for r in sales_res:
+        codigo = r["_id"].get("codigo")
+        hour = r["_id"].get("hour")
+        if codigo is None or hour is None: continue
+        
+        db_item = items_map.get(codigo, {})
+        sales_by_hour.append({
+            "hour": hour,
+            "codigo": codigo,
+            "nombre": db_item.get("nombre", codigo),
+            "image_url": db_item.get("media_r2") or db_item.get("media_url"),
+            "quantity": r.get("quantity", 0),
+            "revenue": r.get("revenue", 0)
+        })
+
+    return {
+        "success": True,
+        "heatmap": heatmap_points,
+        "sales_by_hour": sales_by_hour
     }
 
 
@@ -1116,13 +1290,22 @@ async def review_stats(user: dict = Depends(verify_session)):
                 "count": item["count"]
             })
 
+    top_phones = [c["_id"] for c in customers_res if c["_id"]]
+    total_order_counts = {}
+    if top_phones:
+        for r in DELIVERY_COLL.aggregate([
+            {"$match": {"customer.phone": {"$in": top_phones}, "status": {"$ne": "cancelled"}}},
+            {"$group": {"_id": "$customer.phone", "count": {"$sum": 1}}}
+        ]):
+            total_order_counts[r["_id"]] = r["count"]
+
     for c in customers_res:
         if not c["_id"]:
             continue
         stats["top_customers"].append({
             "phone": c["_id"],
             "name": c["name"] or "Cliente",
-            "count": c["count"],
+            "count": total_order_counts.get(c["_id"], c["count"]),
             "avg_stars": round(c["avg_stars"], 1),
             "last_review": c["last_review"].isoformat() if isinstance(c["last_review"], datetime) else c["last_review"]
         })
@@ -1166,6 +1349,10 @@ async def list_reviews(
     ).sort("review.received_at", -1).skip(skip).limit(limit)
 
     reviews = []
+    
+    # ── Enrich items with images and get customer order counts ──
+    all_codigos = set()
+    customer_phones = set()
     for doc in cursor:
         doc["_id"] = str(doc["_id"])
         for dt in ("created_at", "delivered_at"):
@@ -1174,7 +1361,44 @@ async def list_reviews(
         rev = doc.get("review", {})
         if isinstance(rev.get("received_at"), datetime):
             rev["received_at"] = rev["received_at"].isoformat()
+            
+        for item in doc.get("items", []):
+            if item.get("codigo"):
+                all_codigos.add(item["codigo"])
+                
+        cust = doc.get("customer", {})
+        if cust.get("phone"):
+            customer_phones.add(cust["phone"])
+            
         reviews.append(doc)
+
+    items_map = {}
+    if all_codigos:
+        db_items = list(MENUS_COLL.find(
+            {"codigo": {"$in": list(all_codigos)}},
+            {"codigo": 1, "nombre": 1, "media_r2": 1, "media_url": 1}
+        ))
+        items_map = {i["codigo"]: i for i in db_items}
+        
+    customer_counts = {}
+    if customer_phones:
+        pipeline = [
+            {"$match": {"customer.phone": {"$in": list(customer_phones)}, "status": {"$ne": "cancelled"}}},
+            {"$group": {"_id": "$customer.phone", "count": {"$sum": 1}}}
+        ]
+        for r in DELIVERY_COLL.aggregate(pipeline):
+            if r["_id"]:
+                customer_counts[r["_id"]] = r["count"]
+
+    for doc in reviews:
+        # Inject order count
+        phone = doc.get("customer", {}).get("phone")
+        doc["customer_order_count"] = customer_counts.get(phone, 1) if phone else 1
+        
+        # Inject item images
+        for item in doc.get("items", []):
+            db_item = items_map.get(item.get("codigo"), {})
+            item["image_url"] = db_item.get("media_r2") or db_item.get("media_url")
 
     total = DELIVERY_COLL.count_documents(query)
 

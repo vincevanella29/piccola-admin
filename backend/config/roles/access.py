@@ -531,6 +531,10 @@ def require_admin_level(user: Dict[str, Any], role: str):
         # Kitchen Display: all staff including kitchen workers (level 7)
         allowed = (3, 4, 5, 6, 7)
         deny_msg = "Solo personal autorizado (niveles 3-7)"
+    elif role == "delivery_chat":
+        # Delivery chat: all staff up to level 7, but endpoints verify local + cargo
+        allowed = (3, 4, 5, 6, 7)
+        deny_msg = "Solo personal autorizado (niveles 3-7)"
     elif role == "marketing":
         # Marketing/Mailing: admin + subadmin only
         allowed = (3, 4, 5)

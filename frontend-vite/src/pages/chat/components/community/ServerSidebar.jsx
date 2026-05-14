@@ -96,6 +96,44 @@ const GroupRow = ({ group, isActive, onClick, onSettingsClick, canManage }) => (
   </div>
 );
 
+// ─── DM Conversation Row ─────────────────────────────────────────
+const DmRow = ({ convo, isActive, onClick }) => {
+  const timeStr = convo.last_at
+    ? new Date(convo.last_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  return (
+    <button
+      onClick={() => onClick(convo)}
+      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition group ${isActive
+        ? 'bg-blue-500/15 text-blue-400 font-medium'
+        : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-tertiary/50 dark:hover:bg-dark-surface-tertiary/50'
+        }`}
+    >
+      {/* Avatar */}
+      <div className="w-7 h-7 rounded-full bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden">
+        {convo.peer_profile_image_url
+          ? <img src={convo.peer_profile_image_url} className="w-7 h-7 rounded-full object-cover" alt="" />
+          : (convo.peer_name || '?')[0]?.toUpperCase()
+        }
+      </div>
+      {/* Name + preview */}
+      <div className="flex-1 min-w-0 text-left">
+        <div className="text-[13px] font-medium truncate">{convo.peer_name || convo.peer_wallet?.slice(0, 8)}</div>
+        {convo.last_text && (
+          <div className="text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary truncate opacity-70">
+            {convo.last_text.slice(0, 40)}
+          </div>
+        )}
+      </div>
+      {/* Time */}
+      {timeStr && (
+        <span className="text-[9px] text-light-text-tertiary opacity-50 shrink-0">{timeStr}</span>
+      )}
+    </button>
+  );
+};
+
 const ServerSidebar = ({
   channels = [],
   groups = [],
@@ -113,8 +151,13 @@ const ServerSidebar = ({
   onlineCount = 0,
   showMembersPanel = false,
   walletAddress = '',
+  // DM props
+  dmConversations = [],
+  activeDmPeer = null,
+  onSelectDmConvo,
 }) => {
   const { sectionMap, sortedSections } = useServerSidebar({ channels });
+  const activeDmWallet = (activeDmPeer?.wallet || '').toLowerCase();
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -135,7 +178,7 @@ const ServerSidebar = ({
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-1.5 py-2 space-y-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-1.5 py-2 space-y-1 custom-scrollbar">
         {/* Channels by section */}
         {sortedSections.map(sec => (
           <SectionGroup
@@ -194,11 +237,33 @@ const ServerSidebar = ({
             </button>
           </SectionGroup>
         )}
+
+        {/* ─── Direct Messages section ─── */}
+        <SectionGroup label="Mensajes Directos" icon="✉️" defaultOpen={true}>
+          {dmConversations.map(convo => (
+            <DmRow
+              key={convo.conv_key || convo.peer_wallet}
+              convo={convo}
+              isActive={activeDmWallet === (convo.peer_wallet || '').toLowerCase()}
+              onClick={onSelectDmConvo}
+            />
+          ))}
+          {dmConversations.length === 0 && (
+            <div className="px-3 py-2 text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary opacity-60">
+              Sin conversaciones aún
+            </div>
+          )}
+          <button
+            onClick={onOpenDm}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-light-text-tertiary dark:text-dark-text-tertiary hover:text-blue-400 transition rounded-md"
+          >
+            <FaPlus size={10} /> Nuevo Mensaje
+          </button>
+        </SectionGroup>
       </div>
 
-      {/* Bottom bar: DM + Members toggle */}
-      <div className="shrink-0 px-3 py-2 border-t border-light-border/30 dark:border-dark-border/30 space-y-1.5">
-        {/* Members toggle */}
+      {/* Bottom bar: Members toggle */}
+      <div className="shrink-0 px-3 py-2 border-t border-light-border/30 dark:border-dark-border/30">
         <button
           onClick={onToggleMembers}
           className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition ${showMembersPanel
@@ -214,14 +279,6 @@ const ServerSidebar = ({
               {onlineCount}
             </span>
           )}
-        </button>
-
-        {/* DM */}
-        <button
-          onClick={onOpenDm}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg bg-light-surface-tertiary/30 dark:bg-dark-surface-tertiary/30 hover:bg-purple-500/10 hover:text-purple-400 text-light-text-secondary dark:text-dark-text-secondary transition"
-        >
-          <FaEnvelope size={12} /> Mensaje Directo
         </button>
       </div>
     </div>

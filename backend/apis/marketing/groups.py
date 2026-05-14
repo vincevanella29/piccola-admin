@@ -78,8 +78,6 @@ def _user_identity(user: dict) -> dict:
         eu = db.empleados_usuarios.find_one({"sub": sub})
         if eu and eu.get("rut"):
             wallet = f"rut_{eu['rut']}"
-            print(f"[_user_identity] Solved missing wallet via sub {sub} -> {wallet}", flush=True)
-    print(f"[_user_identity] Result: wallet={wallet}, privy_id={sub}", flush=True)
     return {"wallet": wallet.lower() if wallet else None, "privy_id": sub}
 
 
@@ -239,7 +237,6 @@ def _enrich_sender(user: dict, perms: dict) -> dict:
                         display_name = profile.get("name") or display_name
                         avatar_url = profile.get("profile_image_url") or cu.get("profile_image_url")
         
-        print(f"[_enrich_sender] Resolved for {wallet}: name={display_name}, cargo={perms.get('cargo')}", flush=True)
     except Exception as e:
         logger.error(f"Error enriching sender: {e}")
     return {
@@ -402,15 +399,6 @@ async def list_groups(user: dict = Depends(verify_session)):
             "unread_count": 0,
             "members": members,
         })
-        
-    print(f"\\n\\n========== DEBUG GRUPOS ==========")
-    print(f"[_get_groups] Returned {len(out)} groups. Config & Members:")
-    for g in out:
-        print(f"  Group '{g['name']}' ({g['group_id']}) - is_section_based={g['is_section_based']}, allowed_secciones={g['allowed_secciones']}, allowed_cargos={g['allowed_cargos']}")
-        for m in g['members']:
-            print(f"    -> Member: {m['display_name']} | wallet={m['wallet']} | role={m['role']} | cargo={m['cargo']} | sec={m['seccion']}")
-    print(f"==================================\\n\\n", flush=True)
-            
     return out
 
 

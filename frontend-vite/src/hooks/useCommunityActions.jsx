@@ -21,6 +21,7 @@ export default function useCommunityActions(appState) {
     fetchMyMerits: () => handleAction(communityApi.fetchMyMerits),
     fetchMemberMeritProfile: (memberWallet, rut) => handleAction(communityApi.fetchMemberMeritProfile, { memberWallet, rut }),
     pinChannelMessage: (slug, messageId) => handleAction(communityApi.pinChannelMessage, { slug, messageId }),
+    fetchDmConversations: () => handleAction(communityApi.fetchDmConversations),
     sendDmMessage: (peerWallet, text) => handleAction(communityApi.sendDmMessage, { peerWallet, text }),
     fetchDmMessages: (peerWallet) => handleAction(communityApi.fetchDmMessages, { peerWallet }),
     searchWorkers: (q) => handleAction(communityApi.searchWorkers, { q }),

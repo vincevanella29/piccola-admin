@@ -25,6 +25,8 @@ class ConnectionManager:
         self.channel_clients: Dict[str, Set[WebSocket]] = {}
         # ─── Community: group_id -> set of websockets ───
         self.group_clients: Dict[str, Set[WebSocket]] = {}
+        # ─── Community: dm conv_key -> set of websockets ───
+        self.dm_clients: Dict[str, Set[WebSocket]] = {}
         # ─── Presence: wallet -> user info + timestamps ───
         self.presence: Dict[str, dict] = {}
         # wallet -> set of websockets (for broadcasting presence updates)
@@ -309,5 +311,42 @@ class ConnectionManager:
 
     def group_online_count(self, group_id: str) -> int:
         return len(self.group_clients.get(group_id, set()))
+
+    # ─── DM WebSocket ─────────────────────────────────────────
+
+    async def connect_dm(self, conv_key: str, websocket: WebSocket) -> None:
+        await websocket.accept()
+        async with self._lock:
+            if conv_key not in self.dm_clients:
+                self.dm_clients[conv_key] = set()
+            self.dm_clients[conv_key].add(websocket)
+        logger.info(f"WebSocket connected: dm={conv_key}")
+
+    async def disconnect_dm(self, conv_key: str, websocket: WebSocket) -> None:
+        async with self._lock:
+            if conv_key in self.dm_clients and websocket in self.dm_clients[conv_key]:
+                self.dm_clients[conv_key].remove(websocket)
+                if not self.dm_clients[conv_key]:
+                    del self.dm_clients[conv_key]
+        logger.info(f"WebSocket disconnected: dm={conv_key}")
+
+    async def broadcast_dm(self, conv_key: str, message: dict) -> None:
+        targets = self.dm_clients.get(conv_key, set())
+        if not targets:
+            return
+        stale = []
+        for ws in list(targets):
+            try:
+                await ws.send_json(message)
+            except Exception as e:
+                logger.warning(f"Broadcast error dm={conv_key}: {e}")
+                stale.append(ws)
+        if stale:
+            async with self._lock:
+                for ws in stale:
+                    if conv_key in self.dm_clients and ws in self.dm_clients[conv_key]:
+                        self.dm_clients[conv_key].remove(ws)
+                        if not self.dm_clients[conv_key]:
+                            del self.dm_clients[conv_key]
 
 manager = ConnectionManager()
