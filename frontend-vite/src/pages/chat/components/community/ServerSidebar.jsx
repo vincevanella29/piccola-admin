@@ -97,13 +97,15 @@ const GroupRow = ({ group, isActive, onClick, onSettingsClick, canManage }) => (
 );
 
 // ─── DM Conversation Row ─────────────────────────────────────────
-// ─── DM Conversation Row ─────────────────────────────────────────
 const DmRow = ({ convo, isActive, onClick, employeeMap = {} }) => {
   const peerWallet = (convo.peer_wallet || '').toLowerCase();
   const employee = peerWallet ? employeeMap[peerWallet] : null;
 
   const avatarUrl = convo.peer_profile_image_url || employee?.profile_image_url;
-  const displayName = convo.peer_name || employee?.name || convo.peer_wallet?.slice(0, 8) || 'Usuario';
+  
+  // Prioritize employee map name. If not found, use peer_name (unless it's just the wallet).
+  const validPeerName = convo.peer_name && convo.peer_name.toLowerCase() !== peerWallet ? convo.peer_name : null;
+  const displayName = employee?.name || validPeerName || convo.peer_wallet?.slice(0, 8) || 'Usuario';
 
   const timeStr = convo.last_at
     ? new Date(convo.last_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })

@@ -226,21 +226,25 @@ const MembersPanel = ({
 
   const filteredMembers = useMemo(() => allMembers.filter(filterMember), [allMembers, search, activeGroup]);
 
-  // Group by section, split by has_user
-  const { conUsuario, sinUsuario } = useMemo(() => {
-    const con = {};
-    const sin = {};
+  // Group by section, split by has_user and status
+  const { onlineGroups, offlineGroups, sinUsuarioGroups } = useMemo(() => {
+    const onGroups = {};
+    const offGroups = {};
+    const sinGroups = {};
     
     filteredMembers.forEach(m => {
       const sec = m.seccion || 'General';
-      const isConnected = m.status === 'online' || m.status === 'idle';
+      const isOnline = m.status === 'online' || m.status === 'idle';
       
-      if (m.has_user || isConnected) {
-        if (!con[sec]) con[sec] = [];
-        con[sec].push(m);
+      if (!m.has_user) {
+        if (!sinGroups[sec]) sinGroups[sec] = [];
+        sinGroups[sec].push(m);
+      } else if (isOnline) {
+        if (!onGroups[sec]) onGroups[sec] = [];
+        onGroups[sec].push(m);
       } else {
-        if (!sin[sec]) sin[sec] = [];
-        sin[sec].push(m);
+        if (!offGroups[sec]) offGroups[sec] = [];
+        offGroups[sec].push(m);
       }
     });
 
@@ -258,11 +262,16 @@ const MembersPanel = ({
       return sorted;
     };
 
-    return { conUsuario: sortObj(con), sinUsuario: sortObj(sin) };
+    return { 
+      onlineGroups: sortObj(onGroups), 
+      offlineGroups: sortObj(offGroups), 
+      sinUsuarioGroups: sortObj(sinGroups) 
+    };
   }, [filteredMembers]);
 
-  const totalUsuarios = Object.values(conUsuario).reduce((s, m) => s + m.length, 0);
-  const totalSinUsuarios = Object.values(sinUsuario).reduce((s, m) => s + m.length, 0);
+  const totalOnline = Object.values(onlineGroups).reduce((s, m) => s + m.length, 0);
+  const totalOffline = Object.values(offlineGroups).reduce((s, m) => s + m.length, 0);
+  const totalSinUsuarios = Object.values(sinUsuarioGroups).reduce((s, m) => s + m.length, 0);
 
   return (
     <div className="h-full flex flex-col bg-transparent">
@@ -296,58 +305,87 @@ const MembersPanel = ({
         </div>
       </div>
 
-      {/* Members list — con usuario */}
+      {/* Members list */}
       <div className="flex-1 min-h-0 overflow-y-auto px-1.5 space-y-1 py-2 pb-4 custom-scrollbar">
-        {totalUsuarios > 0 ? (
-          Object.entries(conUsuario).map(([sec, members]) => (
-            <SectionBlock
-              key={`con-${sec}`}
-              seccion={sec}
-              members={members}
-              onClickMember={onClickMember}
-              onDmMember={onDmMember}
-            />
-          ))
-        ) : (
+        {totalOnline === 0 && totalOffline === 0 && totalSinUsuarios === 0 ? (
           <div className="text-center py-8 text-xs text-light-text-tertiary">
-            {search ? 'Sin resultados' : 'Sin usuarios activos'}
+            {search ? 'Sin resultados' : 'Sin usuarios'}
           </div>
-        )}
+        ) : (
+          <>
+            {/* ONLINE GROUP */}
+            {totalOnline > 0 && (
+              <div className="mb-4">
+                <div className="px-2 py-1 mb-1 text-[10px] font-bold text-green-400 uppercase tracking-wider">
+                  🟢 Online — {totalOnline}
+                </div>
+                {Object.entries(onlineGroups).map(([sec, members]) => (
+                  <SectionBlock
+                    key={`on-${sec}`}
+                    seccion={sec}
+                    members={members}
+                    onClickMember={onClickMember}
+                    onDmMember={onDmMember}
+                  />
+                ))}
+              </div>
+            )}
 
-        {/* Members list — sin usuario */}
-        {totalSinUsuarios > 0 && (
-          <div className="mt-3 pt-3 border-t border-light-border/20 dark:border-dark-border/20">
-            <button
-              onClick={() => setShowUnregistered(v => !v)}
-              className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 hover:text-gray-400 rounded-md transition"
-            >
-              {showUnregistered ? <FaChevronDown size={7} /> : <FaChevronRight size={7} />}
-              <FaUserSlash size={10} />
-              <span>Sin Usuario — {totalSinUsuarios}</span>
-            </button>
-            <AnimatePresence>
-              {showUnregistered && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="overflow-hidden pl-1 space-y-1 mt-1"
+            {/* OFFLINE GROUP */}
+            {totalOffline > 0 && (
+              <div className="mb-4">
+                <div className="px-2 py-1 mb-1 text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <FaCircle size={6} /> Offline — {totalOffline}
+                </div>
+                {Object.entries(offlineGroups).map(([sec, members]) => (
+                  <SectionBlock
+                    key={`off-${sec}`}
+                    seccion={sec}
+                    members={members}
+                    defaultOpen={false}
+                    onClickMember={onClickMember}
+                    onDmMember={onDmMember}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* SIN USUARIOS GROUP */}
+            {totalSinUsuarios > 0 && (
+              <div className="mb-2">
+                <button
+                  onClick={() => setShowUnregistered(v => !v)}
+                  className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-500 hover:text-gray-400 rounded-md transition"
                 >
-                  {Object.entries(sinUsuario).map(([sec, members]) => (
-                    <SectionBlock
-                      key={`sin-${sec}`}
-                      seccion={sec}
-                      members={members}
-                      defaultOpen={true}
-                      onClickMember={onClickMember}
-                      onDmMember={onDmMember}
-                    />
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                  {showUnregistered ? <FaChevronDown size={7} /> : <FaChevronRight size={7} />}
+                  <FaUserSlash size={10} />
+                  <span>Sin Usuario — {totalSinUsuarios}</span>
+                </button>
+                <AnimatePresence>
+                  {showUnregistered && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden pl-1 space-y-1 mt-1"
+                    >
+                      {Object.entries(sinUsuarioGroups).map(([sec, members]) => (
+                        <SectionBlock
+                          key={`sin-${sec}`}
+                          seccion={sec}
+                          members={members}
+                          defaultOpen={true}
+                          onClickMember={onClickMember}
+                          onDmMember={onDmMember}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -271,6 +271,18 @@ const usePresence = ({ appState, enabled = true }) => {
           enriched.sucursal = emp.sucursal;
           modified = true;
         }
+        if (emp.name && (m.name === m.wallet || m.name === m.wallet?.toLowerCase() || !m.name)) {
+          enriched.name = emp.name;
+          modified = true;
+        }
+        if (emp.seccion && (!m.seccion || m.seccion === 'General')) {
+          enriched.seccion = emp.seccion;
+          modified = true;
+        }
+        if (emp.cargo && !m.cargo) {
+          enriched.cargo = emp.cargo;
+          modified = true;
+        }
 
         if (modified) {
           changed = true;
