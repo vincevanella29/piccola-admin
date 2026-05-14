@@ -500,13 +500,18 @@ export async function updateCarrierMapping({ token, walletAddress, carrierId, st
   });
 }
 
-export async function updateChatAccess({ token, walletAddress, allowedCargos, allowedSecciones }) {
+export async function updateChatAccess({ token, walletAddress, allowedCargos, allowedSecciones, kdsAllowedCargos = [], kdsAllowedSecciones = [] }) {
   return api({
     method: 'PUT',
     endpoint: '/delivery/config/chat-access',
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
-    data: { chat_allowed_cargos: allowedCargos, chat_allowed_secciones: allowedSecciones },
+    data: { 
+      chat_allowed_cargos: allowedCargos, 
+      chat_allowed_secciones: allowedSecciones,
+      kds_allowed_cargos: kdsAllowedCargos,
+      kds_allowed_secciones: kdsAllowedSecciones
+    },
   });
 }
 

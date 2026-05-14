@@ -845,6 +845,26 @@ async def get_kds_orders(user: dict = Depends(verify_session)):
         allowed_sucs = perms.get("sucursal_ids", [])
         if allowed_sucs:
             query["location_id"] = {"$in": [str(s) for s in allowed_sucs]}
+            
+    # Level 7: filter by own sucursal and verify KDS access
+    has_kds_override = False
+    if rl == 7:
+        own_suc = perms.get("own_id_sucursal")
+        if own_suc is not None:
+            query["location_id"] = str(own_suc)
+        else:
+            return {"success": True, "orders": [], "total": 0}
+            
+        # Check explicit KDS access from config (cajeros, etc.)
+        cargo = perms.get("cargo")
+        seccion = perms.get("seccion")
+        kds_cargos = [c.lower().strip() for c in config_doc.get("kds_allowed_cargos", [])] if config_doc else []
+        kds_secciones = [s.lower().strip() for s in config_doc.get("kds_allowed_secciones", [])] if config_doc else []
+        
+        if cargo and cargo.lower().strip() in kds_cargos:
+            has_kds_override = True
+        if seccion and seccion.lower().strip() in kds_secciones:
+            has_kds_override = True
 
     # Fetch active orders
     cursor = DELIVERY_COLL.find(query).sort("created_at", 1)  # oldest first for KDS
@@ -873,8 +893,17 @@ async def get_kds_orders(user: dict = Depends(verify_session)):
         )
         filters_after = (scoped or {}).get("filters") or {}
         codes = filters_after.get("include_codigos") or []
-        if codes:
+        
+        # If they have the explicit KDS config override, they see ALL items.
+        # Otherwise, if they have codes, they see those codes.
+        # If they don't have the override AND they have NO codes (e.g. standard cajero without override),
+        # then we force allowed_codes = set() so they see NO items (instead of ALL items).
+        if has_kds_override:
+            allowed_codes = None  # None = show all
+        elif codes:
             allowed_codes = {str(x).upper() for x in codes}
+        else:
+            allowed_codes = set() # Empty set = show nothing
 
     # Enrich all item codigos from all orders
     all_codigos = set()

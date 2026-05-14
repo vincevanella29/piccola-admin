@@ -86,6 +86,8 @@ DEFAULT_CONFIG = {
     "scheduling_config": DEFAULT_SCHEDULING_CONFIG,
     "chat_allowed_cargos": [],
     "chat_allowed_secciones": [],
+    "kds_allowed_cargos": [],
+    "kds_allowed_secciones": [],
 }
 
 
@@ -256,8 +258,10 @@ async def update_payments(
 class UpdateChatAccessRequest(BaseModel):
     chat_allowed_cargos: List[str]
     chat_allowed_secciones: List[str] = []
+    kds_allowed_cargos: List[str] = []
+    kds_allowed_secciones: List[str] = []
 
-@router.put("/delivery/config/chat-access", summary="Update allowed cargos for delivery chat")
+@router.put("/delivery/config/chat-access", summary="Update allowed cargos for delivery chat and KDS")
 async def update_chat_access(
     payload: UpdateChatAccessRequest,
     user: dict = Depends(verify_session)
@@ -272,13 +276,15 @@ async def update_chat_access(
         {"$set": {
             "chat_allowed_cargos": payload.chat_allowed_cargos,
             "chat_allowed_secciones": payload.chat_allowed_secciones,
+            "kds_allowed_cargos": payload.kds_allowed_cargos,
+            "kds_allowed_secciones": payload.kds_allowed_secciones,
             "updated_at": now,
             "updated_by": user.get("wallet") or user.get("id"),
         }}
     )
 
-    logger.info(f"[delivery/config] Chat allowed cargos updated: {payload.chat_allowed_cargos}, secciones: {payload.chat_allowed_secciones}")
-    return {"success": True, "message": "Permisos de chat actualizados"}
+    logger.info(f"[delivery/config] Access updated: Chat(cargos:{len(payload.chat_allowed_cargos)}, sec:{len(payload.chat_allowed_secciones)}) | KDS(cargos:{len(payload.kds_allowed_cargos)}, sec:{len(payload.kds_allowed_secciones)})")
+    return {"success": True, "message": "Permisos de staff actualizados"}
 
 
 # =====================================================================
