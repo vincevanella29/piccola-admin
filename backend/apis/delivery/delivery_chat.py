@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request, UploadFile, File
 from pydantic import BaseModel
 
 from utils.web3mongo import db
@@ -314,6 +314,7 @@ def _ensure_chat_state(order_number: str, order: dict) -> dict:
 
 class AdminReplyPayload(BaseModel):
     text: str
+    image_url: Optional[str] = None
 
 class AdminToggle(BaseModel):
     wallet: Optional[str] = None
@@ -405,6 +406,7 @@ async def delivery_chat_history(order_number: str, user: dict = Depends(verify_s
                 "created_at": m.get("created_at"),
                 "admin_wallet": m.get("admin_wallet"),
                 "sender_avatar_url": m.get("sender_avatar_url"),
+                "image_url": m.get("image_url"),
             }
             for m in msgs
         ],
@@ -446,7 +448,9 @@ async def delivery_chat_reply(
         "admin_wallet": admin_wallet,
         "sender_name": name or "Local",
         "sender_avatar_url": avatar,
+        "image_url": data.image_url,
     }
+    
     CHAT_MSGS.insert_one(msg_doc)
 
     # Ensure mode is human and assign
@@ -459,15 +463,40 @@ async def delivery_chat_reply(
         "type": "message",
         "role": "admin",
         "text": data.text,
+        "image_url": data.image_url,
         "at": now.isoformat() if hasattr(now, "isoformat") else str(now),
+        "admin_wallet": admin_wallet,
         "sender_name": name or "Local",
         "sender_avatar_url": avatar,
-    }, to_admins=None)
+    }, to_admins=True)
 
     logger.info(f"[delivery_chat_reply] Mensaje de {name or admin_wallet} procesado por dchat_manager (order: {order_number}): '{data.text}'")
 
     return {"ok": True}
 
+
+@router.post("/delivery/chats/{order_number}/upload", summary="Sube una imagen al chat de delivery")
+async def delivery_chat_upload(
+    order_number: str,
+    file: UploadFile = File(...),
+    user: dict = Depends(verify_session),
+):
+    rl, state = _verify_chat_access(user, order_number)
+    
+    # We can use utils.r2_upload directly here since we're in admin
+    from utils.r2_upload import upload_to_r2
+    try:
+        import uuid
+        ext = file.filename.split('.')[-1].lower()
+        if ext not in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
+            ext = 'webp'
+            
+        filename = f"chat/delivery/{order_number}_{uuid.uuid4().hex[:8]}.{ext}"
+        url = upload_to_r2(file.file, filename, content_type=file.content_type)
+        return {"success": True, "url": url}
+    except Exception as e:
+        logger.error(f"[delivery_chat_upload] Error: {e}")
+        raise HTTPException(status_code=500, detail="Error uploading image")
 
 @router.post("/delivery/chats/{order_number}/take", summary="Admin asume el chat delivery")
 async def delivery_chat_take(order_number: str, user: dict = Depends(verify_session)):
@@ -558,6 +587,7 @@ class DeliveryMessagePayload(BaseModel):
     order_status: Optional[str] = None
     order_items: Optional[list] = None
     timestamp: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 @router.post("/delivery/chat/message", summary="Delivery backend forwards customer message (Dilithium-signed)")
@@ -617,14 +647,18 @@ async def delivery_chat_message(
 
         # Store user message
         logger.info(f"[delivery_chat_message] Insertando mensaje de usuario en CHAT_MSGS")
-        CHAT_MSGS.insert_one({
+        msg_doc = {
             "order_number": payload.order_number,
             "role": "user",
             "text": payload.content,
             "created_at": now,
             "privy_id": payload.privy_id,
             "source": "delivery_proxy",
-        })
+        }
+        if payload.image_url:
+            msg_doc["image_url"] = payload.image_url
+            
+        CHAT_MSGS.insert_one(msg_doc)
 
         # Broadcast to admin WS clients
         logger.info(f"[delivery_chat_message] Construyendo order context y transmitiendo a WS de administradores")
@@ -633,6 +667,7 @@ async def delivery_chat_message(
             "type": "message",
             "role": "user",
             "text": payload.content,
+            "image_url": payload.image_url,
             "at": now.isoformat() if hasattr(now, "isoformat") else str(now),
             "sender_name": order_context.get("customer_name", "Cliente"),
         }, to_admins=True)
@@ -799,6 +834,9 @@ async def ws_delivery_chat_client(websocket: WebSocket, order_number: str):
                 "created_at": now,
                 "privy_id": privy_id,
             }
+            if data.get("image_url"):
+                msg_doc["image_url"] = data.get("image_url")
+                
             CHAT_MSGS.insert_one(msg_doc)
 
             # Broadcast user message
@@ -806,6 +844,7 @@ async def ws_delivery_chat_client(websocket: WebSocket, order_number: str):
                 "type": "message",
                 "role": "user",
                 "text": text,
+                "image_url": data.get("image_url"),
                 "at": now.isoformat() if hasattr(now, "isoformat") else str(now),
                 "sender_name": order_context.get("customer_name", "Cliente"),
             }, to_admins=None)

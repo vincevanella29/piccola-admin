@@ -316,6 +316,12 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                   isClosed={activeTab === 'delivery' ? deliveryChat.chatState?.status === 'closed' : false}
                   showJump={activeTab === 'delivery' ? showJumpDelivery : ((isAdmin && activeTab === 'admin') ? showJumpAdmin : showJumpClient)}
                   onJump={activeTab === 'delivery' ? deliveryScrollToBottom : ((isAdmin && activeTab === 'admin') ? adminScrollToBottom : clientScrollToBottom)}
+                  onUpload={async (file) => {
+                    if (activeTab === 'delivery' && deliveryChat.uploadMedia) {
+                      return await deliveryChat.uploadMedia(file);
+                    }
+                    return null;
+                  }}
                 />
               </div>
             )

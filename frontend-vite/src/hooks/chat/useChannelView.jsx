@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import useCommunityActions from '../useCommunityActions';
+import { compressImage } from '../../utils/imageCompression';
 
 export default function useChannelView({
   channel,
@@ -18,6 +19,7 @@ export default function useChannelView({
   const [sharingMerits, setSharingMerits] = useState(false);
   const [replyTo, setReplyTo] = useState(null);
   const [showJump, setShowJump] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState(null); // { url, type, name, isUploading: boolean }
   
   const scrollRef = useRef(null);
   const bottomRef = useRef(null);
@@ -51,10 +53,15 @@ export default function useChannelView({
   }, [onLoadOlder]);
 
   const handleSend = () => {
-    if (!text.trim()) return;
-    onSend(text.trim(), replyTo?.id || null);
+    const trimmed = text.trim();
+    if (!trimmed && !selectedMedia?.url) return;
+    
+    const mediaUrls = selectedMedia?.url ? [selectedMedia.url] : [];
+    onSend(trimmed, replyTo?.id || null, mediaUrls);
+    
     setText('');
     setReplyTo(null);
+    setSelectedMedia(null);
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -68,12 +75,36 @@ export default function useChannelView({
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !onUpload) return;
-    const url = await onUpload(file);
-    if (url) {
-      onSend(`${text}\n${url}`.trim(), replyTo?.id || null);
-      setText('');
-      setReplyTo(null);
+    
+    const isImage = file.type.startsWith('image/');
+    setSelectedMedia({ 
+      url: URL.createObjectURL(file), // Local preview
+      type: file.type, 
+      name: file.name,
+      isUploading: true 
+    });
+    
+    let fileToUpload = file;
+    if (isImage) {
+      try {
+        fileToUpload = await compressImage(file, 1080, 0.8);
+      } catch (err) {
+        console.error('Compression failed:', err);
+      }
     }
+    
+    try {
+      const url = await onUpload(fileToUpload);
+      if (url) {
+        setSelectedMedia(prev => ({ ...prev, url, isUploading: false }));
+      } else {
+        setSelectedMedia(null);
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setSelectedMedia(null);
+    }
+    
     e.target.value = '';
   };
 
@@ -119,6 +150,7 @@ export default function useChannelView({
     showJump, setShowJump,
     sharingMerits,
     scrollRef, bottomRef, fileInputRef,
+    selectedMedia, setSelectedMedia,
     handleScroll, handleSend, handleKeyDown, handleFileSelect, handleTyping, handleShareMerits,
     scrollToBottom
   };

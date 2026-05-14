@@ -13,6 +13,7 @@ import {
   deliveryReleaseChat,
   deliveryCloseChat,
   deliveryReopenChat,
+  deliveryUploadMedia,
   buildDeliveryChatAdminWsUrl,
 } from '../../utils/chatData';
 
@@ -148,13 +149,13 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
 
   // ── Actions ────────────────────────────────────────────────────
 
-  const reply = useCallback(async (text) => {
-    if (!enabled || !activeOrderNumber || !text?.trim()) return;
-    await deliveryReplyChat({ token, walletAddress, orderNumber: activeOrderNumber, text });
+  const reply = useCallback(async (text, imageUrl = null) => {
+    if (!enabled || !activeOrderNumber || (!text?.trim() && !imageUrl)) return;
+    await deliveryReplyChat({ token, walletAddress, orderNumber: activeOrderNumber, text, image_url: imageUrl });
     const wsOpen = !!(wsRef.current && wsRef.current.readyState === WebSocket.OPEN);
     if (!wsOpen) {
       setMessages((prev) => [...prev, normalizeMessage({
-        role: 'admin', text, created_at: new Date().toISOString(),
+        role: 'admin', text, image_url: imageUrl, created_at: new Date().toISOString(),
       })]);
     }
   }, [enabled, activeOrderNumber, token, walletAddress, normalizeMessage]);
@@ -211,6 +212,20 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
     await loadList();
   }, [enabled, activeOrderNumber, token, walletAddress, loadList]);
 
+  const uploadMedia = useCallback(async (file) => {
+    if (!enabled || !activeOrderNumber || !file) return null;
+    try {
+      const res = await deliveryUploadMedia({ token, walletAddress, orderNumber: activeOrderNumber, file });
+      if (res?.success && res?.url) {
+        return res.url;
+      }
+      return null;
+    } catch (e) {
+      console.error('Failed to upload media:', e);
+      return null;
+    }
+  }, [enabled, activeOrderNumber, token, walletAddress]);
+
   // ── Lifecycle ──────────────────────────────────────────────────
 
   useEffect(() => {
@@ -250,5 +265,6 @@ export default function useDeliveryChatAdmin({ appState, enabled = true }) {
     closeConv,
     reopenConv,
     notifyTyping,
+    uploadMedia,
   };
 }

@@ -243,6 +243,7 @@ const CommunityTab = ({ appState }) => {
             dmConversations={dmConversations}
             activeDmPeer={mode === 'dm' ? dmPeer : null}
             onSelectDmConvo={handleSelectDmConvo}
+            employeeMap={presence.employeeMap}
           />
         </div>
       </motion.div>

@@ -154,14 +154,14 @@ export default function useAdminChat({ appState, enabled = true }) {
     connectWs(convId);
   }, [enabled, loadHistory, loadParticipants, connectWs, disconnectWs]);
 
-  const reply = useCallback(async (text) => {
-    if (!enabled || !activeConvId || !text?.trim()) return;
-    await adminReplyChat({ token, walletAddress, convId: activeConvId, text });
+  const reply = useCallback(async (text, imageUrl = null) => {
+    if (!enabled || !activeConvId || (!text?.trim() && !imageUrl)) return;
+    await adminReplyChat({ token, walletAddress, convId: activeConvId, text, image_url: imageUrl });
     // Avoid duplicates: if WS is open, the backend will broadcast the message.
     // Only append locally when WS isn't connected/open to keep UI responsive offline.
     const wsOpen = !!(wsRef.current && wsRef.current.readyState === WebSocket.OPEN);
     if (!wsOpen) {
-      setMessages((prev) => [...prev, normalizeMessage({ role: 'admin', text, created_at: new Date().toISOString() })]);
+      setMessages((prev) => [...prev, normalizeMessage({ role: 'admin', text, image_url: imageUrl, created_at: new Date().toISOString() })]);
     }
   }, [enabled, activeConvId, token, walletAddress, normalizeMessage]);
 

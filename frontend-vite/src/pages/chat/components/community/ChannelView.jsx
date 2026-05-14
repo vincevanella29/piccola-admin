@@ -1,7 +1,7 @@
 // src/pages/chat/components/community/ChannelView.jsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaHashtag, FaBullhorn, FaThumbtack, FaUsers, FaSmile, FaReply, FaPaperPlane, FaPaperclip, FaImage, FaArrowDown, FaTrophy } from 'react-icons/fa';
+import { FaHashtag, FaBullhorn, FaThumbtack, FaUsers, FaSmile, FaReply, FaPaperPlane, FaPaperclip, FaImage, FaArrowDown, FaTrophy, FaTimes, FaSpinner } from 'react-icons/fa';
 import useChannelView from '../../../../hooks/chat/useChannelView';
 import { getSectionColor } from './sectionColors';
 
@@ -165,6 +165,7 @@ const ChannelView = ({
   const {
     text, replyTo, showJump, sharingMerits,
     scrollRef, bottomRef, fileInputRef,
+    selectedMedia, setSelectedMedia,
     handleScroll, handleSend, handleKeyDown, handleFileSelect, handleTyping, handleShareMerits,
     scrollToBottom, setReplyTo
   } = useChannelView({
@@ -246,6 +247,39 @@ const ChannelView = ({
         </div>
       )}
 
+      {/* Media preview */}
+      <AnimatePresence>
+        {selectedMedia && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="px-4 py-2 border-t border-light-border/40 dark:border-dark-border/40 bg-light-surface-secondary/40 dark:bg-dark-surface-secondary/40"
+          >
+            <div className="relative inline-block">
+              {selectedMedia.type.startsWith('image/') ? (
+                <img src={selectedMedia.url} alt="Preview" className="h-32 w-auto rounded-lg object-cover" />
+              ) : (
+                <div className="h-20 w-32 rounded-lg bg-matrix-green/10 flex items-center justify-center text-[10px] text-matrix-green p-2 text-center break-all">
+                  {selectedMedia.name}
+                </div>
+              )}
+              {selectedMedia.isUploading && (
+                <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
+                  <FaSpinner className="animate-spin text-white" />
+                </div>
+              )}
+              <button
+                onClick={() => setSelectedMedia(null)}
+                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
+              >
+                <FaTimes size={10} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Reply indicator */}
       <AnimatePresence>
         {replyTo && (
@@ -289,7 +323,7 @@ const ChannelView = ({
           />
           <button
             onClick={handleSend}
-            disabled={!text.trim()}
+            disabled={!text.trim() && !selectedMedia?.url}
             className="p-1.5 rounded-lg bg-matrix-green text-dark-bg disabled:opacity-30 hover:bg-matrix-green/90 transition"
           >
             <FaPaperPlane size={14} />

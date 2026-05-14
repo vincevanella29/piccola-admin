@@ -404,6 +404,8 @@ async def chat_history(conv_id: int, user: dict = Depends(verify_session)):
             "sender_profile": sender_prof,
             "sender_name": sender_name,
             "sender_avatar_url": sender_avatar_url,
+            "image_url": m.get("image_url"),
+            "media_urls": m.get("media_urls"),
         })
     return out
 
@@ -491,6 +493,8 @@ async def admin_reply(conv_id: int, data: AdminReplyRequest, user: dict = Depend
         "conv_id": conv_id,
         "role": "admin",
         "text": data.text,
+        "image_url": data.image_url,
+        "media_urls": data.media_urls,
         "created_at": now,
         "admin_wallet": admin_wallet,
     })
@@ -503,7 +507,9 @@ async def admin_reply(conv_id: int, data: AdminReplyRequest, user: dict = Depend
             "type": "message",
             "role": "admin",
             "text": data.text,
-            "at": now.isoformat(),
+            "image_url": data.image_url,
+            "media_urls": data.media_urls,
+            "created_at": now.isoformat(),
             "sender_wallet": admin_wallet,
             "sender_privy_id": None,
             "sender_profile": None,

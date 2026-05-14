@@ -16,10 +16,13 @@ class ChatSessionStartResponse(BaseModel):
 class ChatMessageRequest(BaseModel):
     conv_id: int
     text: str = Field(..., min_length=1, max_length=5000)
+    media_urls: Optional[List[str]] = None
     metadata: Optional[Dict[str, Any]] = None
 
 class AdminReplyRequest(BaseModel):
     text: str
+    image_url: Optional[str] = None
+    media_urls: Optional[List[str]] = None
 
 class AdminToggleRequest(BaseModel):
     # For future extensibility
@@ -30,6 +33,8 @@ class ChatMessageOut(BaseModel):
     conv_id: int
     role: Literal["user", "assistant", "system", "admin"]
     text: str
+    image_url: Optional[str] = None
+    media_urls: Optional[List[str]] = None
     payload: Optional[Dict[str, Any]] = None
     created_at: datetime
     # Optional sender identity enrichment
@@ -115,6 +120,7 @@ class ChannelMessageRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000)
     reply_to: Optional[str] = None  # message _id being replied to
     mentions: List[str] = []  # list of wallet addresses or "@nonna"
+    media_urls: List[str] = []
 
 class ChannelMessageOut(BaseModel):
     id: str
@@ -185,6 +191,7 @@ class GroupMessageRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000)
     reply_to: Optional[str] = None
     mentions: List[str] = []
+    media_urls: List[str] = []
 
 class GroupMessageOut(BaseModel):
     id: str

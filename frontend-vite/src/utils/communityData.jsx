@@ -1,5 +1,5 @@
 // src/utils/communityData.jsx — API layer for Community Channels & Groups
-import api from './api';
+import api, { apiform } from './api';
 
 // ─── URL helpers ───────────────────────────────────────────────────
 function getApiBase() {
@@ -81,11 +81,11 @@ export async function fetchChannelMessages({ token, walletAddress, slug, limit =
   });
 }
 
-export async function sendChannelMessage({ token, walletAddress, slug, text, reply_to = null, mentions = [] }) {
+export async function sendChannelMessage({ token, walletAddress, slug, text, reply_to = null, mentions = [], media_urls = [] }) {
   return api({
     method: 'POST',
     endpoint: `/community/channels/${slug}/messages`,
-    data: { text, reply_to, mentions },
+    data: { text, reply_to, mentions, media_urls },
     headers: authHeaders(token, walletAddress),
   });
 }
@@ -118,15 +118,13 @@ export async function fetchPinnedMessages({ token, walletAddress, slug }) {
 export async function uploadChannelMedia({ token, walletAddress, slug, file }) {
   const formData = new FormData();
   formData.append('file', file);
-  return api({
+  return apiform({
     method: 'POST',
     endpoint: `/community/channels/${slug}/upload`,
     data: formData,
     headers: {
       ...authHeaders(token, walletAddress),
-      // Don't set Content-Type — browser will set multipart boundary
     },
-    isFormData: true,
   });
 }
 
@@ -207,11 +205,11 @@ export async function fetchGroupMessages({ token, walletAddress, groupId, limit 
   });
 }
 
-export async function sendGroupMessage({ token, walletAddress, groupId, text, reply_to = null, mentions = [] }) {
+export async function sendGroupMessage({ token, walletAddress, groupId, text, reply_to = null, mentions = [], media_urls = [] }) {
   return api({
     method: 'POST',
     endpoint: `/community/groups/${groupId}/messages`,
-    data: { text, reply_to, mentions },
+    data: { text, reply_to, mentions, media_urls },
     headers: authHeaders(token, walletAddress),
   });
 }
@@ -228,14 +226,13 @@ export async function reactToGroupMessage({ token, walletAddress, groupId, messa
 export async function uploadGroupMedia({ token, walletAddress, groupId, file }) {
   const formData = new FormData();
   formData.append('file', file);
-  return api({
+  return apiform({
     method: 'POST',
     endpoint: `/community/groups/${groupId}/upload`,
     data: formData,
     headers: {
       ...authHeaders(token, walletAddress),
     },
-    isFormData: true,
   });
 }
 

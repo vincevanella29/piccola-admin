@@ -97,7 +97,14 @@ const GroupRow = ({ group, isActive, onClick, onSettingsClick, canManage }) => (
 );
 
 // ─── DM Conversation Row ─────────────────────────────────────────
-const DmRow = ({ convo, isActive, onClick }) => {
+// ─── DM Conversation Row ─────────────────────────────────────────
+const DmRow = ({ convo, isActive, onClick, employeeMap = {} }) => {
+  const peerWallet = (convo.peer_wallet || '').toLowerCase();
+  const employee = peerWallet ? employeeMap[peerWallet] : null;
+
+  const avatarUrl = convo.peer_profile_image_url || employee?.profile_image_url;
+  const displayName = convo.peer_name || employee?.name || convo.peer_wallet?.slice(0, 8) || 'Usuario';
+
   const timeStr = convo.last_at
     ? new Date(convo.last_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
     : '';
@@ -112,14 +119,14 @@ const DmRow = ({ convo, isActive, onClick }) => {
     >
       {/* Avatar */}
       <div className="w-7 h-7 rounded-full bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden">
-        {convo.peer_profile_image_url
-          ? <img src={convo.peer_profile_image_url} className="w-7 h-7 rounded-full object-cover" alt="" />
-          : (convo.peer_name || '?')[0]?.toUpperCase()
+        {avatarUrl
+          ? <img src={avatarUrl} className="w-7 h-7 rounded-full object-cover" alt="" />
+          : displayName[0]?.toUpperCase()
         }
       </div>
       {/* Name + preview */}
       <div className="flex-1 min-w-0 text-left">
-        <div className="text-[13px] font-medium truncate">{convo.peer_name || convo.peer_wallet?.slice(0, 8)}</div>
+        <div className="text-[13px] font-medium truncate">{displayName}</div>
         {convo.last_text && (
           <div className="text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary truncate opacity-70">
             {convo.last_text.slice(0, 40)}
@@ -155,6 +162,7 @@ const ServerSidebar = ({
   dmConversations = [],
   activeDmPeer = null,
   onSelectDmConvo,
+  employeeMap = {},
 }) => {
   const { sectionMap, sortedSections } = useServerSidebar({ channels });
   const activeDmWallet = (activeDmPeer?.wallet || '').toLowerCase();
@@ -246,6 +254,7 @@ const ServerSidebar = ({
               convo={convo}
               isActive={activeDmWallet === (convo.peer_wallet || '').toLowerCase()}
               onClick={onSelectDmConvo}
+              employeeMap={employeeMap}
             />
           ))}
           {dmConversations.length === 0 && (

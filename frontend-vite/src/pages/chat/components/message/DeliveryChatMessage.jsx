@@ -234,6 +234,15 @@ const DeliveryChatMessage = ({
                     {bubbleRole === 'other' && <span className="shrink-0 text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary opacity-70">{ts}</span>}
                   </div>
 
+                  {/* --- MEDIA --- */}
+                  {m?.image_url && (
+                    <div className={`flex w-full mb-2 ${bubbleRole === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <a href={m.image_url} target="_blank" rel="noopener noreferrer">
+                        <img src={m.image_url} alt="Adjunto" className="max-w-[240px] max-h-[180px] rounded-lg object-cover border border-light-border/30 dark:border-dark-border/30 hover:opacity-90 transition-opacity shadow-sm" />
+                      </a>
+                    </div>
+                  )}
+
                   {/* --- CONTENT SWITCHER --- */}
                   <div className={`flex flex-col gap-3 w-full ${bubbleRole === 'user' ? 'items-end' : 'items-start'}`}>
                     {type === 'product_card' && m?.payload?.product ? (

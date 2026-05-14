@@ -1,4 +1,4 @@
-import api from './api';
+import api, { apiform } from './api';
 
 // Helper to build WS base from same env logic as api.jsx
 function getApiBase() {
@@ -138,11 +138,11 @@ export async function adminCloseChat({ token, walletAddress, convId }) {
 }
 
 // Admin: reply in conversation
-export async function adminReplyChat({ token, walletAddress, convId, text }) {
+export async function adminReplyChat({ token, walletAddress, convId, text, image_url }) {
   return api({
     method: 'POST',
-    endpoint: `/admin/chats/${convId}/reply`,
-    data: { text },
+    endpoint: `/chat/conversations/${convId}/reply`,
+    data: { text, image_url },
     headers: {
       ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -217,11 +217,11 @@ export async function deliveryFetchHistory({ token, walletAddress, orderNumber }
   });
 }
 
-export async function deliveryReplyChat({ token, walletAddress, orderNumber, text }) {
+export async function deliveryReplyChat({ token, walletAddress, orderNumber, text, image_url }) {
   return api({
     method: 'POST',
     endpoint: `/delivery/chats/${orderNumber}/reply`,
-    data: { text },
+    data: { text, image_url },
     headers: {
       ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -266,6 +266,20 @@ export async function deliveryReopenChat({ token, walletAddress, orderNumber }) 
   return api({
     method: 'POST',
     endpoint: `/delivery/chats/${orderNumber}/reopen`,
+    headers: {
+      ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+  });
+}
+
+export async function deliveryUploadMedia({ token, walletAddress, orderNumber, file }) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiform({
+    method: 'POST',
+    endpoint: `/delivery/chats/${orderNumber}/upload`,
+    data: formData,
     headers: {
       ...(walletAddress && { 'X-Wallet-Address': walletAddress }),
       ...(token && { Authorization: `Bearer ${token}` }),

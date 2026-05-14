@@ -184,8 +184,8 @@ export default function useGroups({ appState, enabled = true }) {
   }, [disconnectWs, loadMessages, connectWs]);
 
   // Send message
-  const sendMessage = useCallback(async (text, replyTo = null) => {
-    if (!canCallApi || !activeGroupId || !text?.trim()) return;
+  const sendMessage = useCallback(async (text, replyTo = null, mediaUrls = []) => {
+    if (!canCallApi || !activeGroupId || (!text?.trim() && !mediaUrls?.length)) return;
     const wsOpen = wsRef.current?.readyState === WebSocket.OPEN;
     
     if (!wsOpen) {
@@ -199,13 +199,14 @@ export default function useGroups({ appState, enabled = true }) {
         optimistic: true,
         reactions: {},
         mentions: [],
-        media_urls: [],
+        media_urls: mediaUrls,
       })]);
     }
 
     await sendGroupMessage({
       token, walletAddress, groupId: activeGroupId, text,
       reply_to: replyTo,
+      media_urls: mediaUrls,
       mentions: text.toLowerCase().includes('@nonna') ? ['@nonna'] : [],
     });
   }, [canCallApi, activeGroupId, token, walletAddress, normalizeMessage]);

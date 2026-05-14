@@ -108,16 +108,19 @@ export default function useCommunityTab({ appState }) {
 
   // Select from conversation list (sidebar click)
   const handleSelectDmConvo = useCallback((convo) => {
-    // Build peer object from conversation data
+    const peerWallet = (convo.peer_wallet || '').toLowerCase();
+    const employee = peerWallet ? presence.employeeMap[peerWallet] : null;
+
+    // Build peer object from conversation data, enriched by employee directory
     const peer = {
       wallet: convo.peer_wallet,
-      name: convo.peer_name || convo.peer_wallet,
-      cargo: convo.peer_cargo,
-      seccion: convo.peer_seccion,
-      profile_image_url: convo.peer_profile_image_url,
+      name: convo.peer_name || employee?.name || convo.peer_wallet,
+      cargo: convo.peer_cargo || employee?.cargo,
+      seccion: convo.peer_seccion || employee?.seccion,
+      profile_image_url: convo.peer_profile_image_url || employee?.profile_image_url,
     };
     handleSelectDmPeer(peer);
-  }, [handleSelectDmPeer]);
+  }, [handleSelectDmPeer, presence.employeeMap]);
 
   const handleSendDm = useCallback(async (text) => {
     if (!dmPeer?.wallet || !text) return;

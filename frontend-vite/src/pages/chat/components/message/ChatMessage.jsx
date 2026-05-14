@@ -298,7 +298,22 @@ const ChatMessage = ({
                                 );
                               })()
 
-                                : (<MessageText role={m.role || 'bot'} text={m.text || m.message || ''} optimistic={m.optimistic} />)}
+                                : (
+                                  <div className="flex flex-col gap-2">
+                                    {m?.image_url && (
+                                      <div className="max-w-sm rounded-lg overflow-hidden border border-light-border/20 dark:border-dark-border/20 shadow-sm">
+                                        <a href={m.image_url} target="_blank" rel="noopener noreferrer">
+                                          <img 
+                                            src={m.image_url} 
+                                            alt="media" 
+                                            className="max-h-60 w-auto object-contain hover:scale-[1.02] transition-transform cursor-zoom-in"
+                                          />
+                                        </a>
+                                      </div>
+                                    )}
+                                    <MessageText role={m.role || 'bot'} text={m.text || m.message || ''} optimistic={m.optimistic} />
+                                  </div>
+                                )}
                 </div>
               </div>
             </MessageBubble>

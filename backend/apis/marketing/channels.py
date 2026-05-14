@@ -530,7 +530,7 @@ async def send_channel_message(slug: str, data: ChannelMessageRequest, user: dic
         "reply_to": data.reply_to,
         "reply_preview": reply_preview,
         "reactions": {},
-        "media_urls": [],
+        "media_urls": data.media_urls or [],
         "payload": None,
         "created_at": now,
         **sender,

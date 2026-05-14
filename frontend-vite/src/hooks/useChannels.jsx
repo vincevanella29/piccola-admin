@@ -187,8 +187,8 @@ export default function useChannels({ appState, enabled = true }) {
   }, [disconnectWs, loadMessages, connectWs]);
 
   // Send message
-  const sendMessage = useCallback(async (text, replyTo = null) => {
-    if (!canCallApi || !activeSlug || !text?.trim()) return;
+  const sendMessage = useCallback(async (text, replyTo = null, mediaUrls = []) => {
+    if (!canCallApi || !activeSlug || (!text?.trim() && !mediaUrls?.length)) return;
     const wsOpen = wsRef.current?.readyState === WebSocket.OPEN;
     
     // Optimistic when WS is NOT open
@@ -203,13 +203,14 @@ export default function useChannels({ appState, enabled = true }) {
         optimistic: true,
         reactions: {},
         mentions: [],
-        media_urls: [],
+        media_urls: mediaUrls,
       })]);
     }
 
     await sendChannelMessage({
       token, walletAddress, slug: activeSlug, text,
       reply_to: replyTo,
+      media_urls: mediaUrls,
       mentions: text.toLowerCase().includes('@nonna') ? ['@nonna'] : [],
     });
   }, [canCallApi, activeSlug, token, walletAddress, normalizeMessage]);
