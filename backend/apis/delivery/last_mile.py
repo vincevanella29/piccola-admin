@@ -408,11 +408,15 @@ async def create_carrier_delivery(carrier: dict, order: dict, loc: dict) -> str:
     # PedidosYa requires a 2nd step to confirm the shipping
     if slug == "pedidosya":
         confirm_url = f"{base_url}/v2/shippings/{carrier_delivery_id}/confirm"
+        logger.info(f"[last_mile] 🔍 PedidosYa Confirming... URL={confirm_url}, Headers={headers}")
+        
         async with httpx.AsyncClient(timeout=30.0) as client:
-            c_resp = await client.post(confirm_url, headers=headers)
+            c_resp = await client.post(confirm_url, headers=headers, json={})
+        
+        logger.info(f"[last_mile] 🔍 PedidosYa Confirm Response {c_resp.status_code}: {c_resp.text}")
         
         if c_resp.status_code not in (200, 201):
-            logger.error(f"[last_mile] ❌ PedidosYa confirm failed for {carrier_delivery_id}: {c_resp.status_code} {c_resp.text[:200]}")
+            logger.error(f"[last_mile] ❌ PedidosYa confirm failed for {carrier_delivery_id}: {c_resp.status_code} {c_resp.text[:500]}")
             raise HTTPException(
                 status_code=502,
                 detail=f"PedidosYa confirm failed: {c_resp.status_code}",
