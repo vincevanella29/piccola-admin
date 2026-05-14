@@ -223,5 +223,31 @@
   "fee_save_btn": "Salvar Taxa",
   "fee_saving_btn": "Salvando...",
   "fee_save_success": "Taxa de entrega atualizada",
-  "fee_save_error": "Erro ao salvar: "
+  "fee_save_error": "Erro ao salvar: ",
+  "config_chat": {
+    "title": "Permissões da Equipe",
+    "cargos_chat": "Cargos Permitidos (Chat)",
+    "cargos_chat_desc": "Selecione os cargos com acesso ao chat",
+    "select_cargo": "Selecione um cargo...",
+    "add": "Adicionar",
+    "add_manual_cargo": "Adicionar cargo manualmente...",
+    "loading_cargos": "Carregando cargos disponíveis...",
+    "no_cargos": "Nenhum cargo configurado",
+    "no_cargos_db": "Nenhum cargo encontrado no sistema.",
+    "secciones_chat": "Seções Permitidas (Chat)",
+    "secciones_chat_desc": "Selecione as seções com acesso ao chat",
+    "select_seccion": "Selecione uma seção...",
+    "add_manual_seccion": "Adicionar seção manualmente...",
+    "loading_secciones": "Carregando seções disponíveis...",
+    "no_secciones": "Nenhuma seção configurada",
+    "no_secciones_db": "Nenhuma seção encontrada no sistema.",
+    "cargos_kds": "Cargos Permitidos (KDS Override)",
+    "cargos_kds_desc": "Cargos de Nível 7 que verão pedidos na tela (ex: Caixa)",
+    "secciones_kds": "Seções Permitidas (KDS Override)",
+    "secciones_kds_desc": "Seções de Nível 7 que verão pedidos na tela (ex: Cozinha)",
+    "save_permissions": "Salvar Permissões",
+    "saving": "Salvando...",
+    "save_success": "Permissões da equipe atualizadas com sucesso",
+    "save_error": "Erro ao salvar permissões da equipe"
+  }
 }

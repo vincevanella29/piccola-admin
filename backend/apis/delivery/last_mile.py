@@ -1433,6 +1433,41 @@ async def receive_carrier_webhook(
         logger.warning(f"[webhook] No order found for carrier_delivery_id={carrier_delivery_id}")
         return {"success": True, "message": "No matching order found"}
 
+    # Detect carrier rejection/cancellation
+    carrier_terminal = {"cancelled", "canceled", "rejected", "returned", "failed"}
+    is_rejection = carrier_status_raw and carrier_status_raw.lower() in carrier_terminal
+
+    internal = order.get("status", "")
+    if is_rejection and internal not in {"delivered", "cancelled"}:
+        DELIVERY_COLL.update_one(
+            {"_id": order["_id"]},
+            {"$set": {
+                "carrier_rejected": True,
+                "carrier_rejection_reason": carrier_status_raw,
+                "carrier_delivery_id": "",
+                "carrier_status": "",
+                "needs_recovery": True,
+                "dispatch_failed": False,
+                "dispatch_retries": 0,
+                "updated_at": datetime.now(timezone.utc),
+            }}
+        )
+        logger.warning(f"[webhook] ⚠️ Carrier rejected order {order['_id']} ({carrier_status_raw}) — marked for recovery")
+        
+        # Broadcast to KDS to clear assignment in frontend
+        try:
+            from utils.kds_ws import kds_manager
+            import asyncio
+            asyncio.create_task(kds_manager.broadcast(
+                {"type": "status_change", "order_id": str(order["_id"]), "status": internal,
+                 "carrier_status": "", "location_id": order.get("location_id")},
+                location_id=order.get("location_id"),
+            ))
+        except Exception:
+            pass
+            
+        return {"success": True, "message": "Carrier rejected order — entered recovery"}
+
     # Map carrier status → our internal status using carrier's status_mapping
     status_mapping = carrier.get("status_mapping", {})
     internal_status = status_mapping.get(carrier_status_raw)

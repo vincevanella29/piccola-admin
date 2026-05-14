@@ -226,5 +226,31 @@
   "fee_saving_btn": "Guardando...",
   "fee_save_success": "Tarifa de envío actualizada",
   "fee_save_error": "Error al guardar: ",
-  "status_updated": "Estado actualizado"
+  "status_updated": "Estado actualizado",
+  "config_chat": {
+    "title": "Permisos de Staff",
+    "cargos_chat": "Cargos Permitidos (Chat)",
+    "cargos_chat_desc": "Selecciona cargos con acceso a usar el chat",
+    "select_cargo": "Selecciona un cargo...",
+    "add": "Agregar",
+    "add_manual_cargo": "Añadir cargo manual...",
+    "loading_cargos": "Cargando cargos disponibles...",
+    "no_cargos": "Ningún cargo configurado",
+    "no_cargos_db": "No se encontraron cargos configurados.",
+    "secciones_chat": "Secciones Permitidas (Chat)",
+    "secciones_chat_desc": "Selecciona secciones con acceso a usar el chat",
+    "select_seccion": "Selecciona una sección...",
+    "add_manual_seccion": "Añadir sección manual...",
+    "loading_secciones": "Cargando secciones disponibles...",
+    "no_secciones": "Ninguna sección configurada",
+    "no_secciones_db": "No se encontraron secciones configuradas.",
+    "cargos_kds": "Cargos Permitidos (KDS Override)",
+    "cargos_kds_desc": "Cargos Nivel 7 que verán los pedidos en pantalla (ej. Cajero)",
+    "secciones_kds": "Secciones Permitidas (KDS Override)",
+    "secciones_kds_desc": "Secciones Nivel 7 que verán los pedidos en pantalla (ej. Cocina)",
+    "save_permissions": "Guardar Permisos",
+    "saving": "Guardando...",
+    "save_success": "Permisos de staff actualizados correctamente",
+    "save_error": "Error al guardar los permisos de staff"
+  }
 }

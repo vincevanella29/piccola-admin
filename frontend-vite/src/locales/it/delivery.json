@@ -223,5 +223,31 @@
   "fee_save_btn": "Salva Tariffa",
   "fee_saving_btn": "Salvataggio...",
   "fee_save_success": "Tariffa di consegna aggiornata",
-  "fee_save_error": "Errore durante il salvataggio: "
+  "fee_save_error": "Errore durante il salvataggio: ",
+  "config_chat": {
+    "title": "Permessi Staff",
+    "cargos_chat": "Ruoli Consentiti (Chat)",
+    "cargos_chat_desc": "Seleziona i ruoli con accesso alla chat",
+    "select_cargo": "Seleziona un ruolo...",
+    "add": "Aggiungi",
+    "add_manual_cargo": "Aggiungi ruolo manualmente...",
+    "loading_cargos": "Caricamento ruoli disponibili...",
+    "no_cargos": "Nessun ruolo configurato",
+    "no_cargos_db": "Nessun ruolo trovato nel sistema.",
+    "secciones_chat": "Sezioni Consentite (Chat)",
+    "secciones_chat_desc": "Seleziona le sezioni con accesso alla chat",
+    "select_seccion": "Seleziona una sezione...",
+    "add_manual_seccion": "Aggiungi sezione manualmente...",
+    "loading_secciones": "Caricamento sezioni disponibili...",
+    "no_secciones": "Nessuna sezione configurata",
+    "no_secciones_db": "Nessuna sezione trovata nel sistema.",
+    "cargos_kds": "Ruoli Consentiti (KDS Override)",
+    "cargos_kds_desc": "Ruoli di Livello 7 che vedranno gli ordini sullo schermo (es. Cassiere)",
+    "secciones_kds": "Sezioni Consentite (KDS Override)",
+    "secciones_kds_desc": "Sezioni di Livello 7 che vedranno gli ordini sullo schermo (es. Cucina)",
+    "save_permissions": "Salva Permessi",
+    "saving": "Salvataggio...",
+    "save_success": "Permessi staff aggiornati con successo",
+    "save_error": "Errore durante il salvataggio dei permessi staff"
+  }
 }

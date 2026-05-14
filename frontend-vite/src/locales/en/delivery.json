@@ -226,5 +226,31 @@
   "fee_saving_btn": "Saving...",
   "fee_save_success": "Delivery fee updated",
   "fee_save_error": "Error saving: ",
-  "status_updated": "Status updated"
+  "status_updated": "Status updated",
+  "config_chat": {
+    "title": "Staff Permissions",
+    "cargos_chat": "Allowed Roles (Chat)",
+    "cargos_chat_desc": "Select roles with access to the chat",
+    "select_cargo": "Select a role...",
+    "add": "Add",
+    "add_manual_cargo": "Add role manually...",
+    "loading_cargos": "Loading available roles...",
+    "no_cargos": "No roles configured",
+    "no_cargos_db": "No roles found in the system.",
+    "secciones_chat": "Allowed Sections (Chat)",
+    "secciones_chat_desc": "Select sections with access to the chat",
+    "select_seccion": "Select a section...",
+    "add_manual_seccion": "Add section manually...",
+    "loading_secciones": "Loading available sections...",
+    "no_secciones": "No sections configured",
+    "no_secciones_db": "No sections found in the system.",
+    "cargos_kds": "Allowed Roles (KDS Override)",
+    "cargos_kds_desc": "Level 7 roles that will see orders on screen (e.g. Cashier)",
+    "secciones_kds": "Allowed Sections (KDS Override)",
+    "secciones_kds_desc": "Level 7 sections that will see orders on screen (e.g. Kitchen)",
+    "save_permissions": "Save Permissions",
+    "saving": "Saving...",
+    "save_success": "Staff permissions updated successfully",
+    "save_error": "Error saving staff permissions"
+  }
 }

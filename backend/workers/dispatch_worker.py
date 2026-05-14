@@ -387,6 +387,40 @@ async def _poll_carrier_statuses():
                 continue
             new_status = carrier_data.get("status", "")
 
+            carrier_terminal = {"cancelled", "canceled", "rejected", "returned", "failed"}
+            is_rejection = new_status and new_status.lower() in carrier_terminal
+
+            if is_rejection:
+                internal = order.get("status", "")
+                if internal not in {"delivered", "cancelled"}:
+                    DELIVERY_COLL.update_one(
+                        {"_id": order["_id"]},
+                        {"$set": {
+                            "carrier_rejected": True,
+                            "carrier_rejection_reason": new_status,
+                            "carrier_delivery_id": "",
+                            "carrier_status": "",
+                            "needs_recovery": True,
+                            "dispatch_failed": False,
+                            "dispatch_retries": 0,
+                            "updated_at": datetime.now(timezone.utc),
+                        }}
+                    )
+                    logger.warning(f"[status-poll] ⚠️ Carrier rejected order {order_id} ({new_status}) — marked for recovery")
+                    changed_count += 1
+                    
+                    try:
+                        from utils.kds_ws import kds_manager
+                        asyncio.create_task(kds_manager.broadcast(
+                            {"type": "status_change", "order_id": order_id, "status": internal,
+                             "carrier_status": "", "location_id": order.get("location_id")},
+                            location_id=order.get("location_id"),
+                        ))
+                    except Exception:
+                        pass
+                    
+                    continue
+
             status_changed = new_status and new_status != order.get("carrier_status")
 
             if status_changed:
@@ -404,27 +438,6 @@ async def _poll_carrier_statuses():
                     {"$set": {"carrier_accepted": True, "carrier_accepted_at": datetime.now(timezone.utc)}}
                 )
                 logger.info(f"[status-poll] ✅ Carrier accepted order {order_id} (courier: {courier.get('name', '?')})")
-
-            # Detect carrier rejection/cancellation
-            carrier_terminal = {"cancelled", "canceled", "rejected", "returned", "failed"}
-            if new_status and new_status.lower() in carrier_terminal:
-                internal = order.get("status", "")
-                # Only trigger recovery if the internal status is still active (not delivered)
-                if internal not in {"delivered", "cancelled"}:
-                    DELIVERY_COLL.update_one(
-                        {"_id": order["_id"]},
-                        {"$set": {
-                            "carrier_rejected": True,
-                            "carrier_rejection_reason": new_status,
-                            "carrier_delivery_id": "",
-                            "carrier_status": "",
-                            "needs_recovery": True,
-                            "dispatch_failed": False,
-                            "dispatch_retries": 0,
-                            "updated_at": datetime.now(timezone.utc),
-                        }}
-                    )
-                    logger.warning(f"[status-poll] ⚠️ Carrier rejected order {order_id} ({new_status}) — marked for recovery")
 
         except Exception as e:
             logger.warning(f"[status-poll] Order {order_id}: poll failed — {e}")
