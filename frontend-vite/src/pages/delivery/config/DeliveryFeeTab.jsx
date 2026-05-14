@@ -11,7 +11,11 @@ import { fetchDeliveryFeeConfig, updateDeliveryFeeConfig } from '../../../utils/
 import { fetchLocations } from '../../../utils/clubNonnaData';
 
 const DeliveryFeeTab = ({ appState }) => {
-  const { t } = useTranslation('delivery');
+  const { t: rawT } = useTranslation();
+  const t = (k, def) => {
+    const res = rawT(`delivery.${k}`);
+    return res === `delivery.${k}` ? def || k : res;
+  };
 
   const VANELLIX_TIERS = [
     {

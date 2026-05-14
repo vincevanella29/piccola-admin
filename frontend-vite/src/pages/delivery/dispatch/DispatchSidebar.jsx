@@ -47,7 +47,8 @@ const OrderCard = ({ order, isSelected, onSelect, carriers = [], onManualDispatc
   const carrierName = order.carrier_slug || null;
   const ci = order.courier_info;
   const locationName = locations.find(l => String(l._id) === String(order.location_id))?.nombre || order.location_name || 'Sucursal';
-  const deliveryAddress = order.delivery_info?.address || order.delivery_info?.street || order.dropoff_address || order.customer?.address || 'Retiro en local';
+  const isPickup = order?.order_type === 'pickup';
+  const deliveryAddress = isPickup ? 'Retiro en sucursal' : (order?.delivery_info?.address || order?.delivery_info?.street || 'Dirección de envío no especificada');
 
   const timeClass = elapsed > 45 ? 'text-red-400 font-bold animate-pulse' : elapsed > 25 ? 'text-amber-400 font-bold' : 'text-dark-text-secondary';
 

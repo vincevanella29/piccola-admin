@@ -141,6 +141,7 @@ const MembersPanel = ({
   onClickMember,
   onDmMember,
   onClose,
+  isMobile = false,
 }) => {
   const [search, setSearch] = useState('');
   const [showUnregistered, setShowUnregistered] = useState(false);
@@ -232,7 +233,9 @@ const MembersPanel = ({
     
     filteredMembers.forEach(m => {
       const sec = m.seccion || 'General';
-      if (m.has_user) {
+      const isConnected = m.status === 'online' || m.status === 'idle';
+      
+      if (m.has_user || isConnected) {
         if (!con[sec]) con[sec] = [];
         con[sec].push(m);
       } else {
@@ -262,7 +265,7 @@ const MembersPanel = ({
   const totalSinUsuarios = Object.values(sinUsuario).reduce((s, m) => s + m.length, 0);
 
   return (
-    <div className="h-full flex flex-col bg-light-surface/50 dark:bg-dark-surface/50">
+    <div className="h-full flex flex-col bg-transparent">
       {/* Header */}
       <div className="shrink-0 px-3 py-2.5 border-b border-light-border/40 dark:border-dark-border/40 flex items-center justify-between">
         <h3 className="text-xs font-bold uppercase tracking-wider text-light-text-tertiary dark:text-dark-text-tertiary">

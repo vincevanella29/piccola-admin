@@ -87,7 +87,8 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
   const availableStatuses = order.order_type === 'pickup' ? pickupStatuses : allStatuses;
   
   const locationName = locations.find(l => String(l._id) === String(order.location_id))?.nombre || order.location_name || 'Sucursal';
-  const deliveryAddress = order.delivery_info?.address || order.delivery_info?.street || order.customer?.address;
+  const isPickup = order.order_type === 'pickup';
+  const deliveryAddress = order?.delivery_info?.address || order?.delivery_info?.street || 'Dirección de envío no especificada';
   const deliveryDepto = order.delivery_info?.depto || order.customer?.depto;
 
   const handleStatusChange = (e) => {
@@ -190,7 +191,7 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
                     {order.customer?.name || 'Cliente sin nombre'}
                   </p>
                   
-                  {deliveryAddress ? (
+                  {!isPickup ? (
                     <a href={mapsUrl(deliveryAddress)} target="_blank" rel="noopener noreferrer"
                       className="group flex items-start gap-3 p-3 rounded-xl bg-light-surface/60 dark:bg-dark-surface/60 border border-light-border/10 dark:border-dark-border/10 hover:border-matrix-green/50 transition-colors mb-4">
                       <div className="mt-0.5 p-2 rounded-full bg-red-500/10 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-colors">
@@ -203,6 +204,11 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
                         {deliveryDepto && (
                           <p className="text-xs text-light-text-tertiary mt-1 flex items-center gap-1">
                             <FaBuilding size={10} /> Depto/Oficina: {deliveryDepto}
+                          </p>
+                        )}
+                        {order.delivery_info?.instructions && (
+                          <p className="text-xs text-amber-500 font-medium mt-1 flex items-center gap-1">
+                            <FaStickyNote size={10} /> {order.delivery_info.instructions}
                           </p>
                         )}
                       </div>

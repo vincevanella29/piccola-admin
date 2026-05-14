@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 DELIVERY_COLL = db.delivery_orders
 MENUS_COLL = db.menus
-LOCATIONS_COLL = db.sucursales
+LOCATIONS_COLL = db.locations
 PROVIDERS_COLL = db.delivery_providers
 CONFIG_COLL = db.delivery_config
 
@@ -50,8 +50,17 @@ class CustomerInfo(BaseModel):
     name: str = Field(..., min_length=1, description="Nombre del cliente")
     email: str = Field(..., description="Correo del cliente")
     phone: str = Field(..., description="Teléfono de contacto")
-    address: str = Field(..., description="Dirección de envío")
-    depto: Optional[str] = Field(None, description="Número de departamento / casa")
+
+class DeliveryInfo(BaseModel):
+    address: str = Field(..., description="Dirección completa formateada")
+    lat: float
+    lng: float
+    depto: Optional[str] = None
+    street: Optional[str] = None
+    number: Optional[str] = None
+    commune: Optional[str] = None
+    city: Optional[str] = None
+    instructions: Optional[str] = None
 
 class ModifierItem(BaseModel):
     option_id: str
@@ -76,9 +85,7 @@ class DeliveryOrderCreate(BaseModel):
     carrier_slug: Optional[str] = Field(None, description="Carrier elegido por el cliente")
     scheduled_for: Optional[str] = Field(None, description="ISO datetime si es programado, null si ASAP")
     asap: bool = True
-    dropoff_address: Optional[str] = None
-    dropoff_lat: Optional[float] = None
-    dropoff_lng: Optional[float] = None
+    delivery_info: Optional[DeliveryInfo] = None
     order_number: Optional[str] = Field(None, description="Delivery-side order number (e.g. PI-3C56E433)")
     # Payment info (forwarded from delivery app, preserved in admin)
     payment_method: Optional[str] = Field(None, description="card, cash, transfer")
@@ -318,10 +325,13 @@ async def create_delivery_order(
         missing = []
         if not payload.customer.phone:
             missing.append("customer.phone")
-        if not payload.dropoff_lat or not payload.dropoff_lng:
-            missing.append("dropoff_lat/dropoff_lng")
-        if not payload.dropoff_address:
-            missing.append("dropoff_address")
+        if not payload.delivery_info:
+            missing.append("delivery_info")
+        else:
+            if not payload.delivery_info.lat or not payload.delivery_info.lng:
+                missing.append("delivery_info.lat/lng")
+            if not payload.delivery_info.address:
+                missing.append("delivery_info.address")
         if missing:
             raise HTTPException(
                 status_code=400,
@@ -389,10 +399,7 @@ async def create_delivery_order(
         "courier_info": None,
         "dispatched_at": None,
         "delivered_at": None,
-        # Dropoff coordinates (for carrier dispatch)
-        "dropoff_address": payload.dropoff_address,
-        "dropoff_lat": payload.dropoff_lat,
-        "dropoff_lng": payload.dropoff_lng,
+        "delivery_info": payload.delivery_info.dict() if payload.delivery_info else None,
         # Payment (forwarded from delivery app)
         "payment_method": payload.payment_method,
         "payment_status": payload.payment_status,
@@ -721,11 +728,11 @@ async def get_advanced_analytics(
     # Extract dropoff coordinates
     pipeline_heatmap = [
         {"$match": base_query},
-        {"$match": {"dropoff_lat": {"$exists": True, "$ne": None}, "dropoff_lng": {"$exists": True, "$ne": None}}},
+        {"$match": {"delivery_info.lat": {"$exists": True, "$ne": None}, "delivery_info.lng": {"$exists": True, "$ne": None}}},
         {"$project": {
             "_id": 0,
-            "lat": "$dropoff_lat",
-            "lng": "$dropoff_lng",
+            "lat": "$delivery_info.lat",
+            "lng": "$delivery_info.lng",
             "total_amount": 1
         }}
     ]

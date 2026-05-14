@@ -1,5 +1,4 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { FaWallet, FaTimes } from 'react-icons/fa';
@@ -18,8 +17,8 @@ import useAdminChat from '../../hooks/useAdminChat';
 import useDeliveryChatAdmin from '../../hooks/delivery/useDeliveryChatAdmin';
 import useRestaurantData from '../../hooks/useRestaurantData';
 
-// Estilo de la ventana flotante (Glassmorphism)
-const WINDOW_GLASS = "backdrop-blur-2xl bg-light-surface/60 dark:bg-dark-surface/60 border border-light-border/40 dark:border-dark-border/40 shadow-2xl";
+// Estilo de la ventana flotante (Glassmorphism Apple Style)
+const WINDOW_GLASS = "backdrop-blur-3xl bg-light-surface/40 dark:bg-dark-surface/30 border-light-border/20 dark:border-dark-border/10 shadow-2xl transition-all duration-300";
 
 // IMPORTANTE: Recibimos 'sidebarWidth' para calcular la posición
 const ChatPage = ({ appState, sidebarWidth = 80 }) => {
@@ -97,25 +96,20 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
     </div>
   );
 
-  return createPortal(
-    <>
-      {/* CONTENEDOR PRINCIPAL FLOTANTE
-        - top-[100px]: Espacio para el Header
-        - bottom-[100px]: Espacio para el Footer
-        - left: Dinámico (sidebarWidth + 32px de margen)
-        - transition-[left]: Animación suave cuando el sidebar crece/achica
-      */}
-      <div 
-         className="fixed top-[100px] bottom-[100px] z-40 flex justify-center pointer-events-none transition-[left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
-         style={{
-            left: isDesktop ? `${sidebarWidth + 32}px` : '16px',
-            right: isDesktop ? '32px' : '16px',
-         }}
-      >
+  return (
+    <div 
+      className={`flex justify-center items-center transition-all duration-500 ease-in-out ${isDesktop ? 'w-full h-[calc(100vh-220px)]' : 'fixed inset-0 z-[45]'}`}
+      style={!isDesktop ? { 
+        top: '96px', 
+        bottom: '112px', 
+        left: '0', 
+        right: '0' 
+      } : {}}
+    >
         <motion.div
-          className={`w-full h-full flex flex-col overflow-hidden rounded-[32px] pointer-events-auto ${WINDOW_GLASS}`}
-          initial={{ opacity: 0, scale: 0.98, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className={`w-full h-full flex flex-col overflow-hidden pointer-events-auto ${WINDOW_GLASS} ${isDesktop ? 'max-w-[1400px] rounded-[32px] border shadow-[0_30px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.4)]' : 'rounded-none border-none'}`}
+          initial={isDesktop ? { opacity: 0, scale: 0.98, y: 20 } : { opacity: 0, x: '100%' }}
+          animate={isDesktop ? { opacity: 1, scale: 1, y: 0 } : { opacity: 1, x: 0 }}
           transition={{ duration: 0.5, type: 'spring', bounce: 0.15 }}
         >
           
@@ -127,10 +121,10 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
               connected={activeTab === 'delivery' ? deliveryChat.connected : (isAdmin ? (activeTab === 'admin' ? adminState.connected : msgClient.connected) : msgClient.connected)}
               status={activeTab === 'delivery' ? (deliveryChat.connected ? 'Online' : 'Offline') : (!isAdmin || activeTab === 'client' ? msgClient.status : 'Online')}
               onOpenInbox={(activeTab === 'admin' || activeTab === 'delivery') ? (() => setShowSidebar(v => !v)) : undefined}
-              onOpenConversations={!isAdmin || activeTab === 'client' ? (() => setShowSidebar(v => !v)) : undefined}
+              onOpenConversations={(!isAdmin || activeTab === 'client' || activeTab === 'community') ? (() => setShowSidebar(v => !v)) : undefined}
               unreadInboxCount={activeTab === 'delivery' ? (deliveryChat.items?.reduce((s, i) => s + (i.unread || 0), 0) || 0) : (isAdmin ? (adminState.unreadInboxCount || 0) : (msgClient.unreadCount || 0))}
               rightContent={(isAdmin || canCommunity) && (
-                <div className="flex p-1 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/50 dark:border-dark-border/50">
+                <div className={`flex p-1 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/50 dark:border-dark-border/50 ${!isDesktop ? 'overflow-x-auto max-w-[160px] no-scrollbar' : ''}`}>
                   <button 
                     className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'client' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
                     onClick={() => setActiveTab('client')}
@@ -204,7 +198,12 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
 
             <main className="flex-1 h-full relative min-w-0 bg-light-surface/30 dark:bg-dark-surface/30">
                {activeTab === 'community' ? (
-                  <CommunityTab appState={appState} />
+                  <CommunityTab 
+                    appState={appState} 
+                    isDesktop={isDesktop} 
+                    showSidebar={showSidebar} 
+                    setShowSidebar={setShowSidebar} 
+                  />
                ) : (!isAdmin && (!isAuthenticated || !hasWallet)) ? (
                   <Gate />
                ) : activeTab === 'delivery' ? (
@@ -328,9 +327,7 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
           )}
 
         </motion.div>
-      </div>
-    </>,
-    document.body
+    </div>
   );
 };
 

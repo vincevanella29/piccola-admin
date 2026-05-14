@@ -225,5 +225,6 @@
   "fee_save_btn": "Guardar Tarifa",
   "fee_saving_btn": "Guardando...",
   "fee_save_success": "Tarifa de envío actualizada",
-  "fee_save_error": "Error al guardar: "
+  "fee_save_error": "Error al guardar: ",
+  "status_updated": "Estado actualizado"
 }

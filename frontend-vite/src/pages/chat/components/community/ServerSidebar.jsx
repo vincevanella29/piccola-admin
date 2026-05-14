@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaHashtag, FaBullhorn, FaPlus, FaChevronDown,
-  FaChevronRight, FaCog, FaUsers, FaEnvelope, FaCircle
+  FaChevronRight, FaCog, FaUsers, FaEnvelope, FaCircle, FaTimes
 } from 'react-icons/fa';
 import useServerSidebar from '../../../../hooks/chat/useServerSidebar';
 
@@ -163,6 +163,8 @@ const ServerSidebar = ({
   activeDmPeer = null,
   onSelectDmConvo,
   employeeMap = {},
+  isMobile = false,
+  onClose,
 }) => {
   const { sectionMap, sortedSections } = useServerSidebar({ channels });
   const activeDmWallet = (activeDmPeer?.wallet || '').toLowerCase();
@@ -174,15 +176,22 @@ const ServerSidebar = ({
         <h3 className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary flex items-center gap-2">
           🍝 Piccola Community
         </h3>
-        {isAdmin && (
-          <button
-            onClick={() => onOpenSectionPerms?.()}
-            className="p-1.5 rounded-md text-light-text-tertiary hover:text-matrix-green hover:bg-matrix-green/10 transition"
-            title="Permisos de secciones"
-          >
-            <FaCog size={13} />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {isAdmin && (
+            <button
+              onClick={() => onOpenSectionPerms?.()}
+              className="p-1.5 rounded-md text-light-text-tertiary hover:text-matrix-green hover:bg-matrix-green/10 transition"
+              title="Permisos de secciones"
+            >
+              <FaCog size={13} />
+            </button>
+          )}
+          {isMobile && onClose && (
+            <button onClick={onClose} className="p-1.5 text-light-text-tertiary hover:text-red-400 transition">
+              <FaTimes size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Scrollable content */}

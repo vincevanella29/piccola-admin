@@ -150,6 +150,9 @@ const ChannelView = ({
   onUpload,
   onLoadOlder,
   onNotifyTyping,
+  onToggleSidebar,
+  onToggleMembers,
+  isDesktop = true,
   myWallet,
   isAdmin = false,
   canPin = false,
@@ -161,6 +164,7 @@ const ChannelView = ({
   appState,
   members,
   employeeMap = {},
+  showMembersPanel,
 }) => {
   const {
     text, replyTo, showJump, sharingMerits,
@@ -181,14 +185,31 @@ const ChannelView = ({
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-light-border/40 dark:border-dark-border/40 bg-light-surface/40 dark:bg-dark-surface/40 backdrop-blur-md">
+        {!isDesktop && (
+          <button onClick={onToggleSidebar} className="p-1.5 -ml-1 text-light-text-tertiary hover:text-light-text-primary transition">
+            <FaReply size={14} className="rotate-0" />
+          </button>
+        )}
         <span className="text-light-text-tertiary dark:text-dark-text-tertiary">{typeof icon === 'string' ? icon : icon}</span>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary truncate">{title}</h3>
           {description && <p className="text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary truncate">{description}</p>}
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary">
-          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <FaUsers size={12} />
+        <div className="flex items-center gap-3 text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary">
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="hidden sm:inline opacity-60 uppercase font-bold tracking-tighter">
+              {connected ? 'Sync' : 'Offline'}
+            </span>
+          </div>
+          
+          <button 
+            onClick={onToggleMembers}
+            className={`p-1.5 rounded-md transition ${showMembersPanel ? 'bg-matrix-green/15 text-matrix-green' : 'hover:bg-light-surface-tertiary/50 dark:hover:bg-dark-surface-tertiary/50 text-light-text-tertiary dark:text-dark-text-tertiary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}
+            title="Alternar Panel de Miembros"
+          >
+            <FaUsers size={16} />
+          </button>
         </div>
       </div>
 

@@ -34,7 +34,10 @@ const OrderCard = ({ order, onSelect, onStatusChange, nextStatus, statusColor, l
   const itemCount = (order.items || []).reduce((sum, i) => sum + (i.quantity || 1), 0);
   
   const locationName = locations.find(l => l._id === order.location_id)?.nombre || order.location_name || 'Sucursal';
-  const deliveryAddress = order.delivery_info?.address || order.delivery_info?.street || order.customer?.address || 'Retiro en local';
+  const isPickup = order.order_type === 'pickup';
+  const deliveryAddress = isPickup 
+    ? `Retiro en ${locationName}` 
+    : (order?.delivery_info?.address || order?.delivery_info?.street || 'Dirección de envío no especificada');
 
   return (
     <motion.div

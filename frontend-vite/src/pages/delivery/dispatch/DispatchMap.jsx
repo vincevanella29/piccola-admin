@@ -79,7 +79,8 @@ function buildOrderInfoHtml(order, statusesMap, t, locations = []) {
     : `<span style="color:#ef4444;font-style:italic">${t?.('delivery.dispatch_no_carrier') || 'Sin asignar'}</span>`;
 
   const locationName = locations.find(l => String(l._id) === String(order.location_id))?.nombre || order.location_name || 'Sucursal';
-  const deliveryAddress = order.delivery_info?.address || order.delivery_info?.street || order.dropoff_address || order.customer?.address || 'Retiro en local';
+  const isPickup = order?.order_type === 'pickup';
+  const deliveryAddress = isPickup ? 'Retiro en sucursal' : (order?.delivery_info?.address || order?.delivery_info?.street || 'Dirección de envío no especificada');
   const deliveryDepto = order.delivery_info?.depto || order.customer?.depto;
 
   // Items list
@@ -259,10 +260,10 @@ const DispatchMap = ({ orders = [], locations = [], statuses = [], selectedOrder
       circlesRef.current.push(circle);
 
       // Store marker
-      const marker = new gm.Marker({
+      const marker = new window.google.maps.Marker({
         position: { lat, lng },
         map,
-        icon: { url: createLocationMarkerSvg(), scaledSize: new gm.Size(48, 48), anchor: new gm.Point(24, 24) },
+        icon: { url: createLocationMarkerSvg(), scaledSize: new window.google.maps.Size(48, 48), anchor: new window.google.maps.Point(24, 24) },
         title: loc.nombre || loc.name || 'Sucursal',
         zIndex: 100,
       });
@@ -279,23 +280,23 @@ const DispatchMap = ({ orders = [], locations = [], statuses = [], selectedOrder
     const activeOrders = orders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
 
     activeOrders.forEach((order) => {
-      const dropLat = parseFloat(order.dropoff_lat);
-      const dropLng = parseFloat(order.dropoff_lng);
+      const dropLat = parseFloat(order.delivery_info?.lat);
+      const dropLng = parseFloat(order.delivery_info?.lng);
       if (!dropLat || !dropLng) return;
 
       const isSelected = order._id === selectedOrderId;
 
-      const marker = new gm.Marker({
+      const marker = new window.google.maps.Marker({
         position: { lat: dropLat, lng: dropLng },
         map,
         icon: {
           url: createOrderMarkerSvg(statusColors[order.status]),
-          scaledSize: new gm.Size(isSelected ? 40 : 32, isSelected ? 50 : 40),
-          anchor: new gm.Point(isSelected ? 20 : 16, isSelected ? 50 : 40),
+          scaledSize: new window.google.maps.Size(isSelected ? 40 : 32, isSelected ? 50 : 40),
+          anchor: new window.google.maps.Point(isSelected ? 20 : 16, isSelected ? 50 : 40),
         },
         title: `#${(order._id || '').slice(-8).toUpperCase()} — ${order.customer?.name || 'Cliente'}`,
         zIndex: isSelected ? 200 : 50,
-        animation: isSelected ? gm.Animation.BOUNCE : null,
+        animation: isSelected ? window.google.maps.Animation.BOUNCE : null,
       });
 
       marker.addListener('click', () => {
@@ -336,10 +337,10 @@ const DispatchMap = ({ orders = [], locations = [], statuses = [], selectedOrder
       // ═══ 4. COURIER MARKER ═══
       const ci = order.courier_info;
       if (ci && ci.lat && ci.lng) {
-        const courierMarker = new gm.Marker({
+        const courierMarker = new window.google.maps.Marker({
           position: { lat: parseFloat(ci.lat), lng: parseFloat(ci.lng) },
           map,
-          icon: { url: createCourierMarkerSvg(), scaledSize: new gm.Size(40, 40), anchor: new gm.Point(20, 20) },
+          icon: { url: createCourierMarkerSvg(), scaledSize: new window.google.maps.Size(40, 40), anchor: new window.google.maps.Point(20, 20) },
           title: ci.name || 'Courier',
           zIndex: 150,
         });
@@ -369,10 +370,10 @@ const DispatchMap = ({ orders = [], locations = [], statuses = [], selectedOrder
   useEffect(() => {
     if (!mapInstanceRef.current || !selectedOrderId) return;
     const order = orders.find((o) => o._id === selectedOrderId);
-    if (order?.dropoff_lat && order?.dropoff_lng) {
+    if (order?.delivery_info?.lat && order?.delivery_info?.lng) {
       mapInstanceRef.current.panTo({
-        lat: parseFloat(order.dropoff_lat),
-        lng: parseFloat(order.dropoff_lng),
+        lat: parseFloat(order.delivery_info?.lat),
+        lng: parseFloat(order.delivery_info?.lng),
       });
       if (mapInstanceRef.current.getZoom() < 14) {
         mapInstanceRef.current.setZoom(14);

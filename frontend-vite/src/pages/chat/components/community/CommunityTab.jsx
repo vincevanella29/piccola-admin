@@ -109,7 +109,7 @@ const DmView = ({ peer, messages, connected, typingUsers = [], onSend, onTyping,
 };
 
 // ─── Main Community Tab ────────────────────────────────────────
-const CommunityTab = ({ appState }) => {
+const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar }) => {
   const {
     token, walletAddress, isAdmin, canPin,
     channelHook, groupHook, presence,
@@ -128,7 +128,26 @@ const CommunityTab = ({ appState }) => {
     handleSelectDmPeer, handleSelectDmConvo, handleSendDm, handleMemberClick
   } = useCommunityTab({ appState });
 
+  // Mobile specific state (now synced with parent)
+  const closeMobileSidebar = useCallback(() => {
+    if (!isDesktop) setShowSidebar(false);
+  }, [isDesktop, setShowSidebar]);
+
+  const openMobileSidebar = useCallback(() => {
+    setShowSidebar(true);
+  }, [setShowSidebar]);
+
   const mainContent = useMemo(() => {
+    const onBack = () => {
+      if (!isDesktop) {
+        setShowSidebar(true);
+      } else {
+        setMode(null);
+        dmChat.disconnectWs();
+        setDmPeer(null);
+      }
+    };
+
     if (mode === 'dm' && dmPeer) {
       return (
         <DmView
@@ -138,7 +157,7 @@ const CommunityTab = ({ appState }) => {
           typingUsers={dmChat.typingUsers}
           onSend={handleSendDm}
           onTyping={dmChat.notifyTyping}
-          onBack={() => { setMode(null); dmChat.disconnectWs(); setDmPeer(null); }}
+          onBack={onBack}
           myWallet={walletAddress}
         />
       );
@@ -157,6 +176,9 @@ const CommunityTab = ({ appState }) => {
           onUpload={channelHook.uploadMedia}
           onLoadOlder={channelHook.loadOlder}
           onNotifyTyping={channelHook.notifyTyping}
+          onToggleSidebar={onBack}
+          onToggleMembers={() => setShowMembersPanel(v => !v)}
+          isDesktop={isDesktop}
           myWallet={walletAddress}
           token={token}
           isAdmin={isAdmin}
@@ -164,6 +186,7 @@ const CommunityTab = ({ appState }) => {
           messagesLoading={channelHook.messagesLoading}
           members={presence.members}
           employeeMap={presence.employeeMap}
+          showMembersPanel={showMembersPanel}
         />
       );
     }
@@ -181,6 +204,9 @@ const CommunityTab = ({ appState }) => {
           onUpload={groupHook.uploadMedia}
           onLoadOlder={groupHook.loadOlder}
           onNotifyTyping={groupHook.notifyTyping}
+          onToggleSidebar={onBack}
+          onToggleMembers={() => setShowMembersPanel(v => !v)}
+          isDesktop={isDesktop}
           myWallet={walletAddress}
           token={token}
           isAdmin={isAdmin}
@@ -190,6 +216,7 @@ const CommunityTab = ({ appState }) => {
           groupName={groupHook.activeGroup?.name}
           members={presence.members}
           employeeMap={presence.employeeMap}
+          showMembersPanel={showMembersPanel}
         />
       );
     }
@@ -214,74 +241,100 @@ const CommunityTab = ({ appState }) => {
   }, [mode, channelHook, groupHook, dmPeer, dmChat, walletAddress, isAdmin, canPin, handlePinMessage, handleSendDm]);
 
   return (
-    <div className="h-full flex">
-      {/* Left Sidebar */}
-      <motion.div
-        initial={{ width: 0, opacity: 0 }}
-        animate={{ width: 240, opacity: 1 }}
-        transition={{ duration: 0.25 }}
-        className="h-full border-r border-light-border/30 dark:border-dark-border/30 bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/20 overflow-hidden shrink-0"
-      >
-        <div className="w-[240px] h-full">
-          <ServerSidebar
-            channels={channelHook.channels}
-            groups={groupHook.groups}
-            activeSlug={mode === 'channel' ? channelHook.activeSlug : null}
-            activeGroupId={mode === 'group' ? groupHook.activeGroupId : null}
-            onSelectChannel={handleSelectChannel}
-            onSelectGroup={handleSelectGroup}
-            onCreateChannel={() => setShowCreateChannel(true)}
-            onCreateGroup={() => setShowCreateGroup(true)}
-            onOpenDm={() => setShowDmPicker(true)}
-            onToggleMembers={() => setShowMembersPanel(v => !v)}
-            onOpenSectionPerms={() => setShowSectionPerms(true)}
-            onOpenGroupSettings={setSelectedGroupForSettings}
-            isAdmin={isAdmin}
-            walletAddress={walletAddress}
-            onlineCount={presence.onlineCount}
-            showMembersPanel={showMembersPanel}
-            dmConversations={dmConversations}
-            activeDmPeer={mode === 'dm' ? dmPeer : null}
-            onSelectDmConvo={handleSelectDmConvo}
-            employeeMap={presence.employeeMap}
-          />
-        </div>
-      </motion.div>
+    <div className="h-full flex relative overflow-hidden">
+      {/* Left Sidebar (ServerSidebar) */}
+      <AnimatePresence mode="wait">
+        {(isDesktop || showSidebar) && (
+          <motion.div
+            initial={isDesktop ? { width: 240, opacity: 1 } : { x: '-100%', opacity: 1 }}
+            animate={isDesktop ? { width: 240, opacity: 1 } : { x: 0, opacity: 1 }}
+            exit={isDesktop ? { width: 0, opacity: 0 } : { x: '-100%', opacity: 1 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`h-full border-r border-light-border/20 dark:border-dark-border/10 bg-light-surface-secondary/80 dark:bg-dark-surface-secondary/80 backdrop-blur-3xl shrink-0 z-30 ${
+              isDesktop ? 'relative' : 'fixed inset-y-0 left-0 w-[280px] shadow-[20px_0_40px_rgba(0,0,0,0.3)]'
+            }`}
+          >
+            <ServerSidebar
+              channels={channelHook.channels}
+              groups={groupHook.groups}
+              activeSlug={mode === 'channel' ? channelHook.activeSlug : null}
+              activeGroupId={mode === 'group' ? groupHook.activeGroupId : null}
+              onSelectChannel={(slug) => { handleSelectChannel(slug); closeMobileSidebar(); }}
+              onSelectGroup={(id) => { handleSelectGroup(id); closeMobileSidebar(); }}
+              onCreateChannel={() => setShowCreateChannel(true)}
+              onCreateGroup={() => setShowCreateGroup(true)}
+              onOpenDm={() => setShowDmPicker(true)}
+              onToggleMembers={() => setShowMembersPanel(v => !v)}
+              onOpenSectionPerms={() => setShowSectionPerms(true)}
+              onOpenGroupSettings={setSelectedGroupForSettings}
+              isAdmin={isAdmin}
+              walletAddress={walletAddress}
+              onlineCount={presence.onlineCount}
+              showMembersPanel={showMembersPanel}
+              dmConversations={dmConversations}
+              activeDmPeer={mode === 'dm' ? dmPeer : null}
+              onSelectDmConvo={(convo) => { handleSelectDmConvo(convo); closeMobileSidebar(); }}
+              employeeMap={presence.employeeMap}
+              isMobile={!isDesktop}
+              onClose={closeMobileSidebar}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Sidebar Overlay */}
+      {!isDesktop && showSidebar && (
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={closeMobileSidebar}
+          className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-20"
+        />
+      )}
 
       {/* Main content */}
-      <main className="flex-1 h-full min-w-0 relative">
+      <main className="flex-1 h-full min-w-0 relative bg-transparent">
         {mainContent}
       </main>
 
       {/* Right Sidebar: Members Panel */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {showMembersPanel && (
           <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 220, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="h-full border-l border-light-border/30 dark:border-dark-border/30 overflow-hidden shrink-0"
+            initial={isDesktop ? { width: 0, opacity: 0 } : { x: '100%', opacity: 1 }}
+            animate={isDesktop ? { width: 220, opacity: 1 } : { x: 0, opacity: 1 }}
+            exit={isDesktop ? { width: 0, opacity: 0 } : { x: '100%', opacity: 1 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`h-full border-l border-light-border/20 dark:border-dark-border/10 bg-light-surface-secondary/80 dark:bg-dark-surface-secondary/80 backdrop-blur-3xl shrink-0 z-30 ${
+              isDesktop ? 'relative' : 'fixed inset-y-0 right-0 w-[280px] shadow-[-20px_0_40px_rgba(0,0,0,0.3)]'
+            }`}
           >
-            <div className="w-[220px] h-full">
-              <MembersPanel
-                onlineBySection={presence.onlineBySection}
-                idleBySection={presence.idleBySection}
-                offlineBySection={presence.offlineBySection}
-                unregisteredBySection={presence.unregisteredBySection}
-                onlineCount={presence.onlineCount}
-                idleCount={presence.idleCount}
-                offlineCount={presence.offlineCount}
-                unregisteredCount={presence.unregisteredCount}
-                activeGroup={mode === 'group' ? groupHook.activeGroup : null}
-                onClickMember={handleMemberClick}
-                onDmMember={handleSelectDmPeer}
-                onClose={() => setShowMembersPanel(false)}
-              />
-            </div>
+            <MembersPanel
+              onlineBySection={presence.onlineBySection}
+              idleBySection={presence.idleBySection}
+              offlineBySection={presence.offlineBySection}
+              unregisteredBySection={presence.unregisteredBySection}
+              onlineCount={presence.onlineCount}
+              idleCount={presence.idleCount}
+              offlineCount={presence.offlineCount}
+              unregisteredCount={presence.unregisteredCount}
+              activeGroup={mode === 'group' ? groupHook.activeGroup : null}
+              onClickMember={handleMemberClick}
+              onDmMember={handleSelectDmPeer}
+              onClose={() => setShowMembersPanel(false)}
+              isMobile={!isDesktop}
+            />
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Mobile Members Overlay */}
+      {!isDesktop && showMembersPanel && (
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={() => setShowMembersPanel(false)}
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm z-20"
+        />
+      )}
 
       {/* Modals */}
       <AnimatePresence>

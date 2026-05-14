@@ -179,17 +179,20 @@ def _normalize_phone(phone: str) -> str:
 
 def _build_uber_body(order: dict, loc: dict) -> dict:
     """Build Uber Direct /v1/customers/{id}/deliveries body from order + location."""
-    pickup_address = loc.get("direccion", "")
+    if not loc:
+        loc = {}
+    pickup_address = loc.get("direccion") or loc.get("address", "")
     pickup_city = loc.get("city", "Santiago")
     pickup_lat = loc.get("lat", 0)
     pickup_lng = loc.get("lng", 0)
     pickup_name = loc.get("nombre", "La Piccola Italia")
     pickup_phone = _normalize_phone(loc.get("telefono", "")) or "+56900000000"
 
-    customer = order.get("customer", {})
-    dropoff_address = order.get("dropoff_address") or customer.get("address", "")
-    dropoff_lat = order.get("dropoff_lat") or 0
-    dropoff_lng = order.get("dropoff_lng") or 0
+    customer = order.get("customer") or {}
+    delivery_info = order.get("delivery_info", {})
+    dropoff_address = delivery_info.get("address", "")
+    dropoff_lat = delivery_info.get("lat", 0)
+    dropoff_lng = delivery_info.get("lng", 0)
     dropoff_name = customer.get("name", "Cliente")
     dropoff_phone = _normalize_phone(customer.get("phone", "")) or "+56900000001"
 
@@ -226,7 +229,7 @@ def _build_uber_body(order: dict, loc: dict) -> dict:
         "dropoff_longitude": dropoff_lng,
         "dropoff_name": dropoff_name,
         "dropoff_phone_number": dropoff_phone,
-        "dropoff_notes": order.get("notes", ""),
+        "dropoff_notes": delivery_info.get("instructions", "") or order.get("notes", ""),
         "manifest_items": manifest_items,
         "manifest_total_value": int(total_amount * 100) if total_amount else 0,
         "external_id": str(order.get("_id", "")),
@@ -241,17 +244,20 @@ def _build_uber_body(order: dict, loc: dict) -> dict:
 
 def _build_pedidosya_body(order: dict, loc: dict, is_test: bool = False) -> dict:
     """Build PedidosYa /v2/shippings body from order + location."""
-    pickup_address = loc.get("direccion", "")
+    if not loc:
+        loc = {}
+    pickup_address = loc.get("direccion") or loc.get("address", "")
     pickup_city = loc.get("city", "Santiago")
     pickup_lat = loc.get("lat", 0)
     pickup_lng = loc.get("lng", 0)
     pickup_name = loc.get("nombre", "La Piccola Italia")
     pickup_phone = _normalize_phone(loc.get("telefono", "")) or "+56900000000"
 
-    customer = order.get("customer", {})
-    dropoff_address = order.get("dropoff_address") or customer.get("address", "")
-    dropoff_lat = order.get("dropoff_lat") or 0
-    dropoff_lng = order.get("dropoff_lng") or 0
+    customer = order.get("customer") or {}
+    delivery_info = order.get("delivery_info", {})
+    dropoff_address = delivery_info.get("address", "")
+    dropoff_lat = delivery_info.get("lat", 0)
+    dropoff_lng = delivery_info.get("lng", 0)
     dropoff_name = customer.get("name", "Cliente")
     dropoff_phone = _normalize_phone(customer.get("phone", "")) or "+56900000001"
 
@@ -294,6 +300,7 @@ def _build_pedidosya_body(order: dict, loc: dict, is_test: bool = False) -> dict
                 "longitude": dropoff_lng,
                 "name": dropoff_name,
                 "phone": dropoff_phone,
+                "instructions": delivery_info.get("instructions", ""),
             },
         ],
     }
@@ -320,6 +327,10 @@ async def create_carrier_delivery(carrier: dict, order: dict, loc: dict) -> str:
     Raises:
         HTTPException on any failure. No fallbacks.
     """
+    if not isinstance(loc, dict):
+        logger.error(f"[create_carrier_delivery] Missing or invalid location for order {order.get('_id')}")
+        raise HTTPException(status_code=400, detail="Error de despacho: Sucursal origen no válida o no encontrada.")
+
     slug = carrier["slug"]
     auth = carrier.get("auth", {})
     base_url = carrier.get("endpoints", {}).get("base_url", "")
@@ -484,7 +495,7 @@ async def test_carrier_coverage(
         a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlng/2)**2
         return R * 2 * atan2(sqrt(a), sqrt(1-a))
 
-    distance_km = round(haversine_km(pickup_lat, pickup_lng, payload.dropoff_lat, payload.dropoff_lng), 2)
+    distance_km = round(haversine_km(pickup_lat, pickup_lng, payload.delivery_info.get("lat", 0), payload.delivery_info.get("lng", 0)), 2)
 
     # Get carriers to test
     carrier_filter = {"status": "active"}
@@ -545,10 +556,10 @@ async def test_carrier_coverage(
                         },
                         {
                             "type": "DROP_OFF",
-                            "addressStreet": payload.dropoff_address or f"{payload.dropoff_lat},{payload.dropoff_lng}",
+                            "addressStreet": payload.delivery_info.get("address", "") or f"{payload.delivery_info.get('lat', 0)},{payload.delivery_info.get('lng', 0)}",
                             "city": pickup_city,
-                            "latitude": payload.dropoff_lat,
-                            "longitude": payload.dropoff_lng,
+                            "latitude": payload.delivery_info.get("lat", 0),
+                            "longitude": payload.delivery_info.get("lng", 0),
                             "name": "Coverage Test",
                             "phone": "+56900000001",
                         },
@@ -595,14 +606,14 @@ async def test_carrier_coverage(
                     "pickup_latitude": pickup_lat,
                     "pickup_longitude": pickup_lng,
                     "dropoff_address": json.dumps({
-                        "street_address": [payload.dropoff_address or "Test"],
+                        "street_address": [payload.delivery_info.get("address", "") or "Test"],
                         "city": pickup_city,
                         "state": "RM",
                         "zip_code": "0000",
                         "country": "CL",
                     }),
-                    "dropoff_latitude": payload.dropoff_lat,
-                    "dropoff_longitude": payload.dropoff_lng,
+                    "dropoff_latitude": payload.delivery_info.get("lat", 0),
+                    "dropoff_longitude": payload.delivery_info.get("lng", 0),
                 }
 
                 async with httpx.AsyncClient(timeout=30.0) as client:
@@ -646,9 +657,9 @@ async def test_carrier_coverage(
             "lng": pickup_lng,
         },
         "destination": {
-            "lat": payload.dropoff_lat,
-            "lng": payload.dropoff_lng,
-            "address": payload.dropoff_address,
+            "lat": payload.delivery_info.get("lat", 0),
+            "lng": payload.delivery_info.get("lng", 0),
+            "address": payload.delivery_info.get("address", ""),
         },
         "distance_km": distance_km,
         "can_deliver": any_available,
@@ -663,9 +674,7 @@ async def test_carrier_coverage(
 
 class QuoteDeliveryRequest(BaseModel):
     location_id: str = Field(..., description="Sucursal ID (pickup)")
-    dropoff_lat: float = Field(...)
-    dropoff_lng: float = Field(...)
-    dropoff_address: str = Field("", description="Dirección destino")
+    delivery_info: dict = Field(..., description="Info de delivery con lat, lng y address")
     order_total: float = Field(0, description="Total del pedido para calcular delivery gratis")
 
 
@@ -755,7 +764,7 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
         a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlng/2)**2
         return R * 2 * atan2(sqrt(a), sqrt(1-a))
 
-    distance_km = round(haversine_km(pickup_lat, pickup_lng, payload.dropoff_lat, payload.dropoff_lng), 2)
+    distance_km = round(haversine_km(pickup_lat, pickup_lng, payload.delivery_info.get("lat", 0), payload.delivery_info.get("lng", 0)), 2)
 
     # ── Get fee config ──
     from apis.delivery.config import _get_config, DEFAULT_FEE_CONFIG
@@ -833,10 +842,10 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
                         },
                         {
                             "type": "DROP_OFF",
-                            "addressStreet": payload.dropoff_address or f"{payload.dropoff_lat},{payload.dropoff_lng}",
+                            "addressStreet": payload.delivery_info.get("address", "") or f"{payload.delivery_info.get('lat', 0)},{payload.delivery_info.get('lng', 0)}",
                             "city": pickup_city,
-                            "latitude": payload.dropoff_lat,
-                            "longitude": payload.dropoff_lng,
+                            "latitude": payload.delivery_info.get("lat", 0),
+                            "longitude": payload.delivery_info.get("lng", 0),
                             "name": "Cliente",
                             "phone": "+56900000001",
                         },
@@ -844,7 +853,11 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
                 }
 
                 async with httpx.AsyncClient(timeout=30.0) as client:
+                    logger.info(f"[quote-delivery-debug] URL: {base_url}/v2/shippings")
+                    logger.info(f"[quote-delivery-debug] Headers: {headers}")
+                    logger.info(f"[quote-delivery-debug] Body: {json.dumps(shipping_body)}")
                     resp = await client.post(f"{base_url}/v2/shippings", headers=headers, json=shipping_body)
+                    logger.info(f"[quote-delivery-debug] Response {resp.status_code}: {resp.text}")
 
                 if resp.status_code in (200, 201):
                     data = resp.json()
@@ -880,12 +893,12 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
                     "pickup_latitude": pickup_lat,
                     "pickup_longitude": pickup_lng,
                     "dropoff_address": json.dumps({
-                        "street_address": [payload.dropoff_address or ""],
+                        "street_address": [payload.delivery_info.get("address", "") or ""],
                         "city": pickup_city, "state": "RM",
                         "zip_code": "0000", "country": "CL",
                     }),
-                    "dropoff_latitude": payload.dropoff_lat,
-                    "dropoff_longitude": payload.dropoff_lng,
+                    "dropoff_latitude": payload.delivery_info.get("lat", 0),
+                    "dropoff_longitude": payload.delivery_info.get("lng", 0),
                 }
 
                 async with httpx.AsyncClient(timeout=30.0) as client:
@@ -933,9 +946,9 @@ async def quote_for_delivery(request: Request, payload: QuoteDeliveryRequest):
             "lng": pickup_lng,
         },
         "destination": {
-            "lat": payload.dropoff_lat,
-            "lng": payload.dropoff_lng,
-            "address": payload.dropoff_address,
+            "lat": payload.delivery_info.get("lat", 0),
+            "lng": payload.delivery_info.get("lng", 0),
+            "address": payload.delivery_info.get("address", ""),
         },
         "distance_km": distance_km,
         "fee_config": {
@@ -978,7 +991,8 @@ async def request_quote(
             loc = LOCATIONS_COLL.find_one({"slug": order.get("location_slug")})
 
     pickup_address = loc.get("direccion", "") if loc else ""
-    dropoff_address = order.get("customer", {}).get("address", "")
+    delivery_info = order.get("delivery_info", {})
+    dropoff_address = delivery_info.get("address", "")
 
     # Build quote request body (generic — each carrier may need adaptation)
     quote_body = {
@@ -1044,11 +1058,23 @@ async def dispatch_to_carrier(
     if not carrier:
         raise HTTPException(status_code=404, detail=f"Carrier '{payload.carrier_slug}' no encontrado o inactivo")
 
-    # Get location
+    # Get location (Robust resolution)
     loc = None
-    if order.get("location_id"):
-        if ObjectId.is_valid(order["location_id"]):
-            loc = LOCATIONS_COLL.find_one({"_id": ObjectId(order["location_id"])})
+    location_id = order.get("location_id")
+    if location_id:
+        if ObjectId.is_valid(location_id):
+            loc = LOCATIONS_COLL.find_one({"_id": ObjectId(location_id)})
+        
+        if not loc:
+            # Try by slug if ID resolution failed or if ID was actually a slug
+            loc = LOCATIONS_COLL.find_one({"permalink_slug": order.get("location_slug") or location_id})
+
+    if not loc:
+        logger.error(f"[dispatch_to_carrier] Order {payload.order_id} has no valid location (location_id={location_id})")
+        raise HTTPException(
+            status_code=400, 
+            detail="No se encontró la sucursal origen para este pedido. Verifique que el local exista y esté activo."
+        )
 
     try:
         carrier_delivery_id = await create_carrier_delivery(carrier, order, loc)
@@ -1534,10 +1560,10 @@ async def create_test_order(
                 },
                 {
                     "type": "DROP_OFF",
-                    "addressStreet": payload.dropoff_address,
+                    "addressStreet": payload.delivery_info.get("address", ""),
                     "city": payload.dropoff_city,
-                    "latitude": payload.dropoff_lat,
-                    "longitude": payload.dropoff_lng,
+                    "latitude": payload.delivery_info.get("lat", 0),
+                    "longitude": payload.delivery_info.get("lng", 0),
                     "name": payload.dropoff_name,
                     "phone": payload.dropoff_phone,
                 },
@@ -1612,11 +1638,11 @@ async def create_test_order(
             "pickup_phone_number": payload.pickup_phone,
             "pickup_latitude": payload.pickup_lat,
             "pickup_longitude": payload.pickup_lng,
-            "dropoff_address": payload.dropoff_address,
+            "dropoff_address": payload.delivery_info.get("address", ""),
             "dropoff_name": payload.dropoff_name,
             "dropoff_phone_number": payload.dropoff_phone,
-            "dropoff_latitude": payload.dropoff_lat,
-            "dropoff_longitude": payload.dropoff_lng,
+            "dropoff_latitude": payload.delivery_info.get("lat", 0),
+            "dropoff_longitude": payload.delivery_info.get("lng", 0),
             "manifest_items": [{
                 "name": payload.item_description,
                 "quantity": 1,

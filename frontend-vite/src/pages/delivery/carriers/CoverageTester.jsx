@@ -60,9 +60,11 @@ const CoverageTester = ({ appState, carriers = [] }) => {
         walletAddress: appState?.account,
         data: {
           location_id: selectedLocation,
-          dropoff_lat: parseFloat(dropoffLat),
-          dropoff_lng: parseFloat(dropoffLng),
-          dropoff_address: dropoffAddress,
+          delivery_info: {
+            lat: parseFloat(dropoffLat),
+            lng: parseFloat(dropoffLng),
+            address: dropoffAddress,
+          },
         },
       });
       setResult(resp);

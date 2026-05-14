@@ -1,8 +1,8 @@
 import React from 'react';
 import { Menu, Inbox, Wifi, WifiOff } from 'lucide-react';
 
-// Estilo Glass interno
-const HEADER_GLASS = "backdrop-blur-md bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 border-b border-light-border/50 dark:border-dark-border/50";
+// Estilo Glass interno (Apple Minimal)
+const HEADER_GLASS = "backdrop-blur-xl bg-light-surface/20 dark:bg-dark-surface/10 border-b border-light-border/10 dark:border-dark-border/5";
 
 const ChatHeader = ({
   variant = 'client',
