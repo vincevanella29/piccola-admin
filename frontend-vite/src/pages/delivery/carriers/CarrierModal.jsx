@@ -140,6 +140,8 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
         description: form.description.trim() || null,
         auth: {
             type: form.auth_type,
+            header_name: form.header_name.trim() || 'Authorization',
+            bearer_prefix: form.bearer_prefix,
             ...(form.auth_type === 'oauth2' ? {
                 grant_type: form.grant_type,
                 token_url: form.token_url.trim(),
@@ -153,8 +155,6 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                 } : {}),
             } : {
                 api_key: form.api_key.trim(),
-                header_name: form.header_name.trim() || 'Authorization',
-                bearer_prefix: form.bearer_prefix,
                 customer_id: form.customer_id.trim() || null,
             }),
         },
@@ -395,11 +395,20 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                                     <input type="password" value={form.api_key} onChange={(e) => handleChange('api_key', e.target.value)} placeholder="API Key *"
                                         className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
                                     />
-                                    <input type="text" value={form.header_name} onChange={(e) => handleChange('header_name', e.target.value)} placeholder="Header Name (Authorization)"
-                                        className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                    />
                                 </div>
                             )}
+
+                            {/* Advanced Headers (for both API Key & OAuth2) */}
+                            <div className="space-y-3 p-3 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/10 dark:border-dark-border/10">
+                                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">Headers & Payload Options</label>
+                                <input type="text" value={form.header_name} onChange={(e) => handleChange('header_name', e.target.value)} placeholder="Header Name (Authorization)"
+                                    className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                />
+                                <label className="flex items-center gap-2 text-sm text-light-text-primary dark:text-dark-text-primary mt-2">
+                                    <input type="checkbox" checked={form.bearer_prefix} onChange={(e) => handleChange('bearer_prefix', e.target.checked)} className="rounded border-light-border/20 dark:border-dark-border/20 text-matrix-green focus:ring-matrix-green/40 bg-light-surface dark:bg-dark-surface" />
+                                    <span>Incluir prefijo "Bearer " en el header {form.header_name || 'Authorization'}</span>
+                                </label>
+                            </div>
 
                             {/* Test Connection Button */}
                             <button
