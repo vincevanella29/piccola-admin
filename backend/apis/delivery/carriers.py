@@ -186,6 +186,8 @@ class CarrierAuth(BaseModel):
     customer_id: Optional[str] = Field(None, description="Customer ID (required for Uber Direct)")
     api_key: Optional[str] = None
     header_name: Optional[str] = None
+    bearer_prefix: Optional[bool] = None
+    token_format: Optional[str] = None
 
 class CarrierEndpoints(BaseModel):
     base_url: str
