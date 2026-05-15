@@ -119,11 +119,11 @@ export async function fetchDeliveryStatuses({ token, walletAddress }) {
 // =====================================================================
 
 export async function fetchProviders({ token, walletAddress, status }) {
-  const params = {};
+  const params = { ecosystem_type: 'delivery' };
   if (status) params.status = status;
   return api({
     method: 'GET',
-    endpoint: '/delivery/providers',
+    endpoint: '/ecosystem/providers',
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
     params,
@@ -133,39 +133,40 @@ export async function fetchProviders({ token, walletAddress, status }) {
 export async function fetchProviderPresets({ token, walletAddress }) {
   return api({
     method: 'GET',
-    endpoint: '/delivery/providers/presets',
+    endpoint: '/ecosystem/providers/presets',
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
+    params: { ecosystem_type: 'delivery' },
   });
 }
 
 export async function createProvider({ token, walletAddress, data }) {
   return api({
     method: 'POST',
-    endpoint: '/delivery/providers',
+    endpoint: '/ecosystem/providers',
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
-    data,
+    data: { ...data, ecosystem_type: 'delivery' },
   });
 }
 
 export async function autoLinkProvider({ token, walletAddress, data }) {
   return api({
     method: 'POST',
-    endpoint: '/delivery/providers/auto-link',
+    endpoint: '/ecosystem/providers/auto-link',
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
-    data,
+    data: { ...data, ecosystem_type: 'delivery' },
   });
 }
 
 export async function probeDeliveryDomain({ token, walletAddress, domain }) {
   return api({
     method: 'POST',
-    endpoint: '/delivery/providers/probe',
+    endpoint: '/ecosystem/providers/probe',
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
-    data: { domain },
+    data: { domain, ecosystem_type: 'delivery' },
   });
 }
 
@@ -173,7 +174,7 @@ export async function updateProvider({ token, walletAddress, providerId, data })
   if (!providerId) throw new Error('providerId es obligatorio');
   return api({
     method: 'PATCH',
-    endpoint: `/delivery/providers/${encodeURIComponent(providerId)}`,
+    endpoint: `/ecosystem/providers/${encodeURIComponent(providerId)}`,
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
     data,
@@ -184,7 +185,7 @@ export async function deleteProvider({ token, walletAddress, providerId }) {
   if (!providerId) throw new Error('providerId es obligatorio');
   return api({
     method: 'DELETE',
-    endpoint: `/delivery/providers/${encodeURIComponent(providerId)}`,
+    endpoint: `/ecosystem/providers/${encodeURIComponent(providerId)}`,
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
   });
@@ -194,7 +195,7 @@ export async function resyncProvider({ token, walletAddress, providerId }) {
   if (!providerId) throw new Error('providerId es obligatorio');
   return api({
     method: 'POST',
-    endpoint: `/delivery/providers/${encodeURIComponent(providerId)}/resync`,
+    endpoint: `/ecosystem/providers/${encodeURIComponent(providerId)}/resync`,
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
   });
@@ -339,6 +340,15 @@ export async function pollTestOrderStatus({ token, walletAddress, testOrderId })
   return api({
     method: 'POST',
     endpoint: `/delivery/last-mile/test-orders/${encodeURIComponent(testOrderId)}/poll`,
+    withCredentials: true,
+    headers: authHeaders({ token, walletAddress }),
+  });
+}
+
+export async function cancelTestOrder({ token, walletAddress, testOrderId }) {
+  return api({
+    method: 'POST',
+    endpoint: `/delivery/last-mile/test-order/${encodeURIComponent(testOrderId)}/cancel`,
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
   });
@@ -711,7 +721,7 @@ export async function updateDeliveryFeeConfig({ token, walletAddress, data }) {
 export async function fetchProviderCommissions({ token, walletAddress, providerId }) {
   return api({
     method: 'GET',
-    endpoint: `/delivery/providers/${providerId}/commissions`,
+    endpoint: `/ecosystem/providers/${providerId}/commissions`,
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
   });
@@ -720,7 +730,7 @@ export async function fetchProviderCommissions({ token, walletAddress, providerI
 export async function updateProviderCommissions({ token, walletAddress, providerId, data }) {
   return api({
     method: 'PUT',
-    endpoint: `/delivery/providers/${providerId}/commissions`,
+    endpoint: `/ecosystem/providers/${providerId}/commissions`,
     withCredentials: true,
     headers: authHeaders({ token, walletAddress }),
     data,

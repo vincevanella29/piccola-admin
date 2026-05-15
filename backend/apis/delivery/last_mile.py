@@ -1620,10 +1620,10 @@ async def create_test_order(
                 },
                 {
                     "type": "DROP_OFF",
-                    "addressStreet": payload.delivery_info.get("address", ""),
+                    "addressStreet": payload.dropoff_address,
                     "city": payload.dropoff_city,
-                    "latitude": payload.delivery_info.get("lat", 0),
-                    "longitude": payload.delivery_info.get("lng", 0),
+                    "latitude": payload.dropoff_lat,
+                    "longitude": payload.dropoff_lng,
                     "name": payload.dropoff_name,
                     "phone": payload.dropoff_phone,
                 },
@@ -1859,3 +1859,66 @@ async def poll_test_order_status(
         "status_history": history,
         "courier_info": data.get("courier"),
     }
+
+
+@router.post("/delivery/last-mile/test-order/{test_order_id}/cancel", summary="Cancelar test order con el carrier")
+async def cancel_test_order(
+    test_order_id: str,
+    user: dict = Depends(verify_session)
+):
+    require_admin_level(user, "delivery")
+    test_order = TEST_ORDERS_COLL.find_one({"_id": ObjectId(test_order_id)})
+    if not test_order:
+        raise HTTPException(status_code=404, detail="Test order no encontrado")
+
+    carrier = CARRIERS_COLL.find_one({"slug": test_order["carrier_slug"]})
+    if not carrier:
+        raise HTTPException(status_code=404, detail="Carrier no encontrado")
+
+    token = await _get_carrier_token(carrier)
+    base_url = carrier.get("endpoints", {}).get("base_url", "")
+    use_bearer = carrier.get("auth", {}).get("bearer_prefix", True)
+    headers = {
+        "Authorization": f"Bearer {token}" if use_bearer else token,
+        "Content-Type": "application/json",
+    }
+
+    shipping_id = test_order.get("carrier_delivery_id")
+    slug = test_order["carrier_slug"]
+
+    if slug == "pedidosya":
+        cancel_url = f"{base_url}/v2/shippings/{shipping_id}/cancel"
+        body = {"reasonText": "Cancelacion test panel"}
+    elif slug == "uber_direct":
+        customer_id = carrier.get("auth", {}).get("customer_id", "")
+        cancel_url = f"{base_url}/v1/customers/{customer_id}/deliveries/{shipping_id}/cancel"
+        body = {}
+    else:
+        raise HTTPException(status_code=400, detail="Cancel not supported for this carrier via API")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(cancel_url, headers=headers, json=body)
+            # If 409, it can't be canceled
+            if resp.status_code == 409:
+                raise HTTPException(status_code=409, detail="El pedido ya no puede ser cancelado por API.")
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 409:
+            raise HTTPException(status_code=409, detail="El pedido ya no puede ser cancelado por API.")
+        raise HTTPException(status_code=502, detail=f"Error del carrier: {e.response.status_code}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error conectando con {slug}: {e}")
+
+    TEST_ORDERS_COLL.update_one(
+        {"_id": ObjectId(test_order_id)},
+        {"$set": {
+            "status": "CANCELLED",
+            "internal_status": "cancelled",
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+
+    return {"success": True, "message": "Test order cancelled successfully"}

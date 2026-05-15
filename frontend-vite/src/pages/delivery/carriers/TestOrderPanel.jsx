@@ -61,6 +61,7 @@ const TestOrderPanel = ({ appState, carriers = [] }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [pollingId, setPollingId] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
   const [selectedCarrier, setSelectedCarrier] = useState('');
 
   const getAuth = useCallback(() => ({
@@ -131,6 +132,24 @@ const TestOrderPanel = ({ appState, carriers = [] }) => {
       toast.error(err.message);
     } finally {
       setPollingId(null);
+    }
+  };
+
+  const handleCancelTestOrder = async (orderId) => {
+    setCancellingId(orderId);
+    try {
+      const res = await deliveryApi.cancelTestOrder({
+        ...getAuth(),
+        testOrderId: orderId,
+      });
+      if (res.success) {
+        toast.success('Test order cancelada exitosamente');
+        await fetchOrders();
+      }
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -223,18 +242,32 @@ const TestOrderPanel = ({ appState, carriers = [] }) => {
                       ID: {order.carrier_delivery_id}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handlePollStatus(order._id)}
-                    disabled={pollingId === order._id}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-light-surface-secondary dark:bg-dark-surface-secondary hover:bg-light-surface-tertiary dark:hover:bg-dark-surface-tertiary border border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary transition-colors flex items-center gap-1.5"
-                  >
-                    {pollingId === order._id ? (
-                      <FaSpinner size={10} className="animate-spin" />
-                    ) : (
-                      <FaSync size={10} />
-                    )}
-                    Poll Status
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleCancelTestOrder(order._id)}
+                      disabled={cancellingId === order._id || order.internal_status === 'cancelled' || order.internal_status === 'delivered'}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {cancellingId === order._id ? (
+                        <FaSpinner size={10} className="animate-spin" />
+                      ) : (
+                        <FaTimesCircle size={10} />
+                      )}
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => handlePollStatus(order._id)}
+                      disabled={pollingId === order._id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-light-surface-secondary dark:bg-dark-surface-secondary hover:bg-light-surface-tertiary dark:hover:bg-dark-surface-tertiary border border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary transition-colors flex items-center gap-1.5"
+                    >
+                      {pollingId === order._id ? (
+                        <FaSpinner size={10} className="animate-spin" />
+                      ) : (
+                        <FaSync size={10} />
+                      )}
+                      Poll Status
+                    </button>
+                  </div>
                 </div>
 
                 {/* Current status */}
