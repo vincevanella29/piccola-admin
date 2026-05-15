@@ -24,20 +24,16 @@ COMPANY_ID = int(os.getenv("COMPANY_ID", 1))
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 async def verify_api_key(api_key: str = Security(api_key_header)):
-    """Valida un API token considerando dos fuentes:
-
+    """Valida un API token considerando:
     1) API keys creadas vía /api/apikeys (colección api_keys), usando validate_api_key.
        - Formato: keyId.secret
        - Si expires_at es null/no existe -> sin expiración.
-    2) Tokens legacy en db.api_tokens (usados por promociones, etc.).
-       - Campo expires_at con misma semántica: None => sin expiración.
     """
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API token")
 
     now = datetime.utcnow()
 
-    # 1) Intentar primero con las API keys nuevas (apis.apikeys)
     try:
         info = validate_api_key(api_key)
     except Exception as e:
@@ -52,22 +48,10 @@ async def verify_api_key(api_key: str = Security(api_key_header)):
                 if exp_dt <= now:
                     raise HTTPException(status_code=401, detail="Invalid or expired API token")
             except ValueError:
-                # Si el formato de fecha es raro, por seguridad lo tratamos como expirado
                 raise HTTPException(status_code=401, detail="Invalid or expired API token")
-        # Sin expires_at o en el futuro => válido
         return info
 
-    # 2) Fallback: tokens legacy en api_tokens
-    token = db.api_tokens.find_one({"token": api_key})
-    if not token:
-        raise HTTPException(status_code=401, detail="Invalid or expired API token")
-
-    expires_at = token.get("expires_at")
-    # Si tiene expires_at y está en el pasado, se considera expirado
-    if expires_at is not None and expires_at <= now:
-        raise HTTPException(status_code=401, detail="Invalid or expired API token")
-
-    return token
+    raise HTTPException(status_code=401, detail="Invalid or expired API token")
 
 
 def _to_jsonable(obj: Any) -> Any:
@@ -80,130 +64,6 @@ def _to_jsonable(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_to_jsonable(v) for v in obj]
     return obj
-
-def verify_signature(wallet: str, plain_data: str, signature: str) -> bool:
-    """Verifica la firma de dos formas:
-
-    1) Firma ECDSA estándar (65 bytes) usada por eth_sign / personal_sign.
-    2) Hash de 32 bytes generado con ethers.id(plain_data) (keccak256 del texto).
-
-    Esto permite compatibilidad con el flujo antiguo y el nuevo "simulado".
-    """
-
-    if not isinstance(signature, str):
-        logger.error("verify_signature: signature is not a string")
-        return False
-
-    sig = signature.strip()
-    logger.info(
-        "verify_signature: wallet=%s, plain_len=%s, sig_len=%s, sig_prefix=%s",
-        wallet,
-        len(plain_data) if isinstance(plain_data, str) else None,
-        len(sig),
-        sig[:10],
-    )
-
-    # Caso 1: hash de 32 bytes (0x + 64 hex) generado con ethers.id(plain_data)
-    if sig.startswith("0x") and len(sig) == 66:
-        try:
-            expected_hash = w3.keccak(text=plain_data).hex()
-            # Normalizar para que coincidan aunque uno tenga '0x' y el otro no
-            sig_norm = sig[2:] if sig.startswith("0x") else sig
-            exp_norm = expected_hash[2:] if expected_hash.startswith("0x") else expected_hash
-            ok = sig_norm.lower() == exp_norm.lower()
-            logger.info(
-                "verify_signature: 32-byte hash mode, expected=%s, match=%s",
-                exp_norm[:18],
-                ok,
-            )
-            return ok
-        except Exception as e:
-            logger.error(f"Error computing expected hash for signature verification: {e}")
-            return False
-
-    # Caso 2: firma ECDSA completa (65 bytes) en hex (0x + 130 chars o 130 chars sin 0x)
-    # Normalizamos a bytes antes de llamar a recover_message.
-    try:
-        if sig.startswith("0x"):
-            sig_hex = sig[2:]
-        else:
-            sig_hex = sig
-
-        # Si mide 64 hex (32 bytes), no es una firma ECDSA válida, es un hash → ya manejado arriba.
-        if len(sig_hex) not in (130, 132):  # 65 o 66 bytes en hex, por si incluye v extendido
-            logger.error(f"verify_signature: unexpected hex signature length: {len(sig_hex)}")
-            return False
-
-        sig_bytes = bytes.fromhex(sig_hex)
-    except Exception as e:
-        logger.error(f"Error parsing hex signature: {e}")
-        return False
-
-    try:
-        message = encode_defunct(text=plain_data)
-        recovered = w3.eth.account.recover_message(message, signature=sig_bytes)
-        return recovered.lower() == wallet.lower()
-    except Exception as e:
-        logger.error(f"Error verifying ECDSA signature: {e}")
-        return False
-
-@router.get("/api-token")
-async def get_api_token(user: dict = Depends(verify_session)):
-    wallet = user.get("wallet").lower()
-    tokens = list(db.api_tokens.find({"wallet": wallet}).sort("created_at", -1))
-    result = []
-    for t in tokens:
-        result.append({
-            "_id": str(t.get("_id")),
-            "token": t.get("token"),
-            "wallet": t.get("wallet"),
-            "created_at": t.get("created_at").isoformat() if t.get("created_at") else None,
-            "expires_at": t.get("expires_at").isoformat() if t.get("expires_at") else None
-        })
-    return result
-
-@router.post("/api-token/generate")
-async def generate_api_token(request: GenerateApiTokenRequest, user: dict = Depends(verify_session)):
-    try:
-        if not verify_signature(request.wallet, request.plain_data, request.signature):
-            raise HTTPException(status_code=400, detail="Invalid signature")
-        wallet = w3.to_checksum_address(request.wallet)
-        company_id = user.get('company_id') if user else os.getenv('COMPANY_ID', 1)
-        role_level = get_company_role_level(wallet)
-        if role_level not in [3, 4]:
-            raise HTTPException(status_code=403, detail="Insufficient role level (must be 3 or 4)")
-        from dateutil.relativedelta import relativedelta
-        token = secrets.token_hex(32)
-        now = datetime.now(ZoneInfo("UTC"))
-        duration = getattr(request, "duration", "1m")
-        expires_at = None
-        if duration == "forever":
-            expires_at = None
-        elif duration == "6m":
-            expires_at = now + relativedelta(months=6)
-        elif duration == "1y":
-            expires_at = now + relativedelta(years=1)
-        else:
-            expires_at = now + relativedelta(months=1)
-        token_data = {
-            "token": token,
-            "wallet": wallet.lower(),
-            "created_at": now
-        }
-        if expires_at:
-            token_data["expires_at"] = expires_at
-        db.api_tokens.insert_one(token_data)
-        return {
-            "success": True,
-            "message": "API token generated successfully",
-            "token": token,
-            "expires_at": expires_at.isoformat() if expires_at is not None else None
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error generating API token for wallet {request.wallet}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error generating API token: {str(e)}")
 
 @router.post("/promotions/get")
 async def get_promotion(request: RedeemRequest, token: dict = Depends(verify_api_key)):
