@@ -22,8 +22,13 @@ const MessageBubble = ({ msg, myWallet, onReact, onReply, onPin, isAdmin, canPin
   const presenceMember = members?.find(m => m.wallet?.toLowerCase() === senderWallet);
   const employee = senderWallet ? employeeMap[senderWallet] : null;
   const avatarUrl = msg.sender_avatar_url || presenceMember?.profile_image_url || employee?.profile_image_url;
-  const displayName = msg.sender_name || presenceMember?.name || employee?.name || 'Anónimo';
-
+  
+  let displayName = msg.sender_name || presenceMember?.name || employee?.name || 'Anónimo';
+  // If sender_name is just the wallet address, try to use employee or presence name instead
+  if (typeof displayName === 'string' && displayName.startsWith('0x') && displayName.length === 42) {
+    displayName = employee?.name || presenceMember?.name || displayName;
+  }
+  
   // Resolve section from msg or presence member or employee directory
   const senderSeccion = msg.sender_seccion || presenceMember?.seccion || employee?.seccion || '';
   const sectionColor = getSectionColor(senderSeccion);
@@ -55,10 +60,10 @@ const MessageBubble = ({ msg, myWallet, onReact, onReply, onPin, isAdmin, canPin
           >
             {displayName} {roleLabel}
           </span>
-          {msg.sender_cargo && (
+          {(msg.sender_cargo || employee?.cargo || presenceMember?.cargo) && (
             <span className="text-[10px] px-1.5 py-0.5 rounded text-light-text-tertiary dark:text-dark-text-tertiary"
               style={{ backgroundColor: `${sectionColor.color}15`, color: sectionColor.color }}>
-              {msg.sender_cargo}
+              {msg.sender_cargo || employee?.cargo || presenceMember?.cargo}
             </span>
           )}
           <span className="text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary">
