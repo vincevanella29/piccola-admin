@@ -379,10 +379,14 @@ async def create_carrier_delivery(carrier: dict, order: dict, loc: dict) -> str:
 
     # Fire request
     logger.info(f"[last_mile] 📦 Dispatching order {order_id} to {slug} ({carrier.get('mode', 'test')})")
+    
+    # DEBUG LOGGING (requested by user)
+    logger.info(f"[last_mile] 🚨 [DEBUG] DISPATCH REQUEST TO {slug} | URL: {url} | HEADERS: {headers} | BODY: {json.dumps(body, ensure_ascii=False)}")
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(url, headers=headers, json=body)
+            logger.info(f"[last_mile] 🚨 [DEBUG] DISPATCH RESPONSE FROM {slug} | STATUS: {resp.status_code} | BODY: {resp.text}")
     except UnicodeEncodeError:
         raise HTTPException(
             status_code=400,
@@ -418,10 +422,12 @@ async def create_carrier_delivery(carrier: dict, order: dict, loc: dict) -> str:
         confirm_body = {"type": quote_type}
         
         logger.info(f"[last_mile] 🔍 PedidosYa Confirming... URL={confirm_url}, Body={confirm_body}")
+        logger.info(f"[last_mile] 🚨 [DEBUG] PEDIDOSYA CONFIRM REQUEST | URL: {confirm_url} | HEADERS: {headers} | BODY: {json.dumps(confirm_body)}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 c_resp = await client.post(confirm_url, headers=headers, json=confirm_body)
+                logger.info(f"[last_mile] 🚨 [DEBUG] PEDIDOSYA CONFIRM RESPONSE | STATUS: {c_resp.status_code} | BODY: {c_resp.text}")
         except UnicodeEncodeError:
             raise HTTPException(
                 status_code=400,
