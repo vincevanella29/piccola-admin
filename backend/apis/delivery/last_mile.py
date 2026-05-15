@@ -412,11 +412,16 @@ async def create_carrier_delivery(carrier: dict, order: dict, loc: dict) -> str:
     # PedidosYa requires a 2nd step to confirm the shipping
     if slug == "pedidosya":
         confirm_url = f"{base_url}/v2/shippings/{carrier_delivery_id}/confirm"
-        logger.info(f"[last_mile] 🔍 PedidosYa Confirming... URL={confirm_url}, Headers={headers}")
+        
+        quotes = data.get("quotes", [])
+        quote_type = quotes[0].get("type", "ON_DEMAND") if quotes else "ON_DEMAND"
+        confirm_body = {"type": quote_type}
+        
+        logger.info(f"[last_mile] 🔍 PedidosYa Confirming... URL={confirm_url}, Body={confirm_body}")
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                c_resp = await client.post(confirm_url, headers=headers, json={})
+                c_resp = await client.post(confirm_url, headers=headers, json=confirm_body)
         except UnicodeEncodeError:
             raise HTTPException(
                 status_code=400,
