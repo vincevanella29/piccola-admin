@@ -380,10 +380,14 @@ async def create_carrier_delivery(carrier: dict, order: dict, loc: dict) -> str:
     # Fire request
     logger.info(f"[last_mile] 📦 Dispatching order {order_id} to {slug} ({carrier.get('mode', 'test')})")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(url, headers=headers, json=body)
-
-    if resp.status_code not in (200, 201):
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(url, headers=headers, json=body)
+    except UnicodeEncodeError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El API Key o Token de {carrier.get('name', slug)} tiene caracteres inválidos (acentos, saltos de línea, etc). Por favor revisa la configuración."
+        )
         error_text = resp.text[:500]
         logger.error(f"[last_mile] ❌ {slug} rejected order {order_id}: {resp.status_code} {error_text}")
         raise HTTPException(
@@ -410,8 +414,14 @@ async def create_carrier_delivery(carrier: dict, order: dict, loc: dict) -> str:
         confirm_url = f"{base_url}/v2/shippings/{carrier_delivery_id}/confirm"
         logger.info(f"[last_mile] 🔍 PedidosYa Confirming... URL={confirm_url}, Headers={headers}")
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            c_resp = await client.post(confirm_url, headers=headers, json={})
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                c_resp = await client.post(confirm_url, headers=headers, json={})
+        except UnicodeEncodeError:
+            raise HTTPException(
+                status_code=400,
+                detail="El API Key de PedidosYa tiene caracteres inválidos (acentos, ñ, etc)."
+            )
         
         logger.info(f"[last_mile] 🔍 PedidosYa Confirm Response {c_resp.status_code}: {c_resp.text}")
         
