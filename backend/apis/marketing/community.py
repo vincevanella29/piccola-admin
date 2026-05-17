@@ -575,10 +575,12 @@ async def dm_send(data: DmSendRequest, user: dict = Depends(verify_session)):
                             target_type="user",
                             target_value=t_doc["token"]
                         )
-                        logger.info(f"Push DM enviado exitosamente a {peer_wallet}")
-                        break # Enviamos solo al dispositivo más reciente
+                        logger.info(f"Push DM enviado exitosamente a {peer_wallet} (dispositivo {t_doc['token'][:10]}...)")
                     except Exception as e:
                         logger.warning(f"Fallo al enviar push DM al token {t_doc['token']}: {e}")
+                        err_str = str(e).lower()
+                        if "senderid mismatch" in err_str or "notregistered" in err_str or "unregistered" in err_str or "invalid registration" in err_str:
+                            db.user_notification_tokens.delete_one({"_id": t_doc["_id"]})
     except Exception as e:
         logger.error(f"Error general en el proceso de notificaciones Push para DMs: {e}")
 

@@ -38,7 +38,7 @@ def _ensure_firebase():
         else:
             return True
             
-    # 1. Try from MongoDB (service_account_json stored via API)
+    # Try from MongoDB (service_account_json stored via API)
     if expected_project_id and sa_data:
         try:
             cred = credentials.Certificate(sa_data)
@@ -48,22 +48,7 @@ def _ensure_firebase():
         except Exception as e:
             logger.error(f"[firebase] Error initializing from MongoDB: {e}")
 
-    # 2. Fallback: try JSON file on disk
-    keys_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'keys')
-    keys_dir = os.path.abspath(keys_dir)
-    if os.path.isdir(keys_dir):
-        for f in os.listdir(keys_dir):
-            if f.endswith('.json') and 'firebase' in f.lower():
-                try:
-                    cred_path = os.path.join(keys_dir, f)
-                    cred = credentials.Certificate(cred_path)
-                    initialize_app(cred)
-                    logger.info(f"[firebase] Initialized from file: {f}")
-                    return True
-                except Exception as e:
-                    logger.error(f"[firebase] Error loading {f}: {e}")
-
-    logger.warning("[firebase] No Firebase credentials found (MongoDB or file)")
+    logger.warning("[firebase] No Firebase credentials found in MongoDB. Upload via Admin Panel settings.")
     return False
 
 # Modelos Pydantic
@@ -667,22 +652,31 @@ async def send_notification(data: SendNotificationRequest, user: dict = Depends(
             logger.info(f"[notifications] Fallback: using newest token from wallet {tokens[0]['wallet']}")
         
         last_error = None
+        success_count = 0
+        error_count = 0
+        error_msgs = []
+        
         for t_doc in tokens:
             fcm_token = t_doc["token"]
             try:
                 response = await send_fcm_notification(api_config, title, body, icon_url, image_url, link_url, "user", fcm_token, campaign_id)
-                _log_campaign(campaign_id, title, body, target_type, target_value, 1, 0, [], user.get("wallet", "system"))
-                return {"success": True, "message": "Notificación enviada", "response": response}
+                success_count += 1
             except Exception as e:
                 err_str = str(e).lower()
                 last_error = e
+                error_count += 1
+                error_msgs.append(str(e))
                 # Delete invalid tokens (SenderId mismatch usually means old project, NotRegistered means user uninstalled/cleared browser data)
                 if "senderid mismatch" in err_str or "notregistered" in err_str or "unregistered" in err_str or "invalid registration" in err_str:
                     logger.warning(f"[notifications] Invalid token detected ({err_str}). Deleting from DB.")
                     db.user_notification_tokens.delete_one({"_id": t_doc["_id"]})
                     
-        _log_campaign(campaign_id, title, body, target_type, target_value, 0, 1, [str(last_error)], user.get("wallet", "system"))
-        raise HTTPException(status_code=500, detail=f"Error enviando notificación: {str(last_error)}")
+        _log_campaign(campaign_id, title, body, target_type, target_value, success_count, error_count, error_msgs, user.get("wallet", "system"))
+        
+        if success_count > 0:
+            return {"success": True, "message": f"Notificación enviada a {success_count} dispositivos"}
+        else:
+            raise HTTPException(status_code=500, detail=f"Error enviando notificación a dispositivos: {str(last_error)}")
 
     elif target_type == "topic":
         try:
