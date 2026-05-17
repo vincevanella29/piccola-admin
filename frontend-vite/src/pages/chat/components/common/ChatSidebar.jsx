@@ -12,27 +12,28 @@ const ClientInbox = ({
   onNew,
 }) => {
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="sticky top-0 px-0 pt-0 pb-2.5 backdrop-blur bg-light-surface/80 dark:bg-dark-surface/80 border-b border-light-border/60 dark:border-dark-border/60">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">{t('chat.conversations')}</h3>
-          <button
-            type="button"
-            className="px-2 py-1 text-xs rounded bg-matrix-green text-dark-bg hover:bg-matrix-green/90"
-            onClick={onNew}
-          >
-            {t('chat.new')}
-          </button>
-        </div>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-light-surface/50 dark:bg-dark-surface/50 rounded-2xl border border-light-border/20 dark:border-dark-border/20 shadow-sm relative">
+      <div className="sticky top-0 px-4 py-3 backdrop-blur-xl bg-light-surface/80 dark:bg-dark-surface/80 border-b border-light-border/20 dark:border-dark-border/20 z-10 flex items-center justify-between">
+        <h3 className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">{t('chat.conversations')}</h3>
+        <button
+          type="button"
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-light-accent/10 dark:bg-dark-accent/10 text-light-accent dark:text-dark-accent hover:bg-light-accent/20 dark:hover:bg-dark-accent/20 transition-colors"
+          onClick={onNew}
+          title={t('chat.new')}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        </button>
       </div>
-      <div className="min-h-0 w-full max-w-full overflow-auto overflow-x-hidden pr-1 md:pr-2 gap-2 pt-2">
-        {loading && <div className="text-sm opacity-70">{t('chat.loading')}</div>}
+      <div className="min-h-0 w-full flex-1 overflow-auto overflow-x-hidden scrollbar-none pb-2">
+        {loading && <div className="text-[13px] font-medium opacity-60 px-4 pt-6 text-center">{t('chat.loading')}</div>}
         {!loading && items.length === 0 && (
-          <div className="text-sm opacity-70">{t('chat.no_conversation')}</div>
+          <div className="text-[13px] font-medium opacity-60 px-4 pt-6 text-center">{t('chat.no_conversation')}</div>
         )}
-        {items?.map((it) => (
-          <ClientRow key={it.conv_id} t={t} item={it} isActive={activeConvId === it.conv_id} onOpen={onOpen} />
-        ))}
+        <div className="flex flex-col">
+          {items?.map((it) => (
+            <ClientRow key={it.conv_id} t={t} item={it} isActive={activeConvId === it.conv_id} onOpen={onOpen} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -42,103 +43,76 @@ const ClientRow = ({ t, item, isActive, onOpen }) => {
   return (
     <button
       onClick={() => onOpen(item.conv_id)}
-      className={`w-full max-w-full overflow-hidden break-words text-left px-3 py-2 rounded border transition min-h-[80px] max-h-[85px] ${isActive ? 'border-matrix-green/60 bg-matrix-green/10' : 'border-light-border/60 dark:border-dark-border/60 hover:bg-light-surface-tertiary/60 dark:hover:bg-dark-surface-tertiary/60'}`}
+      className={`relative w-full max-w-full overflow-hidden text-left px-4 py-3 transition-colors ${isActive ? 'bg-light-accent/10 dark:bg-dark-accent/10' : 'hover:bg-light-surface-tertiary/40 dark:hover:bg-dark-surface-tertiary/40'}`}
     >
-      <div className="flex items-center justify-between gap-2 text-sm w-full max-w-full overflow-hidden">
-        <div className="font-medium truncate min-w-0 max-w-full flex-1">{t('chat.conversation')} #{item.conv_id}</div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className="px-1.5 py-0.5 text-[10px] rounded border bg-light-surface-tertiary/60 border-light-border/40 dark:bg-dark-surface-tertiary/60 dark:border-dark-border/40">{item.status}</span>
-          {item.mode && <span className="px-1.5 py-0.5 text-[10px] rounded border bg-light-surface-tertiary/60 border-light-border/40 dark:bg-dark-surface-tertiary/60 dark:border-dark-border/40">{item.mode}</span>}
+      <div className="flex items-center gap-3 w-full">
+        {/* Avatar Placeholder */}
+        <div className="w-[42px] h-[42px] rounded-full flex-shrink-0 bg-gradient-to-br from-light-surface-secondary to-light-surface-tertiary dark:from-dark-surface-secondary dark:to-dark-surface-tertiary flex items-center justify-center border border-light-border/40 dark:border-dark-border/40 shadow-sm">
+           <span className="text-sm font-bold text-light-text-secondary dark:text-dark-text-secondary">{item.conv_id?.toString().slice(-2)}</span>
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <span className="text-[15px] font-bold text-light-text-primary dark:text-dark-text-primary truncate">{t('chat.conversation')} #{item.conv_id}</span>
+            <span className="text-[12px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary flex-shrink-0">
+              {item.updated_at ? new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-secondary dark:text-dark-text-secondary border border-light-border/20 dark:border-dark-border/20">{item.status}</span>
+            {item.mode && <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-secondary dark:text-dark-text-secondary border border-light-border/20 dark:border-dark-border/20">{item.mode}</span>}
+          </div>
+
+          <div className={`text-[14px] leading-snug truncate ${isActive ? 'text-light-text-primary dark:text-dark-text-primary opacity-90' : 'text-light-text-secondary dark:text-dark-text-secondary'}`}>
+            {item.last_text || t('chat.no_messages')}
+          </div>
         </div>
       </div>
-      <div className="mt-2 text-sm opacity-75 leading-snug whitespace-pre-line line-clamp-2 overflow-hidden text-ellipsis max-w-full">{item.last_text || t('chat.no_messages')}</div>
-      <div className="text-[11px] opacity-60 mt-1.5 truncate max-w-full overflow-hidden">
-        {item.updated_at ? new Date(item.updated_at).toLocaleString() : ''}
-      </div>
+      {/* iOS Style Separator */}
+      <div className="absolute bottom-0 right-0 left-[68px] h-[1px] bg-light-border/30 dark:bg-dark-border/30" />
     </button>
   );
 };
 
-/**
- * ChatSidebar: unified sidebar for admin/client/delivery.
- * - Admin: renders AdminInbox with pagination/filter and open conversation.
- * - Client: renders ClientInbox with conversation list and new button.
- * - Delivery: renders DeliveryInbox with order-based chat list.
- */
 const ChatSidebar = ({
   variant = 'client',
   t,
-  // admin props
   admin: {
-    items = [],
-    loading = false,
-    page = 1,
-    pageSize = 20,
-    statusFilter = 'open',
-    onChangePage,
-    onChangePageSize,
-    onChangeStatus,
-    onOpen,
-    activeConvId,
+    items = [], loading = false, page = 1, pageSize = 20, statusFilter = 'open',
+    onChangePage, onChangePageSize, onChangeStatus, onOpen, activeConvId,
   } = {},
-  // client props
   client: {
-    unreadCount = 0,
-    onNew,
-    conversations = [],
-    convosLoading = false,
-    openConversation,
-    activeConvId: clientActiveConvId,
+    unreadCount = 0, onNew, conversations = [], convosLoading = false,
+    openConversation, activeConvId: clientActiveConvId,
   } = {},
-  // delivery props
   delivery: {
-    items: deliveryItems = [],
-    loading: deliveryLoading = false,
-    statusFilter: deliveryStatusFilter = 'open',
-    onChangeStatus: deliveryOnChangeStatus,
-    onOpen: deliveryOnOpen,
-    activeOrderNumber,
+    items: deliveryItems = [], loading: deliveryLoading = false, statusFilter: deliveryStatusFilter = 'open',
+    onChangeStatus: deliveryOnChangeStatus, onOpen: deliveryOnOpen, activeOrderNumber,
   } = {},
 }) => {
   const isAdmin = variant === 'admin';
   const isDelivery = variant === 'delivery';
 
   return (
-    <div className="h-full min-h-0 rounded-lg border bg-light-surface-secondary/60 border-light-border/60 dark:bg-dark-surface-secondary/60 dark:border-dark-border/60 p-3 overflow-hidden">
-      <div className={`h-full min-h-0 ${isAdmin || isDelivery ? 'overflow-auto' : 'overflow-hidden'} pr-1 md:pr-2`}>
+    <div className="h-full min-h-0 overflow-hidden px-2 sm:px-4 py-2">
         {isDelivery ? (
           <DeliveryInbox
-            items={deliveryItems}
-            loading={deliveryLoading}
-            statusFilter={deliveryStatusFilter}
-            onChangeStatus={deliveryOnChangeStatus}
-            onOpen={deliveryOnOpen}
-            activeOrderNumber={activeOrderNumber}
+            items={deliveryItems} loading={deliveryLoading} statusFilter={deliveryStatusFilter}
+            onChangeStatus={deliveryOnChangeStatus} onOpen={deliveryOnOpen} activeOrderNumber={activeOrderNumber}
           />
         ) : isAdmin ? (
           <AdminInbox
-            items={items}
-            loading={loading}
-            page={page}
-            pageSize={pageSize}
-            statusFilter={statusFilter}
-            onChangePage={onChangePage}
-            onChangePageSize={onChangePageSize}
-            onChangeStatus={onChangeStatus}
-            onOpen={onOpen}
-            activeConvId={activeConvId}
+            items={items} loading={loading} page={page} pageSize={pageSize} statusFilter={statusFilter}
+            onChangePage={onChangePage} onChangePageSize={onChangePageSize} onChangeStatus={onChangeStatus}
+            onOpen={onOpen} activeConvId={activeConvId}
           />
         ) : (
           <ClientInbox
-            t={t}
-            items={conversations}
-            loading={convosLoading}
-            onOpen={openConversation}
-            activeConvId={clientActiveConvId}
-            onNew={onNew}
+            t={t} items={conversations} loading={convosLoading} onOpen={openConversation}
+            activeConvId={clientActiveConvId} onNew={onNew}
           />
         )}
-      </div>
     </div>
   );
 };
@@ -154,17 +128,16 @@ const DeliveryInbox = ({
   activeOrderNumber,
 }) => {
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      {/* Filter */}
-      <div className="sticky top-0 px-0 pt-0 pb-2.5 backdrop-blur bg-light-surface/80 dark:bg-dark-surface/80 border-b border-light-border/60 dark:border-dark-border/60">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold">🍕 Delivery Chats</h3>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-light-surface/50 dark:bg-dark-surface/50 rounded-2xl border border-light-border/20 dark:border-dark-border/20 shadow-sm relative">
+      <div className="sticky top-0 px-4 py-3 backdrop-blur-xl bg-light-surface/80 dark:bg-dark-surface/80 border-b border-light-border/20 dark:border-dark-border/20 z-10">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary tracking-tight">🍕 Delivery</h3>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-2">
           {['open', 'closed', 'all'].map((s) => (
             <button
               key={s}
-              className={`px-2 py-1 text-[10px] font-bold uppercase rounded transition-all ${statusFilter === s ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' : 'opacity-60 hover:opacity-100 border border-transparent'}`}
+              className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all ${statusFilter === s ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/30' : 'bg-light-surface-tertiary dark:bg-dark-surface-tertiary text-light-text-secondary dark:text-dark-text-secondary border border-transparent hover:bg-light-border/20 dark:hover:bg-dark-border/20'}`}
               onClick={() => onChangeStatus?.(s)}
             >
               {s === 'all' ? 'Todos' : s === 'open' ? 'Abiertos' : 'Cerrados'}
@@ -173,20 +146,21 @@ const DeliveryInbox = ({
         </div>
       </div>
 
-      {/* List */}
-      <div className="min-h-0 w-full max-w-full overflow-auto overflow-x-hidden pr-1 md:pr-2 gap-2 pt-2 space-y-2">
-        {loading && <div className="text-sm opacity-70">Cargando...</div>}
+      <div className="min-h-0 w-full flex-1 overflow-auto overflow-x-hidden scrollbar-none pb-2">
+        {loading && <div className="text-[13px] font-medium opacity-60 px-4 pt-6 text-center">Cargando...</div>}
         {!loading && items.length === 0 && (
-          <div className="text-sm opacity-70">Sin chats de delivery</div>
+          <div className="text-[13px] font-medium opacity-60 px-4 pt-6 text-center">Sin chats de delivery</div>
         )}
-        {items.map((it) => (
-          <DeliveryRow
-            key={it.order_number}
-            item={it}
-            isActive={activeOrderNumber === it.order_number}
-            onOpen={onOpen}
-          />
-        ))}
+        <div className="flex flex-col">
+          {items.map((it) => (
+            <DeliveryRow
+              key={it.order_number}
+              item={it}
+              isActive={activeOrderNumber === it.order_number}
+              onOpen={onOpen}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -194,53 +168,45 @@ const DeliveryInbox = ({
 
 const DeliveryRow = ({ item, isActive, onOpen }) => {
   const modeBadge = item.mode === 'human'
-    ? { text: '👤 Human', cls: 'bg-blue-500/20 text-blue-400 border-blue-500/40' }
-    : { text: '🤖 Bot', cls: 'bg-green-500/20 text-green-400 border-green-500/40' };
+    ? { text: '👤 Human', cls: 'bg-blue-500/10 text-blue-500 border-blue-500/20' }
+    : { text: '🤖 Bot', cls: 'bg-green-500/10 text-green-500 border-green-500/20' };
 
   return (
     <button
       onClick={() => onOpen?.(item.order_number)}
-      className={`w-full text-left px-3 py-2.5 rounded-lg border transition ${isActive ? 'border-orange-500/60 bg-orange-500/10' : 'border-light-border/60 dark:border-dark-border/60 hover:bg-light-surface-tertiary/60 dark:hover:bg-dark-surface-tertiary/60'}`}
+      className={`relative w-full text-left px-4 py-3 transition-colors ${isActive ? 'bg-orange-500/10 dark:bg-orange-500/10' : 'hover:bg-light-surface-tertiary/40 dark:hover:bg-dark-surface-tertiary/40'}`}
     >
-      <div className="flex items-center justify-between gap-2 text-sm w-full min-w-0">
-        <div className="font-medium truncate min-w-0 flex-1">#{item.order_number}</div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className={`px-1.5 py-0.5 text-[10px] rounded border ${modeBadge.cls}`}>{modeBadge.text}</span>
-          {item.unread > 0 && (
-            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-red-500 text-white font-bold min-w-[18px] text-center">{item.unread}</span>
-          )}
+      <div className="flex items-center gap-3 w-full">
+        {/* Avatar Placeholder para Delivery */}
+        <div className="w-[42px] h-[42px] rounded-full flex-shrink-0 bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center border border-orange-500/30 shadow-sm relative">
+           <span className="text-sm font-bold text-orange-600 dark:text-orange-400">#{item.order_number?.toString().slice(-2)}</span>
+           {item.unread > 0 && (
+             <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold px-1 border-2 border-light-surface dark:border-dark-surface shadow-sm">
+               {item.unread}
+             </span>
+           )}
         </div>
-      </div>
-      <div className="flex items-center gap-2 mt-0.5">
-        <span className="text-xs opacity-70 truncate max-w-[120px]">{item.customer_name || 'Cliente'}</span>
-        {item.customer_stats && (
-          <div className="flex items-center gap-1 shrink-0">
-            {item.customer_stats.total_orders === 1 ? (
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-matrix-green/20 text-matrix-green border border-matrix-green/30 uppercase tracking-wide">Nuevo</span>
-            ) : (
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                {item.customer_stats.total_orders} Pedidos
-              </span>
-            )}
-            {item.customer_stats.avg_review && item.customer_stats.avg_review > 0 && (
-              <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                ⭐ {item.customer_stats.avg_review.toFixed(1)}
-              </span>
-            )}
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <span className="text-[15px] font-bold text-light-text-primary dark:text-dark-text-primary truncate">Pedido #{item.order_number}</span>
+            <span className="text-[12px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary flex-shrink-0">
+              {item.last_at ? new Date(item.last_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+            </span>
           </div>
-        )}
-      </div>
-      {item.order_review && (
-        <div className="mt-1.5 flex items-center gap-1.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2 py-1 rounded text-[10px] font-medium leading-snug">
-          ⭐ {item.order_review.overall_stars} {item.order_review.comment ? `- "${item.order_review.comment}"` : ''}
+          
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+            <span className={`px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border ${modeBadge.cls}`}>{modeBadge.text}</span>
+            <span className="text-[12px] font-medium text-light-text-secondary dark:text-dark-text-secondary truncate max-w-[120px] ml-1">{item.customer_name || 'Cliente'}</span>
+          </div>
+
+          <div className={`text-[14px] leading-snug truncate ${isActive ? 'text-light-text-primary dark:text-dark-text-primary opacity-90' : 'text-light-text-secondary dark:text-dark-text-secondary'}`}>
+            {item.last_text || 'Sin mensajes'}
+          </div>
         </div>
-      )}
-      <div className="mt-1.5 text-sm opacity-75 leading-snug whitespace-pre-line line-clamp-2 overflow-hidden text-ellipsis">
-        {item.last_text || 'Sin mensajes'}
       </div>
-      <div className="text-[11px] opacity-60 mt-1 truncate">
-        {item.last_at ? new Date(item.last_at).toLocaleString() : ''}
-      </div>
+      {/* iOS Style Separator */}
+      <div className="absolute bottom-0 right-0 left-[68px] h-[1px] bg-light-border/30 dark:bg-dark-border/30" />
     </button>
   );
 };

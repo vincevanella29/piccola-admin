@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as Icons from 'react-icons/fa';
 import {
-  Menu, X, Search, User, Wallet, LogOut, Copy, Share2, Eye, ChevronDown, Sparkles, UserCircle2
+  Menu, X, Search, User, Wallet, LogOut, Copy, Share2, Eye, ChevronDown, Sparkles, UserCircle2, BellOff, BellRing
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 
@@ -14,6 +14,7 @@ import PiccolaIcon from './common/PiccolaIcon';
 // import VanellixIcon from './common/VanellixIcon.jsx'; 
 import { getHeaderConfig, getWalletMenuConfig, getSearchConfig } from '../pages/pagesConfig';
 import { useWalletBalances } from '../hooks/useWalletBalances.jsx';
+import AdminPushPrompt from './common/AdminPushPrompt.jsx';
 
 // --- ESTILOS GLASSMORPHISM ---
 const DOCK_GLASS = "backdrop-blur-xl bg-light-surface/85 dark:bg-dark-surface/85 border border-light-border/50 dark:border-dark-border/50 shadow-modal";
@@ -159,11 +160,21 @@ const CommandOverlay = ({ open, onClose, searchConfig, onNavigate }) => {
 };
 
 // --- WALLET SHEET CENTRADO (Estilo Modal) ---
-const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconnect, menuItems = [], t, chainId, isAuthenticated }) => {
+const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconnect, menuItems = [], t, chainId, isAuthenticated, appState }) => {
   const { tokens = [], loading: balancesLoading } = useWalletBalances(account, open, chainId) || {};
   const native = Array.isArray(tokens) ? tokens.find((t) => t?.isNative) : null;
   const nativeBalance = typeof native?.balance === 'number' ? native.balance : null;
   const nativeSymbol = native?.symbol || (chainId ? 'ETH' : '');
+
+  const notifications = appState?.useNotifications;
+  const isPushEnabled = notifications?.notificationPermission === 'granted';
+
+  const handleToggleNotifications = async () => {
+    haptics();
+    if (!isPushEnabled && notifications?.saveNotificationToken) {
+      await notifications.saveNotificationToken();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -277,6 +288,37 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
                           <div className="text-[10px] text-light-text-secondary mt-1 flex items-center gap-1">
                             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Chain ID: {chainId || 'N/A'}
                           </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notifications Toggle */}
+                    {account && (
+                      <div className="mb-6 p-4 rounded-3xl bg-gradient-to-r from-light-surface-secondary to-light-surface dark:from-dark-surface-secondary dark:to-dark-surface border border-light-border/50 dark:border-dark-border/50 shadow-sm flex items-center justify-between gap-3 relative overflow-hidden group">
+                        <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+                          <BellRing size={80} />
+                        </div>
+                        <div className="flex items-center gap-3 relative z-10 min-w-0">
+                          <div className={`p-2.5 rounded-xl flex-shrink-0 transition-colors ${isPushEnabled ? 'bg-light-success/20 text-light-success dark:bg-dark-success/20 dark:text-dark-success' : 'bg-light-text-tertiary/20 text-light-text-tertiary dark:bg-dark-text-tertiary/20 dark:text-dark-text-tertiary'}`}>
+                            {isPushEnabled ? <BellRing size={18} /> : <BellOff size={18} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary truncate leading-none mb-1">
+                              Notificaciones
+                            </div>
+                            <div className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary leading-tight line-clamp-2">
+                              {isPushEnabled ? 'Estás recibiendo alertas y noticias de la comunidad.' : 'Actívalas para no perderte las novedades.'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="relative z-10 shrink-0">
+                          <button
+                            onClick={handleToggleNotifications}
+                            disabled={isPushEnabled || notifications?.isLoading}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isPushEnabled ? 'bg-light-success dark:bg-dark-success cursor-default opacity-80' : 'bg-light-border dark:bg-dark-border cursor-pointer hover:bg-light-border/80 dark:hover:bg-dark-border/80'}`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPushEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
                         </div>
                       </div>
                     )}
@@ -526,6 +568,9 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
         chainId={appState?.chainId}
         isAuthenticated={appState?.isAuthenticated}
       />
+
+      {/* Prompt para pedir permisos de Notificación a usuarios/empleados */}
+      <AdminPushPrompt appState={appState} />
     </>
   );
 };

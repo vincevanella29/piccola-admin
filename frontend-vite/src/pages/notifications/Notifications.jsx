@@ -81,9 +81,12 @@ const Notifications = ({ appState }) => {
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [showAI, setShowAI] = useState(false);
 
-  // Load data on tab change
   useEffect(() => {
-    if (activeTab === 'templates') { notif.fetchNotificationTypes(); notif.fetchApiConfigs(); }
+    if (activeTab === 'templates') { 
+      notif.fetchNotificationTypes(); 
+      notif.fetchApiConfigs(); 
+      notif.loadTriggers();
+    }
     if (activeTab === 'send') {
       notif.fetchNotificationTypes();
       notif.fetchUsersWithTokens();

@@ -732,30 +732,45 @@ async def delivery_chat_message(
             
             logger.info(f"[delivery_chat_message] Respuesta recibida de chat_complete: {type(response_text)}")
             
-            # Normalize response_text to string
+            # Normalize response_text to string and extract payload
+            bot_payload = None
             if isinstance(response_text, dict):
+                bot_payload = response_text
                 lines = response_text.get("lines", [])
-                response_text = " ".join(lines) if lines else response_text.get("text", "...")
+                if lines:
+                    response_text = " ".join(lines)
+                elif isinstance(response_text.get("text"), str) and response_text.get("text").strip():
+                    response_text = response_text.get("text").strip()
+                else:
+                    response_text = "(respuesta estructurada)"
             elif not isinstance(response_text, str):
                 response_text = str(response_text)
             
             # Save bot response
             bot_now = get_chile_time()
-            CHAT_MSGS.insert_one({
+            bot_msg_doc = {
                 "order_number": payload.order_number,
                 "role": "assistant",
                 "text": response_text,
                 "created_at": bot_now,
-            })
+            }
+            if bot_payload:
+                bot_msg_doc["payload"] = bot_payload
+                
+            CHAT_MSGS.insert_one(bot_msg_doc)
             
             logger.info(f"[delivery_chat_message] Transmitiendo respuesta del bot")
-            await dchat_manager.broadcast(payload.order_number, {
+            bot_ws_msg = {
                 "type": "message",
                 "role": "assistant",
                 "text": response_text,
                 "at": bot_now.isoformat() if hasattr(bot_now, "isoformat") else str(bot_now),
                 "sender_name": "La Nonna 🍕",
-            }, to_admins=None)
+            }
+            if bot_payload:
+                bot_ws_msg["payload"] = bot_payload
+                
+            await dchat_manager.broadcast(payload.order_number, bot_ws_msg, to_admins=None)
             
             logger.info("[delivery_chat_message] Todo procesado con éxito (modo bot)")
             

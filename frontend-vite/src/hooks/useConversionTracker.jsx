@@ -8,6 +8,7 @@ const useConversionTracker = ({ profile, accessToken, account }) => {
   const {
     ready,
     appState,
+    activeProviders, // Extraer activeProviders para inyectarlo en App/MarketingInjector
     setUser,
     // core helpers
     trackPageView,
@@ -36,6 +37,7 @@ const useConversionTracker = ({ profile, accessToken, account }) => {
   return {
     ready: isReady,
     appState, // for useNotifications
+    activeProviders, // Expose activeProviders for MarketingInjector
     // helpers
     trackPageView,
     trackViewItem,

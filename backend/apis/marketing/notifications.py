@@ -255,9 +255,18 @@ async def get_notification_types(user: dict = Depends(verify_session)):
     require_admin_level(user, "marketing")
     types = list(db.notification_types.find({}))
     for t in types:
-        t["id"] = t["id"]
-        t["created_at"] = t["created_at"].isoformat()
-        t["updated_at"] = t["updated_at"].isoformat()
+        t["id"] = t.get("id") or str(t.get("_id", ""))
+        
+        if "created_at" in t and hasattr(t["created_at"], "isoformat"):
+            t["created_at"] = t["created_at"].isoformat()
+        else:
+            t["created_at"] = str(t.get("created_at", ""))
+            
+        if "updated_at" in t and hasattr(t["updated_at"], "isoformat"):
+            t["updated_at"] = t["updated_at"].isoformat()
+        else:
+            t["updated_at"] = str(t.get("updated_at", ""))
+            
         t.pop("_id", None)
     return types
 

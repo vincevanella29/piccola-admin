@@ -44,7 +44,7 @@ const PromotionDashboard = ({ appState }) => {
   } = usePromotionAdmin(appState, t);
 
   const { locations, menus, isLoading: restaurantLoading, error: restaurantError, refresh: refreshRestaurantData } = usePromotionsData(appState);
-  const { data: restaurantData } = useRestaurantData();
+  const { data: restaurantData } = useRestaurantData(appState);
   const [activeTab, setActiveTab]     = useState('create');
   const [formError, setFormError]     = useState(null);
 

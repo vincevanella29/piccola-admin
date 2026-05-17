@@ -44,6 +44,7 @@ export default function DeliveryOrderModal({ open, onClose, delivery, order, cus
 
   return (
     <OrderDetailModal
+      isEmbedded={true}
       order={activeOrder}
       statusesMap={statusesMap}
       allStatuses={statuses}

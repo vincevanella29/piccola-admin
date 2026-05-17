@@ -19,6 +19,7 @@ import getWagmiConfig from './wagmiConfig.js';
 import useNotifications from './hooks/useNotifications.jsx';
 import { Helmet } from 'react-helmet-async';
 import useConversionTracker from './hooks/useConversionTracker.jsx'; // Importamos el nuevo hook
+import MarketingInjector from './components/MarketingInjector.jsx';
 
 // Configuración global 
 const rpcUrl = window.env?.VITE_RPC_URL || import.meta.env.VITE_RPC_URL;
@@ -117,6 +118,7 @@ const MainContent = () => {
 
   // Usamos el hook de Conversion Tracker
   const {
+    activeProviders,
     dripEnabled,
     setDripEnabled,
     trackDripEvent,
@@ -283,6 +285,7 @@ const MainContent = () => {
     <ThemeProvider colors={colors} userLevel={userLevel}>
       <ErrorBoundary t={t}>
         <div className="min-h-screen flex flex-col bg-dark-bg dark:bg-dark-dark">
+          <MarketingInjector trackers={activeProviders} />
           <Helmet>
             {dripAccountId && (
               <>

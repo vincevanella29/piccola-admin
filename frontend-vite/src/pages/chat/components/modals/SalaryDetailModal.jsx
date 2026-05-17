@@ -1,5 +1,6 @@
 // src/pages/chat/components/modals/SalaryDetailModal.jsx
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Briefcase, MapPin, DollarSign, Calendar, Phone, Flag, Activity, Building2, CreditCard } from 'lucide-react';
 
@@ -29,25 +30,25 @@ export default function SalaryDetailModal({ open, row, onClose }) {
   // Highlight Metric (Líquido)
   const liquidSalary = r.sueldo_liquido_a_pago || r.amount;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-[9990] bg-black/40 backdrop-blur-[4px]"
             onClick={onClose}
           />
 
           {/* Modal Container */}
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 pointer-events-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", stiffness: 350, damping: 30 }}
-              className="w-full max-w-lg bg-light-surface dark:bg-dark-surface rounded-[24px] shadow-2xl overflow-hidden pointer-events-auto border border-light-border/40 dark:border-dark-border/40 flex flex-col max-h-[65vh]"
+              className="w-[96vw] sm:w-[90vw] md:w-full max-w-lg bg-light-surface/95 dark:bg-dark-surface/95 backdrop-blur-xl rounded-[28px] shadow-2xl overflow-hidden pointer-events-auto border border-light-border/40 dark:border-dark-border/40 flex flex-col max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}
             >
               
@@ -142,7 +143,8 @@ export default function SalaryDetailModal({ open, row, onClose }) {
           </div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 

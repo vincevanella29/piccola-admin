@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { FaWallet, FaTimes } from 'react-icons/fa';
+import { FaWallet, FaTimes, FaChevronDown } from 'react-icons/fa';
 import CommunityTab from './components/community/CommunityTab';
 
 // Componentes Locales
@@ -37,7 +37,7 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
   const msgClient = useChatClient({ appState, accessToken: appState?.token, account: appState?.account });
   const adminState = useAdminChat({ appState, enabled: isAdmin });
   const deliveryChat = useDeliveryChatAdmin({ appState, enabled: canDelivery && activeTab === 'delivery' });
-  const { data: restaurantData } = useRestaurantData();
+  const { data: restaurantData } = useRestaurantData(appState);
 
   const [showSidebar, setShowSidebar] = useState(false);
   const [showJumpClient, setShowJumpClient] = useState(false);
@@ -46,12 +46,13 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
   const [adminScrollToBottom, setAdminScrollToBottom] = useState(null);
   const [deliveryScrollToBottom, setDeliveryScrollToBottom] = useState(null);
   const [showJumpDelivery, setShowJumpDelivery] = useState(false);
+  const [showContextSelector, setShowContextSelector] = useState(false);
 
-  // Detectar si es Desktop para aplicar el margen dinámico
-  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  // Detectar si es Desktop/Tablet (md breakpoint) para aplicar el layout flotante
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   
   useEffect(() => {
-    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    const handleResize = () => setIsDesktop(window.innerWidth >= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -98,23 +99,26 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
 
   return (
     <div 
-      className={`flex justify-center items-center transition-all duration-500 ease-in-out ${isDesktop ? 'w-full h-[calc(100vh-220px)]' : 'fixed inset-0 z-[45]'}`}
-      style={!isDesktop ? { 
-        top: '96px', 
-        bottom: '112px', 
-        left: '0', 
-        right: '0' 
-      } : {}}
+      className={`flex justify-center items-center transition-all duration-500 ease-in-out w-full fixed md:relative z-[45] md:z-auto p-0 md:p-4 lg:p-6`}
+      style={{
+        top: isDesktop ? 'auto' : '90px', // Just below header floating dock
+        bottom: isDesktop ? 'auto' : '96px', // Just above footer
+        left: isDesktop ? 'auto' : '16px', // 4 tailwind units (16px) margin
+        right: isDesktop ? 'auto' : '16px', // 4 tailwind units (16px) margin
+        width: isDesktop ? '100%' : 'auto',
+        height: isDesktop ? 'calc(100vh - 180px)' : 'auto',
+        maxHeight: isDesktop ? '800px' : 'none'
+      }}
     >
         <motion.div
-          className={`w-full h-full flex flex-col overflow-hidden pointer-events-auto ${WINDOW_GLASS} ${isDesktop ? 'max-w-[1400px] rounded-[32px] border shadow-[0_30px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.4)]' : 'rounded-none border-none'}`}
-          initial={isDesktop ? { opacity: 0, scale: 0.98, y: 20 } : { opacity: 0, x: '100%' }}
-          animate={isDesktop ? { opacity: 1, scale: 1, y: 0 } : { opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, type: 'spring', bounce: 0.15 }}
+          className={`w-full h-full flex flex-col overflow-hidden pointer-events-auto ${WINDOW_GLASS} ${isDesktop ? 'max-w-[1200px] rounded-[24px]' : 'rounded-3xl'} border border-light-border/20 dark:border-dark-border/20 shadow-[0_20px_50px_rgba(0,0,0,0.2)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)]`}
+          initial={isDesktop ? { opacity: 0, scale: 0.98, y: 20 } : { opacity: 0, y: 50, scale: 0.95 }}
+          animate={isDesktop ? { opacity: 1, scale: 1, y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.4, type: 'spring', bounce: 0.15 }}
         >
           
           {/* --- HEADER (Dentro de la ventana) --- */}
-          <div className="shrink-0 z-20">
+          <div className="shrink-0 z-[60] relative">
             <ChatHeader
               variant={activeTab === 'delivery' ? 'admin' : (isAdmin ? 'admin' : 'client')}
               title={activeTab === 'delivery' ? 'Delivery 🍕' : (isAdmin ? (activeTab === 'admin' ? 'Panel de Comando' : 'Vista Cliente') : (t('chat.title') || 'Chat Soporte'))}
@@ -124,29 +128,61 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
               onOpenConversations={(!isAdmin || activeTab === 'client' || activeTab === 'community') ? (() => setShowSidebar(v => !v)) : undefined}
               unreadInboxCount={activeTab === 'delivery' ? (deliveryChat.items?.reduce((s, i) => s + (i.unread || 0), 0) || 0) : (isAdmin ? (adminState.unreadInboxCount || 0) : (msgClient.unreadCount || 0))}
               rightContent={(isAdmin || canCommunity) && (
-                <div className={`flex p-1 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/50 dark:border-dark-border/50 ${!isDesktop ? 'overflow-x-auto max-w-[160px] no-scrollbar' : ''}`}>
+                <div className="relative">
                   <button 
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'client' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
-                    onClick={() => setActiveTab('client')}
-                  >Client</button>
-                  {isAdmin && (
-                    <button 
-                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'admin' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
-                      onClick={() => setActiveTab('admin')}
-                    >Admin</button>
-                  )}
-                  {canDelivery && (
-                    <button 
-                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'delivery' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
-                      onClick={() => setActiveTab('delivery')}
-                    >Delivery 🍕</button>
-                  )}
-                  {canCommunity && (
-                    <button 
-                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${activeTab === 'community' ? 'bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary shadow-sm' : 'text-light-text-tertiary hover:text-light-text-primary'}`} 
-                      onClick={() => setActiveTab('community')}
-                    >Community 🍝</button>
-                  )}
+                    onClick={() => setShowContextSelector(!showContextSelector)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/50 dark:border-dark-border/50 hover:opacity-80 transition-opacity text-sm font-bold"
+                  >
+                    <span className="truncate max-w-[100px] sm:max-w-none">
+                      {activeTab === 'client' ? 'Client' : activeTab === 'admin' ? 'Admin' : activeTab === 'delivery' ? 'Delivery 🍕' : 'Community 🍝'}
+                    </span>
+                    <FaChevronDown size={12} className="opacity-50" />
+                  </button>
+
+                  <AnimatePresence>
+                    {showContextSelector && (
+                      <>
+                        {/* Overlay to close */}
+                        <div className="fixed inset-0 z-40" onClick={() => setShowContextSelector(false)} />
+                        
+                        {/* Dropdown menu */}
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          className="absolute right-0 top-full mt-2 w-48 bg-light-surface/95 dark:bg-dark-surface/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-light-border/30 dark:border-dark-border/30 overflow-hidden z-50 p-1.5 flex flex-col gap-1"
+                        >
+                          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-light-text-tertiary">Cambiar Contexto</div>
+                          
+                          <button 
+                            className={`flex items-center px-3 py-2.5 text-sm font-bold rounded-xl transition-all ${activeTab === 'client' ? 'bg-light-accent/10 text-light-accent dark:bg-dark-accent/20 dark:text-dark-accent shadow-sm' : 'hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'}`} 
+                            onClick={() => { setActiveTab('client'); setShowContextSelector(false); }}
+                          >Client</button>
+                          
+                          {isAdmin && (
+                            <button 
+                              className={`flex items-center px-3 py-2.5 text-sm font-bold rounded-xl transition-all ${activeTab === 'admin' ? 'bg-light-accent/10 text-light-accent dark:bg-dark-accent/20 dark:text-dark-accent shadow-sm' : 'hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'}`} 
+                              onClick={() => { setActiveTab('admin'); setShowContextSelector(false); }}
+                            >Admin</button>
+                          )}
+                          
+                          {canDelivery && (
+                            <button 
+                              className={`flex items-center px-3 py-2.5 text-sm font-bold rounded-xl transition-all ${activeTab === 'delivery' ? 'bg-light-accent/10 text-light-accent dark:bg-dark-accent/20 dark:text-dark-accent shadow-sm' : 'hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'}`} 
+                              onClick={() => { setActiveTab('delivery'); setShowContextSelector(false); }}
+                            >Delivery 🍕</button>
+                          )}
+                          
+                          {canCommunity && (
+                            <button 
+                              className={`flex items-center px-3 py-2.5 text-sm font-bold rounded-xl transition-all ${activeTab === 'community' ? 'bg-light-accent/10 text-light-accent dark:bg-dark-accent/20 dark:text-dark-accent shadow-sm' : 'hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary text-light-text-secondary dark:text-dark-text-secondary'}`} 
+                              onClick={() => { setActiveTab('community'); setShowContextSelector(false); }}
+                            >Community 🍝</button>
+                          )}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
             />

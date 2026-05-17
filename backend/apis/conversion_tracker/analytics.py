@@ -9,6 +9,8 @@ from google.analytics.data_v1beta.types import (
     Dimension,
     Metric,
     RunRealtimeReportRequest,
+    RunReportRequest,
+    DateRange,
 )
 
 from utils.auth.session import verify_session
@@ -236,8 +238,8 @@ async def get_realtime_analytics(
             sources_request = RunRealtimeReportRequest(
                 property=f"properties/{property_id}",
                 dimensions=[
-                    Dimension(name="firstUserSource"),
-                    Dimension(name="firstUserMedium"),
+                    Dimension(name="source"),
+                    Dimension(name="medium"),
                 ],
                 metrics=[Metric(name="activeUsers")],
             )
@@ -268,4 +270,78 @@ async def get_realtime_analytics(
         raise
     except Exception as e:
         logger.error(f"Error fetching GA4 realtime report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ─── Historical Models & Endpoints ─────────────────────────────────
+
+class HistoricalRow(BaseModel):
+    dimension: str
+    active_users: int
+
+class HistoricalResponse(BaseModel):
+    provider_id: str
+    provider_name: str
+    property_id: str
+    users_by_date: List[HistoricalRow]
+    users_by_source: List[HistoricalRow]
+
+@router.get("/conversion_tracker/analytics/historical", response_model=HistoricalResponse)
+async def get_historical_analytics(
+    provider_id: str = Query(..., description="The ID of the GA4 provider to query"),
+    days: int = Query(7, description="Number of days to look back"),
+    user: dict = Depends(verify_session)
+):
+    """Fetch historical data from GA4."""
+    require_admin_level(user, "admin")
+    provider = get_ga4_provider_by_id(provider_id)
+    client, property_id = get_ga4_client_from_provider(provider)
+
+    try:
+        # Users by date
+        date_request = RunReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="date")],
+            metrics=[Metric(name="activeUsers")],
+            date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
+        )
+        date_response = client.run_report(date_request)
+        
+        users_by_date = []
+        for row in date_response.rows:
+            date_val = row.dimension_values[0].value
+            try:
+                users = int(row.metric_values[0].value)
+            except ValueError:
+                users = 0
+            users_by_date.append(HistoricalRow(dimension=date_val, active_users=users))
+        users_by_date.sort(key=lambda x: x.dimension)
+        
+        # Users by source
+        source_request = RunReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="sessionSource")],
+            metrics=[Metric(name="activeUsers")],
+            date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
+        )
+        source_response = client.run_report(source_request)
+        
+        users_by_source = []
+        for row in source_response.rows:
+            source_val = row.dimension_values[0].value or "(direct)"
+            try:
+                users = int(row.metric_values[0].value)
+            except ValueError:
+                users = 0
+            users_by_source.append(HistoricalRow(dimension=source_val, active_users=users))
+        users_by_source.sort(key=lambda x: x.active_users, reverse=True)
+
+        return HistoricalResponse(
+            provider_id=provider_id,
+            provider_name=provider.get("name", "Analytics"),
+            property_id=property_id,
+            users_by_date=users_by_date,
+            users_by_source=users_by_source
+        )
+    except Exception as e:
+        logger.error(f"Error fetching GA4 historical report: {e}")
         raise HTTPException(status_code=500, detail=str(e))

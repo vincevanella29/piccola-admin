@@ -157,6 +157,30 @@ const conversionTrackerApi = {
     });
   },
 
+  getHistoricalAnalytics: async ({ providerId, days = 7, token, account } = {}) => {
+    return await api({
+      method: 'get',
+      endpoint: `/conversion_tracker/analytics/historical?provider_id=${providerId}&days=${days}`,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(account ? { 'X-Wallet-Address': account } : {}),
+      },
+      withCredentials: true,
+    });
+  },
+
+  getEventsCatalog: async ({ token, account } = {}) => {
+    return await api({
+      method: 'get',
+      endpoint: '/conversion_tracker/events/catalog',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(account ? { 'X-Wallet-Address': account } : {}),
+      },
+      withCredentials: true,
+    });
+  },
+
   listAnalyticsProviders: async ({ token, account } = {}) => {
     return await api({
       method: 'get',

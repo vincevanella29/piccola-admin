@@ -155,6 +155,8 @@ const AdminConversionTracker = ({ appState }) => {
             setActiveTab={setActiveTab}
             ecosystemProviders={[...ecosystemProviders, { slug: 'admin', name: 'Admin Panel (Self)', domain: window.location.host }]}
             analyticsProviders={analyticsProviders}
+            token={token}
+            account={account}
           />
         )}
         {activeTab === 'config' && (

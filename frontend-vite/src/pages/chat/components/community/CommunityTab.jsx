@@ -111,6 +111,16 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
     setShowSidebar(true);
   }, [setShowSidebar]);
 
+  const handleSelectDmPeerWrapped = useCallback((peer) => {
+    handleSelectDmPeer(peer);
+    if (!isDesktop) {
+      setShowSidebar(false);
+      setShowMembersPanel(false);
+      setSelectedMemberProfile(null);
+      setShowDmPicker(false);
+    }
+  }, [handleSelectDmPeer, isDesktop, setShowSidebar, setShowMembersPanel, setSelectedMemberProfile, setShowDmPicker]);
+
   const mainContent = useMemo(() => {
     const onBack = () => {
       if (!isDesktop) {
@@ -196,7 +206,7 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
             exit={isDesktop ? { width: 0, opacity: 0 } : { x: '-100%', opacity: 1 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className={`h-full border-r border-light-border/20 dark:border-dark-border/10 bg-light-surface-secondary/80 dark:bg-dark-surface-secondary/80 backdrop-blur-3xl shrink-0 z-30 ${
-              isDesktop ? 'relative' : 'fixed inset-y-0 left-0 w-[280px] shadow-[20px_0_40px_rgba(0,0,0,0.3)]'
+              isDesktop ? 'relative' : 'absolute inset-y-0 left-0 w-[280px] shadow-[20px_0_40px_rgba(0,0,0,0.3)]'
             }`}
           >
             <ServerSidebar
@@ -246,7 +256,7 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
             exit={isDesktop ? { width: 0, opacity: 0 } : { x: '100%', opacity: 1 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className={`h-full border-l border-light-border/20 dark:border-dark-border/10 bg-light-surface-secondary/80 dark:bg-dark-surface-secondary/80 backdrop-blur-3xl shrink-0 z-30 ${
-              isDesktop ? 'relative' : 'fixed inset-y-0 right-0 w-[280px] shadow-[-20px_0_40px_rgba(0,0,0,0.3)]'
+              isDesktop ? 'relative' : 'absolute inset-y-0 right-0 w-[280px] shadow-[-20px_0_40px_rgba(0,0,0,0.3)]'
             }`}
           >
             <MembersPanel
@@ -260,7 +270,7 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
               unregisteredCount={presence.unregisteredCount}
               activeGroup={mode === 'group' ? groupHook.activeGroup : null}
               onClickMember={handleMemberClick}
-              onDmMember={handleSelectDmPeer}
+              onDmMember={handleSelectDmPeerWrapped}
               onClose={() => setShowMembersPanel(false)}
               isMobile={!isDesktop}
             />
@@ -295,7 +305,7 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
           <DmPickerModal
             open={showDmPicker}
             onClose={() => setShowDmPicker(false)}
-            onSelectPeer={handleSelectDmPeer}
+            onSelectPeer={handleSelectDmPeerWrapped}
             token={token}
             walletAddress={walletAddress}
           />
@@ -326,7 +336,7 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
             open={!!selectedMemberProfile}
             member={selectedMemberProfile}
             onClose={() => setSelectedMemberProfile(null)}
-            onDm={handleSelectDmPeer}
+            onDm={handleSelectDmPeerWrapped}
             token={token}
             walletAddress={walletAddress}
             appState={appState}

@@ -5,6 +5,8 @@ import createEventQueue from '../trackers/utils/queue';
 import { EVENT_NAMES } from '../trackers/utils/eventMap';
 import { normalizeFirebaseConfig, normalizeGAConfig } from '../trackers/utils/normalizeConfig';
 
+import { trackEvent as rawTrackEvent } from '../components/MarketingInjector.jsx';
+
 // Hook: initialize active providers and expose a unified tracking API
 // It also exposes Firebase handles when available so other hooks (like useNotifications) can reuse them.
 
@@ -54,6 +56,8 @@ const useConversionEvents = ({ token, account, debug = false } = {}) => {
       setReady(anyReady);
       // Flush queued events if any
       await queue.flush(async ({ eventName, payload }) => {
+        // Enviar vía MarketingInjector global
+        rawTrackEvent(eventName, payload);
         for (const a of adaptersRef.current) {
           if (!a.ready) continue;
           const mapper = a.map?.[eventName];
@@ -89,6 +93,9 @@ const useConversionEvents = ({ token, account, debug = false } = {}) => {
   // Core track function
   const track = useCallback(async (eventName, payload = {}) => {
     const dispatch = async () => {
+      // Enviar vía MarketingInjector global (injected en el head)
+      rawTrackEvent(eventName, payload);
+      
       for (const a of adaptersRef.current) {
         if (!a.ready) continue;
         const mapper = a.map?.[eventName];

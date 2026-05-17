@@ -19,12 +19,12 @@ const MessageContent = ({ msg, onRowClick }) => {
   // 2. Structured Payloads
   return (
     <div className="flex flex-col gap-2 mt-1">
-      {msg.text && <MessageText text={msg.text} />}
+      {msg.text && msg.text !== '(respuesta estructurada)' && <MessageText text={msg.text} />}
       
-      {type === 'product_list' && <ProductList products={msg.payload?.products} />}
+      {type === 'product_list' && <ProductList {...msg.payload} />}
       {type === 'product_card' && (
         <div className="flex flex-col gap-3 w-full">
-          <ProductCard product={msg.payload?.product} recipe={msg.payload?.recipe} onClick={() => onRowClick?.(msg.payload?.product, msg.payload)} />
+          <ProductCard product={msg.payload?.product || msg.payload} recipe={msg.payload?.recipe} onClick={() => onRowClick?.(msg.payload?.product || msg.payload, msg.payload)} />
           {msg.payload?.assistant_text && (
             <div className="px-1 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
               <MessageText text={msg.payload.assistant_text} />
@@ -32,11 +32,11 @@ const MessageContent = ({ msg, onRowClick }) => {
           )}
         </div>
       )}
-      {type === 'data_table' && <DataTable data={msg.payload} onRowClick={onRowClick} />}
-      {type === 'history_timeline' && <HistoryTimeline data={msg.payload} />}
+      {type === 'data_table' && <DataTable {...msg.payload} onRowClick={onRowClick} />}
+      {type === 'history_timeline' && <HistoryTimeline payload={msg.payload} />}
       {type === 'club_section' && <ClubSectionCard payload={msg.payload} />}
-      {type === 'location_list' && <LocationList locations={msg.payload?.locations} />}
-      {type === 'location_card' && <LocationCard location={msg.payload?.location} />}
+      {type === 'location_list' && <LocationList {...msg.payload} />}
+      {type === 'location_card' && <LocationCard location={msg.payload?.location || msg.payload} />}
       {type === 'delivery_link' && <LocationCard location={msg.payload} isDeliveryLink={true} />}
       {type === 'text_block_list' && Array.isArray(msg.payload?.lines) && (
         <div className="flex flex-col gap-1.5 mt-2">

@@ -1,5 +1,6 @@
 // OrderDetailModal.jsx — Shared order detail modal for Kanban, History, Dispatch
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import useDeliveryOrders from '../../../hooks/delivery/useDeliveryOrders';
 import { motion } from 'framer-motion';
 import {
@@ -76,7 +77,7 @@ const ContactPill = ({ icon: Icon, text, href, colorCls }) => {
 
 // ── Main Modal ─────────────────────────────────────────────
 
-const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupStatuses = [], onUpdateStatus, canEdit, onClose, locations = [], appState }) => {
+const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupStatuses = [], onUpdateStatus, canEdit, onClose, locations = [], appState, isEmbedded = false }) => {
   const [activeTab, setActiveTab] = useState('details'); // 'details', 'history', 'review'
   const [historyOrders, setHistoryOrders] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -123,49 +124,49 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
     }
   };
 
-  return (
+  const modalContent = (
     <>
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+        className="fixed inset-0 bg-black/50 backdrop-blur-[4px] z-[9990]"
         onClick={onClose}
       />
 
       {/* Contenedor Flex para centrado perfecto */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
-        {/* Panel - Ensanchado a 850px para 2 columnas */}
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 pointer-events-none">
+        {/* Panel */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }} 
           animate={{ opacity: 1, scale: 1, y: 0 }} 
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="pointer-events-auto w-full md:w-[850px] max-h-[85vh] lg:max-h-[calc(100vh-140px)] bg-light-surface dark:bg-dark-surface rounded-2xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-light-border/20 dark:border-dark-border/20"
+          className="pointer-events-auto w-[96vw] sm:w-[90vw] md:w-[850px] flex flex-col overflow-hidden shadow-2xl border border-light-border/30 dark:border-dark-border/30 max-h-[90vh] bg-light-surface/95 dark:bg-dark-surface/95 backdrop-blur-xl rounded-[28px]"
         >
         {/* Dynamic Header Banner */}
         <div className="relative px-6 py-5 flex items-center justify-between border-b border-light-border/10 dark:border-dark-border/10 overflow-hidden">
           {/* Subtle colored background based on status */}
           <div className="absolute inset-0 opacity-10" style={{ backgroundColor: statusColor }} />
           
-          <div className="relative z-10 flex items-center gap-4">
-            <div className="p-3 rounded-2xl bg-light-surface dark:bg-dark-surface shadow-sm border border-light-border/10 dark:border-dark-border/10">
+          <div className="relative z-10 flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
+            <div className="p-2 sm:p-3 rounded-2xl bg-light-surface dark:bg-dark-surface shadow-sm border border-light-border/10 dark:border-dark-border/10 shrink-0 mt-1 sm:mt-0">
               <FaFileInvoiceDollar size={24} style={{ color: statusColor }} />
             </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-bold text-2xl text-light-text-primary dark:text-dark-text-primary font-mono tracking-tight">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                <span className="font-bold text-lg sm:text-2xl text-light-text-primary dark:text-dark-text-primary font-mono tracking-tight truncate">
                   #{(order.order_number || order._id || '').slice(-8).toUpperCase()}
                 </span>
                 {order.order_type && (
-                  <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${order.order_type === 'pickup' ? 'bg-purple-500/20 text-purple-500' : 'bg-cyan-500/20 text-cyan-500'}`}>
+                  <span className={`shrink-0 text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${order.order_type === 'pickup' ? 'bg-purple-500/20 text-purple-500' : 'bg-cyan-500/20 text-cyan-500'}`}>
                     {order.order_type === 'pickup' ? <><FaStore className="inline mr-1 mb-0.5" />Pickup</> : <><FaTruck className="inline mr-1 mb-0.5" />Delivery</>}
                   </span>
                 )}
-                <span className="text-[10px] font-bold text-matrix-green px-2 py-1 rounded bg-matrix-green/10 truncate max-w-[150px]">
+                <span className="shrink-0 text-[10px] font-bold text-matrix-green px-2 py-1 rounded bg-matrix-green/10 truncate max-w-[100px] sm:max-w-[150px]">
                   {locationName}
                 </span>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {canEdit ? (
                   <select
                     value={order.status}
@@ -189,7 +190,7 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
             </div>
           </div>
 
-          <button onClick={onClose} className="relative z-10 p-2.5 rounded-xl bg-light-surface/50 dark:bg-dark-surface/50 hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary backdrop-blur border border-light-border/10 dark:border-dark-border/10 transition-colors">
+          <button onClick={onClose} className="shrink-0 ml-2 relative z-10 p-2.5 rounded-xl bg-light-surface/50 dark:bg-dark-surface/50 hover:bg-light-surface-secondary dark:hover:bg-dark-surface-secondary backdrop-blur border border-light-border/10 dark:border-dark-border/10 transition-colors">
             <FaTimes className="text-light-text-secondary dark:text-dark-text-secondary" size={16} />
           </button>
         </div>
@@ -533,6 +534,8 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
       </div>
     </>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default OrderDetailModal;
