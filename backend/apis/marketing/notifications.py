@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 from utils.time_utils import get_chile_time, to_chile_time
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
-from utils.web3mongo import db
+from utils.web3mongo import db, w3
+from eth_account.messages import encode_defunct
 from firebase_admin import credentials, initialize_app, messaging
 import firebase_admin
 import os
@@ -96,14 +97,19 @@ class NotificationApiConfigResponse(BaseModel):
     web_config: Optional[Dict] = None
     prompt_config: Optional[Dict] = None
     has_service_account: bool = False
+    firebase_initialized: bool = False
     created_at: str
     updated_at: str
     created_by: str
 
 class NotificationTokenCreate(BaseModel):
     token: str
-    device_type: str
-    permissions_granted: bool
+    device_type: str = "web"
+    permissions_granted: bool = False
+
+class SignatureRequest(BaseModel):
+    message: str
+    signature: str
 
 class SendNotificationRequest(BaseModel):
     notification_type_id: str
@@ -361,7 +367,12 @@ async def upload_service_account(file: UploadFile = File(...), user: dict = Depe
         
         # Reset Firebase app so it re-initializes with new creds
         if firebase_admin._apps:
-            firebase_admin.delete_app(firebase_admin.get_app())
+            import asyncio
+            try:
+                # Run in a thread because delete_app might invoke asyncio.run() internally for cleanup
+                await asyncio.to_thread(firebase_admin.delete_app, firebase_admin.get_app())
+            except Exception as e:
+                logger.warning(f"Failed to delete Firebase app: {e}")
         
         logger.info(f"[firebase] Service account uploaded for project: {project_id}")
         return {"success": True, "project_id": project_id, "message": f"Service Account para {project_id} guardado en MongoDB"}
@@ -378,6 +389,15 @@ async def get_api_configs(user: dict = Depends(verify_session)):
     for c in configs:
         c["id"] = c.get("id") or str(c.get("_id", ""))
         c["has_service_account"] = "service_account_json" in c and c["service_account_json"] is not None
+        
+        # Verificar estado real de Firebase
+        _ensure_firebase()
+        try:
+            app = firebase_admin.get_app()
+            c["firebase_initialized"] = (app.project_id == c.get("project_id"))
+        except ValueError:
+            c["firebase_initialized"] = False
+            
         if "created_at" in c and hasattr(c["created_at"], "isoformat"):
             c["created_at"] = c["created_at"].isoformat()
         else:
@@ -535,12 +555,21 @@ async def get_audience(user: dict = Depends(verify_session)):
         
     return audience
 
-@router.delete("/notifications/audience/{token}")
-async def delete_audience_member(token: str, user: dict = Depends(verify_session)):
+@router.post("/notifications/audience/{token}/delete")
+async def delete_audience_member(token: str, req: SignatureRequest, user: dict = Depends(verify_session)):
     require_admin_level(user, "marketing")
     if user.get("level", 0) < 3:
         raise HTTPException(status_code=403, detail="Required level 3 or higher")
         
+    try:
+        message_encoded = encode_defunct(text=req.message)
+        recovered_address = w3.eth.account.recover_message(message_encoded, signature=req.signature)
+        if recovered_address.lower() != user.get("wallet", "").lower():
+            raise HTTPException(status_code=401, detail="Firma inválida o no coincide con la wallet conectada")
+    except Exception as e:
+        logger.error(f"Error verifying signature: {e}")
+        raise HTTPException(status_code=401, detail="Error validando la firma criptográfica")
+
     result = db.user_notification_tokens.delete_many({"token": token})
     # Also clean up customer references if any
     db.customers.update_many({"fcm_token": token}, {"$set": {"fcm_token": None}})
@@ -549,6 +578,27 @@ async def delete_audience_member(token: str, user: dict = Depends(verify_session
         raise HTTPException(status_code=404, detail="Token not found")
         
     return {"success": True, "message": "Audience member deleted"}
+
+@router.post("/notifications/audience/delete-all")
+async def delete_all_audience(req: SignatureRequest, user: dict = Depends(verify_session)):
+    require_admin_level(user, "marketing")
+    if user.get("level", 0) < 3:
+        raise HTTPException(status_code=403, detail="Required level 3 or higher")
+        
+    try:
+        message_encoded = encode_defunct(text=req.message)
+        recovered_address = w3.eth.account.recover_message(message_encoded, signature=req.signature)
+        if recovered_address.lower() != user.get("wallet", "").lower():
+            raise HTTPException(status_code=401, detail="Firma inválida o no coincide con la wallet conectada")
+    except Exception as e:
+        logger.error(f"Error verifying signature: {e}")
+        raise HTTPException(status_code=401, detail="Error validando la firma criptográfica")
+
+    result = db.user_notification_tokens.delete_many({})
+    # Clean up customer references
+    db.customers.update_many({}, {"$set": {"fcm_token": None}})
+    
+    return {"success": True, "message": f"Todos los tokens ({result.deleted_count}) eliminados correctamente"}
 
 # Preferencias de Notificaciones
 @router.get("/notifications/preferences")

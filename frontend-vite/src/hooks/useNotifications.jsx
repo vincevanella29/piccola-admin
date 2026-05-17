@@ -136,10 +136,10 @@ const useNotifications = ({ accessToken, account, setError, setSuccess, appState
     }
   }, [accessToken, account, setError]);
 
-  const deleteAudienceMember = useCallback(async (token) => {
+  const deleteAudienceMember = useCallback(async (token, signature, message) => {
     setIsLoading(true);
     try {
-      await appData.deleteAudience({ accessToken, walletAddress: account, token });
+      await appData.deleteAudience({ accessToken, walletAddress: account, token, signature, message });
       setAudience(prev => prev.filter(m => m.token !== token));
       setSuccess(t('notifications.audience_deleted') || 'Audience member deleted');
     } catch (err) {
@@ -149,6 +149,20 @@ const useNotifications = ({ accessToken, account, setError, setSuccess, appState
       setIsLoading(false);
     }
   }, [accessToken, account, t, setError, setSuccess]);
+
+  const deleteAllAudienceMembers = useCallback(async (signature, message) => {
+    setIsLoading(true);
+    try {
+      await appData.deleteAllAudience({ accessToken, walletAddress: account, signature, message });
+      setAudience([]);
+      setSuccess('Base de datos de audiencia reiniciada exitosamente');
+    } catch (err) {
+      setError('Error al reiniciar base de datos de audiencia');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [accessToken, account, setError, setSuccess]);
 
   const fetchAnalytics = useCallback(async () => {
     setIsLoading(true);
@@ -394,6 +408,7 @@ const useNotifications = ({ accessToken, account, setError, setSuccess, appState
     fetchUsersWithTokens,
     fetchAudience,
     deleteAudienceMember,
+    deleteAllAudienceMembers,
     fetchAnalytics,
     createNotificationType,
     updateNotificationType,

@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Users, Shield, User, Smartphone, RefreshCw, ShoppingBag, Globe, Trash2 } from 'lucide-react';
+import { Users, Shield, User, Smartphone, RefreshCw, ShoppingBag, Globe, Trash2, AlertTriangle } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 const StatCard = ({ title, value, icon, colorClass, delay }) => (
   <motion.div
@@ -27,8 +28,50 @@ const StatCard = ({ title, value, icon, colorClass, delay }) => (
   </motion.div>
 );
 
-const NotificationAudience = ({ appState, audience = [], fetchAudience, deleteAudienceMember, isLoading }) => {
+const NotificationAudience = ({ appState, audience = [], fetchAudience, deleteAudienceMember, deleteAllAudienceMembers, isLoading }) => {
   const { t } = useTranslation();
+  
+  const handleSingleDelete = async (member) => {
+    if (!window.confirm('¿Eliminar token de este usuario? Perderá acceso a notificaciones.')) return;
+    
+    try {
+      const message = `Autorizo la eliminación del token de notificación perteneciente a ${member.name || member.wallet || 'Anonymous'} (${member.token})`;
+      const signature = await appState.useAuth.signMessage(message, appState);
+      
+      const id = toast.loading('Eliminando token...');
+      await deleteAudienceMember(member.token, signature, message);
+      toast.update(id, { render: 'Token eliminado correctamente', type: 'success', isLoading: false, autoClose: 3000 });
+    } catch (err) {
+      toast.dismiss();
+      if (err.message?.includes('User rejected')) {
+        toast.error('Firma rechazada por el usuario');
+      } else {
+        toast.error('Error al firmar o eliminar');
+        console.error(err);
+      }
+    }
+  };
+
+  const handleMassDelete = async () => {
+    if (!window.confirm('🚨 CUIDADO 🚨\n\nEstás a punto de borrar TODOS los tokens de la base de datos. Ningún usuario recibirá notificaciones push hasta que vuelvan a loguearse.\n\n¿Estás absolutamente seguro de continuar?')) return;
+    
+    try {
+      const message = `Autorizo la ELIMINACIÓN MASIVA Y DEFINITIVA de todos los tokens de notificaciones push de la base de datos.`;
+      const signature = await appState.useAuth.signMessage(message, appState);
+      
+      const id = toast.loading('Vaciando base de datos de audiencia...');
+      await deleteAllAudienceMembers(signature, message);
+      toast.update(id, { render: 'Base de datos restablecida correctamente', type: 'success', isLoading: false, autoClose: 3000 });
+    } catch (err) {
+      toast.dismiss();
+      if (err.message?.includes('User rejected')) {
+        toast.error('Firma rechazada por el usuario');
+      } else {
+        toast.error('Error al firmar o restablecer BD');
+        console.error(err);
+      }
+    }
+  };
 
   useEffect(() => {
     if (audience.length === 0 && fetchAudience) fetchAudience();
@@ -57,14 +100,27 @@ const NotificationAudience = ({ appState, audience = [], fetchAudience, deleteAu
             Gestión unificada de clientes y empleados suscritos a Notificaciones Push.
           </p>
         </div>
-        <button
-          onClick={fetchAudience}
-          disabled={isLoading}
-          className="px-4 py-2 text-sm font-bold rounded-full bg-light-surface/50 dark:bg-dark-surface/50 border border-light-border/20 dark:border-dark-border/20 hover:border-vanellix-cyan transition-all flex items-center gap-2 disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={isLoading ? "animate-spin text-vanellix-cyan" : "text-vanellix-cyan"} />
-          Actualizar
-        </button>
+        <div className="flex items-center gap-3">
+          {(appState?.user?.level >= 3) && audience.length > 0 && (
+            <button
+              onClick={handleMassDelete}
+              disabled={isLoading}
+              className="px-4 py-2 text-sm font-bold rounded-full bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center gap-2 disabled:opacity-50"
+              title="Borrar todos los tokens"
+            >
+              <AlertTriangle size={14} />
+              Restablecer BD
+            </button>
+          )}
+          <button
+            onClick={fetchAudience}
+            disabled={isLoading}
+            className="px-4 py-2 text-sm font-bold rounded-full bg-light-surface/50 dark:bg-dark-surface/50 border border-light-border/20 dark:border-dark-border/20 hover:border-vanellix-cyan transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={isLoading ? "animate-spin text-vanellix-cyan" : "text-vanellix-cyan"} />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -146,11 +202,7 @@ const NotificationAudience = ({ appState, audience = [], fetchAudience, deleteAu
                     <td className="px-6 py-4 text-right">
                       {(appState?.user?.level >= 3) && (
                         <button 
-                          onClick={() => {
-                            if (window.confirm('¿Eliminar token de este usuario? Perderá acceso a notificaciones.')) {
-                              deleteAudienceMember(member.token);
-                            }
-                          }}
+                          onClick={() => handleSingleDelete(member)}
                           className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
                           title="Eliminar Token"
                         >

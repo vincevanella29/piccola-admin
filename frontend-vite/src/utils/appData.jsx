@@ -368,11 +368,12 @@ const appData = {
     }
   },
 
-  deleteAudience: async ({ accessToken, walletAddress, token }) => {
+  deleteAudience: async ({ accessToken, walletAddress, token, signature, message }) => {
     try {
       return await api({
-        method: 'delete',
-        endpoint: `/notifications/audience/${token}`,
+        method: 'post',
+        endpoint: `/notifications/audience/${token}/delete`,
+        data: { signature, message },
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'X-Wallet-Address': walletAddress,
@@ -382,6 +383,24 @@ const appData = {
     } catch (err) {
       console.error('appData.jsx - Error deleting audience member:', err);
       throw new Error(err.message || 'Error deleting audience member');
+    }
+  },
+
+  deleteAllAudience: async ({ accessToken, walletAddress, signature, message }) => {
+    try {
+      return await api({
+        method: 'post',
+        endpoint: `/notifications/audience/delete-all`,
+        data: { signature, message },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'X-Wallet-Address': walletAddress,
+        },
+        withCredentials: true,
+      });
+    } catch (err) {
+      console.error('appData.jsx - Error deleting all audience members:', err);
+      throw new Error(err.message || 'Error deleting all audience members');
     }
   },
 
