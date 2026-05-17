@@ -9,7 +9,6 @@ import useRestaurantData from '../../hooks/useRestaurantData';
 import AdminPromotionCreate from './components/promotions/AdminPromotionCreate';
 import AdminPromotionUpdate from './components/promotions/AdminPromotionUpdate';
 import AdminCouponList from './components/promotions/AdminCouponList';
-import AdminApiKeys from './components/promotions/AdminApiKeys';
 import AdminB2BPartners from './components/promotions/AdminB2BPartners';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -18,7 +17,6 @@ const TABS = [
   { key: 'create', icon: PlusCircle,   labelKey: 'promotion.create'   },
   { key: 'update', icon: RefreshCcw,   labelKey: 'promotion.update'   },
   { key: 'coupons',icon: Eye,          labelKey: 'promotion.coupons'  },
-  { key: 'api',    icon: Key,          labelKey: 'promotion.api_keys' },
   { key: 'b2b',    icon: Building2,    labelKey: 'promotion.b2b_partners' },
 ];
 
@@ -39,8 +37,6 @@ const PromotionDashboard = ({ appState }) => {
     tokenDecimals,
     meritSegments,
     meritRules,
-    fetchApiToken,
-    generateApiToken,
   } = usePromotionAdmin(appState, t);
 
   const { locations, menus, isLoading: restaurantLoading, error: restaurantError, refresh: refreshRestaurantData } = usePromotionsData(appState);
@@ -215,16 +211,6 @@ const PromotionDashboard = ({ appState }) => {
                   onReactivate={reactivate}
                   onRedeem={redeem}
                   refetchCoupons={refetchCoupons}
-                />
-              )}
-
-              {activeTab === 'api' && (
-                <AdminApiKeys
-                  appState={appState}
-                  fetchApiToken={fetchApiToken}
-                  generateApiToken={generateApiToken}
-                  isLoading={adminLoading}
-                  setFormError={setFormError}
                 />
               )}
 

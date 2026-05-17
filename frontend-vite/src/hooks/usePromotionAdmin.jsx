@@ -1,7 +1,7 @@
 // src/hooks/usePromotionAdmin.jsx
 import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
-import { createPromotion, updatePromotion, fetchAllPromotions, reactivateCoupon, redeemCoupon, fetchCoupons, fetchApiToken as fetchApiTokenApi, generateApiToken as generateApiTokenApi, fetchMeritSegments } from '../utils/promotionsData';
+import { createPromotion, updatePromotion, fetchAllPromotions, reactivateCoupon, redeemCoupon, fetchCoupons, fetchMeritSegments } from '../utils/promotionsData';
 import { fetchPlatformTokensFromApi } from './useCompanyTokenData';
 import { useTokenMetadata } from './useTokenMetadata';
 import { listMeritRules as apiListMeritRules } from '../utils/gamification.jsx';
@@ -221,53 +221,7 @@ export function usePromotionAdmin(appState, t) {
     }
   };
 
-  // Fetch API token
-  const fetchApiToken = async () => {
-    if (!wallet || !token) {
-      setError(t('wallet.connect_wallet'));
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchApiTokenApi({
-        walletAddress: wallet,
-        token,
-      });
-      return data;
-    } catch (err) {
-      setError(t('promotion.error_fetch_token', { message: err.message }));
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Generate API token
-  const generateApiToken = async ({ signature, plain_data, duration }) => {
-    if (!wallet || !token) {
-      setError(t('wallet.connect_wallet'));
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await generateApiTokenApi({
-        walletAddress: wallet,
-        token,
-        signature,
-        plain_data,
-        duration,
-      });
-      appState.setSuccess(t('promotion.api_generated'));
-      return data;
-    } catch (err) {
-      setError(t('promotion.error_generating_api', { message: err.message }));
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Generate API token has been removed
 
   // Create a promotion
   const create = async ({ promotionData }) => {
@@ -404,8 +358,6 @@ export function usePromotionAdmin(appState, t) {
     redeem,
     refetchAllPromotions,
     refetchCoupons,
-    fetchApiToken,
-    generateApiToken,
     platformTokens,
     tokenDecimals,
     meritSegments,

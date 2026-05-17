@@ -159,33 +159,7 @@ export async function fetchCoupons({ walletAddress, token, page = 1, limit = 20,
     });
 }
 
-// Función para obtener el token API
-export async function fetchApiToken({ walletAddress, token }) {
-    return api({
-        method: 'GET',
-        endpoint: '/apikeys',
-        headers: {
-            'X-Wallet-Address': walletAddress,
-            Authorization: `Bearer ${token}`,
-        },
-    });
-}
-
-// Función para generar un nuevo token API
-export async function generateApiToken({ walletAddress, token, name, expiry_months }) {
-    return api({
-        method: 'POST',
-        endpoint: '/apikeys',
-        data: {
-            name,
-            expiry_months
-        },
-        headers: {
-            'X-Wallet-Address': walletAddress,
-            Authorization: `Bearer ${token}`,
-        },
-    });
-}
+// Function removed to use generic api keys
 
 // Función para obtener el saldo de puntos quemados
 export async function getBurnedBalance({ walletAddress, tokenAddress, token }) {
