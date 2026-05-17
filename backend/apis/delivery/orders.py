@@ -15,7 +15,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from bson import ObjectId
 import httpx
 
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 DELIVERY_COLL = db.delivery_orders
 MENUS_COLL = db.menus
 LOCATIONS_COLL = db.locations
-PROVIDERS_COLL = db.delivery_providers
+PROVIDERS_COLL = db.ecosystem_providers
 CONFIG_COLL = db.delivery_config
 
 # =====================================================================
@@ -101,19 +101,7 @@ class BatchStatusRequest(BaseModel):
 # Auth helpers
 # =====================================================================
 
-def verify_external_api_key(x_api_key: str = Header(..., description="API Key con formato key_id.secret")):
-    key_doc = validate_api_key(x_api_key)
-    if not key_doc:
-        raise HTTPException(status_code=401, detail="API Key inválida, inactiva o expirada")
-    return key_doc
-
-
-def _resolve_provider(key_doc: dict) -> Optional[dict]:
-    """Find which order provider is linked to this API key."""
-    key_id = key_doc.get("id")
-    if not key_id:
-        return None
-    return PROVIDERS_COLL.find_one({"api_key_id": key_id, "status": "active"})
+from apis.admin.ecosystem_providers import verify_satellite_webhook
 
 
 def _serialize_order(doc: dict) -> dict:
@@ -192,9 +180,6 @@ async def _notify_delivery_provider(order: dict, status: str, carrier_status: st
     body_bytes = json.dumps(push_payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
     headers = {"Content-Type": "application/json"}
-    api_key_id = provider.get("api_key_id", "")
-    if api_key_id:
-        headers["X-Api-Key"] = api_key_id
 
     # Sign with Dilithium2 using provider's mnemonic
     mnemonic_enc = provider.get("dilithium_mnemonic_enc", "")
@@ -236,7 +221,7 @@ async def _auto_dispatch(order_id: str, carrier_slug: str, loc: dict):
     If it fails, the order stays in 'pending' — worker will retry.
     """
     try:
-        from apis.delivery.last_mile import create_carrier_delivery
+        from utils.delivery.dispatch import create_carrier_delivery
 
         # Resolve carrier exactly as requested
         carrier = CARRIERS_COLL.find_one({"slug": carrier_slug, "status": "active"})
@@ -281,8 +266,10 @@ async def _auto_dispatch(order_id: str, carrier_slug: str, loc: dict):
 
         # Trigger email automations for confirmed status
         try:
-            from apis.mailing.automations import check_automations
-            check_automations(order, "confirmed")
+            from services.automation_engine import trigger_event
+            # Ensure status is passed correctly in payload
+            order["status"] = "confirmed"
+            asyncio.create_task(trigger_event("order_status_change", "customers", order))
         except Exception as e:
             logger.warning(f"[auto-dispatch] Automation check failed (non-fatal): {e}")
 
@@ -298,22 +285,15 @@ async def _auto_dispatch(order_id: str, carrier_slug: str, loc: dict):
 async def create_delivery_order(
     request: Request,
     payload: DeliveryOrderCreate,
-    key_doc: dict = Depends(verify_external_api_key)
+    provider: dict = Depends(verify_satellite_webhook)
 ):
     """
     Ingresa al sistema un pedido originado desde una plataforma externa o landing page.
-    Valida la API key, resuelve el proveedor, verifica firma Dilithium (si aplica),
-    la integridad del local, y los precios de los productos enviados.
+    Valida la firma Dilithium vía verify_satellite_webhook (que reemplaza a las antiguas API Keys).
     """
 
-    # 0. Resolver proveedor asociado a la API key
-    provider = _resolve_provider(key_doc)
-    provider_slug = provider["slug"] if provider else "unknown"
-    provider_name = provider["name"] if provider else "Unknown"
-
-    # 0.5 Verify Dilithium post-quantum signature
-    from utils.vanellix_crypto import verify_dilithium_request
-    await verify_dilithium_request(request, key_doc, context="delivery/orders")
+    provider_slug = provider["slug"]
+    provider_name = provider["name"]
 
     # 1. Validar la sucursal por permalink_slug
     loc = db.locations.find_one({"permalink_slug": payload.location_id})
@@ -371,8 +351,6 @@ async def create_delivery_order(
     now = get_chile_time()
 
     order_doc = {
-        "api_key_id": key_doc["id"],
-        "api_key_owner": key_doc["owner"],
         "provider_slug": provider_slug,
         "provider_name": provider_name,
         "location_id": str(loc["_id"]),
@@ -439,8 +417,9 @@ async def create_delivery_order(
 
     # Trigger email automations for new order (status = "pending")
     try:
-        from apis.mailing.automations import check_automations
-        check_automations(order_doc, "pending")
+        from services.automation_engine import trigger_event
+        order_doc["status"] = "pending"
+        asyncio.create_task(trigger_event("order_status_change", "customers", order_doc))
     except Exception as e:
         logger.warning(f"[delivery/orders] Automation check failed (non-fatal): {e}")
 
@@ -485,7 +464,7 @@ async def get_delivery_locations(user: dict = Depends(verify_session)):
     return {"locations": locs}
 
 @router.post("/delivery/orders/batch-status", summary="Sincronización por lotes de estado de pedidos")
-async def get_batch_order_statuses(payload: BatchStatusRequest, api_key_doc: dict = Depends(verify_external_api_key)):
+async def get_batch_order_statuses(payload: BatchStatusRequest, provider: dict = Depends(verify_satellite_webhook)):
     """
     Returns the current status, carrier_status, and courier_info for a batch of order IDs.
     Extremely efficient O(1) query used by the delivery app to recover dropped webhooks.
@@ -525,6 +504,7 @@ async def get_delivery_orders(
     dispatch_status: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    customer_phone: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
     user: dict = Depends(verify_session)
@@ -563,6 +543,8 @@ async def get_delivery_orders(
         query["provider_slug"] = provider
     if carrier:
         query["carrier_slug"] = carrier
+    if customer_phone:
+        query["customer.phone"] = customer_phone
 
     # Dispatch status filter
     if dispatch_status == "failed":
@@ -576,12 +558,12 @@ async def get_delivery_orders(
 
     if date_from:
         try:
-            query.setdefault("created_at", {})["$gte"] = datetime.fromisoformat(date_from)
+            query.setdefault("created_at", {})["$gte"] = datetime.fromisoformat(date_from).replace(tzinfo=CHILE_TZ)
         except ValueError:
             pass
     if date_to:
         try:
-            query.setdefault("created_at", {})["$lte"] = datetime.fromisoformat(date_to)
+            query.setdefault("created_at", {})["$lte"] = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59, tzinfo=CHILE_TZ)
         except ValueError:
             pass
 
@@ -709,13 +691,13 @@ async def get_advanced_analytics(
         date_from_dt = now - timedelta(days=30)
     else:
         try:
-            date_from_dt = datetime.fromisoformat(date_from)
+            date_from_dt = datetime.fromisoformat(date_from).replace(tzinfo=CHILE_TZ)
         except ValueError:
             date_from_dt = now - timedelta(days=30)
 
     if date_to:
         try:
-            date_to_dt = datetime.fromisoformat(date_to)
+            date_to_dt = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59, tzinfo=CHILE_TZ)
         except ValueError:
             date_to_dt = now
     else:
@@ -811,7 +793,6 @@ async def get_kds_orders(user: dict = Depends(verify_session)):
         is_worker_in_sales_kpis,
         apply_access_filters_for_product_like_intent,
     )
-    from zoneinfo import ZoneInfo
 
     rl = require_admin_level(user, "kds")
     perms = (user or {}).get("permissions") or {}
@@ -875,8 +856,7 @@ async def get_kds_orders(user: dict = Depends(verify_session)):
     role_level_int = get_effective_role_level_from_user(user or {})
 
     if role_level_int and int(role_level_int) >= 7:
-        tz = ZoneInfo("America/Santiago")
-        now = datetime.now(tz)
+        now = get_chile_time()
         period_ym = now.strftime("%Y%m")
 
         is_lvl7 = role_level_int == 7
@@ -1026,7 +1006,7 @@ async def update_delivery_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     update_fields = {
         "status": payload.status,
         "updated_at": now,
@@ -1075,8 +1055,9 @@ async def update_delivery_order_status(
 
     # Trigger email automations for this status change
     try:
-        from apis.mailing.automations import check_automations
-        check_automations(order, payload.status)
+        from services.automation_engine import trigger_event
+        order["status"] = payload.status
+        asyncio.create_task(trigger_event("order_status_change", "customers", order))
     except Exception as e:
         logger.warning(f"[delivery/orders] Automation check failed (non-fatal): {e}")
 
@@ -1123,7 +1104,7 @@ async def toggle_item_done(
 
     DELIVERY_COLL.update_one(
         {"_id": ObjectId(order_id)},
-        {"$set": {"items": items, "updated_at": datetime.now(timezone.utc)}}
+        {"$set": {"items": items, "updated_at": get_chile_time()}}
     )
 
     # Broadcast item done to KDS WebSocket clients
@@ -1171,19 +1152,15 @@ class ReviewPush(BaseModel):
     admin_order_id: str
     review: dict
 
-@router.post("/delivery/orders/review-push", summary="Recibir review desde delivery")
+@router.post("/delivery/orders/review-push", summary="Receive review push from satellite")
 async def receive_review_push(
     request: Request,
-    key_doc: dict = Depends(verify_external_api_key),
+    provider: dict = Depends(verify_satellite_webhook)
 ):
     """
-    Receives a customer review forwarded from the delivery backend.
-    Stores it in the order document and broadcasts to KDS.
+    Receives a review for an order pushed from a satellite backend.
+    Validated entirely via Dilithium signature.
     """
-    # Verify Dilithium signature
-    from utils.vanellix_crypto import verify_dilithium_request
-    await verify_dilithium_request(request, key_doc, context="delivery/review-push")
-
     body = await request.body()
     payload = ReviewPush(**json.loads(body))
 
@@ -1197,7 +1174,7 @@ async def receive_review_push(
     if order.get("review"):
         return {"success": True, "message": "Review ya existente — ignorada"}
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     review_doc = payload.review
     review_doc["received_at"] = now
 
@@ -1308,10 +1285,10 @@ async def review_stats(user: dict = Depends(verify_session)):
     if items_res:
         item_ids = [str(i["_id"]) for i in items_res if i["_id"]]
         db_items = list(MENUS_COLL.find(
-            {"codigo": {"$in": item_ids}},
+            {"_id": {"$in": item_ids}},
             {"codigo": 1, "nombre": 1, "media_r2": 1, "media_url": 1}
         ))
-        item_map = {i["codigo"]: i for i in db_items}
+        item_map = {str(i["_id"]): i for i in db_items}
 
         for item in items_res:
             codigo = str(item["_id"])
@@ -1431,10 +1408,11 @@ async def list_reviews(
         phone = doc.get("customer", {}).get("phone")
         doc["customer_order_count"] = customer_counts.get(phone, 1) if phone else 1
         
-        # Inject item images
+        # Inject item images and item_id
         for item in doc.get("items", []):
             db_item = items_map.get(item.get("codigo"), {})
             item["image_url"] = db_item.get("media_r2") or db_item.get("media_url")
+            item["item_id"] = str(db_item.get("_id")) if db_item.get("_id") else None
 
     total = DELIVERY_COLL.count_documents(query)
 

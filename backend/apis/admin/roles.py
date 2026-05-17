@@ -116,9 +116,9 @@ def get_user_role(account: str = Query(None), user: dict = Depends(verify_sessio
 
         empleado = None
         if target_address:
-            empleado = db.empleados_usuarios.find_one({"wallet": target_address.lower()})
+            empleado = db.empleados_usuarios.find_one({"wallet": target_address.lower(), "status": "active"})
         elif sub:
-            empleado = db.empleados_usuarios.find_one({"sub": sub})
+            empleado = db.empleados_usuarios.find_one({"sub": sub, "status": "active"})
 
         rut_value = empleado.get("rut") if empleado else None
 

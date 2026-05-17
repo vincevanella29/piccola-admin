@@ -9,23 +9,24 @@ and pushed to delivery providers on save.
 """
 
 import asyncio
+from utils.time_utils import get_chile_time
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from typing import Optional, List
-from datetime import datetime, timezone
+from typing import List
 
 from utils.web3mongo import db
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
 from utils.vanellix_crypto import encrypt_sync_config as encrypt_config
+from apis.admin.ecosystem_providers import verify_satellite_webhook
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 CONFIG_COLL = db["delivery_config"]
 CARRIERS_COLL = db["delivery_carriers"]
-PROVIDERS_COLL = db["delivery_providers"]
+PROVIDERS_COLL = db.ecosystem_providers
 
 # ── Default internal statuses ─────────────────────────────────────────────────
 DEFAULT_STATUSES = [
@@ -173,7 +174,7 @@ async def update_statuses(
     if payload.pipeline_type not in ("delivery", "pickup"):
         raise HTTPException(status_code=400, detail="pipeline_type must be 'delivery' or 'pickup'")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     statuses_data = [s.dict() for s in payload.statuses]
     field = "internal_statuses" if payload.pipeline_type == "delivery" else "pickup_statuses"
 
@@ -206,7 +207,7 @@ async def update_schedule(
     """Update delivery hours by weekday."""
     require_admin_level(user, "admin")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     _get_config()
     CONFIG_COLL.update_one(
         {"_id": "delivery_config"},
@@ -236,7 +237,7 @@ async def update_payments(
     """Update allowed payment methods for delivery."""
     require_admin_level(user, "admin")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     _get_config()
     CONFIG_COLL.update_one(
         {"_id": "delivery_config"},
@@ -269,7 +270,7 @@ async def update_chat_access(
     """Update allowed cargos for delivery chat access."""
     require_admin_level(user, "admin")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     _get_config()
     CONFIG_COLL.update_one(
         {"_id": "delivery_config"},
@@ -329,7 +330,7 @@ async def update_delivery_fee(
     if payload.type not in ("percentage", "fixed", "none"):
         raise HTTPException(status_code=400, detail="type debe ser: percentage, fixed, o none")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     fee_data = payload.dict()
 
     _get_config()
@@ -378,7 +379,7 @@ async def update_scheduling_config(
     """Update scheduling parameters (advance days, slot interval, etc.)."""
     require_admin_level(user, "admin")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     sched_data = payload.dict()
 
     _get_config()
@@ -419,7 +420,7 @@ async def update_carrier_mapping(
     if not carrier:
         raise HTTPException(status_code=404, detail="Carrier no encontrado")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     CARRIERS_COLL.update_one(
         {"_id": ObjectId(payload.carrier_id)},
         {"$set": {
@@ -486,7 +487,7 @@ async def update_transbank_config(
     if payload.target not in ("test", "production"):
         raise HTTPException(status_code=400, detail="Target debe ser 'test' o 'production'")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     _get_config()
 
     update_fields = {
@@ -528,7 +529,7 @@ async def switch_transbank_environment(
     if payload.environment not in ("test", "production"):
         raise HTTPException(status_code=400, detail="Environment debe ser 'test' o 'production'")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     _get_config()
 
     CONFIG_COLL.update_one(
@@ -563,7 +564,7 @@ async def push_config_to_providers(user: dict = Depends(verify_session)):
     import httpx
 
     providers = list(PROVIDERS_COLL.find(
-        {"status": "active", "$or": [{"domain": {"$exists": True, "$ne": ""}}, {"sync_url": {"$exists": True, "$ne": ""}}]},
+        {"ecosystem_type": "delivery", "status": "active", "$or": [{"domain": {"$exists": True, "$ne": ""}}, {"sync_url": {"$exists": True, "$ne": ""}}]},
         {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic_enc": 1, "api_key_id": 1},
     ))
 
@@ -588,21 +589,32 @@ async def push_config_to_providers(user: dict = Depends(verify_session)):
 
         # Prefer domain-based URL construction
         if domain:
-            from apis.delivery.providers import build_provider_url
-            config_url = build_provider_url(domain, "config_sync")
+            from apis.admin.ecosystem_providers import build_provider_url
+            config_url = build_provider_url(domain, "config_sync", "delivery")
         else:
             base_url = sync_url.rsplit("/catalog/sync", 1)[0] if "/catalog/sync" in sync_url else sync_url.rsplit("/", 1)[0]
             config_url = f"{base_url}/admin/config/sync"
 
         try:
-            payload = _build_sync_payload(mnemonic)
-            api_key_id = prov.get("api_key_id", "")
+            payload = _build_sync_payload(mnemonic, provider_slug=slug)
+            
+            # Extract Dilithium fields to headers to match strict Delivery backend validation
+            sig_hex = payload.pop("dilithium_signature", None)
+            pk_hex = payload.pop("dilithium_pk", None)
+            algo = payload.pop("signature_algorithm", None)
+
             headers = {"Content-Type": "application/json"}
-            if api_key_id:
-                headers["X-Api-Key"] = api_key_id
+            if sig_hex and pk_hex:
+                headers["X-Dilithium-Signature"] = sig_hex
+                headers["X-Dilithium-PK"] = pk_hex
+                headers["X-Dilithium-Algorithm"] = algo
+                headers["X-Dilithium-Timestamp"] = str(payload.get("timestamp", ""))
+
+            import json as _json
+            payload_bytes = _json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(config_url, json=payload, headers=headers)
+                resp = await client.post(config_url, content=payload_bytes, headers=headers)
 
             if resp.status_code == 200:
                 results.append({"slug": slug, "ok": True})
@@ -629,7 +641,7 @@ async def push_config_to_providers(user: dict = Depends(verify_session)):
 # Push encrypted config to delivery providers (fire-and-forget)
 # =====================================================================
 
-def _build_sync_payload(mnemonic: str) -> dict:
+def _build_sync_payload(mnemonic: str, provider_slug: str = None) -> dict:
     """
     Build the encrypted + signed config payload for delivery sync.
     Includes: transbank creds (encrypted), schedule, payment_methods, statuses.
@@ -690,6 +702,25 @@ def _build_sync_payload(mnemonic: str) -> dict:
         "scheduling_config": config.get("scheduling_config", DEFAULT_SCHEDULING_CONFIG),
     }
 
+    try:
+        from utils.conversion_tracker.sync import get_conversion_trackers_for_provider
+        payload["trackers"] = get_conversion_trackers_for_provider(provider_slug) if provider_slug else []
+    except Exception as e:
+        logger.warning(f"[config-push] ⚠️ Failed to fetch conversion trackers (non-fatal): {e}")
+        payload["trackers"] = []
+        
+    try:
+        firebase_config = db.notification_api_configs.find_one({"service": "firebase"})
+        if firebase_config:
+            payload["notifications"] = {
+                "vapidKey": firebase_config.get("vapid_key"),
+                "projectId": firebase_config.get("project_id"),
+                "firebaseConfig": firebase_config.get("web_config", {}),
+                "prompt_config": firebase_config.get("prompt_config", {})
+            }
+    except Exception as e:
+        logger.warning(f"[config-push] ⚠️ Failed to fetch notification config (non-fatal): {e}")
+
     # ── Dilithium2 Post-Quantum Signature ─────────────────────────
     # Sign the serialized payload so delivery can verify it came from
     # this admin and wasn't tampered with. Even if AES is broken by
@@ -727,7 +758,7 @@ async def _push_config_to_providers():
 
     try:
         providers = list(PROVIDERS_COLL.find(
-            {"status": "active", "$or": [{"domain": {"$exists": True, "$ne": ""}}, {"sync_url": {"$exists": True, "$ne": ""}}]},
+            {"ecosystem_type": "delivery", "status": "active", "$or": [{"domain": {"$exists": True, "$ne": ""}}, {"sync_url": {"$exists": True, "$ne": ""}}]},
             {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic_enc": 1, "api_key_id": 1},
         ))
     except Exception as e:
@@ -747,8 +778,8 @@ async def _push_config_to_providers():
 
         # Prefer domain-based URL construction
         if domain:
-            from apis.delivery.providers import build_provider_url
-            config_url = build_provider_url(domain, "config_sync")
+            from apis.admin.ecosystem_providers import build_provider_url
+            config_url = build_provider_url(domain, "config_sync", "delivery")
         else:
             base_url = sync_url.rsplit("/catalog/sync", 1)[0] if "/catalog/sync" in sync_url else sync_url.rsplit("/", 1)[0]
             config_url = f"{base_url}/admin/config/sync"
@@ -765,20 +796,27 @@ async def _push_config_to_providers():
             continue
 
         try:
-            payload = _build_sync_payload(mnemonic)
+            payload = _build_sync_payload(mnemonic, provider_slug=slug)
 
-            # Get the API key for auth
-            api_key_id = prov.get("api_key_id", "")
-            api_key_doc = db.api_keys.find_one({"_id": api_key_id}) if api_key_id else None
+            # Extract Dilithium fields to headers
+            sig_hex = payload.pop("dilithium_signature", None)
+            pk_hex = payload.pop("dilithium_pk", None)
+            algo = payload.pop("signature_algorithm", None)
 
             headers = {"Content-Type": "application/json"}
-            if api_key_doc:
-                headers["X-Api-Key"] = api_key_id
+            if sig_hex and pk_hex:
+                headers["X-Dilithium-Signature"] = sig_hex
+                headers["X-Dilithium-PK"] = pk_hex
+                headers["X-Dilithium-Algorithm"] = algo
+                headers["X-Dilithium-Timestamp"] = str(payload.get("timestamp", ""))
 
-            print(f"[config-push] Pushing to '{slug}' at {config_url} with X-Api-Key={api_key_id or '(none)'}")
+            import json as _json
+            payload_bytes = _json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+
+            print(f"[config-push] Pushing to '{slug}' at {config_url}")
 
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(config_url, json=payload, headers=headers)
+                resp = await client.post(config_url, content=payload_bytes, headers=headers)
 
             if resp.status_code == 200:
                 logger.info(f"[config-push] ✅ Config pushed to '{slug}' at {config_url}")
@@ -794,23 +832,13 @@ async def _push_config_to_providers():
 # =====================================================================
 
 @router.get("/delivery/config/sync-payload", summary="Get encrypted config for delivery sync")
-async def get_sync_payload(request: Request):
+async def get_sync_payload(request: Request, provider: dict = Depends(verify_satellite_webhook)):
     """
     Returns encrypted Transbank config + plain schedule/payments for delivery worker.
-    Auth: X-Api-Key from the delivery app's claim.
+    Auth: verify_satellite_webhook (Dilithium)
     """
-    api_key = request.headers.get("X-Api-Key", "")
-    if not api_key:
-        raise HTTPException(status_code=401, detail="X-Api-Key required")
-
-    # Find the provider by API key
-    key_id = api_key.split(".")[0] if "." in api_key else api_key
-    key_doc = db.api_keys.find_one({"_id": key_id, "active": True})
-    if not key_doc:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-
-    provider_slug = key_doc.get("provider_slug", "")
-    provider = PROVIDERS_COLL.find_one({"slug": provider_slug}) if provider_slug else None
+    provider_slug = provider.get("slug", "")
+    # 'provider' dict already comes verified from verify_satellite_webhook
 
     mnemonic = ""
     if provider:

@@ -5,9 +5,9 @@ Transbank OneClick Mall — inscription + authorization + test flow.
 Provides endpoints for the admin panel to test the full payment flow.
 """
 
-import os
+from utils.time_utils import get_chile_time
 import logging
-from datetime import datetime, timezone
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -105,7 +105,7 @@ async def start_inscription(
                     "username": req.username,
                     "email": req.email,
                     "env": env,
-                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "started_at": get_chile_time().isoformat(),
                 },
             }},
         )
@@ -167,7 +167,7 @@ async def finish_inscription(
                 "transbank.last_inscription": {
                     **result,
                     "env": env,
-                    "finished_at": datetime.now(timezone.utc).isoformat(),
+                    "finished_at": get_chile_time().isoformat(),
                 },
                 "transbank.pending_inscription": None,
             }},
@@ -331,7 +331,7 @@ async def test_authorize(
                     **result,
                     "success": success,
                     "env": env,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": get_chile_time().isoformat(),
                 },
             }},
         )

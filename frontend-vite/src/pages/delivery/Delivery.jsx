@@ -374,6 +374,7 @@ const Delivery = ({ appState }) => {
             canEdit={canDispatch}
             locations={api.locations}
             onClose={() => api.setSelectedOrder(null)}
+            appState={appState}
           />
         )}
       </AnimatePresence>

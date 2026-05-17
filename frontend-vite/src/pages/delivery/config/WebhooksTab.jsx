@@ -52,6 +52,58 @@ const DEFAULT_TEMPLATE = `{
   "created_at": "{{order.created_at}}"
 }`;
 
+const PICCOLA_POS_TEMPLATE = `{
+  "action": "placed",
+  "order": {
+    "order_id": "{{order.order_number}}",
+    "customer_id": "{{order.customer.id}}",
+    "first_name": "{{order.customer.name}}",
+    "last_name": "",
+    "email": "{{order.customer.email}}",
+    "telephone": "{{order.customer.phone}}",
+    "location_id": "{{order.location_id}}",
+    "address_id": "",
+    "total_items": 1,
+    "comment": "{{order.notes}}",
+    "payment": "{{order.payment_method}}",
+    "order_type": "{{order.order_type}}",
+    "created_at": "{{order.created_at}}",
+    "updated_at": "{{order.created_at}}",
+    "order_time": "",
+    "order_date": "",
+    "order_total": {{order.total_amount}},
+    "status_id": 1,
+    "ip_address": "",
+    "user_agent": "Vanellix Webhooks",
+    "hash": "",
+    "processed": true,
+    "order_time_is_asap": true,
+    "pedidosya_id": "",
+    "customer_name": "{{order.customer.name}}",
+    "order_type_name": "{{order.order_type}}",
+    "formatted_address": "{{order.customer.address}}",
+    "status_name": "{{order.status}}"
+  },
+  "order_menus": {{order.items}},
+  "order_totals": [
+    {
+      "code": "subtotal",
+      "title": "Sub-total",
+      "value": "{{order.total_amount}}"
+    },
+    {
+      "code": "delivery",
+      "title": "Entrega a Domicilio",
+      "value": "{{order.delivery_fee}}"
+    },
+    {
+      "code": "total",
+      "title": "Total del Pedido",
+      "value": "{{order.total_amount}}"
+    }
+  ]
+}`;
+
 // ── Webhook Modal ──────────────────────────────────────────────
 const WebhookModal = ({ webhook, onClose, onSave, appState }) => {
   const [name, setName] = useState(webhook?.name || '');
@@ -135,6 +187,7 @@ const WebhookModal = ({ webhook, onClose, onSave, appState }) => {
           <div className="flex items-center justify-between mb-1">
             <label className={labelCls}>Payload Template (JSON)</label>
             <div className="flex gap-2">
+              <button onClick={() => setTemplate(PICCOLA_POS_TEMPLATE)} className="text-[9px] text-matrix-green hover:underline flex items-center gap-1 font-bold">📋 Cargar POS Piccola</button>
               <button onClick={() => setShowVars(!showVars)} className="text-[9px] text-matrix-green hover:underline">{showVars ? 'Ocultar' : 'Ver'} variables</button>
               <button onClick={handlePreview} className="text-[9px] text-blue-400 hover:underline flex items-center gap-1"><FaPaperPlane size={8} /> Preview</button>
             </div>

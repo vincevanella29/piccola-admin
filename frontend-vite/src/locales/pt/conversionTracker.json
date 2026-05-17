@@ -1,0 +1,115 @@
+{
+  "title": "Rastreadores de Conversão",
+  "label": "Rastreadores de Conversão",
+  "description": "Gerenciar integrações do Meta, Google e Firebase.",
+  "tabs": {
+    "providers": "Provedores",
+    "config": "Configuração"
+  },
+  "form": {
+    "service": {
+      "label": "Serviço",
+      "placeholder": "Selecione um serviço..."
+    },
+    "name": {
+      "label": "Nome",
+      "placeholder": "ex. Meta Pixel - Delivery"
+    },
+    "assigned_providers": {
+      "label": "Provedores Atribuídos",
+      "placeholder": "carta, delivery (deixe vazio para global)",
+      "help": "Lista separada por vírgulas dos provedores onde este rastreador será injetado."
+    },
+    "active": {
+      "label": "Ativo"
+    },
+    "required_placeholder": "{{field}} é obrigatório",
+    "file": {
+      "service_account": {
+        "label": "Arquivo JSON Service Account",
+        "help": "Faça upload do arquivo service_account.json"
+      }
+    }
+  },
+  "actions": {
+    "create": "Criar Rastreador",
+    "update": "Atualizar Rastreador",
+    "cancel": "Cancelar"
+  },
+  "table": {
+    "id": "ID",
+    "service": "Serviço",
+    "name": "Nome",
+    "active": "Ativo",
+    "assigned_providers": "Destinos",
+    "created": "Criado",
+    "updated": "Atualizado",
+    "actions": "Ações",
+    "edit": "Editar"
+  },
+  "status": {
+    "yes": "Sim",
+    "no": "Não",
+    "global": "Global"
+  },
+  "list": {
+    "title": "Rastreadores Configurados"
+  },
+  "errors": {
+    "credentials_invalid": "Arquivo JSON de credenciais inválido",
+    "provider_id_missing": "ID do provedor ausente"
+  },
+  "wizard": {
+    "step1": {
+      "title": "Selecione a Plataforma",
+      "subtitle": "Escolha o serviço de marketing que deseja conectar ao ecossistema."
+    },
+    "step2": {
+      "title": "Configurar Credenciais",
+      "subtitle": "Insira as credenciais e tokens necessários para habilitar o rastreamento."
+    },
+    "step3": {
+      "title": "Configurar Destinos",
+      "subtitle": "Em quais aplicativos ou partes da web deseja injetar este código?"
+    },
+    "services": {
+      "analytics": {
+        "title": "Google Analytics 4",
+        "description": "Monitoramento em tempo real, usuários ativos e tráfego de eventos avançado."
+      },
+      "meta": {
+        "title": "Meta Pixel",
+        "description": "Rastreamento de eventos de compra e conversão para campanhas do Facebook e Instagram."
+      },
+      "firebase": {
+        "title": "Firebase",
+        "description": "Infraestrutura de back-end para notificações push e eventos de aplicativos móveis."
+      },
+      "google_ads": {
+        "title": "Google Ads",
+        "description": "Rastreamento de conversões e remarketing para campanhas do Google."
+      },
+      "dittofeed": {
+        "title": "Dittofeed",
+        "description": "Mecanismo open-source de automação de marketing e engajamento do cliente."
+      }
+    },
+    "buttons": {
+      "next": "Próximo Passo",
+      "back": "Voltar",
+      "finish": "Salvar Rastreador"
+    }
+  },
+  "analytics": {
+    "empty": {
+      "title": "Conectar o Google Analytics",
+      "subtitle": "Não encontramos nenhum provedor GA4 ativo. Configure suas credenciais para ativar o painel de análise em tempo real.",
+      "button": "Configurar GA4 Agora"
+    },
+    "dashboard": {
+      "live_pulse": "Pulso ao Vivo",
+      "active_users": "Usuários Ativos",
+      "pages_table": "Tráfego em Tempo Real"
+    }
+  }
+}

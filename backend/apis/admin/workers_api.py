@@ -27,6 +27,7 @@ class WorkerCategory(str, Enum):
     MTZ      = "mtz"
     INTRANET = "intranet"
     KPIS     = "kpis"
+    MARKETING = "marketing"
 
 
 class WorkerDefinition(BaseModel):
@@ -39,6 +40,13 @@ class WorkerDefinition(BaseModel):
 
 # Registro central: nombre → definición
 WORKER_REGISTRY: Dict[str, WorkerDefinition] = {
+    # ── Marketing & Analytics ────────────────────────────────────────────────
+    "worker_conversion_analytics": WorkerDefinition(
+        name="worker_conversion_analytics",
+        module="utils.conversion_tracker.worker",
+        category=WorkerCategory.MARKETING,
+        description="Fetch historical data from Google Analytics (GA4) and store locally.",
+    ),
     # ── MTZ ──────────────────────────────────────────────────────────────────
     "worker_sucursales": WorkerDefinition(
         name="worker_sucursales",

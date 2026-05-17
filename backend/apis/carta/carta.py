@@ -219,33 +219,15 @@ async def _require_catalog_or_token(request: Request) -> dict:
     """
     Dual-auth guard para endpoints semi-públicos (ej: /carta/locations).
     Acepta:
-      1. Header X-API-Key validado contra DB (api_keys + api_tokens + legacy EXTERNAL_API_KEY)
-      2. Sesión admin válida (verify_session + require_admin_level)
+      1. X-Provider-Slug validado contra providers (para satélites)
     Útil para que la carta digital pueda consultar locations sin sesión.
     """
-    api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
-    if api_key:
-        # 1a. Legacy hardcoded key (backwards compat)
-        from config.menus.public_catalog import EXTERNAL_API_KEY
-        if api_key == EXTERNAL_API_KEY:
-            return {"role": "public", "api_key": api_key}
-
-        # 1b. DB-backed API keys (api_keys collection — used by Dilithium-claimed providers)
-        from apis.admin.apikeys import validate_api_key
-        try:
-            info = validate_api_key(api_key)
-            if info:
-                return {"role": "api_key", **info}
-        except Exception:
-            pass
-
-        # 1c. Legacy api_tokens collection
-        from datetime import datetime as _dt
-        token_doc = db.api_tokens.find_one({"token": api_key})
-        if token_doc:
-            exp = token_doc.get("expires_at")
-            if exp is None or exp > _dt.utcnow():
-                return {"role": "api_token", "token": api_key}
+    # 1. X-Provider-Slug for Satellites
+    provider_slug = request.headers.get("X-Provider-Slug")
+    if provider_slug:
+        prov = db.ecosystem_providers.find_one({"slug": provider_slug, "status": "active"})
+        if prov:
+            return {"role": "satellite", "slug": provider_slug}
 
     # 2. Fallback: sesión admin
     try:
@@ -255,7 +237,7 @@ async def _require_catalog_or_token(request: Request) -> dict:
     except Exception:
         raise HTTPException(
             status_code=403,
-            detail="Se requiere sesión de administrador o X-API-Key válida.",
+            detail="Se requiere sesión de administrador o X-Provider-Slug válido.",
         )
 
 
@@ -788,29 +770,16 @@ async def clean_database_duplicates(user: dict = Depends(_require_catalog_access
 # Public Catalog API
 # ═════════════════════════════════════════════
 
+from apis.admin.ecosystem_providers import verify_satellite_webhook
+
 @router.get("/public/menus_catalog")
-async def get_public_catalog(request: Request):
-    api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+async def get_public_catalog(request: Request, provider: dict = Depends(verify_satellite_webhook)):
+    """
+    Public catalog sync for Carta satellite.
+    Strictly authenticated via Dilithium Post-Quantum Signature.
+    """
     menu_type_filter = request.query_params.get("menu_type")
-    
-    # Aceptar el EXTERNAL_API_KEY hardcodeado
-    if api_key == catalog_svc.EXTERNAL_API_KEY:
-        try:
-            return catalog_svc.get_public_catalog(api_key, menu_type_filter=menu_type_filter)
-        except PermissionError:
-            raise HTTPException(status_code=401, detail="Invalid API Key")
-    # Aceptar también tokens de BD (api_keys / api_tokens) — igual que piccola_apis
-    if api_key:
-        from apis.admin.piccola_apis import verify_api_key as _verify_db_key
-        try:
-            await _verify_db_key(api_key)
-        except HTTPException:
-            raise HTTPException(status_code=401, detail="Invalid API Key")
-        try:
-            return catalog_svc.get_public_catalog(catalog_svc.EXTERNAL_API_KEY, menu_type_filter=menu_type_filter)
-        except PermissionError:
-            raise HTTPException(status_code=401, detail="Invalid API Key")
-    raise HTTPException(status_code=401, detail="Missing API Key")
+    return catalog_svc.get_public_catalog(menu_type_filter=menu_type_filter)
 
 
 # ═════════════════════════════════════════════

@@ -163,7 +163,7 @@ export async function fetchCoupons({ walletAddress, token, page = 1, limit = 20,
 export async function fetchApiToken({ walletAddress, token }) {
     return api({
         method: 'GET',
-        endpoint: '/api-token',
+        endpoint: '/apikeys',
         headers: {
             'X-Wallet-Address': walletAddress,
             Authorization: `Bearer ${token}`,
@@ -172,15 +172,13 @@ export async function fetchApiToken({ walletAddress, token }) {
 }
 
 // Función para generar un nuevo token API
-export async function generateApiToken({ walletAddress, token, signature, plain_data, duration }) {
+export async function generateApiToken({ walletAddress, token, name, expiry_months }) {
     return api({
         method: 'POST',
-        endpoint: '/api-token/generate',
+        endpoint: '/apikeys',
         data: {
-            wallet: walletAddress,
-            plain_data,
-            signature,
-            duration,
+            name,
+            expiry_months
         },
         headers: {
             'X-Wallet-Address': walletAddress,

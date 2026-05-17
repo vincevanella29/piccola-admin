@@ -216,3 +216,7 @@ class GroupMessageOut(BaseModel):
 
 class ReactionRequest(BaseModel):
     emoji: str = Field(..., min_length=1, max_length=10)
+
+class DmSendRequest(BaseModel):
+    peer: str
+    text: str

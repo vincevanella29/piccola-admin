@@ -1,5 +1,6 @@
 // OrderDetailModal.jsx — Shared order detail modal for Kanban, History, Dispatch
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import useDeliveryOrders from '../../../hooks/delivery/useDeliveryOrders';
 import { motion } from 'framer-motion';
 import {
   FaTimes, FaUser, FaMapMarkerAlt, FaPhone, FaEnvelope, FaBuilding,
@@ -75,7 +76,31 @@ const ContactPill = ({ icon: Icon, text, href, colorCls }) => {
 
 // ── Main Modal ─────────────────────────────────────────────
 
-const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupStatuses = [], onUpdateStatus, canEdit, onClose, locations = [] }) => {
+const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupStatuses = [], onUpdateStatus, canEdit, onClose, locations = [], appState }) => {
+  const [activeTab, setActiveTab] = useState('details'); // 'details', 'history', 'review'
+  const [historyOrders, setHistoryOrders] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const deliveryApi = useDeliveryOrders(appState);
+
+  useEffect(() => {
+    if (activeTab === 'history' && order?.customer?.phone && appState) {
+      const loadHistory = async () => {
+        setLoadingHistory(true);
+        try {
+          const res = await deliveryApi.fetchOrders({ 
+            customerPhone: order.customer.phone,
+            limit: 10
+          });
+          setHistoryOrders(res?.orders || []);
+        } catch (err) {
+          console.error('Error fetching customer history', err);
+        } finally {
+          setLoadingHistory(false);
+        }
+      };
+      loadHistory();
+    }
+  }, [activeTab, order, appState, deliveryApi.fetchOrders]);
   if (!order) return null;
 
   const items = order.items || [];
@@ -114,7 +139,7 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
           initial={{ opacity: 0, scale: 0.95, y: 20 }} 
           animate={{ opacity: 1, scale: 1, y: 0 }} 
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="pointer-events-auto w-full md:w-[850px] max-h-[95vh] md:max-h-[90vh] bg-light-surface dark:bg-dark-surface rounded-2xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-light-border/20 dark:border-dark-border/20"
+          className="pointer-events-auto w-full md:w-[850px] max-h-[85vh] lg:max-h-[calc(100vh-140px)] bg-light-surface dark:bg-dark-surface rounded-2xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-light-border/20 dark:border-dark-border/20"
         >
         {/* Dynamic Header Banner */}
         <div className="relative px-6 py-5 flex items-center justify-between border-b border-light-border/10 dark:border-dark-border/10 overflow-hidden">
@@ -169,9 +194,32 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
           </button>
         </div>
 
-        {/* Scrollable Content - 2 Column Grid */}
+        {/* Modal Tabs */}
+        <div className="flex border-b border-light-border/10 dark:border-dark-border/10">
+          <button 
+            onClick={() => setActiveTab('details')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${activeTab === 'details' ? 'border-matrix-green text-matrix-green' : 'border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}
+          >
+            Detalles
+          </button>
+          <button 
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${activeTab === 'history' ? 'border-matrix-green text-matrix-green' : 'border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}
+          >
+            Historial
+          </button>
+          <button 
+            onClick={() => setActiveTab('review')}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${activeTab === 'review' ? 'border-matrix-green text-matrix-green' : 'border-transparent text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}
+          >
+            Reseña
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {activeTab === 'details' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* LEFT COLUMN: Logistics & Customer */}
             <div className="space-y-6">
@@ -375,27 +423,111 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
                 )}
               </div>
 
-              {/* Review */}
-              {review && (
-                <Section icon={FaStar} title="Evaluación del Cliente" color="text-amber-400" bgColor="bg-amber-500/5" borderColor="border border-amber-500/10">
-                  <div className="flex items-center gap-4 mb-3">
-                    <Stars count={review.overall_stars || 0} size={20} />
-                    <span className="text-2xl font-black text-amber-400">{review.overall_stars || 0}<span className="text-sm text-amber-400/50">/5</span></span>
-                  </div>
-                  {review.comment && (
-                    <div className="p-3 bg-light-surface/50 dark:bg-dark-surface/50 rounded-xl mb-3 border border-amber-500/10">
-                      <p className="text-sm text-light-text-primary dark:text-dark-text-primary italic">"{review.comment}"</p>
-                    </div>
-                  )}
-                  <div className="flex gap-4">
-                    {review.food_stars && <p className="text-xs font-bold text-light-text-secondary"><span className="text-amber-400 mr-1">🍔</span> Comida: {review.food_stars}/5</p>}
-                    {review.delivery_stars && <p className="text-xs font-bold text-light-text-secondary"><span className="text-amber-400 mr-1">🛵</span> Envío: {review.delivery_stars}/5</p>}
-                  </div>
-                </Section>
-              )}
-
+              {/* Review in Details removed, moved to its own tab */}
             </div>
           </div>
+          )}
+
+          {/* HISTORY TAB */}
+          {activeTab === 'history' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-light-text-primary dark:text-dark-text-primary uppercase tracking-wider">
+                  Historial de Pedidos ({historyOrders.length})
+                </h3>
+                <span className="text-xs font-mono bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 px-2 py-1 rounded">
+                  {order.customer?.phone}
+                </span>
+              </div>
+              
+              {loadingHistory ? (
+                <div className="text-center p-8 text-sm opacity-50">Cargando historial...</div>
+              ) : historyOrders.length === 0 ? (
+                <div className="text-center p-8 text-sm opacity-50">No hay pedidos anteriores.</div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {historyOrders.map((histOrder) => {
+                    const isCurrent = histOrder._id === order._id;
+                    const meta = statusesMap[histOrder.status] || {};
+                    return (
+                      <div key={histOrder._id} className={`p-4 rounded-xl border flex items-center justify-between ${isCurrent ? 'bg-matrix-green/5 border-matrix-green/30' : 'bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 border-light-border/10 dark:border-dark-border/10 hover:border-light-border/30 dark:hover:border-dark-border/30'}`}>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono font-bold text-sm">#{histOrder.order_number?.slice(-8).toUpperCase()}</span>
+                            {isCurrent && <span className="text-[9px] font-black uppercase tracking-wider bg-matrix-green text-black px-1.5 py-0.5 rounded">Actual</span>}
+                          </div>
+                          <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                            {fmtDate(histOrder.created_at)} a las {fmtTime(histOrder.created_at)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 text-right">
+                          <div className="flex flex-col items-end">
+                            <span className="font-black text-sm">{fmt(histOrder.total_amount)}</span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: meta.color ? `${meta.color}15` : '#6663', color: meta.color || '#666' }}>
+                              {meta.label || histOrder.status}
+                            </span>
+                          </div>
+                          {histOrder.review?.overall_stars && (
+                            <div className="flex items-center gap-1 text-xs font-bold text-amber-500 bg-amber-500/10 px-2 py-1 rounded-full">
+                              ⭐ {histOrder.review.overall_stars}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* REVIEW TAB */}
+          {activeTab === 'review' && (
+            <div className="max-w-xl mx-auto mt-4">
+              {review ? (
+                <div className="bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/20 rounded-3xl p-8 text-center relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8 opacity-5">
+                    <FaStar size={120} className="text-amber-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-amber-500 mb-6 uppercase tracking-wider relative z-10">Evaluación del Cliente</h3>
+                  <div className="flex justify-center mb-6 relative z-10">
+                    <Stars count={review.overall_stars || 0} size={40} />
+                  </div>
+                  <p className="text-5xl font-black text-amber-400 mb-8 relative z-10">{review.overall_stars || 0}<span className="text-xl text-amber-400/50">/5</span></p>
+                  
+                  {review.comment && (
+                    <div className="bg-light-surface/80 dark:bg-dark-surface/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-amber-500/10 relative z-10 text-left">
+                      <FaStickyNote className="text-amber-500 mb-2 opacity-50" />
+                      <p className="text-base text-light-text-primary dark:text-dark-text-primary font-medium italic">"{review.comment}"</p>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-center gap-8 mt-8 relative z-10">
+                    {review.food_stars && (
+                      <div className="text-center">
+                        <div className="text-2xl mb-1">🍔</div>
+                        <div className="text-xs font-bold text-light-text-secondary uppercase tracking-wider">Comida</div>
+                        <div className="text-lg font-black text-amber-400">{review.food_stars}/5</div>
+                      </div>
+                    )}
+                    {review.delivery_stars && (
+                      <div className="text-center">
+                        <div className="text-2xl mb-1">🛵</div>
+                        <div className="text-xs font-bold text-light-text-secondary uppercase tracking-wider">Envío</div>
+                        <div className="text-lg font-black text-amber-400">{review.delivery_stars}/5</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center p-12 bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 rounded-3xl border border-light-border/10 dark:border-dark-border/10">
+                  <FaStar size={48} className="text-light-text-tertiary mx-auto mb-4 opacity-50" />
+                  <h3 className="text-lg font-bold text-light-text-secondary dark:text-dark-text-secondary mb-2">Sin Evaluación</h3>
+                  <p className="text-sm text-light-text-tertiary">El cliente aún no ha dejado una reseña para este pedido.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </motion.div>
       </div>

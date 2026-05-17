@@ -108,37 +108,47 @@ export async function deleteCampaign({ token, walletAddress, id }) {
 }
 
 // ── Automations ────────────────────────────────────────────
-export async function fetchAutomations({ token, walletAddress }) {
+export async function fetchAutomationTriggers({ token, walletAddress }) {
   return api({
-    method: 'GET', endpoint: '/mailing/automations',
+    method: 'GET', endpoint: '/automations/config/triggers',
+    headers: authHeaders({ token, walletAddress }), withCredentials: true,
+  });
+}
+
+export async function fetchAutomations({ token, walletAddress, segment = 'customers', actionType = 'email' }) {
+  let endpoint = `/automations/${segment}`;
+  if (actionType) endpoint += `?action_type=${actionType}`;
+  return api({
+    method: 'GET', endpoint,
     headers: authHeaders({ token, walletAddress }), withCredentials: true,
   });
 }
 
 export async function createAutomation({ token, walletAddress, data }) {
   return api({
-    method: 'POST', endpoint: '/mailing/automations',
+    method: 'POST', endpoint: '/automations',
     data, headers: authHeaders({ token, walletAddress }), withCredentials: true,
   });
 }
 
 export async function updateAutomation({ token, walletAddress, id, data }) {
   return api({
-    method: 'PUT', endpoint: `/mailing/automations/${id}`,
+    method: 'PUT', endpoint: `/automations/${id}`,
     data, headers: authHeaders({ token, walletAddress }), withCredentials: true,
   });
 }
 
-export async function toggleAutomation({ token, walletAddress, id }) {
+export async function toggleAutomation({ token, walletAddress, id, data }) {
+  // To toggle, we just update active
   return api({
-    method: 'PATCH', endpoint: `/mailing/automations/${id}/toggle`,
-    headers: authHeaders({ token, walletAddress }), withCredentials: true,
+    method: 'PUT', endpoint: `/automations/${id}`,
+    data, headers: authHeaders({ token, walletAddress }), withCredentials: true,
   });
 }
 
 export async function deleteAutomation({ token, walletAddress, id }) {
   return api({
-    method: 'DELETE', endpoint: `/mailing/automations/${id}`,
+    method: 'DELETE', endpoint: `/automations/${id}`,
     headers: authHeaders({ token, walletAddress }), withCredentials: true,
   });
 }

@@ -23,7 +23,6 @@ from apis.mi_ficha.mi_meritos import (
     get_rule_templates,
     get_rule_evaluators,
     get_rule_progress_evaluators,
-    LINKS,
     RULES_COLL,
 )
 
@@ -269,7 +268,7 @@ async def get_active_promotions(user: Optional[dict] = Depends(optional_verify_s
         progress_evaluators = {}
         periodo_dash = get_chile_time().strftime("%Y-%m")
         if wallet:
-            link = LINKS.find_one({"wallet": wallet})
+            link = db.empleados_usuarios.find_one({"wallet": wallet})
             if link and link.get("rut"):
                 rut = str(link.get("rut"))
                 rules_map = {str(r["_id"]): r for r in RULES_COLL.find()}

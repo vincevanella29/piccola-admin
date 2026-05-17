@@ -16,7 +16,7 @@ export default function useB2BPartner(appState) {
   const [partner, setPartner] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({ company_name: '', contact_email: '', contact_phone: '', description: '' });
+  const [formData, setFormData] = useState({ company_name: '', contact_email: '', contact_phone: '', description: '', opt_in_notifications: true, opt_in_mailing: true });
   const [newCredentials, setNewCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -68,15 +68,14 @@ export default function useB2BPartner(appState) {
   const handleRecoverCredentials = useCallback(async () => {
     try {
       setError('');
-      if (!appRef.current?.provider) {
+      if (!appRef.current?.signMessage) {
         throw new Error('Web3 Provider no encontrado. Conecta tu wallet.');
       }
       
-      const signer = appRef.current.provider.getSigner();
       const message = "Autorizo revelar mi clave secreta B2B en Vanellix.";
       
       // Request signature from user's wallet
-      const signature = await signer.signMessage(message);
+      const signature = await appRef.current.signMessage(message);
       
       const res = await api.recoverCredentials({ 
         ...getAuth(), 

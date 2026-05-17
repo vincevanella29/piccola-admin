@@ -30,7 +30,6 @@ from .helpers import serialize, get_ts
 
 logger = logging.getLogger(__name__)
 
-EXTERNAL_API_KEY = "1fSypihaCuh9g.ql4Ly8qqw7Usa3OMWRUVlM3YvO9eo1EDAVB_vkN3A0A"
 
 
 def _build_options_indexes() -> tuple:
@@ -228,11 +227,9 @@ def _build_sales_index() -> dict:
 
 
 
-def get_public_catalog(api_key: str, menu_type_filter: str = None) -> dict:
+def get_public_catalog(menu_type_filter: str = None) -> dict:
     """
     Único endpoint público de la carta digital.
-
-    Autenticación: X-API-Key header con EXTERNAL_API_KEY.
 
     Devuelve:
       - categories : lista con menús anidados (cada menú incluye options, media, sales_units)
@@ -242,8 +239,6 @@ def get_public_catalog(api_key: str, menu_type_filter: str = None) -> dict:
                        telephone, lat, lng, status, permalink_slug,
                        media_r2, media_logo, custom_buttons, menu_ids, horario, color
     """
-    if api_key != EXTERNAL_API_KEY:
-        raise PermissionError("Invalid API Key")
 
     categories = list(db.categories.find().sort("prioridad", 1))
     products   = list(db.menus.find().sort("prioridad", 1))
@@ -383,9 +378,17 @@ def get_public_catalog(api_key: str, menu_type_filter: str = None) -> dict:
         })
 
 
+    try:
+        from utils.conversion_tracker.sync import get_conversion_trackers_for_provider
+        conversion_trackers = get_conversion_trackers_for_provider("carta") 
+    except Exception as e:
+        logger.warning(f"[public_catalog] ⚠️ Failed to fetch conversion trackers (non-fatal): {e}")
+        conversion_trackers = []
+
     return {
         "categories": categories_out,
         "products":   filtered_products,
         "locations":  locations_out,
+        "conversion_trackers": conversion_trackers,
     }
 

@@ -76,9 +76,10 @@ const Marketing = ({ appState }) => {
       mk.loadTemplates();
     }
     if (activeTab === 'automations') {
-      mk.loadAutomations();
+      mk.loadAutomations('customers');
       mk.loadTemplates();
       mk.loadStatuses();
+      mk.loadTriggers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -227,11 +228,10 @@ const Marketing = ({ appState }) => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAI(!showAI)}
-            className={`px-4 py-2 rounded-xl font-medium transition-all text-sm flex items-center gap-2 border ${
-              showAI
+            className={`px-4 py-2 rounded-xl font-medium transition-all text-sm flex items-center gap-2 border ${showAI
                 ? 'bg-purple-500/20 border-purple-500/30 text-purple-400'
                 : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary hover:bg-light-surface-tertiary dark:hover:bg-dark-surface-tertiary'
-            }`}
+              }`}
           >
             <FaMagic size={12} />
             Asistente IA
@@ -337,10 +337,12 @@ const Marketing = ({ appState }) => {
                   automations={mk.automations}
                   templates={mk.templates}
                   orderStatuses={mk.orderStatuses}
+                  triggersConfig={mk.triggers}
                   loading={mk.automationsLoading}
                   onSave={mk.saveAutomation}
                   onToggle={mk.toggleAuto}
                   onDelete={mk.removeAutomation}
+                  loadAutomations={mk.loadAutomations}
                 />
               </motion.div>
             )}
@@ -393,13 +395,13 @@ export default Marketing;
 
 export const pageMetadata = {
   path: '/app/marketing',
-  label: 'Marketing & Mailing',
+  label: 'marketing.label',
   category: 'marketing.category',
   minRoleLevel: 3,
-  maxRoleLevel: 4,
+  maxRoleLevel: 5,
   order: 1,
   locations: ['sidebar'],
-  description: 'Email marketing, campañas y automaciones',
+  description: 'marketing.description',
   icon: 'FaPaperPlane',
   isSearchable: true,
 };

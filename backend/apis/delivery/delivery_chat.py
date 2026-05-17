@@ -16,7 +16,7 @@ Collections:
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request, UploadFile, File
@@ -25,7 +25,7 @@ from pydantic import BaseModel
 from utils.web3mongo import db
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
-from utils.time_utils import get_chile_time
+from utils.time_utils import get_chile_time, CHILE_TZ
 from utils.bot.engine import chat_complete
 from apis.marketing.chat import _resolve_worker_profile
 
@@ -72,7 +72,7 @@ class DeliveryChatManager:
                 import time, uuid, json
                 from utils.vanellix_crypto import generate_dilithium_keypair, sign_dilithium
                 
-                provider = db.delivery_providers.find_one({"status": "active", "domain": {"$exists": True, "$ne": ""}})
+                provider = db.ecosystem_providers.find_one({"ecosystem_type": "delivery", "status": "active", "domain": {"$exists": True, "$ne": ""}})
                 delivery_url = provider.get("domain") if provider else None
                     
                 if not delivery_url:
@@ -351,13 +351,40 @@ async def list_delivery_chats(
         query["status"] = status
 
     cursor = CHAT_STATE.find(query).sort("opened_at", -1).skip(max(0, offset)).limit(min(limit, 100))
+    state_list = list(cursor)
+    order_numbers = [s["order_number"] for s in state_list]
+    
+    # 1. Fetch customer phones and order reviews
+    orders_info = list(db.delivery_orders.find({"order_number": {"$in": order_numbers}}, {"order_number": 1, "customer.phone": 1, "review": 1}))
+    order_to_phone = {o["order_number"]: o.get("customer", {}).get("phone") for o in orders_info}
+    order_to_review = {o["order_number"]: o.get("review") for o in orders_info}
+    phones = [p for p in order_to_phone.values() if p]
+    
+    # 2. Fetch stats for these phones
+    stats_map = {}
+    if phones:
+        pipeline = [
+            {"$match": {"customer.phone": {"$in": phones}, "status": {"$ne": "cancelled"}}},
+            {"$group": {
+                "_id": "$customer.phone",
+                "total_orders": {"$sum": 1},
+                "avg_review": {"$avg": "$review.overall_stars"}
+            }}
+        ]
+        stats_res = db.delivery_orders.aggregate(pipeline)
+        stats_map = {doc["_id"]: {"total_orders": doc.get("total_orders", 0), "avg_review": doc.get("avg_review")} for doc in stats_res}
+
     items = []
-    for state in cursor:
+    for state in state_list:
         # Get last message for preview
         last_msg = CHAT_MSGS.find_one(
             {"order_number": state["order_number"]},
             sort=[("created_at", -1)],
         )
+        
+        phone = order_to_phone.get(state["order_number"])
+        customer_stats = stats_map.get(phone, {"total_orders": 1, "avg_review": None}) if phone else {"total_orders": 1, "avg_review": None}
+        
         items.append({
             "order_number": state["order_number"],
             "location_id": state.get("location_id"),
@@ -366,6 +393,7 @@ async def list_delivery_chats(
             "mode": state.get("mode", "bot"),
             "admin_id": state.get("admin_id"),
             "opened_at": state.get("opened_at"),
+            "order_review": order_to_review.get(state["order_number"]),
             "last_text": (last_msg or {}).get("text"),
             "last_role": (last_msg or {}).get("role"),
             "last_at": (last_msg or {}).get("created_at"),
@@ -374,6 +402,7 @@ async def list_delivery_chats(
                 "role": "user",
                 "read": {"$ne": True},
             }),
+            "customer_stats": customer_stats,
         })
 
     return {"success": True, "items": items}
@@ -391,8 +420,12 @@ async def delivery_chat_history(order_number: str, user: dict = Depends(verify_s
         {"$set": {"read": True}},
     )
 
-    order_data = db.delivery_orders.find_one({"order_number": order_number}, {"_id": 0})
-    order_context = _build_order_context(order_data) if order_data else None
+    order_data = db.delivery_orders.find_one({"order_number": order_number})
+    
+    full_order = None
+    if order_data:
+        from apis.delivery.orders import _serialize_order
+        full_order = _serialize_order(order_data)
 
     return {
         "success": True,
@@ -415,7 +448,7 @@ async def delivery_chat_history(order_number: str, user: dict = Depends(verify_s
             "mode": state.get("mode", "bot"),
             "admin_id": state.get("admin_id"),
             "customer_name": state.get("customer_name"),
-            "order": order_context,
+            "order": full_order,
         },
     }
 
@@ -468,9 +501,23 @@ async def delivery_chat_reply(
         "admin_wallet": admin_wallet,
         "sender_name": name or "Local",
         "sender_avatar_url": avatar,
-    }, to_admins=True)
+    }, to_admins=None)
 
     logger.info(f"[delivery_chat_reply] Mensaje de {name or admin_wallet} procesado por dchat_manager (order: {order_number}): '{data.text}'")
+
+    # Trigger Push Notification for Customer
+    from services.automation_engine import trigger_event
+    import asyncio
+    order = DELIVERY_COLL.find_one({"order_number": order_number})
+    if order:
+        customer_data = order.get("customer", {})
+        asyncio.create_task(trigger_event("delivery_chat_message", "customers", {
+            "order_number": order_number,
+            "sender_name": name or "La Piccola Italia",
+            "message": data.text,
+            "customer": customer_data,
+            "privy_id": order.get("privy_id")
+        }))
 
     return {"ok": True}
 
@@ -590,36 +637,21 @@ class DeliveryMessagePayload(BaseModel):
     image_url: Optional[str] = None
 
 
+from apis.admin.ecosystem_providers import verify_satellite_webhook
+
 @router.post("/delivery/chat/message", summary="Delivery backend forwards customer message (Dilithium-signed)")
 async def delivery_chat_message(
     payload: DeliveryMessagePayload,
     request: Request,
+    provider: dict = Depends(verify_satellite_webhook)
 ):
     """
     Called by the delivery backend when a customer sends a chat message.
-    Authenticated via Dilithium signature + API key (same as order creation).
+    Authenticated via Dilithium verify_satellite_webhook.
     Processes the message through the bot engine and returns the response.
     """
     try:
         logger.info(f"[delivery_chat_message] Empezando a procesar mensaje para orden {payload.order_number}")
-        from utils.vanellix_crypto import verify_dilithium_request
-        from apis.admin.apikeys import validate_api_key
-
-        # Verify API key (same format as delivery/orders: keyId.secret)
-        api_key = request.headers.get("X-Api-Key", "")
-        if not api_key:
-            logger.error("[delivery_chat_message] No API Key provided")
-            raise HTTPException(status_code=401, detail="API key required")
-
-        logger.info(f"[delivery_chat_message] Validando API Key: {api_key[:10]}...")
-        key_doc = validate_api_key(api_key)
-        if not key_doc:
-            logger.error(f"[delivery_chat_message] API Key inválida: {api_key}")
-            raise HTTPException(status_code=401, detail="Invalid API key")
-
-        # Verify Dilithium signature
-        logger.info(f"[delivery_chat_message] Verificando firma Dilithium para la request")
-        await verify_dilithium_request(request, key_doc, context="delivery/chat")
 
         # Find order
         logger.info(f"[delivery_chat_message] Buscando orden en DELIVERY_COLL: {payload.order_number}")
@@ -726,6 +758,20 @@ async def delivery_chat_message(
             }, to_admins=None)
             
             logger.info("[delivery_chat_message] Todo procesado con éxito (modo bot)")
+            
+            # Trigger Push Notification for Customer
+            from services.automation_engine import trigger_event
+            import asyncio
+            if order:
+                customer_data = order.get("customer", {})
+                asyncio.create_task(trigger_event("delivery_chat_message", "customers", {
+                    "order_number": payload.order_number,
+                    "sender_name": "La Nonna 🍕",
+                    "message": response_text,
+                    "customer": customer_data,
+                    "privy_id": order.get("privy_id")
+                }))
+                
             return {"ok": True, "bot_response": response_text}
 
         logger.info("[delivery_chat_message] Todo procesado con éxito (modo humano)")
@@ -788,10 +834,10 @@ async def ws_delivery_chat_client(websocket: WebSocket, order_number: str):
         delivered_at = order.get("delivered_at")
         if delivered_at:
             if isinstance(delivered_at, (int, float)):
-                dt = datetime.fromtimestamp(delivered_at, tz=timezone.utc)
+                dt = datetime.fromtimestamp(delivered_at, tz=CHILE_TZ)
             else:
                 dt = datetime.fromisoformat(str(delivered_at).replace("Z", "+00:00"))
-            if datetime.now(timezone.utc) - dt > timedelta(hours=1):
+            if get_chile_time() - dt > timedelta(hours=1):
                 await websocket.close(code=4007, reason="Chat window expired")
                 return
 

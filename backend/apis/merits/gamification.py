@@ -26,10 +26,12 @@ class BatchPlanInput(BaseModel):
 class BatchTxsInput(BaseModel):
     plan: BatchPlanInput
     fast_minter_wallet: Optional[str] = None
+    mint_nonce: Optional[str] = None
 
 class BatchConfirmInput(BaseModel):
     tx_hash: str
     result_ids: List[str]
+    mint_nonce: Optional[str] = None
 
 class DefineFromTemplatePayload(BaseModel):
     rule_name: str
@@ -127,6 +129,26 @@ async def plan_batch_merit(body: BatchPlanInput):
     summary="Construye la TX para un batch de méritos sin enviarla",
 )
 async def build_batch_txs(body: BatchTxsInput, user: dict = Depends(admin_user)):
+    from utils.web3mongo import db
+    
+    # Layer 2: Idempotency Check (PRE-FIRMA)
+    if body.mint_nonce:
+        existing = db.meritocracy_mint_nonces.find_one({"mint_nonce": body.mint_nonce})
+        if existing:
+            if existing.get("status") == "confirmed" or existing.get("tx_hash"):
+                return {
+                    "ok": True,
+                    "deduplicated": True,
+                    "transaction": None,
+                    "tx_hash": existing.get("tx_hash"),
+                    "message": "Este batch ya fue minteado exitosamente."
+                }
+            elif existing.get("status") == "pending":
+                raise HTTPException(
+                    status_code=409,
+                    detail="Este batch ya tiene una transacción pendiente de firma. Por favor, verifica en tu wallet o reconcilia la transacción antes de reintentar."
+                )
+
     # Reutilizamos la planificación para normalizar/validar entradas
     plan_result = await plan_batch_merit(body.plan)
 
@@ -148,6 +170,18 @@ async def build_batch_txs(body: BatchTxsInput, user: dict = Depends(admin_user))
     if not transaction:
         raise HTTPException(status_code=500, detail="No se pudo construir la transacción del batch.")
 
+    # Guardar en Mongo como "pending" ANTES de que el usuario firme
+    if body.mint_nonce:
+        from datetime import datetime
+        db.meritocracy_mint_nonces.insert_one({
+            "mint_nonce": body.mint_nonce,
+            "status": "pending",
+            "created_at": datetime.utcnow(),
+            "transaction_built": transaction,
+            "result_ids": [award['result_id'] for award in awards_in_plan],
+            "signer_wallet": sender_wallet
+        })
+
     return {
         "ok": True,
         "daoAddress": txs_res.get("daoAddress"),
@@ -165,13 +199,59 @@ async def build_batch_txs(body: BatchTxsInput, user: dict = Depends(admin_user))
     dependencies=[Depends(admin_user)],
 )
 async def confirm_batch_mint(payload: BatchConfirmInput):
+    from utils.web3mongo import db
+    from datetime import datetime
     try:
         gamification_service.mark_merits_as_minted(payload.result_ids, payload.tx_hash)
+        
+        # Actualizar idempotency key a "confirmed"
+        if payload.mint_nonce:
+            db.meritocracy_mint_nonces.update_one(
+                {"mint_nonce": payload.mint_nonce},
+                {"$set": {
+                    "status": "confirmed", 
+                    "tx_hash": payload.tx_hash, 
+                    "confirmed_at": datetime.utcnow()
+                }},
+                upsert=True
+            )
+            
         logger.info(f"Se confirmaron y marcaron {len(payload.result_ids)} méritos como 'minted' en la BD.")
         return {"ok": True, "message": "Méritos marcados como pagados exitosamente."}
     except Exception as e:
         logger.error(f"Error al confirmar el batch con hash {payload.tx_hash}: {e}")
         raise HTTPException(status_code=500, detail="Error al actualizar el estado de los méritos en la base de datos.")
+
+
+@router.post(
+    "/admin/gamification/merit/reconcile-nonce",
+    summary="Permite reconciliar o abandonar un nonce pendiente (ej. si el usuario rechazó la firma en MetaMask)",
+    dependencies=[Depends(admin_user)],
+)
+async def reconcile_pending_nonce(mint_nonce: str = Query(...)):
+    from utils.web3mongo import db
+    from datetime import datetime
+    
+    existing = db.meritocracy_mint_nonces.find_one({"mint_nonce": mint_nonce})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Nonce no encontrado.")
+        
+    if existing.get("status") == "confirmed":
+        return {"ok": False, "message": "El nonce ya está confirmado y minteado."}
+        
+    # TODO: Podríamos consultar el RPC de Polygon para ver si existe un evento asociado
+    # a este sender en los últimos minutos, pero como no guardamos el tx_hash de antemano
+    # (porque MetaMask genera el hash), tenemos que confiar en el admin.
+    
+    # Marcamos como abandonado para liberar el retry
+    db.meritocracy_mint_nonces.update_one(
+        {"mint_nonce": mint_nonce},
+        {"$set": {
+            "status": "abandoned",
+            "abandoned_at": datetime.utcnow()
+        }}
+    )
+    return {"ok": True, "message": "Nonce pendiente abandonado. Ya puedes reintentar."}
 
 
 # --- Reglas, Templates, Segmentos, etc. ---

@@ -10,9 +10,8 @@ from utils.web3mongo import db
 from utils.r2_upload import upload_to_r2
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
-from apis.admin.apikeys import validate_api_key
-from config.menus.public_catalog import EXTERNAL_API_KEY as CARTA_API_KEY
 from config.menus import sync as sync_svc
+from apis.admin.ecosystem_providers import verify_satellite_webhook
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -126,30 +125,14 @@ async def get_banners(
 @router.get("/public/banners")
 async def get_public_banners(
     request: Request,
-    only_active: bool = True
+    only_active: bool = True,
+    provider: dict = Depends(verify_satellite_webhook)
 ):
     """
-    Public endpoint for Carta. Accepts:
-      1. The static Carta API key (same as /public/menus_catalog)
-      2. A dynamic API key from the apikeys collection (backward-compat)
+    Endpoint for Carta satellite to sync banners.
+    Authenticated via Dilithium.
     """
-    api_key = request.headers.get("X-API-Key")
-    if not api_key:
-        raise HTTPException(status_code=401, detail="X-API-Key header missing")
-
-    company_id = None
-
-    # 1. Check against the static Carta API key
-    if api_key == CARTA_API_KEY:
-        company_id = COMPANY_ID
-    else:
-        # 2. Fallback: look up in the apikeys collection
-        key_info = validate_api_key(api_key)
-        if not key_info:
-            raise HTTPException(status_code=403, detail="Invalid or inactive API Key")
-        company_id = key_info.get("company_id")
-        if company_id is None:
-            raise HTTPException(status_code=403, detail="API Key not associated with a company")
+    company_id = COMPANY_ID
 
     try:
         query = {"company_id": company_id}
@@ -164,21 +147,11 @@ async def get_public_banners(
 
 
 @router.get("/public/navigation-links")
-async def get_public_navigation_links(request: Request):
+async def get_public_navigation_links(request: Request, provider: dict = Depends(verify_satellite_webhook)):
     """
-    Public endpoint for Carta. Same auth pattern as /public/banners.
-    Returns the navigation links array from carta_config collection.
+    Endpoint for Carta satellite to sync nav links.
+    Authenticated via Dilithium.
     """
-    api_key = request.headers.get("X-API-Key")
-    if not api_key:
-        raise HTTPException(status_code=401, detail="X-API-Key header missing")
-
-    # Validate API key (same as banners)
-    if api_key != CARTA_API_KEY:
-        key_info = validate_api_key(api_key)
-        if not key_info:
-            raise HTTPException(status_code=403, detail="Invalid or inactive API Key")
-
     doc = db.carta_config.find_one({"type": "navigation_links"})
     if not doc:
         return {"links": []}

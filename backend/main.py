@@ -86,6 +86,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[startup] dilithium_guard TTL index failed (non-fatal): {e}")
 
+    # Run Ecosystem Providers DB Migration
+    try:
+        from scripts.migrate_providers import migrate_ecosystem_providers
+        await migrate_ecosystem_providers()
+    except Exception as e:
+        logger.warning(f"[startup] ecosystem providers migration failed: {e}")
+
     # Start dispatch retry worker (background task)
     try:
         from workers.dispatch_worker import start_dispatch_worker
@@ -99,6 +106,13 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(start_mail_worker())
     except Exception as e:
         logger.warning(f"[startup] mail_worker failed to start (non-fatal): {e}")
+
+    # Start scheduled push notification worker (background task)
+    try:
+        from utils.notification_worker import start_notification_worker
+        asyncio.create_task(start_notification_worker())
+    except Exception as e:
+        logger.warning(f"[startup] push_worker failed to start (non-fatal): {e}")
 
     yield
     # --- shutdown ---

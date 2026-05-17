@@ -181,4 +181,5 @@ def validate_api_key(raw_key: str) -> Optional[dict]:
         "owner": doc["owner"],
         "company_id": doc.get("company_id"),
         "expires_at": expires_at.isoformat() if expires_at else None,
+        "provider_slug": doc.get("provider_slug"),
     }

@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "title": "Guía de Configuración de Meta Pixel",
+    "subtitle": "Rastrea conversiones de Facebook e Instagram",
+    "step1": {
+      "title": "1. Encuentra tu Pixel ID",
+      "desc": "Ve al Administrador de Eventos de Meta. Selecciona tu Origen de Datos (Pixel). Tu ID es una cadena de números debajo del nombre."
+    },
+    "step2": {
+      "title": "2. Ingresa tu ID",
+      "desc": "Pega tu Meta Pixel ID abajo para conectarlo al ecosistema."
+    },
+    "step3": {
+      "title": "3. Verifica la Conexión",
+      "desc": "Usa el Simulador a la derecha para disparar eventos y verificar que aparezcan en la Consola de Eventos."
+    }
+  },
+  "ga4": {
+    "title": "Guía de Configuración de Google Analytics 4",
+    "subtitle": "Rastrea el comportamiento del usuario y eventos de E-Commerce",
+    "step1": {
+      "title": "1. Encuentra tu Measurement ID",
+      "desc": "Ve a GA4 Admin > Flujos de Datos > Web. Tu ID de Medición empieza con 'G-'."
+    },
+    "step2": {
+      "title": "2. Ingresa tu ID",
+      "desc": "Pega tu Measurement ID abajo para empezar a rastrear tráfico y ventas."
+    },
+    "step3": {
+      "title": "3. Verifica la Conexión",
+      "desc": "Interactúa con el Simulador a la derecha. Deberías ver eventos registrados en la consola inferior."
+    }
+  },
+  "playground": {
+    "title": "Simulador Interactivo",
+    "subtitle": "Prueba tus píxeles antes de guardar",
+    "add_to_cart": "Añadir al Carrito",
+    "begin_checkout": "Iniciar Compra",
+    "purchase": "Comprar",
+    "console_title": "Log de Eventos en Vivo",
+    "console_waiting": "Esperando eventos...",
+    "event_fired": "Evento Disparado"
+  },
+  "assistant": {
+    "start": "Comenzar",
+    "ihaveid": "Ya tengo mi ID",
+    "verify": "Verificar Conexión",
+    "finish": "Todo Perfecto, Continuar"
+  }
+}

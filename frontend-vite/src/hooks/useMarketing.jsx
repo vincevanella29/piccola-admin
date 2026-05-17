@@ -165,12 +165,23 @@ export default function useMarketing(appState) {
   // ── Automations ──────────────────────────────────────
   const [automations, setAutomations] = useState([]);
   const [automationsLoading, setAutomationsLoading] = useState(false);
+  const [triggers, setTriggers] = useState({});
 
-  const loadAutomations = useCallback(async () => {
+  const loadTriggers = useCallback(async () => {
+    try {
+      const res = await api.fetchAutomationTriggers(getAuth());
+      setTriggers(res.triggers || {});
+    } catch (e) {
+      console.warn('Error cargando automation triggers:', e.message);
+    }
+  }, [getAuth]);
+
+  const loadAutomations = useCallback(async (segment = 'customers') => {
     setAutomationsLoading(true);
     try {
-      const data = await api.fetchAutomations(getAuth());
-      setAutomations(data.automations || []);
+      const data = await api.fetchAutomations({ ...getAuth(), segment, actionType: 'email' });
+      // The universal API returns the array directly (or maybe {automations} if wrapped, but backend returns `rules` array directly)
+      setAutomations(Array.isArray(data) ? data : (data.automations || []));
     } catch (e) {
       toast.error('Error cargando automations');
     } finally {
@@ -178,36 +189,39 @@ export default function useMarketing(appState) {
     }
   }, [getAuth]);
 
-  const saveAutomation = useCallback(async (id, data) => {
+  const saveAutomation = useCallback(async (id, data, segment = 'customers') => {
     try {
+      const payload = { ...data, segment, action_type: 'email' };
       if (id) {
-        await api.updateAutomation({ ...getAuth(), id, data });
+        await api.updateAutomation({ ...getAuth(), id, data: payload });
         toast.success('Automation actualizada');
       } else {
-        await api.createAutomation({ ...getAuth(), data });
+        await api.createAutomation({ ...getAuth(), data: payload });
         toast.success('Automation creada');
       }
-      loadAutomations();
+      loadAutomations(segment);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Error guardando automation');
     }
   }, [getAuth, loadAutomations]);
 
-  const toggleAuto = useCallback(async (id) => {
+  const toggleAuto = useCallback(async (id, currentAuto) => {
     try {
-      const result = await api.toggleAutomation({ ...getAuth(), id });
+      // Toggle active by passing full object
+      const payload = { ...currentAuto, active: !currentAuto.active };
+      const result = await api.toggleAutomation({ ...getAuth(), id, data: payload });
       toast.success(result.active ? 'Automation activada' : 'Automation desactivada');
-      loadAutomations();
+      loadAutomations(currentAuto.segment || 'customers');
     } catch (e) {
       toast.error('Error toggling automation');
     }
   }, [getAuth, loadAutomations]);
 
-  const removeAutomation = useCallback(async (id) => {
+  const removeAutomation = useCallback(async (id, segment = 'customers') => {
     try {
       await api.deleteAutomation({ ...getAuth(), id });
       toast.success('Automation eliminada');
-      loadAutomations();
+      loadAutomations(segment);
     } catch (e) {
       toast.error('Error eliminando automation');
     }
@@ -268,6 +282,7 @@ export default function useMarketing(appState) {
     // Automations
     automations, automationsLoading, loadAutomations,
     saveAutomation, toggleAuto, removeAutomation,
+    triggers, loadTriggers,
     // Products & AI (for template editor)
     searchProducts, getBestsellers,
     generateMarketingImage, fetchMarketingAssets,

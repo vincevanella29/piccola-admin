@@ -105,7 +105,10 @@ def get_company_role_level(wallet: str, company_id: Optional[int] = None, force_
         logger.error(f"[ROLE] ❌ Contract error getCompanyLevel({wallet_lower}): {e}")
         role_level = None
     except Exception as e:
-        logger.error(f"[ROLE] ❌ Web3 error getCompanyLevel({wallet_lower}): {e}")
+        if isinstance(e, ConnectionResetError) or "ConnectionResetError" in str(e) or "Connection aborted" in str(e):
+            logger.warning(f"[ROLE] 🟡 Web3 connection reset getCompanyLevel({wallet_lower}): {e}")
+        else:
+            logger.error(f"[ROLE] ❌ Web3 error getCompanyLevel({wallet_lower}): {e}")
         role_level = None
 
     # 3) MongoDB events fallback (if blockchain failed OR returned non-member)

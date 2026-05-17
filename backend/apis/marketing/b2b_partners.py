@@ -43,6 +43,8 @@ class B2BRegisterRequest(BaseModel):
     contact_email: str = Field(..., min_length=5, max_length=100)
     contact_phone: Optional[str] = Field(None, max_length=30)
     description: Optional[str] = Field(None, max_length=500)
+    opt_in_notifications: Optional[bool] = True
+    opt_in_mailing: Optional[bool] = True
 
 
 class B2BCredentialResponse(BaseModel):
@@ -74,6 +76,8 @@ async def register_partner(req: B2BRegisterRequest, user: dict = Depends(verify_
         "contact_email": req.contact_email,
         "contact_phone": req.contact_phone,
         "description": req.description,
+        "opt_in_notifications": req.opt_in_notifications,
+        "opt_in_mailing": req.opt_in_mailing,
         "status": "pending",
         "dilithium_public_key": None,
         "created_at": _now_iso(),

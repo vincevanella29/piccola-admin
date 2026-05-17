@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import useChannels from '../useChannels';
 import useGroups from '../useGroups';
 import usePresence from '../usePresence';
 import useCommunityActions from '../useCommunityActions';
@@ -11,15 +10,12 @@ export default function useCommunityTab({ appState }) {
   const walletAddress = (appState?.account || '').toLowerCase();
   const adminLevel = appState?.companyRoleLevel ?? appState?.roleLevel ?? 0;
   const isAdmin = adminLevel === 3 || adminLevel === 4;
-  const canPin = adminLevel >= 3 && adminLevel <= 5;
 
-  const channelHook = useChannels({ appState, enabled: true });
   const groupHook = useGroups({ appState, enabled: true });
   const presence = usePresence({ appState, enabled: true });
   const actions = useCommunityActions(appState);
 
-  const [mode, setMode] = useState(null); // 'channel' | 'group' | 'dm' | null
-  const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [mode, setMode] = useState(null); // 'group' | 'dm' | null
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showDmPicker, setShowDmPicker] = useState(false);
   const [showMembersPanel, setShowMembersPanel] = useState(true);
@@ -76,35 +72,20 @@ export default function useCommunityTab({ appState }) {
     }
   }, [token, walletAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSelectChannel = useCallback((slug) => {
-    setMode('channel');
-    groupHook.disconnectWs();
-    dmChat.disconnectWs();
-    setDmPeer(null);
-    channelHook.openChannel(slug);
-  }, [channelHook, groupHook, dmChat]);
-
   const handleSelectGroup = useCallback((groupId) => {
     setMode('group');
-    channelHook.disconnectWs();
     dmChat.disconnectWs();
     setDmPeer(null);
     groupHook.openGroup(groupId);
-  }, [channelHook, groupHook, dmChat]);
-
-  const handlePinMessage = useCallback(async (messageId) => {
-    if (!channelHook.activeSlug) return;
-    await actions.pinChannelMessage(channelHook.activeSlug, messageId);
-  }, [actions, channelHook.activeSlug]);
+  }, [groupHook, dmChat]);
 
   const handleSelectDmPeer = useCallback(async (peer) => {
     setMode('dm');
-    channelHook.disconnectWs();
     groupHook.disconnectWs();
     setDmPeer(peer);
     // Refresh conversations list
     loadDmConversations();
-  }, [channelHook, groupHook, loadDmConversations]);
+  }, [groupHook, loadDmConversations]);
 
   // Select from conversation list (sidebar click)
   const handleSelectDmConvo = useCallback((convo) => {
@@ -134,10 +115,9 @@ export default function useCommunityTab({ appState }) {
   }, []);
 
   return {
-    token, walletAddress, isAdmin, adminLevel, canPin,
-    channelHook, groupHook, presence,
+    token, walletAddress, isAdmin, adminLevel,
+    groupHook, presence,
     mode, setMode,
-    showCreateChannel, setShowCreateChannel,
     showCreateGroup, setShowCreateGroup,
     showDmPicker, setShowDmPicker,
     showMembersPanel, setShowMembersPanel,
@@ -147,7 +127,7 @@ export default function useCommunityTab({ appState }) {
     dmPeer, setDmPeer,
     dmChat,
     dmConversations, dmConvosLoading, loadDmConversations,
-    handleSelectChannel, handleSelectGroup, handlePinMessage,
+    handleSelectGroup,
     handleSelectDmPeer, handleSelectDmConvo, handleSendDm, handleMemberClick
   };
 }

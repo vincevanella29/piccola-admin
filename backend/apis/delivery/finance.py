@@ -10,13 +10,14 @@ Collections:
 """
 
 import logging
+from utils.time_utils import get_chile_time, CHILE_TZ
 import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from bson import ObjectId
 
 from utils.web3mongo import db
@@ -26,7 +27,7 @@ from config.roles.access import require_admin_level
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-PROVIDERS_COLL = db.delivery_providers
+PROVIDERS_COLL = db.ecosystem_providers
 ORDERS_COLL = db.delivery_orders
 ENTRIES_COLL = db.delivery_finance_entries
 CLOSINGS_COLL = db.delivery_finance_closings
@@ -153,8 +154,8 @@ async def generate_closing(
 
     # Parse dates
     try:
-        date_from = datetime.fromisoformat(payload.period_from).replace(tzinfo=timezone.utc)
-        date_to = datetime.fromisoformat(payload.period_to).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+        date_from = datetime.fromisoformat(payload.period_from).replace(tzinfo=CHILE_TZ)
+        date_to = datetime.fromisoformat(payload.period_to).replace(hour=23, minute=59, second=59, tzinfo=CHILE_TZ)
     except ValueError:
         raise HTTPException(status_code=400, detail="Formato de fecha inválido (YYYY-MM-DD)")
 
@@ -188,7 +189,7 @@ async def generate_closing(
         "period_to": date_to,
         "status": "draft",  # draft → confirmed → paid
         **closing_data,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": get_chile_time(),
         "created_by": user.get("wallet") or user.get("id"),
     }
     result = CLOSINGS_COLL.insert_one(doc)
@@ -244,7 +245,7 @@ async def update_closing_status(
         {"_id": ObjectId(closing_id)},
         {"$set": {
             "status": status,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": get_chile_time(),
             "updated_by": user.get("wallet") or user.get("id"),
         }}
     )
@@ -288,10 +289,10 @@ async def create_finance_entry(
     if payload.type not in ("payment", "adjustment"):
         raise HTTPException(status_code=400, detail="Tipo debe ser 'payment' o 'adjustment'")
 
-    entry_date = datetime.now(timezone.utc)
+    entry_date = get_chile_time()
     if payload.date:
         try:
-            entry_date = datetime.fromisoformat(payload.date).replace(tzinfo=timezone.utc)
+            entry_date = datetime.fromisoformat(payload.date).replace(tzinfo=CHILE_TZ)
         except ValueError:
             raise HTTPException(status_code=400, detail="Formato de fecha inválido")
 
@@ -302,7 +303,7 @@ async def create_finance_entry(
         "description": payload.description,
         "reference": payload.reference,
         "date": entry_date,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": get_chile_time(),
         "created_by": user.get("wallet") or user.get("id"),
     }
     result = ENTRIES_COLL.insert_one(doc)
@@ -450,8 +451,8 @@ async def closing_preview(
     require_admin_level(user, "delivery")
 
     try:
-        date_from = datetime.fromisoformat(period_from).replace(tzinfo=timezone.utc)
-        date_to = datetime.fromisoformat(period_to).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+        date_from = datetime.fromisoformat(period_from).replace(tzinfo=CHILE_TZ)
+        date_to = datetime.fromisoformat(period_to).replace(hour=23, minute=59, second=59, tzinfo=CHILE_TZ)
     except ValueError:
         raise HTTPException(status_code=400, detail="Formato de fecha inválido")
 
@@ -479,8 +480,8 @@ async def export_finance_csv(
     require_admin_level(user, "delivery")
 
     try:
-        date_from = datetime.fromisoformat(period_from).replace(tzinfo=timezone.utc)
-        date_to = datetime.fromisoformat(period_to).replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+        date_from = datetime.fromisoformat(period_from).replace(tzinfo=CHILE_TZ)
+        date_to = datetime.fromisoformat(period_to).replace(hour=23, minute=59, second=59, tzinfo=CHILE_TZ)
     except ValueError:
         raise HTTPException(status_code=400, detail="Formato de fecha inválido")
 

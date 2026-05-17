@@ -70,7 +70,7 @@ const ApiKeyCard = ({ api, isVisible, onToggle, onCopy, t }) => {
                 : 'bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 text-light-text-secondary dark:text-dark-text-secondary select-none'
               }
             `}>
-              {isVisible ? api.token : 'sk_live_••••••••••••••••••••••••••••••••'}
+              {isVisible ? `${api.id}.••••••••••••••••••••••••••••••••` : 'sk_live_••••••••••••••••••••••••••••••••'}
             </div>
           </div>
         </div>
@@ -142,14 +142,17 @@ const AdminApiKeys = ({ appState, fetchApiToken, generateApiToken, isLoading, se
         setFormError(t('wallet.connect_wallet'));
         return;
       }
-      const timestamp = Date.now();
-      const plain_data = `Generate API Token for ${wallet} at ${timestamp} with duration ${duration}`;
-      const signature = await appState.signTxData(plain_data);
-      if (!signature) {
-        setFormError(t('wallet.error_transfer'));
-        return;
-      }
-      await generateApiToken({ signature, plain_data, duration });
+      
+      let expiry_months = null;
+      if (duration === '1m') expiry_months = 1;
+      else if (duration === '6m') expiry_months = 6;
+      else if (duration === '1y') expiry_months = 12;
+
+      await generateApiToken({ 
+        name: `API Key (${duration})`, 
+        expiry_months 
+      });
+      
       appState.setSuccess(t('promotion.api_generated'));
       await loadApiTokens();
     } catch (err) {
@@ -240,12 +243,12 @@ const AdminApiKeys = ({ appState, fetchApiToken, generateApiToken, isLoading, se
           ))
         ) : apiTokens.length > 0 ? (
           <AnimatePresence>
-            {apiTokens.map((api) => (
+            {apiTokens.map((api, index) => (
               <ApiKeyCard 
-                key={api._id}
+                key={api.id || index}
                 api={api}
-                isVisible={visibleTokens[api._id]}
-                onToggle={() => toggleVisibility(api._id)}
+                isVisible={visibleTokens[api.id]}
+                onToggle={() => toggleVisibility(api.id)}
                 onCopy={copyToClipboard}
                 t={t}
               />

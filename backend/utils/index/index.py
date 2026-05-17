@@ -29,6 +29,7 @@ def ensure_event_indexes():
         db.restaurant_data.create_index([("mesano", ASCENDING), ("Estado", ASCENDING), ("Tipo", ASCENDING), ("local_norm", ASCENDING), ("Fecha", ASCENDING)], name="idx_mesano_estado_tipo_localnorm_fecha", background=True)
         db.ventas_producto_dia_hora_cprodu.create_index([("mesano", ASCENDING), ("local_norm", ASCENDING), ("fecha", ASCENDING)], name="idx_mesano_localnorm_fecha", background=True)
         db.sales_by_waiter_hour.create_index([("MESANO", ASCENDING), ("LOCAL", ASCENDING)], name="idx_mesano_local", background=True)
+        db.meritocracy_mint_nonces.create_index("mint_nonce", unique=True, background=True)
         
         logger.info("Application indexes ensured (ensure_event_indexes).")
     except Exception as e:

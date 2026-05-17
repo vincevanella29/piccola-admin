@@ -7,8 +7,9 @@ import calendar
 from utils.web3mongo import db
 from utils.auth.session import verify_session
 
+from config.roles.identity import get_employee_context
+
 router = APIRouter()
-LINKS = db.empleados_usuarios
 
 def _get_perfect_attendance_status(rut: str, target_date: date) -> dict:
     month_start = date(target_date.year, target_date.month, 1)
@@ -41,25 +42,8 @@ async def get_mi_asistencia_kpis(
     periodo_end: str = Query(..., description="YYYYMM"),
     user: dict = Depends(verify_session),
 ):
-    wallet = user.get("wallet")
-    sub = user.get("sub")
-    email = user.get("email")
-
-    identity_filters = []
-    if wallet:
-        identity_filters.append({"wallet": wallet})
-    if sub:
-        identity_filters.append({"sub": sub})
-    if email:
-        identity_filters.append({"email": email})
-
-    if not identity_filters:
-        raise HTTPException(status_code=401, detail="Sesión sin identidad válida (wallet/sub/email)")
-
-    link = LINKS.find_one({"$or": identity_filters})
-    if not link or not link.get("rut"):
-        raise HTTPException(status_code=404, detail="No hay ficha vinculada a esta identidad")
-    rut = str(link.get("rut"))
+    emp_data = get_employee_context(user)
+    rut = emp_data["rut"]
 
     try:
         start_y, start_m = int(periodo_start[:4]), int(periodo_start[4:])

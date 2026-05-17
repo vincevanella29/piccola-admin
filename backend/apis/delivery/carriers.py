@@ -12,10 +12,10 @@ Each carrier has:
 """
 
 import logging
+from utils.time_utils import get_chile_time
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
+from typing import Optional, Dict, List
 from bson import ObjectId
 
 from utils.web3mongo import db
@@ -246,7 +246,7 @@ async def create_carrier(
     if existing:
         raise HTTPException(status_code=409, detail=f"Ya existe un carrier con slug '{payload.slug}'")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     doc = {
         "name": payload.name,
         "slug": payload.slug,
@@ -366,7 +366,7 @@ async def update_carrier(
         if v is not None:
             update_data[k] = v
 
-    update_data["updated_at"] = datetime.now(timezone.utc)
+    update_data["updated_at"] = get_chile_time()
     update_data["updated_by"] = user.get("wallet") or user.get("id")
 
     # If auth credentials changed, invalidate cached token
@@ -398,7 +398,7 @@ async def delete_carrier(
         {"_id": ObjectId(carrier_id)},
         {"$set": {
             "status": "disabled",
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": get_chile_time(),
             "updated_by": user.get("wallet") or user.get("id"),
         }}
     )

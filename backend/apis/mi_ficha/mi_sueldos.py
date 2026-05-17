@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 from utils.web3mongo import db
 from utils.auth.session import verify_session
+from config.roles.identity import get_employee_context
 from bson import ObjectId
 
 router = APIRouter()
-LINKS = db.empleados_usuarios
 
 @router.get("/mi/sueldos", summary="Sueldos del empleado autenticado por periodo")
 async def mi_sueldos(
@@ -15,27 +15,8 @@ async def mi_sueldos(
     periodo_end: Optional[str] = Query(None, description="YYYYMM"),
     user: dict = Depends(verify_session),
 ):
-    wallet = user.get("wallet")
-    sub = user.get("sub")
-    email = user.get("email")
-
-    # Construir criterios solo con identidades realmente presentes para evitar
-    # que {wallet: None} o {email: None} coincidan con otros empleados.
-    identity_filters = []
-    if wallet:
-        identity_filters.append({"wallet": wallet})
-    if sub:
-        identity_filters.append({"sub": sub})
-    if email:
-        identity_filters.append({"email": email})
-
-    if not identity_filters:
-        raise HTTPException(status_code=401, detail="Sesión sin identidad válida (wallet/sub/email)")
-
-    link = LINKS.find_one({"$or": identity_filters})
-    if not link or not link.get("rut"):
-        raise HTTPException(status_code=404, detail="No hay ficha vinculada a esta identidad")
-    rut = str(link.get("rut"))
+    emp_data = get_employee_context(user)
+    rut = emp_data["rut"]
 
     match_rut = {"$or": [
         {"rut": rut},
@@ -108,15 +89,8 @@ async def mi_liquidacion(
     if not liquidation_id and id_talana_sueldo is None:
         raise HTTPException(status_code=400, detail="Debe proporcionar liquidation_id o id_talana_sueldo")
 
-    wallet = user.get("wallet")
-    link = LINKS.find_one({"$or": [
-        {"wallet": wallet},
-        {"sub": user.get("sub")},
-        {"email": user.get("email")}
-    ]})
-    if not link or not link.get("rut"):
-        raise HTTPException(status_code=404, detail="No hay ficha vinculada a esta identidad")
-    rut = str(link.get("rut"))
+    emp_data = get_employee_context(user)
+    rut = emp_data["rut"]
 
     # Construir match por RUT (aceptando string/int y distintos nombres de campo)
     match_rut = {"$or": [

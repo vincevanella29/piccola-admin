@@ -209,7 +209,8 @@ const ChatPage = ({ appState, sidebarWidth = 80 }) => {
                ) : activeTab === 'delivery' ? (
                   <DeliveryChatMessage
                     appState={appState} t={t}
-                    delivery={deliveryChat}
+                    messages={deliveryChat.messages}
+                    chatState={deliveryChat.chatState}
                     onShowJumpChange={(v) => setShowJumpDelivery(Boolean(v))}
                     onScrollToBottomReady={(fn) => { if (typeof fn === 'function') setDeliveryScrollToBottom(() => fn); }}
                   />

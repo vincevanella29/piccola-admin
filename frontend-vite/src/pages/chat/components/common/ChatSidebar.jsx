@@ -211,7 +211,30 @@ const DeliveryRow = ({ item, isActive, onOpen }) => {
           )}
         </div>
       </div>
-      <div className="text-xs opacity-70 mt-0.5">{item.customer_name || 'Cliente'}</div>
+      <div className="flex items-center gap-2 mt-0.5">
+        <span className="text-xs opacity-70 truncate max-w-[120px]">{item.customer_name || 'Cliente'}</span>
+        {item.customer_stats && (
+          <div className="flex items-center gap-1 shrink-0">
+            {item.customer_stats.total_orders === 1 ? (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-matrix-green/20 text-matrix-green border border-matrix-green/30 uppercase tracking-wide">Nuevo</span>
+            ) : (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                {item.customer_stats.total_orders} Pedidos
+              </span>
+            )}
+            {item.customer_stats.avg_review && item.customer_stats.avg_review > 0 && (
+              <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
+                ⭐ {item.customer_stats.avg_review.toFixed(1)}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      {item.order_review && (
+        <div className="mt-1.5 flex items-center gap-1.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 px-2 py-1 rounded text-[10px] font-medium leading-snug">
+          ⭐ {item.order_review.overall_stars} {item.order_review.comment ? `- "${item.order_review.comment}"` : ''}
+        </div>
+      )}
       <div className="mt-1.5 text-sm opacity-75 leading-snug whitespace-pre-line line-clamp-2 overflow-hidden text-ellipsis">
         {item.last_text || 'Sin mensajes'}
       </div>

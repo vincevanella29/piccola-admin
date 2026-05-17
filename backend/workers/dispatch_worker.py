@@ -168,7 +168,7 @@ async def _process_scheduled_orders():
         logger.info(f"[scheduled-dispatch] Dispatching scheduled order {order_id} (carrier={carrier_slug}, past_failed={order.get('dispatch_failed')})")
 
         try:
-            from apis.delivery.last_mile import create_carrier_delivery
+            from utils.delivery.dispatch import create_carrier_delivery
 
             carrier = CARRIERS_COLL.find_one({"slug": carrier_slug, "status": "active"})
             if not carrier:
@@ -276,7 +276,7 @@ async def _process_unassigned_orders():
         logger.info(f"[dispatch-worker] Dispatching order {order_id} (attempt {retries + 1}/{MAX_RETRIES}, carrier={carrier_slug})")
 
         try:
-            from apis.delivery.last_mile import create_carrier_delivery
+            from utils.delivery.dispatch import create_carrier_delivery
 
             # Resolve carrier
             carrier = CARRIERS_COLL.find_one({"slug": carrier_slug, "status": "active"})
@@ -451,7 +451,7 @@ async def _fetch_carrier_status(carrier, delivery_id):
     Hit the carrier's get_delivery API and return the full response dict.
     Returns None on failure.
     """
-    from apis.delivery.last_mile import _get_carrier_token
+    from utils.delivery.auth import _get_carrier_token
 
     auth = carrier.get("auth", {})
     base_url = carrier.get("endpoints", {}).get("base_url", "")
@@ -557,8 +557,9 @@ async def _apply_carrier_status(order, carrier, new_carrier_status, carrier_data
     # Trigger email automations
     if internal_status:
         try:
-            from apis.mailing.automations import check_automations
-            check_automations(order, internal_status)
+            from services.automation_engine import trigger_event
+            order["status"] = internal_status
+            asyncio.create_task(trigger_event("order_status_change", "customers", order))
         except Exception as e:
             logger.warning(f"[status-poll] Automation check failed for {order_id}: {e}")
 
@@ -730,7 +731,7 @@ async def _process_recovery_orders():
         logger.info(f"[recovery] Re-dispatching order {order_id} (recovery attempt {recovery_attempts + 1}/{MAX_RECOVERY_ATTEMPTS})")
 
         try:
-            from apis.delivery.last_mile import create_carrier_delivery
+            from utils.delivery.dispatch import create_carrier_delivery
 
             carrier = CARRIERS_COLL.find_one({"slug": carrier_slug, "status": "active"})
             if not carrier:

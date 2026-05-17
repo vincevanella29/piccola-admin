@@ -550,17 +550,18 @@ export const fetchProductNutrition = async ({ token, account, productId }) => {
 export const fetchCartaProviderPresets = async ({ token, account }) => {
     return api({
         method: 'GET',
-        endpoint: '/carta/providers/presets',
+        endpoint: '/ecosystem/providers/presets',
         headers: authHeaders(token, account),
         withCredentials: true,
+        params: { ecosystem_type: 'carta' },
     });
 };
 
 export const probeCartaDomain = async ({ token, account, domain }) => {
     return api({
         method: 'POST',
-        endpoint: '/carta/providers/probe',
-        data: { domain },
+        endpoint: '/ecosystem/providers/probe',
+        data: { domain, ecosystem_type: 'carta' },
         headers: authHeaders(token, account),
         withCredentials: true,
     });
@@ -569,8 +570,8 @@ export const probeCartaDomain = async ({ token, account, domain }) => {
 export const autoLinkCarta = async ({ token, account, ...payload }) => {
     return api({
         method: 'POST',
-        endpoint: '/carta/providers/auto-link',
-        data: payload,
+        endpoint: '/ecosystem/providers/auto-link',
+        data: { ...payload, ecosystem_type: 'carta' },
         headers: authHeaders(token, account),
         withCredentials: true,
     });
@@ -579,16 +580,17 @@ export const autoLinkCarta = async ({ token, account, ...payload }) => {
 export const fetchCartaProviders = async ({ token, account }) => {
     return api({
         method: 'GET',
-        endpoint: '/carta/providers',
+        endpoint: '/ecosystem/providers',
         headers: authHeaders(token, account),
         withCredentials: true,
+        params: { ecosystem_type: 'carta' },
     });
 };
 
 export const updateCartaProvider = async ({ token, account, providerId, data }) => {
     return api({
         method: 'PATCH',
-        endpoint: `/carta/providers/${providerId}`,
+        endpoint: `/ecosystem/providers/${providerId}`,
         data,
         headers: authHeaders(token, account),
         withCredentials: true,
@@ -598,7 +600,7 @@ export const updateCartaProvider = async ({ token, account, providerId, data }) 
 export const deleteCartaProvider = async ({ token, account, providerId }) => {
     return api({
         method: 'DELETE',
-        endpoint: `/carta/providers/${providerId}`,
+        endpoint: `/ecosystem/providers/${providerId}`,
         headers: authHeaders(token, account),
         withCredentials: true,
     });
@@ -607,7 +609,7 @@ export const deleteCartaProvider = async ({ token, account, providerId }) => {
 export const resyncCartaProvider = async ({ token, account, providerId }) => {
     return api({
         method: 'POST',
-        endpoint: `/carta/providers/${providerId}/resync`,
+        endpoint: `/ecosystem/providers/${providerId}/resync`,
         headers: authHeaders(token, account),
         withCredentials: true,
     });

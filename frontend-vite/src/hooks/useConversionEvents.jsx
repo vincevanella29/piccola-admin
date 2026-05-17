@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import conversionTrackerApi from '../utils/conversionTrackerApi.jsx';
+import conversionTrackerApi from '../utils/conversionTracker/api.jsx';
 import { buildAdapter } from '../trackers';
 import createEventQueue from '../trackers/utils/queue';
 import { EVENT_NAMES } from '../trackers/utils/eventMap';

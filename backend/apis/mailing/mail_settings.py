@@ -29,7 +29,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SETTINGS_COLL = db.mail_settings
-PROVIDERS_COLL = db.delivery_providers
+PROVIDERS_COLL = db.ecosystem_providers
 
 
 # ── Helpers ────────────────────────────────────────────────────────────

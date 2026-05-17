@@ -16,7 +16,7 @@ const authHeaders = ({ token, walletAddress }) => ({
 // Orders
 // =====================================================================
 
-export async function fetchDeliveryOrders({ token, walletAddress, status, provider, carrier, locationId, dateFrom, dateTo, skip = 0, limit = 50 }) {
+export async function fetchDeliveryOrders({ token, walletAddress, status, provider, carrier, locationId, dateFrom, dateTo, customerPhone, skip = 0, limit = 50 }) {
   const params = {};
   if (status) params.status = status;
   if (provider) params.provider = provider;
@@ -24,6 +24,7 @@ export async function fetchDeliveryOrders({ token, walletAddress, status, provid
   if (locationId) params.location_id = locationId;
   if (dateFrom) params.date_from = dateFrom;
   if (dateTo) params.date_to = dateTo;
+  if (customerPhone) params.customer_phone = customerPhone;
   params.skip = skip;
   params.limit = limit;
 

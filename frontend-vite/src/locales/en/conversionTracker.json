@@ -1,0 +1,115 @@
+{
+  "title": "Conversion Trackers",
+  "label": "Conversion Trackers",
+  "description": "Manage Meta, Google, and Firebase tracking integrations.",
+  "tabs": {
+    "providers": "Providers",
+    "config": "Config"
+  },
+  "form": {
+    "service": {
+      "label": "Service",
+      "placeholder": "Select a service..."
+    },
+    "name": {
+      "label": "Name",
+      "placeholder": "e.g. Meta Pixel - Delivery"
+    },
+    "assigned_providers": {
+      "label": "Assigned Providers",
+      "placeholder": "carta, delivery (leave empty for global)",
+      "help": "Comma separated list of provider slugs where this tracker will be injected."
+    },
+    "active": {
+      "label": "Active"
+    },
+    "required_placeholder": "{{field}} is required",
+    "file": {
+      "service_account": {
+        "label": "Service Account JSON File",
+        "help": "Upload the service_account.json"
+      }
+    }
+  },
+  "actions": {
+    "create": "Create Tracker",
+    "update": "Update Tracker",
+    "cancel": "Cancel"
+  },
+  "table": {
+    "id": "ID",
+    "service": "Service",
+    "name": "Name",
+    "active": "Active",
+    "assigned_providers": "Targets",
+    "created": "Created",
+    "updated": "Updated",
+    "actions": "Actions",
+    "edit": "Edit"
+  },
+  "status": {
+    "yes": "Yes",
+    "no": "No",
+    "global": "Global"
+  },
+  "list": {
+    "title": "Configured Trackers"
+  },
+  "errors": {
+    "credentials_invalid": "Invalid credentials JSON file",
+    "provider_id_missing": "Provider ID is missing"
+  },
+  "wizard": {
+    "step1": {
+      "title": "Select Platform",
+      "subtitle": "Choose the marketing service you want to connect to the ecosystem."
+    },
+    "step2": {
+      "title": "Configure Credentials",
+      "subtitle": "Enter the credentials and tokens required to enable tracking."
+    },
+    "step3": {
+      "title": "Configure Targets",
+      "subtitle": "In which applications or parts of the web do you want to inject this code?"
+    },
+    "services": {
+      "analytics": {
+        "title": "Google Analytics 4",
+        "description": "Real-time monitoring, active users, and advanced event traffic."
+      },
+      "meta": {
+        "title": "Meta Pixel",
+        "description": "Purchase and conversion event tracking for Facebook and Instagram campaigns."
+      },
+      "firebase": {
+        "title": "Firebase",
+        "description": "Backend infrastructure for push notifications and mobile app events."
+      },
+      "google_ads": {
+        "title": "Google Ads",
+        "description": "Conversion tracking and remarketing for Google campaigns."
+      },
+      "dittofeed": {
+        "title": "Dittofeed",
+        "description": "Open-source marketing automation and customer engagement engine."
+      }
+    },
+    "buttons": {
+      "next": "Next Step",
+      "back": "Back",
+      "finish": "Save Tracker"
+    }
+  },
+  "analytics": {
+    "empty": {
+      "title": "Connect Google Analytics",
+      "subtitle": "We haven't found any active GA4 provider. Configure your credentials to enable the live analytics dashboard.",
+      "button": "Configure GA4 Now"
+    },
+    "dashboard": {
+      "live_pulse": "Live Pulse",
+      "active_users": "Active Users",
+      "pages_table": "Real-time Traffic"
+    }
+  }
+}

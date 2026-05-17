@@ -9,18 +9,9 @@ import '@fontsource/cinzel';
 import '@fontsource/inter';
 import { HelmetProvider } from 'react-helmet-async';
 import { initializeApp } from 'firebase/app';
-import { getMessaging, isSupported } from 'firebase/messaging';
+import { getMessaging, isSupported, onMessage } from 'firebase/messaging';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAGW_XFLGw7PcUAtFi2h9IcW8A7629uKyU",
-  authDomain: "vanellix-adcf0.firebaseapp.com",
-  projectId: "vanellix-adcf0",
-  storageBucket: "vanellix-adcf0.firebasestorage.app",
-  messagingSenderId: "958239060308",
-  appId: "1:958239060308:web:3e1a64d997554b32f8d8c1"
-};
-
-const app = initializeApp(firebaseConfig);
+let app = null;
 let messaging = null;
 
 function renderApp() {
@@ -38,12 +29,69 @@ function renderApp() {
   );
 }
 
-isSupported().then((supported) => {
-  if (supported) {
-    messaging = getMessaging(app);
-  }
-  renderApp();
-});
+// Inicialización dinámica (Mongo-driven)
+fetch('/api/notifications/public-config')
+  .then(res => res.json())
+  .then(async (data) => {
+    if (data && data.firebaseConfig) {
+      console.log('[Firebase Diagnostics] Inicializando con config de MongoDB:', data.firebaseConfig.projectId);
+      try {
+        app = initializeApp(data.firebaseConfig);
+        console.log('[Firebase Diagnostics] app inicializada:', app.name);
+        
+        console.log('[Firebase Diagnostics] Verificando soporte (isSupported)...');
+        const supported = await isSupported();
+        console.log('[Firebase Diagnostics] isSupported result:', supported);
+        
+        if (supported) {
+          console.log('[Firebase Diagnostics] getMessaging() llamado');
+          messaging = getMessaging(app);
+          console.log('[Firebase Diagnostics] messaging object:', !!messaging);
+          
+          // Manejador para cuando la App está abierta (Foreground)
+          console.log('[Firebase Diagnostics] Registrando onMessage listener');
+          onMessage(messaging, (payload) => {
+          console.log('[Firebase] Mensaje recibido en Foreground:', payload);
+          if (Notification.permission === 'granted') {
+            const notificationTitle = payload.notification?.title || 'Notificación';
+            const notificationOptions = {
+              body: payload.notification?.body || '',
+              icon: payload.notification?.image || '/logo-piccola-negro.png',
+              data: payload.data
+            };
+            const notif = new Notification(notificationTitle, notificationOptions);
+            
+            // Tracking de Apertura desde Foreground
+            notif.onclick = (event) => {
+              event.preventDefault();
+              notif.close();
+              const campaignId = payload.data?.campaign_id;
+              if (campaignId) {
+                fetch('/api/notifications/track-click', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ campaign_id: campaignId })
+                }).catch(err => console.error("[Foreground] Error tracking:", err));
+              }
+              window.focus();
+            };
+          }
+        });
+        } else {
+          console.warn('[Firebase Diagnostics] Web Push NO es soportado en este navegador');
+        }
+      } catch (initErr) {
+        console.error('[Firebase Diagnostics] Excepción en inicialización:', initErr);
+      }
+    } else {
+      console.warn('[Firebase Diagnostics] No hay config en MongoDB. Las notificaciones Push no funcionarán hasta configurarlo.');
+    }
+    renderApp();
+  })
+  .catch(err => {
+    console.error('[Firebase Diagnostics] Error fatal cargando config pública:', err);
+    renderApp();
+  });
 
 function normalizeLocale(locale) {
   if (!locale) return 'es';

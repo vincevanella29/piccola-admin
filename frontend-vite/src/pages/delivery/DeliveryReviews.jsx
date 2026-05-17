@@ -233,7 +233,7 @@ const ReviewCard = ({ review }) => {
         <div className="mb-5 space-y-2 bg-light-surface-secondary/40 dark:bg-black/20 rounded-2xl p-3 border border-light-border/5 dark:border-white/5">
           <p className="text-[10px] font-bold text-light-text-tertiary uppercase tracking-wider mb-2">Platos Evaluados</p>
           {orderItems.map((item, idx) => {
-            const ri = reviewItemsMap[item.codigo];
+            const ri = reviewItemsMap[item.item_id] || reviewItemsMap[item.codigo];
             return (
               <div key={idx} className="flex items-center justify-between gap-3 bg-white/50 dark:bg-[#222]/50 p-2 rounded-xl">
                 <div className="flex items-center gap-3 flex-1 min-w-0">

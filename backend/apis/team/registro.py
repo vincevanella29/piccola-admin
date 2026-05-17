@@ -212,7 +212,7 @@ async def consulta_registro(rut: str, user: dict = Depends(verify_session)):
         pass
     # -----------------------------
 
-    # Si ya existe una sesión completada o un vínculo activo, marcar como ya registrado
+    # Si ya existe una sesión completada (no invalidada) o un vínculo activo, marcar como ya registrado
     existing_session = REG_SESSIONS.find_one({"rut": rut, "status": "completed"})
     existing_link = LINKS.find_one({"rut": rut, "status": "active"})
     # Detectar foto
@@ -264,7 +264,8 @@ async def solicitar_registro(request: Request, user: dict = Depends(verify_sessi
     if not emp:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado")
 
-    # No permitir nueva solicitud si ya hay sesión completada o vínculo activo
+    # No permitir nueva solicitud si ya hay sesión completada (no invalidada) o vínculo activo
+    # Sesiones invalidadas (por desactivación de admin) NO bloquean el re-registro
     existing_session = REG_SESSIONS.find_one({"rut": rut, "status": "completed"})
     if existing_session:
         raise HTTPException(status_code=409, detail="Este RUT ya completó su registro de empleado")
@@ -687,6 +688,18 @@ async def validar_registro_arcface(
         {"_id": session_id},
         {"$set": {"status": "completed", "completed_at": int(time.time())}},
     )
+
+    # Trigger Automations para el nuevo empleado
+    import asyncio
+    from services.automation_engine import trigger_event
+    asyncio.create_task(trigger_event("employee_created", "employees", {
+        "rut": rut,
+        "email": email or "",
+        "name": identity.get("nombres", "Empleado") if identity else "Empleado",
+        "wallet": wallet or "",
+        "cargo": cargo or "",
+        "seccion": seccion or ""
+    }))
 
     return {
         "ok": True,

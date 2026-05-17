@@ -314,14 +314,14 @@ export async function planBatchMerit({ ym, employees, walletAddress, token } = {
 }
 
 // Build batch mint TXs via DAO, based on the plan
-export async function buildBatchTxs({ plan, ym, employees, fast_minter_wallet, walletAddress, token } = {}) {
+export async function buildBatchTxs({ plan, ym, employees, fast_minter_wallet, mint_nonce, walletAddress, token } = {}) {
   const payloadPlan = plan && typeof plan === 'object'
     ? plan
     : { ym: ym || null, employees: Array.isArray(employees) ? employees : [] };
   return api({
     method: 'POST',
     endpoint: '/admin/gamification/merit/build-batch-txs',
-    data: { plan: payloadPlan, fast_minter_wallet },
+    data: { plan: payloadPlan, fast_minter_wallet, mint_nonce },
     withCredentials: true,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -331,11 +331,11 @@ export async function buildBatchTxs({ plan, ym, employees, fast_minter_wallet, w
 }
 
 // Confirm a batch mint after successful on-chain TX
-export async function confirmBatchMint({ tx_hash, result_ids, walletAddress, token } = {}) {
+export async function confirmBatchMint({ tx_hash, result_ids, mint_nonce, walletAddress, token } = {}) {
   return api({
     method: 'POST',
     endpoint: '/admin/gamification/merit/confirm-batch',
-    data: { tx_hash, result_ids },
+    data: { tx_hash, result_ids, mint_nonce },
     withCredentials: true,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

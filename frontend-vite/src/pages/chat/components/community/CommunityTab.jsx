@@ -3,14 +3,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import ServerSidebar from './ServerSidebar';
-import ChannelView from './ChannelView';
+import GroupView from './GroupView';
 import MembersPanel from './MembersPanel';
 import SectionPermsModal from './SectionPermsModal';
 import GroupModal from './GroupModal';
 import MemberProfileModal from './MemberProfileModal';
-import { CreateChannelModal, DmPickerModal } from './CreateModals';
+import { DmPickerModal } from './CreateModals';
 import { FaComments, FaPaperPlane, FaArrowLeft } from 'react-icons/fa';
 import useCommunityTab from '../../../../hooks/chat/useCommunityTab';
+import MessageList from '../message/core/MessageList';
 
 // ─── Inline DM View (now with WS support) ────────────────────────
 const DmView = ({ peer, messages, connected, typingUsers = [], onSend, onTyping, onBack, myWallet }) => {
@@ -48,38 +49,12 @@ const DmView = ({ peer, messages, connected, typingUsers = [], onSend, onTyping,
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3 custom-scrollbar">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6">
-            <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center text-2xl mb-3">💬</div>
-            <p className="text-sm font-semibold text-light-text-secondary dark:text-dark-text-secondary">
-              Inicia la conversación con {peer?.name}
-            </p>
-            <p className="text-[11px] text-light-text-tertiary mt-1">Los mensajes son directos y privados</p>
-          </div>
-        )}
-        {messages.map((m, i) => {
-          const isMine = m.sender_wallet?.toLowerCase() === myWallet?.toLowerCase();
-          return (
-            <motion.div
-              key={m.id || i}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-[70%] px-3.5 py-2.5 rounded-2xl text-sm ${isMine
-                  ? 'bg-blue-500/15 text-blue-400 rounded-br-sm'
-                  : 'bg-light-surface-tertiary/50 dark:bg-dark-surface-tertiary/50 rounded-bl-sm'
-                }`}>
-                <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                <p className="text-[10px] opacity-50 mt-1 text-right">
-                  {m.created_at ? new Date(m.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''}
-                </p>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+      <MessageList
+        messages={messages}
+        variant="bubble"
+        myWallet={myWallet}
+        emptyText={`Inicia la conversación con ${peer?.name}. Los mensajes son directos y privados.`}
+      />
 
       {/* Typing indicator */}
       {typingUsers.length > 0 && (
@@ -111,10 +86,9 @@ const DmView = ({ peer, messages, connected, typingUsers = [], onSend, onTyping,
 // ─── Main Community Tab ────────────────────────────────────────
 const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar }) => {
   const {
-    token, walletAddress, isAdmin, canPin,
-    channelHook, groupHook, presence,
+    token, walletAddress, isAdmin,
+    groupHook, presence,
     mode, setMode,
-    showCreateChannel, setShowCreateChannel,
     showCreateGroup, setShowCreateGroup,
     showDmPicker, setShowDmPicker,
     showMembersPanel, setShowMembersPanel,
@@ -124,7 +98,7 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
     dmPeer, setDmPeer,
     dmChat,
     dmConversations,
-    handleSelectChannel, handleSelectGroup, handlePinMessage,
+    handleSelectGroup,
     handleSelectDmPeer, handleSelectDmConvo, handleSendDm, handleMemberClick
   } = useCommunityTab({ appState });
 
@@ -163,38 +137,10 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
       );
     }
 
-    if (mode === 'channel' && channelHook.activeChannel) {
-      return (
-        <ChannelView
-          channel={channelHook.activeChannel}
-          messages={channelHook.messages}
-          connected={channelHook.connected}
-          typingUsers={channelHook.typingUsers}
-          onSend={channelHook.sendMessage}
-          onReact={channelHook.reactToMessage}
-          onPin={handlePinMessage}
-          onUpload={channelHook.uploadMedia}
-          onLoadOlder={channelHook.loadOlder}
-          onNotifyTyping={channelHook.notifyTyping}
-          onToggleSidebar={onBack}
-          onToggleMembers={() => setShowMembersPanel(v => !v)}
-          isDesktop={isDesktop}
-          myWallet={walletAddress}
-          token={token}
-          isAdmin={isAdmin}
-          canPin={canPin}
-          messagesLoading={channelHook.messagesLoading}
-          members={presence.members}
-          employeeMap={presence.employeeMap}
-          showMembersPanel={showMembersPanel}
-        />
-      );
-    }
-
     if (mode === 'group' && groupHook.activeGroup) {
       return (
-        <ChannelView
-          channel={groupHook.activeGroup}
+        <GroupView
+          group={groupHook.activeGroup}
           messages={groupHook.messages}
           connected={groupHook.connected}
           typingUsers={groupHook.typingUsers}
@@ -212,7 +158,6 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
           isAdmin={isAdmin}
           canPin={false}
           messagesLoading={groupHook.messagesLoading}
-          isGroup={true}
           groupName={groupHook.activeGroup?.name}
           members={presence.members}
           employeeMap={presence.employeeMap}
@@ -230,15 +175,15 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
           🍝 Piccola Community
         </h2>
         <p className="text-sm text-light-text-tertiary dark:text-dark-text-tertiary max-w-sm">
-          Selecciona un canal, grupo, o mensaje directo.
-          {isAdmin && ' Como admin, puedes crear nuevos canales y gestionar permisos.'}
+          Selecciona un grupo o mensaje directo.
+          {isAdmin && ' Como admin, puedes crear nuevos grupos y gestionar permisos.'}
         </p>
         <p className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary mt-4 opacity-60">
           Menciona <strong className="text-purple-400">@nonna</strong> en cualquier canal para hablar con la IA
         </p>
       </div>
     );
-  }, [mode, channelHook, groupHook, dmPeer, dmChat, walletAddress, isAdmin, canPin, handlePinMessage, handleSendDm]);
+  }, [mode, groupHook, dmPeer, dmChat, walletAddress, isAdmin, handleSendDm]);
 
   return (
     <div className="h-full flex relative overflow-hidden">
@@ -255,13 +200,9 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
             }`}
           >
             <ServerSidebar
-              channels={channelHook.channels}
               groups={groupHook.groups}
-              activeSlug={mode === 'channel' ? channelHook.activeSlug : null}
               activeGroupId={mode === 'group' ? groupHook.activeGroupId : null}
-              onSelectChannel={(slug) => { handleSelectChannel(slug); closeMobileSidebar(); }}
               onSelectGroup={(id) => { handleSelectGroup(id); closeMobileSidebar(); }}
-              onCreateChannel={() => setShowCreateChannel(true)}
               onCreateGroup={() => setShowCreateGroup(true)}
               onOpenDm={() => setShowDmPicker(true)}
               onToggleMembers={() => setShowMembersPanel(v => !v)}
@@ -338,15 +279,6 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
 
       {/* Modals */}
       <AnimatePresence>
-        {showCreateChannel && (
-          <CreateChannelModal
-            open={showCreateChannel}
-            onClose={() => setShowCreateChannel(false)}
-            token={token}
-            walletAddress={walletAddress}
-            onCreated={() => channelHook.loadChannels()}
-          />
-        )}
         {showCreateGroup && (
           <GroupModal
             open={showCreateGroup}

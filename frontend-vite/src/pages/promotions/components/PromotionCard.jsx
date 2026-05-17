@@ -205,9 +205,13 @@ const PromotionCard = ({
            <StatusIndicator met={promo.rulesMetCount} total={promo.totalRules} />
            
            {/* Minimal Timer */}
-           <div className="flex items-center gap-1.5 text-xs font-mono text-light-text-secondary dark:text-dark-text-secondary">
-              <FaClock className={isClaimActive ? "text-matrix-green animate-pulse" : "text-light-text-secondary/50 dark:text-dark-text-secondary/50"} />
-              <CountdownTimer targetDate={countdownTarget} compact={true} />
+           <div className="flex items-center gap-1.5 text-[11px] font-mono text-light-text-secondary dark:text-dark-text-secondary bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 px-2 py-1 rounded-md">
+              <FaClock className={isClaimActive ? "text-matrix-green animate-pulse" : "text-yellow-500"} />
+              <CountdownTimer 
+                targetDate={countdownTarget} 
+                compact={true} 
+                label={isClaimActive ? "Expira:" : "Inicia:"}
+              />
            </div>
         </div>
       </div>

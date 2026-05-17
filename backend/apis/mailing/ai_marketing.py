@@ -20,6 +20,7 @@ from typing import Optional, List
 from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
 from utils.web3mongo import db
+from services.automations.triggers import TRIGGERS
 
 router = APIRouter()
 logger = logging.getLogger("uvicorn.error")
@@ -111,7 +112,9 @@ ACCIONES (JSON que debes generar)
   "action": "create_automation",
   "automation": {
     "name": "Review post-entrega",
-    "trigger": "order_status_change",
+    "trigger_event": "order_status_change",
+    "segment": "customers",
+    "action_type": "email",
     "condition": {"status": "delivered"},
     "template_name": "nombre del template existente",
     "delay_minutes": 120,
@@ -136,7 +139,9 @@ ACCIONES (JSON que debes generar)
   },
   "automation": {
     "name": "Review 2h post-entrega",
-    "trigger": "order_status_change",
+    "trigger_event": "order_status_change",
+    "segment": "customers",
+    "action_type": "email",
     "condition": {"status": "delivered"},
     "delay_minutes": 120,
     "include_order_items": true,
@@ -162,7 +167,7 @@ ACCIONES (JSON que debes generar)
 PRESETS DE AUTOMACIÓN SUGERIDOS
 ═══════════════════════════════════════════════════
 
-Cuando el usuario pida "armar todas las automaciones" o algo similar, sugiere este flujo:
+Cuando el usuario pida "armar todas las automaciones" o algo similar, analiza el contexto y sugiere este flujo:
 
 1. Pedido Confirmado (confirmed, 0min) → "Tu pedido está confirmado 🎉" + items + tracking
 2. En Preparación (preparing, 0min) → "Estamos preparando tu pedido 👨‍🍳"
@@ -171,13 +176,18 @@ Cuando el usuario pida "armar todas las automaciones" o algo similar, sugiere es
 5. Review (delivered, 120min) → "¿Qué tal tu experiencia? ⭐" + review_button + suggestions
 6. Promo Recompra (delivered, 4320min/3días) → "Te extrañamos 💚" + product_grid bestsellers
 
-REGLAS:
-- Siempre genera bloques COMPLETOS y profesionales con buen diseño.
+═══════════════════════════════════════════════════
+REGLAS Y FASES DE INTELIGENCIA (¡SÚPER IMPORTANTE!)
+═══════════════════════════════════════════════════
+
+- ¡NO SEAS UN BOT BÁSICO HARDCODEADO! Eres un agente de marketing inteligente.
+- FASE 1 (Análisis de Contexto): Antes de sugerir o crear CUALQUIER template, revisa estrictamente la sección "TEMPLATES EXISTENTES". Si el usuario pide "una automatización para pedidos entregados" y ya ves un template existente que sirva, NO uses `create_full_flow`. Usa `create_automation` conectando directamente al `template_id` o `template_name` que ya existe.
+- FASE 2 (Creación Dinámica): Solo usa `create_full_flow` o `create_template` si es una idea NUEVA (ej. "Campaña Día de la Madre") o si no hay absolutamente ningún template existente en el contexto que cubra la necesidad.
+- FASE 3 (Razonamiento): Siempre explica qué decidiste hacer. Por ejemplo: "Vi que ya tenías un template para entregas, así que te armé solo la automatización para dispararlo a los 30 min."
 - Usa los colores del restaurante: verde (#22c55e), ámbar para reviews (#f59e0b).
 - Para product_grid, usa los productos reales del contexto (bestsellers).
 - Sé conciso, amigable, habla en español chileno casual.
-- Si el usuario pide algo vago, genera un template completo sin preguntar.
-- SIEMPRE responde con JSON action cuando el usuario pide crear algo.
+- SIEMPRE responde con JSON action cuando determines que es momento de actuar.
 """
 
 
@@ -264,6 +274,12 @@ async def marketing_ai_chat(
         if statuses:
             status_info = [f"- {s.get('key')} → {s.get('label')}" for s in statuses]
             context_str += f"\n\nESTADOS DE PEDIDO CONFIGURADOS:\n" + "\n".join(status_info)
+
+    # Inject Automation Triggers into context
+    triggers_info = []
+    for t_id, t_class in TRIGGERS.items():
+        triggers_info.append(f"- {t_id} (Segment: {t_class.segment}, Label: {t_class.label})")
+    context_str += "\n\nTRIGGERS DE AUTOMATIZACION DISPONIBLES:\n" + "\n".join(triggers_info)
 
     # Add bestsellers
     try:

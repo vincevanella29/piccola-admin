@@ -27,6 +27,11 @@ export function useDaoMeritocracy(appState, t) {
   const [isLoading, setIsLoading] = useState(false);
   const [segments, setSegments] = useState([]);
   const [fastMinters, setFastMinters] = useState([]);
+  
+  // Guards for Idempotency
+  const isMintingRef = useRef(false);
+  const mintNonceRef = useRef(null);
+  
   const CACHE_TTL_MS = 30000; // 30s
   const cacheRef = useRef({
     segments: { ts: 0, data: null },
@@ -260,19 +265,49 @@ export function useDaoMeritocracy(appState, t) {
   }, [handleApiCall, effectiveWallet, token]);
 
   const buildBatch = useCallback(async ({ plan, ym, employees, fast_minter_wallet } = {}) => {
+    if (isMintingRef.current) {
+      toast.warning(t?.('gamification.merit.already_minting') || 'Ya hay un minteo en proceso. Por favor espera.');
+      return { ok: false };
+    }
+
     if (!provider || typeof sendTx !== 'function') {
       toast.error(t?.('wallet.connect_wallet') || 'Conecta tu wallet');
       throw new Error('Wallet/provider not ready');
     }
-    // Paso 1: construir TX en backend
-    toast.info(t?.('gamification.merit.building_tx') || 'Construyendo transacción...');
-    const payloadPlan = plan && typeof plan === 'object' ? plan : { ym: ym || null, employees: Array.isArray(employees) ? employees : [] };
-    const buildRes = await apiBuildBatchTxs({ plan: payloadPlan, fast_minter_wallet, walletAddress: effectiveWallet, token });
-    const transaction = buildRes?.data?.transaction || buildRes?.transaction || null;
-    const resultIds = buildRes?.data?.result_ids_in_plan || buildRes?.result_ids_in_plan || [];
-    if (!transaction || !resultIds?.length) {
-      throw new Error('No se pudo construir la transacción desde el backend');
+
+    // Asegurar Nonce de Idempotencia
+    if (!mintNonceRef.current) {
+      mintNonceRef.current = crypto.randomUUID();
     }
+    const currentNonce = mintNonceRef.current;
+    
+    isMintingRef.current = true;
+
+    try {
+      // Paso 1: construir TX en backend
+      toast.info(t?.('gamification.merit.building_tx') || 'Construyendo transacción...');
+      const payloadPlan = plan && typeof plan === 'object' ? plan : { ym: ym || null, employees: Array.isArray(employees) ? employees : [] };
+      const buildRes = await apiBuildBatchTxs({ 
+        plan: payloadPlan, 
+        fast_minter_wallet, 
+        mint_nonce: currentNonce, 
+        walletAddress: effectiveWallet, 
+        token 
+      });
+      
+      // Deduplicación temprana desde backend (ya se minteó antes)
+      if (buildRes?.deduplicated) {
+        toast.success(buildRes.message || 'Este batch ya fue minteado exitosamente.');
+        isMintingRef.current = false;
+        mintNonceRef.current = null;
+        return { ok: true, hash: buildRes.tx_hash, confirmed_count: buildRes.processed_awards_count || 0 };
+      }
+
+      const transaction = buildRes?.data?.transaction || buildRes?.transaction || null;
+      const resultIds = buildRes?.data?.result_ids_in_plan || buildRes?.result_ids_in_plan || [];
+      if (!transaction || !resultIds?.length) {
+        throw new Error('No se pudo construir la transacción desde el backend');
+      }
 
     // Paso 2: firmar/enviar TX
     toast.info(t?.('gamification.merit.signing_tx') || 'Por favor, firma la transacción en tu wallet...');
@@ -285,14 +320,29 @@ export function useDaoMeritocracy(appState, t) {
 
     // Paso 3: confirmar en backend (marcar BD)
     try {
-      await apiConfirmBatchMint({ tx_hash: txHash, result_ids: resultIds, walletAddress: effectiveWallet, token });
+      await apiConfirmBatchMint({ 
+        tx_hash: txHash, 
+        result_ids: resultIds, 
+        mint_nonce: currentNonce,
+        walletAddress: effectiveWallet, 
+        token 
+      });
       toast.success(t?.('gamification.merit.db_updated') || '¡Base de datos actualizada!');
+      
+      // Reseteamos el nonce SÓLO si todo fue exitoso
+      mintNonceRef.current = null;
     } catch (e) {
       toast.error(t?.('gamification.merit.db_update_error') || 'Error CRÍTICO: La transacción se envió pero no se pudo actualizar la base de datos.');
       throw e;
     }
 
     return { ok: true, hash: txHash, confirmed_count: resultIds.length };
+  } catch (err) {
+    // Nota: NO reseteamos mintNonceRef.current aquí, para que reintentos usen el mismo UUID.
+    throw err;
+  } finally {
+    isMintingRef.current = false;
+  }
   }, [provider, sendTx, t, appState, effectiveWallet, token]);
 
   const listFastMinters = useCallback(async ({ forceRefresh = false } = {}) => {

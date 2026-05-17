@@ -18,13 +18,14 @@ Endpoints:
 """
 
 import asyncio
+from utils.time_utils import get_chile_time
 import hashlib
 import hmac
 import json
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 import httpx
@@ -135,7 +136,7 @@ def render_webhook_payload(template_str: Optional[str], event: str, order_doc: d
         # Default: send everything
         return {
             "event": event,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": get_chile_time().isoformat(),
             "data": data,
         }
 
@@ -146,7 +147,7 @@ def render_webhook_payload(template_str: Optional[str], event: str, order_doc: d
         logger.warning(f"[webhook] Template render failed, sending raw: {e}")
         return {
             "event": event,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": get_chile_time().isoformat(),
             "data": data,
             "_template_error": str(e),
         }
@@ -274,7 +275,7 @@ def _log_delivery(wh_id, event, url, status_code, elapsed_ms, success, payload_p
             "payload_preview": payload_preview[:500] if payload_preview else None,
             "error": error[:500] if error else None,
             "attempt": attempt,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": get_chile_time(),
         })
     except Exception:
         pass  # Non-critical
@@ -309,8 +310,8 @@ EXAMPLE_ORDER = {
     "order_number": "PI-38236",
     "payment_method": "card",
     "payment_status": "paid",
-    "created_at": datetime.now(timezone.utc).isoformat(),
-    "updated_at": datetime.now(timezone.utc).isoformat(),
+    "created_at": get_chile_time().isoformat(),
+    "updated_at": get_chile_time().isoformat(),
 }
 
 
@@ -343,7 +344,7 @@ async def create_webhook(payload: WebhookCreate, user: dict = Depends(verify_ses
     if invalid:
         raise HTTPException(status_code=400, detail=f"Eventos inválidos: {invalid}. Válidos: {VALID_EVENTS}")
 
-    now = datetime.now(timezone.utc)
+    now = get_chile_time()
     doc = {
         "name": payload.name,
         "url": payload.url,
@@ -386,7 +387,7 @@ async def update_webhook(webhook_id: str, payload: WebhookUpdate, user: dict = D
         if invalid:
             raise HTTPException(status_code=400, detail=f"Eventos inválidos: {invalid}")
 
-    update_fields["updated_at"] = datetime.now(timezone.utc)
+    update_fields["updated_at"] = get_chile_time()
     update_fields["updated_by"] = user.get("wallet") or user.get("id")
 
     WEBHOOKS_COLL.update_one({"_id": ObjectId(webhook_id)}, {"$set": update_fields})

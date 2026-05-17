@@ -336,11 +336,15 @@ const CouponModal = ({ coupon, onClose, t, profile }) => {
             <InfoTooltip text={isValidNow ? t('promotion-front.valid_now_tooltip') : t('promotion-front.not_valid_now_tooltip')} />
           </div>
           {(countdownTarget || expirationTarget) && (
-            <div className="flex justify-center">
+            <div className="flex flex-col items-center gap-3 bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/20 p-4 rounded-xl border border-light-border/10 dark:border-dark-border/10">
               <CountdownTimer 
                 targetDate={countdownTarget || expirationTarget} 
                 label={countdownTarget ? t('promotion-front.starts_in') : t('promotion-front.ends_in')}
               />
+              <p className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border ${countdownTarget ? 'text-yellow-500 border-yellow-500/30 bg-yellow-500/10' : 'text-matrix-green border-matrix-green/30 bg-matrix-green/10'}`}>
+                {countdownTarget ? 'Inicia el: ' : 'Válido hasta: '}
+                {(countdownTarget || expirationTarget).toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
             </div>
           )}
           {coupon.history.length > 0 && (

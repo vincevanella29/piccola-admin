@@ -111,9 +111,9 @@ def _resolve_cargo_seccion(wallet: Optional[str], sub: Optional[str] = None) -> 
     try:
         emp = None
         if wallet:
-            emp = COL_EMP_USR.find_one({"wallet": wallet.lower()})
+            emp = COL_EMP_USR.find_one({"wallet": wallet.lower(), "status": "active"})
         if not emp and sub:
-            emp = COL_EMP_USR.find_one({"sub": sub})
+            emp = COL_EMP_USR.find_one({"sub": sub, "status": "active"})
         rut_value = emp.get("rut") if emp else None
         if rut_value is None:
             return {"cargo": None, "seccion": None}

@@ -8,11 +8,11 @@ Dilithium2 post-quantum signature.
 """
 
 import logging
+from utils.time_utils import get_chile_time
 import os
 import uuid
 import json
 import time
-from datetime import datetime, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
@@ -26,7 +26,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 HOME_COLL = db["delivery_home_config"]
-PROVIDERS_COLL = db["delivery_providers"]
+PROVIDERS_COLL = db.ecosystem_providers
 HOME_TYPE = "home_config"
 
 
@@ -213,7 +213,7 @@ async def get_home_config(user: dict = Depends(require_home_role)):
 
 @router.put("/delivery/home-config", summary="Save delivery home config")
 async def save_home_config(payload: HomeConfigPayload, user: dict = Depends(require_home_role)):
-    update = {"_type": HOME_TYPE, "updated_at": datetime.now(timezone.utc)}
+    update = {"_type": HOME_TYPE, "updated_at": get_chile_time()}
 
     if payload.hero_banners is not None:
         banners = []
@@ -366,7 +366,7 @@ async def publish_home_config(user: dict = Depends(require_home_role)):
     Delivery side receives on POST /api/home-config/sync.
     """
     import httpx
-    from apis.delivery.providers import build_provider_url
+    from apis.admin.ecosystem_providers import build_provider_url
 
     # Get current config
     doc = HOME_COLL.find_one({"_type": HOME_TYPE}, {"_id": 0, "_type": 0})
@@ -379,11 +379,11 @@ async def publish_home_config(user: dict = Depends(require_home_role)):
 
     # Get active providers with Dilithium keys
     providers = list(PROVIDERS_COLL.find(
-        {"status": "active", "$or": [
+        {"status": "active", "ecosystem_type": "delivery", "$or": [
             {"domain": {"$exists": True, "$ne": ""}},
             {"sync_url": {"$exists": True, "$ne": ""}},
         ]},
-        {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic_enc": 1, "api_key_id": 1},
+        {"slug": 1, "domain": 1, "sync_url": 1, "dilithium_mnemonic_enc": 1, "api_key_id": 1, "ecosystem_type": 1},
     ))
 
     if not providers:
@@ -407,7 +407,7 @@ async def publish_home_config(user: dict = Depends(require_home_role)):
 
         # Build URL using centralized route
         if domain:
-            home_url = build_provider_url(domain, "home_config_sync")
+            home_url = build_provider_url(domain, "home_config_sync", prov.get("ecosystem_type", "delivery"))
         else:
             base_url = sync_url.rsplit("/catalog/sync", 1)[0] if "/catalog/sync" in sync_url else sync_url.rsplit("/", 1)[0]
             home_url = f"{base_url}/home-config/sync"
@@ -417,9 +417,6 @@ async def publish_home_config(user: dict = Depends(require_home_role)):
             signed_payload = _sign_home_payload(doc, mnemonic)
 
             headers = {"Content-Type": "application/json"}
-            api_key_id = prov.get("api_key_id", "")
-            if api_key_id:
-                headers["X-Api-Key"] = api_key_id
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(home_url, json=signed_payload, headers=headers)

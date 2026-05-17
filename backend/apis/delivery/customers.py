@@ -12,10 +12,11 @@ Collection: delivery_customers
 """
 
 import logging
+from utils.time_utils import get_chile_time
 from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime
 from bson import ObjectId
 
 from utils.web3mongo import db
@@ -28,38 +29,13 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 CUSTOMERS_COLL = db.delivery_customers
-PROVIDERS_COLL = db.delivery_providers
+PROVIDERS_COLL = db.ecosystem_providers
 
 # =====================================================================
 # Auth helpers (same pattern as orders.py)
 # =====================================================================
 
-def _verify_api_key(x_api_key: str = Header(..., alias="X-Api-Key")):
-    key_doc = validate_api_key(x_api_key)
-    if not key_doc:
-        raise HTTPException(status_code=401, detail="API Key inválida, inactiva o expirada")
-    return key_doc
-
-
-def _resolve_provider_slug(key_doc: dict) -> str:
-    """Resolve provider slug from API key."""
-    key_id = key_doc.get("id")
-    if not key_id:
-        return "unknown"
-    provider = PROVIDERS_COLL.find_one({"api_key_id": key_id, "status": "active"})
-    return provider["slug"] if provider else "unknown"
-
-
-def _resolve_provider(key_doc: dict) -> Optional[dict]:
-    """Resolve full provider doc from API key."""
-    from utils.vanellix_crypto import _resolve_provider as resolve_provider
-    return resolve_provider(key_doc)
-
-
-async def _verify_dilithium(request, key_doc: dict) -> None:
-    """Verify Dilithium post-quantum signature (delegates to centralized guard)."""
-    from utils.vanellix_crypto import verify_dilithium_request
-    await verify_dilithium_request(request, key_doc, context="delivery/customers")
+from apis.admin.ecosystem_providers import verify_satellite_webhook
 
 
 def _serialize(doc: dict) -> dict:
@@ -96,7 +72,6 @@ class CustomerRegister(BaseModel):
     email: Optional[str] = None
     name: Optional[str] = None
     phone: Optional[str] = None
-    wallet: Optional[str] = None
 
 
 class CustomerUpdate(BaseModel):
@@ -125,16 +100,20 @@ class AddressDelete(BaseModel):
 async def register_customer(
     payload: CustomerRegister,
     request: Request,
-    key_doc: dict = Depends(_verify_api_key)
+    provider: dict = Depends(verify_satellite_webhook)
 ):
     """
     Upsert a delivery customer by privy_id.
     Called by the delivery app on user login/registration.
-    Verifies Dilithium signature if provider has a public key.
+    Verifies Dilithium signature.
     """
-    await _verify_dilithium(request, key_doc)
-    now = datetime.now(timezone.utc)
-    provider_slug = _resolve_provider_slug(key_doc)
+    now = get_chile_time()
+    provider_slug = provider.get("slug", "unknown")
+    
+    print("\n" + "="*50)
+    print("🚀 [ADMIN HUB] NUEVO REGISTRO / LOGIN (register_customer)")
+    print(f"📦 Payload completo: {payload.model_dump()}")
+    print("="*50 + "\n")
 
     existing = CUSTOMERS_COLL.find_one({"privy_id": payload.privy_id})
 
@@ -147,8 +126,6 @@ async def register_customer(
             update_set["name"] = payload.name
         if payload.phone and payload.phone != existing.get("phone"):
             update_set["phone"] = payload.phone
-        if payload.wallet and payload.wallet != existing.get("wallet"):
-            update_set["wallet"] = payload.wallet
 
         CUSTOMERS_COLL.update_one(
             {"privy_id": payload.privy_id},
@@ -169,7 +146,6 @@ async def register_customer(
             "email": payload.email,
             "name": payload.name,
             "phone": payload.phone,
-            "wallet": payload.wallet,
             "addresses": [],
             "registered_at": now,
             "last_login_at": now,
@@ -182,15 +158,57 @@ async def register_customer(
         customer_doc["_id"] = str(result.inserted_id)
 
         logger.info(f"[delivery/customers] New customer registered: {payload.privy_id} via {provider_slug}")
+        
+        # Trigger Automations
+        import asyncio
+        from services.automation_engine import trigger_event
+        asyncio.create_task(trigger_event("customer_registered", "customers", {
+            "privy_id": payload.privy_id,
+            "email": payload.email or "",
+            "name": payload.name or "Customer",
+            "phone": payload.phone or ""
+        }))
+        
         return {"success": True, "customer": _serialize(customer_doc), "action": "registered"}
+
+
+@router.post("/delivery/customers/webhook/registered", summary="Webhook para registro de usuario desde delivery app")
+async def customer_registered_webhook(
+    payload: CustomerRegister,
+    request: Request,
+    provider: dict = Depends(verify_satellite_webhook)
+):
+    """
+    Called by the delivery app when a NEW customer registers natively.
+    Verifies Dilithium signature and triggers the "customer_registered" event.
+    """
+
+    print("\n" + "="*50)
+    print("🚀 [ADMIN HUB] WEBHOOK RECIBIDO (customer_registered_webhook)")
+    print(f"📦 Payload completo: {payload.model_dump()}")
+    print("="*50 + "\n")
+    
+    logger.info(f"[delivery/customers] Received registration webhook for {payload.privy_id}")
+    
+    # Trigger Automations
+    import asyncio
+    from services.automation_engine import trigger_event
+    asyncio.create_task(trigger_event("customer_registered", "customers", {
+        "privy_id": payload.privy_id,
+        "email": payload.email or "",
+        "name": payload.name or "Customer",
+        "phone": payload.phone or ""
+    }))
+    
+    return {"success": True, "action": "webhook_processed"}
 
 
 @router.get("/delivery/customers/by-privy/{privy_id}", summary="Obtener perfil de customer por privy_id")
 async def get_customer_by_privy(
     privy_id: str,
-    key_doc: dict = Depends(_verify_api_key)
+    provider: dict = Depends(verify_satellite_webhook)
 ):
-    """Get a customer profile by privy_id. API key auth."""
+    """Get a customer profile by privy_id. Dilithium auth."""
     customer = CUSTOMERS_COLL.find_one({"privy_id": privy_id})
     if not customer:
         raise HTTPException(status_code=404, detail="Customer no encontrado")
@@ -202,11 +220,10 @@ async def update_customer_by_privy(
     privy_id: str,
     payload: CustomerUpdate,
     request: Request,
-    key_doc: dict = Depends(_verify_api_key)
+    provider: dict = Depends(verify_satellite_webhook)
 ):
-    """Update customer profile fields. API key + Dilithium auth."""
-    await _verify_dilithium(request, key_doc)
-    now = datetime.now(timezone.utc)
+    """Update customer profile fields. Dilithium auth."""
+    now = get_chile_time()
 
     existing = CUSTOMERS_COLL.find_one({"privy_id": privy_id})
     if not existing:
@@ -232,11 +249,10 @@ async def update_customer_by_privy(
 async def upsert_address(
     payload: AddressUpsert,
     request: Request,
-    key_doc: dict = Depends(_verify_api_key)
+    provider: dict = Depends(verify_satellite_webhook)
 ):
-    """Upsert an address in the customer's address list. API key + Dilithium auth."""
-    await _verify_dilithium(request, key_doc)
-    now = datetime.now(timezone.utc)
+    """Upsert an address in the customer's address list. Dilithium auth."""
+    now = get_chile_time()
 
     customer = CUSTOMERS_COLL.find_one({"privy_id": payload.privy_id})
     if not customer:
@@ -278,15 +294,14 @@ async def delete_address(
     address_id: str,
     request: Request,
     privy_id: str = Query(..., description="Privy ID del customer"),
-    key_doc: dict = Depends(_verify_api_key)
+    provider: dict = Depends(verify_satellite_webhook)
 ):
-    """Delete an address from the customer's address list. API key + Dilithium auth."""
-    await _verify_dilithium(request, key_doc)
+    """Delete an address from the customer's address list. Dilithium auth."""
     result = CUSTOMERS_COLL.update_one(
         {"privy_id": privy_id},
         {
             "$pull": {"addresses": {"id": address_id}},
-            "$set": {"updated_at": datetime.now(timezone.utc)},
+            "$set": {"updated_at": get_chile_time()},
         }
     )
     if result.modified_count == 0:
@@ -345,7 +360,7 @@ async def customer_stats(user: dict = Depends(verify_session)):
 
     # Registered last 7 days
     from datetime import timedelta
-    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    week_ago = get_chile_time() - timedelta(days=7)
     new_this_week = CUSTOMERS_COLL.count_documents({"registered_at": {"$gte": week_ago}})
 
     # Active last 7 days

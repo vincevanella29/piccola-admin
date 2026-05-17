@@ -138,8 +138,7 @@ def decrypt_sync_config(blob: str, shared_mnemonic: str) -> dict:
 # 3. API SECURITY GUARDS (FastAPI Middleware)
 # ═══════════════════════════════════════════════════════════════════════
 
-PROVIDERS_COLL = db.delivery_providers
-CARTA_PROVIDERS_COLL = db.carta_providers
+PROVIDERS_COLL = db.ecosystem_providers
 NONCES_COLL = db.dilithium_nonces
 
 _REQUIRE_DILITHIUM = os.getenv("REQUIRE_DILITHIUM", "true").lower() == "true"
@@ -147,11 +146,27 @@ _TIMESTAMP_WINDOW = int(os.getenv("DILITHIUM_TIMESTAMP_WINDOW", "300"))
 _ACCEPTED_ALGORITHMS = {"dilithium2"}
 
 def _resolve_provider(key_doc: dict) -> Optional[dict]:
-    key_id = key_doc.get("id")
-    if not key_id: return None
+    key_id = key_doc.get("id") or key_doc.get("_id")
+    if not key_id: 
+        logger.warning(f"[crypto] _resolve_provider failed: key_doc has no id. key_doc keys: {list(key_doc.keys())}")
+        return None
+    
     prov = PROVIDERS_COLL.find_one({"api_key_id": key_id, "status": "active"})
-    if prov: return prov
-    return CARTA_PROVIDERS_COLL.find_one({"api_key_id": key_id, "status": "active"})
+    if not prov:
+        logger.warning(f"[crypto] _resolve_provider failed: No active provider found for api_key_id={key_id} (type: {type(key_id).__name__})")
+        
+        # Try finding it casted to string just in case
+        prov = PROVIDERS_COLL.find_one({"api_key_id": str(key_id), "status": "active"})
+        
+        # Fallback: Many times when we "Resync", the satellite still has the old valid API Key,
+        # but the provider's `api_key_id` was overwritten with the new one.
+        # If the key_doc has a `provider_slug`, we can safely resolve the provider using the slug!
+        if not prov and key_doc.get("provider_slug"):
+            slug = key_doc["provider_slug"]
+            logger.info(f"[crypto] Resolving provider via fallback slug='{slug}' (Satellite is likely using an old API Key)")
+            prov = PROVIDERS_COLL.find_one({"slug": slug, "status": "active"})
+
+    return prov
 
 async def verify_dilithium_request(request: Request, key_doc: dict, context: str = "crypto") -> None:
     """
@@ -159,8 +174,13 @@ async def verify_dilithium_request(request: Request, key_doc: dict, context: str
     Enforces timestamp anti-replay and nonce uniqueness.
     """
     provider = _resolve_provider(key_doc)
+    logger.error(f"[DEBUG-DILI] key_doc: {key_doc}")
+    logger.error(f"[DEBUG-DILI] provider resolved: {provider is not None}")
+    
     stored_pk = (provider or {}).get("dilithium_pk", "")
     slug = (provider or {}).get("slug", "?")
+
+    logger.error(f"[DEBUG-DILI] stored_pk length: {len(stored_pk)}")
 
     if not stored_pk:
         if _REQUIRE_DILITHIUM:

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaHashtag, FaUsers, FaBullhorn, FaSearch } from 'react-icons/fa';
-import { useCreateChannelModal, useDmPickerModal } from '../../../../hooks/chat/useCreateModals';
+import { useDmPickerModal } from '../../../../hooks/chat/useCreateModals';
 
 const Overlay = ({ children, onClose }) => (
   <motion.div
@@ -94,105 +94,6 @@ const SingleSelector = ({ options = [], value, onChange, placeholder = 'Seleccio
     {options.map(o => <option key={o} value={o}>{o}</option>)}
   </select>
 );
-
-// ─── Create Channel Modal ──────────────────────────────────────
-export const CreateChannelModal = ({ open, onClose, token, walletAddress, onCreated }) => {
-  const {
-    name, setName, type, setType, section, setSection,
-    description, setDescription, icon, setIcon, minRole, setMinRole,
-    loading, suggestions, catalogs, applySuggestion, handleCreate
-  } = useCreateChannelModal({ open, token, walletAddress, onCreated, onClose });
-
-  if (!open) return null;
-
-  return (
-    <Overlay onClose={onClose}>
-      <div className="px-6 py-4 border-b border-light-border/30 dark:border-dark-border/30 flex justify-between items-center">
-        <h3 className="text-lg font-bold flex items-center gap-2"><FaHashtag className="text-matrix-green" /> Crear Canal</h3>
-        <button onClick={onClose} className="text-light-text-tertiary hover:text-red-400"><FaTimes /></button>
-      </div>
-      <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-        {/* Suggestions */}
-        {suggestions.length > 0 && (
-          <div>
-            <label className="text-xs font-bold text-light-text-tertiary dark:text-dark-text-tertiary uppercase mb-1 block">Sugeridos</label>
-            <div className="flex flex-wrap gap-1.5">
-              {suggestions.map(s => (
-                <button key={s.slug} onClick={() => applySuggestion(s)}
-                  className="px-2.5 py-1 text-xs rounded-full bg-matrix-green/10 text-matrix-green hover:bg-matrix-green/20 transition border border-matrix-green/20">
-                  {s.icon} {s.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Name */}
-        <div>
-          <label className="text-xs font-bold text-light-text-tertiary uppercase mb-1 block">Nombre *</label>
-          <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/30 dark:border-dark-border/30 text-sm outline-none focus:border-matrix-green" placeholder="ej: cocina, anuncios..." />
-        </div>
-
-        {/* Type */}
-        <div>
-          <label className="text-xs font-bold text-light-text-tertiary uppercase mb-1 block">Tipo</label>
-          <div className="flex gap-2">
-            <button onClick={() => setType('text')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${type === 'text' ? 'bg-matrix-green/15 text-matrix-green border border-matrix-green/40' : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border border-transparent'}`}>
-              <FaHashtag className="inline mr-1" /> Texto
-            </button>
-            <button onClick={() => setType('announcement')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${type === 'announcement' ? 'bg-yellow-500/15 text-yellow-500 border border-yellow-500/40' : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border border-transparent'}`}>
-              <FaBullhorn className="inline mr-1" /> Anuncios
-            </button>
-          </div>
-        </div>
-
-        {/* Section - REAL SELECTOR from cargos_intranet */}
-        <div>
-          <label className="text-xs font-bold text-light-text-tertiary uppercase mb-1 block">Sección</label>
-          <SingleSelector
-            options={catalogs.secciones}
-            value={section}
-            onChange={setSection}
-            placeholder="Todas las secciones (sin filtro)"
-          />
-          <p className="text-[10px] text-light-text-tertiary mt-1">Solo trabajadores de esta sección verán el canal (nivel 6-7)</p>
-        </div>
-
-        {/* Description */}
-        <div>
-          <label className="text-xs font-bold text-light-text-tertiary uppercase mb-1 block">Descripción</label>
-          <input value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/30 dark:border-dark-border/30 text-sm outline-none" />
-        </div>
-
-        {/* Icon + Role */}
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="text-xs font-bold text-light-text-tertiary uppercase mb-1 block">Ícono</label>
-            <input value={icon} onChange={e => setIcon(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/30 dark:border-dark-border/30 text-sm outline-none" placeholder="🍳" />
-          </div>
-          <div className="flex-1">
-            <label className="text-xs font-bold text-light-text-tertiary uppercase mb-1 block">Nivel mínimo</label>
-            <select value={minRole} onChange={e => setMinRole(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/30 dark:border-dark-border/30 text-sm outline-none">
-              <option value={3}>3 - Admin</option>
-              <option value={4}>4 - Subadmin</option>
-              <option value={5}>5 - Miembro</option>
-              <option value={6}>6 - Staff</option>
-              <option value={7}>7 - Trabajador</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div className="px-6 py-4 border-t border-light-border/30 dark:border-dark-border/30">
-        <button onClick={handleCreate} disabled={!name.trim() || loading}
-          className="w-full py-2.5 rounded-xl bg-matrix-green text-dark-bg font-bold disabled:opacity-40 hover:bg-matrix-green/90 transition">
-          {loading ? 'Creando...' : 'Crear Canal'}
-        </button>
-      </div>
-    </Overlay>
-  );
-};
-
-
 
 // ─── DM Picker Modal ───────────────────────────────────────────
 export const DmPickerModal = ({ open, onClose, onSelectPeer, token, walletAddress }) => {

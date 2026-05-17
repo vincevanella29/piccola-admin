@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaSearch, FaChevronDown, FaChevronRight, FaCircle, FaTimes, FaUserSlash, FaEnvelope, FaUserCheck, FaAt } from 'react-icons/fa';
 import { getSectionColor, getSectionIcon } from './sectionColors';
+import NonnaIcon from '../../../../components/common/NonnaIcon';
 
 const STATUS_DOT = {
   online: 'text-green-400',
@@ -20,12 +21,18 @@ const MemberRow = ({ member, onClick, onDm }) => (
     >
       {/* Avatar with status dot */}
       <div className="relative shrink-0">
-        <div className="w-8 h-8 rounded-full bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center text-xs font-bold overflow-hidden">
-          {member.profile_image_url
-            ? <img src={member.profile_image_url} className="w-8 h-8 rounded-full object-cover" alt="" />
-            : (member.name || '?')[0]?.toUpperCase()
-          }
-        </div>
+        {member.isAssistant ? (
+          <div className="w-8 h-8 rounded-full bg-pink-500/10 text-pink-500 border border-pink-200 dark:border-pink-900 flex items-center justify-center overflow-hidden">
+            <NonnaIcon size={24} className="scale-125" />
+          </div>
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center text-xs font-bold overflow-hidden">
+            {member.profile_image_url
+              ? <img src={member.profile_image_url} className="w-8 h-8 rounded-full object-cover" alt="" />
+              : (member.name || '?')[0]?.toUpperCase()
+            }
+          </div>
+        )}
         <FaCircle
           size={9}
           className={`absolute -bottom-0.5 -right-0.5 ${STATUS_DOT[member.status] || STATUS_DOT.offline} drop-shadow-sm`}
@@ -146,7 +153,7 @@ const MembersPanel = ({
   const [search, setSearch] = useState('');
   const [showUnregistered, setShowUnregistered] = useState(false);
 
-  const sectionOrder = ['General', 'Cocina', 'Sala', 'Delivery', 'Bar', 'Caja', 'Admin'];
+  const sectionOrder = ['Soporte AI', 'General', 'Cocina', 'Sala', 'Delivery', 'Bar', 'Caja', 'Admin'];
 
   // Merge all members into a single map: section → members[] (sorted: online → idle → offline)
   const mergedBySection = useMemo(() => {
@@ -191,11 +198,24 @@ const MembersPanel = ({
     Object.values(mergedBySection).forEach(add);
     Object.values(unregisteredBySection).forEach(add);
     
+    // INJECT LA NONNA
+    list.push({
+      name: 'La Nonna',
+      wallet: 'nonna',
+      seccion: 'Soporte AI',
+      cargo: 'Asistente Inteligente',
+      status: 'online',
+      has_user: true,
+      isAssistant: true
+    });
+
     return list;
   }, [mergedBySection, unregisteredBySection]);
 
   // Filter all members
   const filterMember = (m) => {
+    if (m.isAssistant) return true; // ALWAYS SHOW NONNA
+
     const q = search.trim().toLowerCase();
     
     const validWallets = activeGroup && !activeGroup.is_section_based

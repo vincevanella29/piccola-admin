@@ -2,10 +2,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FaHashtag, FaBullhorn, FaPlus, FaChevronDown,
+  FaPlus, FaChevronDown,
   FaChevronRight, FaCog, FaUsers, FaEnvelope, FaCircle, FaTimes
 } from 'react-icons/fa';
-import useServerSidebar from '../../../../hooks/chat/useServerSidebar';
 
 const SECTION_ICONS = {
   cocina: '🍳', delivery: '🍕', sala: '🍽️', general: '💬',
@@ -49,25 +48,6 @@ const SectionGroup = ({ label, icon, children, defaultOpen = true, isAdmin, onSe
         )}
       </AnimatePresence>
     </div>
-  );
-};
-
-const ChannelRow = ({ channel, isActive, onClick }) => {
-  const icon = channel.channel_type === 'announcement' ? <FaBullhorn size={12} /> : <FaHashtag size={12} />;
-  return (
-    <button
-      onClick={() => onClick(channel.slug)}
-      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition group ${isActive
-        ? 'bg-matrix-green/15 text-matrix-green font-medium'
-        : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-tertiary/50 dark:hover:bg-dark-surface-tertiary/50 hover:text-light-text-primary dark:hover:text-dark-text-primary'
-        }`}
-    >
-      <span className="opacity-60 group-hover:opacity-100 transition">{icon}</span>
-      <span className="truncate flex-1 text-left">{channel.name}</span>
-      {channel.member_count > 0 && (
-        <span className="text-[10px] opacity-40">{channel.member_count}</span>
-      )}
-    </button>
   );
 };
 
@@ -144,13 +124,9 @@ const DmRow = ({ convo, isActive, onClick, employeeMap = {} }) => {
 };
 
 const ServerSidebar = ({
-  channels = [],
   groups = [],
-  activeSlug,
   activeGroupId,
-  onSelectChannel,
   onSelectGroup,
-  onCreateChannel,
   onCreateGroup,
   onOpenDm,
   onToggleMembers,
@@ -168,7 +144,6 @@ const ServerSidebar = ({
   isMobile = false,
   onClose,
 }) => {
-  const { sectionMap, sortedSections } = useServerSidebar({ channels });
   const activeDmWallet = (activeDmPeer?.wallet || '').toLowerCase();
 
   return (
@@ -198,35 +173,6 @@ const ServerSidebar = ({
 
       {/* Scrollable content */}
       <div className="flex-1 min-h-0 overflow-y-auto px-1.5 py-2 space-y-1 custom-scrollbar">
-        {/* Channels by section */}
-        {sortedSections.map(sec => (
-          <SectionGroup
-            key={sec}
-            label={sec.charAt(0).toUpperCase() + sec.slice(1)}
-            icon={SECTION_ICONS[sec] || SECTION_ICONS.default}
-            isAdmin={isAdmin}
-            onSettings={onOpenSectionPerms}
-          >
-            {sectionMap[sec].map(ch => (
-              <ChannelRow
-                key={ch.slug}
-                channel={ch}
-                isActive={activeSlug === ch.slug}
-                onClick={onSelectChannel}
-              />
-            ))}
-          </SectionGroup>
-        ))}
-
-        {/* Create channel (admin) */}
-        {isAdmin && (
-          <button
-            onClick={onCreateChannel}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-light-text-tertiary dark:text-dark-text-tertiary hover:text-matrix-green transition rounded-md"
-          >
-            <FaPlus size={10} /> Crear Canal
-          </button>
-        )}
 
         {/* Groups section */}
         {(groups.length > 0 || true) && (

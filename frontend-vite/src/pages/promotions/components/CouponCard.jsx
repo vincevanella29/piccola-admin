@@ -146,9 +146,9 @@ const CouponCard = ({ coupon, t, onOpenModal, statusText, targetDate, isCountdow
                   <FaClock size={10} className={isCountdown ? "text-yellow-500" : "text-matrix-green"} />
                   <CountdownTimer 
                     targetDate={targetDate} 
-                    label={null} 
+                    label={isCountdown ? "Inicia:" : "Expira:"} 
                     compact={true} 
-                    textClass="text-xs font-mono font-medium text-light-text-primary dark:text-dark-text-primary"
+                    textClass="text-[11px] font-mono font-medium text-light-text-primary dark:text-dark-text-primary"
                   />
                </div>
              ) : (

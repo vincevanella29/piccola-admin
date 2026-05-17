@@ -5,10 +5,10 @@ from typing import Optional
 from utils.web3mongo import db, w3
 from utils.auth.session import verify_session
 from config.gamification.service import user_profile_summary
+from config.roles.identity import get_employee_context
 import os
 
 router = APIRouter()
-LINKS = db.empleados_usuarios
 
 def get_employee_profile(rut: str) -> Optional[dict]:
     or_terms = [{"rut": rut}]
@@ -26,57 +26,37 @@ async def mi_ficha(
     request: Request = None,
     user: dict = Depends(verify_session),
 ):
-    # Resolve identidad base de la sesión
-    wallet = user.get("wallet") or request.headers.get("X-Wallet-Address")
-    sub = user.get("sub")
-    email = user.get("email")
-
-    identity_filters = []
-    if wallet:
-        identity_filters.append({"wallet": wallet})
-    if sub:
-        identity_filters.append({"sub": sub})
-    if email:
-        identity_filters.append({"email": email})
-
-    if not identity_filters:
-        raise HTTPException(status_code=401, detail="Sesión inválida: falta identidad (wallet/sub/email)")
-
-    # Resolve link
-    link = LINKS.find_one({"$or": identity_filters})
-    if not link or not link.get("rut"):
+    try:
+        emp_data = get_employee_context(user)
+    except HTTPException as e:
         return {
             "rut": None,
-            "wallet": wallet,
+            "wallet": user.get("wallet") or request.headers.get("X-Wallet-Address"),
             "profile": None,
             "merit_profile": None,
             "linked": False,
-            "message": "No hay ficha vinculada a esta identidad",
+            "message": e.detail,
         }
-    rut = str(link.get("rut"))
 
+    rut = emp_data["rut"]
+    wallet = emp_data["wallet"]
+    profile = emp_data["profile"]
+    
     # Update link if missing fields
     updates = {}
-    if wallet and not link.get("wallet"):
+    if wallet and not emp_data["link"].get("wallet"):
         updates["wallet"] = wallet
-    if user.get("email") and not link.get("email"):
+    if user.get("email") and not emp_data["link"].get("email"):
         updates["email"] = user.get("email")
-    if user.get("sub") and not link.get("sub"):
+    if user.get("sub") and not emp_data["link"].get("sub"):
         updates["sub"] = user.get("sub")
     if updates:
-        LINKS.update_one({"_id": link.get("_id")}, {"$set": updates})
+        db.empleados_usuarios.update_one({"_id": emp_data["link"].get("_id")}, {"$set": updates})
 
-    # Get basic profile
-    emp = get_employee_profile(rut)
-    if not emp:
-        raise HTTPException(status_code=404, detail="Trabajador no encontrado")
-    profile = dict(emp)
-    cargo = (profile.get("cargo") or "").strip() or None
-    seccion = profile.get("seccion")
-    if not seccion and cargo:
-        ci = db.cargos_intranet.find_one({"cargo": cargo}, {"_id": 0, "seccion": 1})
-        if ci and ci.get("seccion"):
-            profile["seccion"] = ci.get("seccion")
+    cargo = emp_data["cargo"] or None
+    seccion = emp_data["seccion"] or None
+    profile["seccion"] = seccion
+    profile["cargo"] = cargo
 
     # Get merit profile
     merit_profile = None

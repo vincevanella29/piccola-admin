@@ -10,6 +10,7 @@ import unicodedata
 from fastapi import APIRouter, Depends, HTTPException, Query
 from utils.web3mongo import db
 from utils.auth.session import verify_session
+from config.roles.identity import get_employee_context
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -49,29 +50,8 @@ def _find_worker_by_rut(rut_value) -> Optional[Dict]:
 
 def get_user_rut_and_local(user: dict) -> tuple[str, Optional[str]]:
     """Obtiene el RUT y el local actual del perfil del usuario."""
-    wallet = user.get("wallet")
-    sub = user.get("sub")
-    email = user.get("email")
-
-    identity_filters = []
-    if wallet:
-        identity_filters.append({"wallet": wallet})
-    if sub:
-        identity_filters.append({"sub": sub})
-    if email:
-        identity_filters.append({"email": email})
-
-    if not identity_filters:
-        raise HTTPException(status_code=401, detail="Sesión sin identidad válida (wallet/sub/email)")
-
-    link = LINKS.find_one({"$or": identity_filters})
-    if not link or not link.get("rut"):
-        raise HTTPException(status_code=404, detail="No hay ficha de empleado vinculada a esta identidad.")
-    
-    rut_raw = link.get("rut")
-    rut = str(rut_raw)
-    worker = _find_worker_by_rut(rut_raw)
-    return rut, (worker.get("sucursal") if worker else None)
+    emp_data = get_employee_context(user)
+    return emp_data["rut"], emp_data["sucursal"]
 
 def _norm(s: Optional[str]) -> str:
     if not s:
@@ -79,40 +59,11 @@ def _norm(s: Optional[str]) -> str:
     return unicodedata.normalize('NFKD', str(s)).encode('ascii', 'ignore').decode('ascii').strip().lower()
 
 def get_user_seccion(user: dict) -> Optional[str]:
-    """Obtiene la sección (área) del trabajador vinculado a la sesión.
-    Si `trabajadores_vpn` no la tiene, la resuelve desde `cargos_intranet` por nombre de cargo.
-    """
-    wallet = user.get("wallet")
-    sub = user.get("sub")
-    email = user.get("email")
-
-    identity_filters = []
-    if wallet:
-        identity_filters.append({"wallet": wallet})
-    if sub:
-        identity_filters.append({"sub": sub})
-    if email:
-        identity_filters.append({"email": email})
-
-    if not identity_filters:
-        return None
-
-    link = LINKS.find_one({"$or": identity_filters})
-    if not link or not link.get("rut"):
-        return None
-    worker = _find_worker_by_rut(link.get("rut")) or {}
-    # 1) Si viene directo en VPN, úsala
-    seccion = (worker or {}).get("seccion")
-    if seccion:
-        return seccion
-    # 2) Resolver por cargo en cargos_intranet
-    cargo_name = (worker or {}).get("cargo")
-    if not cargo_name:
-        return None
+    """Obtiene la sección (área) del trabajador vinculado a la sesión."""
     try:
-        cargo_doc = CARGOS_COLL.find_one({"cargo": {"$regex": f"^{cargo_name}$", "$options": "i"}}, {"_id": 0, "seccion": 1})
-        return (cargo_doc or {}).get("seccion")
-    except Exception:
+        emp_data = get_employee_context(user)
+        return emp_data["seccion"]
+    except HTTPException:
         return None
 
 def _kpi_coll_for_user(user: dict):

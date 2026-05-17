@@ -9,8 +9,9 @@ import os
 import importlib.util
 import logging
 
+from config.roles.identity import get_employee_context
+
 router = APIRouter()
-LINKS = db.empleados_usuarios
 RULES_COLL = db.gamification_meritocracy_rules
 RESULTS_COLL = db.meritocracy_kpi_results
 
@@ -78,42 +79,11 @@ async def mi_meritos(
     ym: Optional[str] = None,  # YYYY-MM opcional
     user: dict = Depends(verify_session),
 ):
-    wallet = user.get("wallet")
-    sub = user.get("sub")
-    email = user.get("email")
-
-    identity_filters = []
-    if wallet:
-        identity_filters.append({"wallet": wallet})
-    if sub:
-        identity_filters.append({"sub": sub})
-    if email:
-        identity_filters.append({"email": email})
-
-    if not identity_filters:
-        raise HTTPException(status_code=401, detail="Sesión sin identidad válida (wallet/sub/email)")
-
-    link = LINKS.find_one({"$or": identity_filters})
-    if not link or not link.get("rut"):
-        raise HTTPException(status_code=404, detail="No hay ficha de empleado vinculada a esta identidad")
-    rut = str(link.get("rut"))
-
-    # --- 1. Cargar todas las definiciones y datos necesarios ---
-    emp = db.trabajadores_vpn.find_one({"$or": [{"rut": rut}, {"rut": int(rut) if rut.isdigit() else None}]})
-    if not emp:
-        raise HTTPException(status_code=404, detail="Trabajador no encontrado")
-    cargo = (emp.get("cargo") or "").strip()
-    # Determinar sección del empleado: primero desde su ficha, si no, desde cargos_intranet
-    emp_section_raw = (
-        emp.get("seccion") or emp.get("Seccion") or emp.get("sección") or emp.get("section") or ""
-    )
-    if not str(emp_section_raw).strip():
-        cargo_doc = db.cargos_intranet.find_one({"cargo": cargo})
-        if not cargo_doc and cargo:
-            # intento case-insensitive si el match exacto falla
-            cargo_doc = db.cargos_intranet.find_one({"cargo": {"$regex": f"^{cargo}$", "$options": "i"}})
-        emp_section_raw = (cargo_doc or {}).get("seccion", "")
-    emp_section_norm = str(emp_section_raw).strip().lower()
+    emp_data = get_employee_context(user)
+    rut = emp_data["rut"]
+    wallet = emp_data["wallet"]
+    cargo = emp_data["cargo"]
+    emp_section_norm = emp_data["seccion"].lower()
     
     rules_map = {str(r["_id"]): r for r in RULES_COLL.find()}
     templates_map = get_rule_templates()

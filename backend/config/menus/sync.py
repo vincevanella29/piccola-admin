@@ -42,7 +42,7 @@ def _get_carta_provider() -> dict:
     Returns the provider doc or raises RuntimeError.
     """
     from utils.web3mongo import db as _db
-    prov = _db.carta_providers.find_one({"status": "active"})
+    prov = _db.ecosystem_providers.find_one({"ecosystem_type": "carta", "status": "active"})
     if not prov:
         raise RuntimeError(
             "No hay carta provider configurado. "
@@ -68,10 +68,9 @@ def _build_sync_url(route_key: str) -> tuple:
 
 def _build_signed_headers(api_key: str, mnemonic: str, body: bytes = b"") -> dict:
     """
-    Build request headers with API key + Dilithium signature.
-    If no mnemonic is available, falls back to API key only.
+    Build request headers with Dilithium signature.
     """
-    headers = {"X-API-Key": api_key}
+    headers = {}
     if mnemonic:
         try:
             sig_hex, pk_hex = sign_with_mnemonic(mnemonic, body)
@@ -80,7 +79,7 @@ def _build_signed_headers(api_key: str, mnemonic: str, body: bytes = b"") -> dic
             headers["X-Dilithium-Algorithm"] = "dilithium2"
             headers["X-Dilithium-Timestamp"] = str(time.time())
         except Exception as e:
-            logger.warning(f"[sync] Dilithium signing failed (continuing with API key only): {e}")
+            logger.warning(f"[sync] Dilithium signing failed: {e}")
     return headers
 
 
@@ -169,8 +168,8 @@ async def _sync_delivery_providers():
     from utils.web3mongo import db as _db
 
     try:
-        providers = list(_db.delivery_providers.find(
-            {"status": "active", "sync_url": {"$exists": True, "$ne": ""}},
+        providers = list(_db.ecosystem_providers.find(
+            {"ecosystem_type": "delivery", "status": "active", "sync_url": {"$exists": True, "$ne": ""}},
             {"slug": 1, "sync_url": 1, "api_key_value": 1, "dilithium_mnemonic": 1, "dilithium_mnemonic_enc": 1},
         ))
     except Exception as e:

@@ -273,6 +273,15 @@ async def chat_complete(messages: list, *, delivery_mode: bool = False, order_co
                             raw_level_int = -1
 
                         eff_level = raw_level_int if 1 <= raw_level_int <= 7 else None
+                        
+                        group_max = conv_ctx.get("max_group_role_level")
+                        if group_max is not None and eff_level is not None:
+                            try:
+                                gmax_int = int(group_max)
+                                eff_level = max(eff_level, gmax_int)
+                            except Exception:
+                                pass
+
                         context.user_data["role_level"] = eff_level
 
                         logger.info(

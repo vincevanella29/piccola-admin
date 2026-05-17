@@ -35,14 +35,13 @@ def sync_employee_link(sub: str, wallet_lower: str, db):
     TRAB = db.trabajadores_vpn
     CARGOS = db.cargos_intranet
 
-    # Buscar link por sub
-    link = LINKS.find_one({"sub": sub})
+    # Buscar link por sub (solo activos — deactivated links are dead)
+    link = LINKS.find_one({"sub": sub, "status": {"$ne": "deactivated"}})
     if not link and wallet_lower:
-        # También intentar buscar link por wallet (por si ya tiene la wallet correcta)
-        link = LINKS.find_one({"wallet": wallet_lower})
+        link = LINKS.find_one({"wallet": wallet_lower, "status": {"$ne": "deactivated"}})
 
     if not link:
-        return None  # No es empleado vinculado, nada que hacer
+        return None  # No es empleado vinculado (o está desactivado), nada que hacer
 
     rut = link.get("rut")
     if not rut:
@@ -122,6 +121,10 @@ def sync_employee_from_vpn_doc(empleado: dict, vpn_doc: dict, target_address: st
         dict con los campos actualizados, o None si no hubo cambios.
     """
     if not empleado or not vpn_doc:
+        return None
+
+    # 🔒 Never sync deactivated records
+    if empleado.get("status") == "deactivated":
         return None
 
     rut_value = empleado.get("rut")

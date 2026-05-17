@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaPlus, FaRobot, FaTrash, FaClock, FaToggleOn, FaToggleOff, FaPen } from 'react-icons/fa';
+import { Users, UserCog } from 'lucide-react';
 
 const DELAY_UNITS = [
   { value: 'minutes', label: 'Minutos', factor: 1 },
@@ -40,12 +41,22 @@ const EMPTY_FORM = {
   include_suggestions: false,
 };
 
-const AutomationList = ({ automations, templates, orderStatuses = [], loading, onSave, onToggle, onDelete }) => {
+const AutomationList = ({ automations, templates, orderStatuses = [], triggersConfig = {}, loading, onSave, onToggle, onDelete, loadAutomations }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null); // null = creating, string = editing
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [segment, setSegment] = useState('customers');
+
+  useEffect(() => {
+    if (loadAutomations) {
+      loadAutomations(segment);
+    }
+  }, [segment, loadAutomations]);
 
   const automationTemplates = templates.filter(t => t.type === 'automation' || t.type === 'transactional');
+
+  // Fallback to empty array if config is not loaded yet
+  const currentTriggers = (triggersConfig && triggersConfig[segment]) || [];
 
   const computeDelayMinutes = () => {
     const unit = DELAY_UNITS.find(u => u.value === form.delay_unit) || DELAY_UNITS[0];
@@ -54,13 +65,13 @@ const AutomationList = ({ automations, templates, orderStatuses = [], loading, o
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ ...EMPTY_FORM });
+    setForm({ ...EMPTY_FORM, trigger: currentTriggers?.[0]?.value || '' });
     setShowForm(true);
   };
 
   const openEdit = (auto) => {
     const delay = decomposeDelay(auto.delay_minutes || 0);
-    setEditingId(auto._id);
+    setEditingId(auto.id || auto._id);
     setForm({
       name: auto.name || '',
       trigger: auto.trigger || 'order_status_change',
@@ -78,21 +89,21 @@ const AutomationList = ({ automations, templates, orderStatuses = [], loading, o
   const closeForm = () => {
     setShowForm(false);
     setEditingId(null);
-    setForm({ ...EMPTY_FORM });
+    setForm({ ...EMPTY_FORM, trigger: currentTriggers?.[0]?.value || '' });
   };
 
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.template_id) return;
     await onSave(editingId, {
       name: form.name,
-      trigger: form.trigger,
+      trigger_event: form.trigger, // use trigger_event to match universal rule
       condition: { status: form.status },
       template_id: form.template_id,
       delay_minutes: computeDelayMinutes(),
       include_order_items: form.include_order_items,
       include_reorder: form.include_reorder,
       include_suggestions: form.include_suggestions,
-    });
+    }, segment);
     closeForm();
   };
 
@@ -106,6 +117,22 @@ const AutomationList = ({ automations, templates, orderStatuses = [], loading, o
 
   return (
     <div>
+      {/* Segment Tabs */}
+      <div className="flex bg-light-surface/50 dark:bg-black/20 p-1.5 rounded-full w-fit mb-4">
+        <button
+          onClick={() => { setSegment('customers'); closeForm(); }}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${segment === 'customers' ? 'bg-matrix-green text-black shadow-md' : 'text-light-text-secondary dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'}`}
+        >
+          <Users size={16} /> Clientes (Delivery)
+        </button>
+        <button
+          onClick={() => { setSegment('employees'); closeForm(); }}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${segment === 'employees' ? 'bg-matrix-green text-black shadow-md' : 'text-light-text-secondary dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'}`}
+        >
+          <UserCog size={16} /> Empleados (Team)
+        </button>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-light-text-primary dark:text-dark-text-primary flex items-center gap-2">
@@ -148,19 +175,35 @@ const AutomationList = ({ automations, templates, orderStatuses = [], loading, o
                   />
                 </div>
 
-                {/* Status trigger */}
+                {/* Trigger */}
                 <div>
-                  <label className="block text-[11px] font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Cuando el pedido pasa a</label>
+                  <label className="block text-[11px] font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Evento Disparador</label>
                   <select
-                    value={form.status}
-                    onChange={(e) => setForm(f => ({ ...f, status: e.target.value }))}
+                    value={form.trigger}
+                    onChange={(e) => setForm(f => ({ ...f, trigger: e.target.value }))}
                     className="w-full px-3 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/10 dark:border-dark-border/10 rounded-lg text-sm text-light-text-primary dark:text-dark-text-primary outline-none focus:ring-2 focus:ring-matrix-green/30"
                   >
-                    {orderStatuses.map(s => (
-                      <option key={s.key} value={s.key}>{s.icon} {s.label}</option>
+                    {currentTriggers.map(t => (
+                      <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>
                     ))}
                   </select>
                 </div>
+
+                {/* Status trigger (Only for order_status_change) */}
+                {form.trigger === 'order_status_change' && (
+                  <div>
+                    <label className="block text-[11px] font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Cuando el pedido pasa a</label>
+                    <select
+                      value={form.status}
+                      onChange={(e) => setForm(f => ({ ...f, status: e.target.value }))}
+                      className="w-full px-3 py-2 bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/10 dark:border-dark-border/10 rounded-lg text-sm text-light-text-primary dark:text-dark-text-primary outline-none focus:ring-2 focus:ring-matrix-green/30"
+                    >
+                      {orderStatuses.map(s => (
+                        <option key={s.key} value={s.key}>{s.icon} {s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Template */}
                 <div>
@@ -310,10 +353,10 @@ const AutomationList = ({ automations, templates, orderStatuses = [], loading, o
           {automations.map((auto, i) => {
             const statusOpt = orderStatuses.find(s => s.key === auto.condition?.status);
             const delayLabel = formatDelay(auto.delay_minutes);
-            const isEditing = editingId === auto._id && showForm;
+            const isEditing = editingId === (auto.id || auto._id) && showForm;
             return (
               <motion.div
-                key={auto._id}
+                key={auto.id || auto._id || i}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.05 }}
@@ -327,7 +370,7 @@ const AutomationList = ({ automations, templates, orderStatuses = [], loading, o
                   <div className="flex items-center gap-3">
                     {/* Toggle */}
                     <button
-                      onClick={() => onToggle(auto._id)}
+                      onClick={() => onToggle(auto.id || auto._id)}
                       className={`text-2xl transition-colors ${auto.active ? 'text-matrix-green' : 'text-gray-500'}`}
                     >
                       {auto.active ? <FaToggleOn /> : <FaToggleOff />}
@@ -377,7 +420,7 @@ const AutomationList = ({ automations, templates, orderStatuses = [], loading, o
 
                     <button
                       onClick={() => {
-                        if (confirm(`¿Eliminar "${auto.name}"?`)) onDelete(auto._id);
+                        if (confirm(`¿Eliminar "${auto.name}"?`)) onDelete(auto.id || auto._id);
                       }}
                       className="p-1.5 text-red-400/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                     >

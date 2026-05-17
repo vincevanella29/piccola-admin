@@ -323,7 +323,7 @@ const PromotionModal = ({
           {/* 3. AVAILABILITY & TIMING */}
           <div className="grid grid-cols-2 gap-4">
             {/* Timing */}
-            <div className="bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 p-3 rounded-xl border border-light-border/10 dark:border-dark-border/10">
+            <div className="bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 p-3 rounded-xl border border-light-border/10 dark:border-dark-border/10 flex flex-col justify-center">
               <div className="flex items-center gap-2 mb-1 text-light-text-secondary dark:text-dark-text-secondary">
                 <FaClock size={12} />
                 <span className="text-xs font-bold uppercase">{safeT('promotion-front.validity')}</span>
@@ -332,16 +332,26 @@ const PromotionModal = ({
                 {days}
               </p>
               <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
-                {promo.coupon_validity.recurring_from_time || 'Open'} - {promo.coupon_validity.recurring_to_time || 'Close'}
+                {promo.coupon_validity.recurring_from_time || 'Apertura'} - {promo.coupon_validity.recurring_to_time || 'Cierre'}
               </p>
+              {isClaimActive && claimEnd.getTime() < 8640000000000000 && (
+                <p className="text-[10px] font-bold text-matrix-green mt-2 pt-2 border-t border-light-border/10 tracking-wider uppercase">
+                  Válido hasta: {claimEnd.toLocaleDateString('es-CL', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+              {!isClaimActive && claimStart.getTime() > 0 && !isSoldOut && (
+                <p className="text-[10px] font-bold text-yellow-500 mt-2 pt-2 border-t border-light-border/10 tracking-wider uppercase">
+                  Inicia el: {claimStart.toLocaleDateString('es-CL', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
             </div>
 
             {/* Countdown */}
             <div className="bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 p-3 rounded-xl border border-light-border/10 dark:border-dark-border/10 flex flex-col justify-center items-center">
-              <span className="text-xs font-bold uppercase text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                {isClaimActive ? 'Termina en' : 'Comienza en'}
-              </span>
-              <CountdownTimer targetDate={countdownTarget} />
+              <CountdownTimer 
+                targetDate={countdownTarget} 
+                label={isClaimActive ? 'Termina en:' : 'Comienza en:'} 
+              />
             </div>
           </div>
 
