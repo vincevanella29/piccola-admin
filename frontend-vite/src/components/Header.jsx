@@ -167,12 +167,19 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
   const nativeSymbol = native?.symbol || (chainId ? 'ETH' : '');
 
   const notifications = appState?.useNotifications;
-  const isPushEnabled = notifications?.notificationPermission === 'granted';
+  const isPushEnabled = !!notifications?.isPushEnabled;
 
   const handleToggleNotifications = async () => {
+    console.log('[Header Toggle] Clicked!', { isPushEnabled, notifications });
     haptics();
-    if (!isPushEnabled && notifications?.saveNotificationToken) {
+    if (isPushEnabled && notifications?.disableNotifications) {
+      console.log('[Header Toggle] Calling disableNotifications...');
+      await notifications.disableNotifications();
+    } else if (!isPushEnabled && notifications?.saveNotificationToken) {
+      console.log('[Header Toggle] Calling saveNotificationToken...');
       await notifications.saveNotificationToken();
+    } else {
+      console.log('[Header Toggle] No action taken. Missing functions?');
     }
   };
 
@@ -314,8 +321,7 @@ const WalletSheet = ({ open, onClose, account, profile, onViewWallet, onDisconne
                         <div className="relative z-10 shrink-0">
                           <button
                             onClick={handleToggleNotifications}
-                            disabled={isPushEnabled || notifications?.isLoading}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isPushEnabled ? 'bg-light-success dark:bg-dark-success cursor-default opacity-80' : 'bg-light-border dark:bg-dark-border cursor-pointer hover:bg-light-border/80 dark:hover:bg-dark-border/80'}`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isPushEnabled ? 'bg-light-success dark:bg-dark-success cursor-pointer' : 'bg-light-border dark:bg-dark-border cursor-pointer hover:bg-light-border/80 dark:hover:bg-dark-border/80'}`}
                           >
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPushEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                           </button>
@@ -567,6 +573,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, account, disconnectWallet, isCon
         t={t}
         chainId={appState?.chainId}
         isAuthenticated={appState?.isAuthenticated}
+        appState={appState}
       />
 
       {/* Prompt para pedir permisos de Notificación a usuarios/empleados */}

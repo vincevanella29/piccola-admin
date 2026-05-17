@@ -15,6 +15,14 @@ const useNotifications = ({ accessToken, account, setError, setSuccess, appState
   const [audience, setAudience] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
   
+  // Robust state that checks both browser permission and an opt-out flag
+  const [isPushEnabled, setIsPushEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const perm = window.Notification?.permission;
+    const optOut = localStorage.getItem('push_opt_out');
+    return perm === "granted" && optOut !== "true";
+  });
+
   // Automations state
   const [automations, setAutomations] = useState([]);
 
@@ -169,42 +177,58 @@ const useNotifications = ({ accessToken, account, setError, setSuccess, appState
     }
   }, [accessToken, account, t, setError, setSuccess]);
 
-   const saveNotificationToken = useCallback(async () => {
+  const saveNotificationToken = useCallback(async () => {
+    console.log('[Push Diagnostics] Iniciando saveNotificationToken...');
     setIsLoading(true);
     try {
       if (!isWebPushSupported()) {
-        setError(t('notifications.unsupported_browser'));
+        console.error('[Push Diagnostics] isWebPushSupported es falso.');
+        setError(t('notifications.unsupported_browser') || 'Navegador no soportado');
         return;
       }
+      console.log('[Push Diagnostics] Solicitando permiso al navegador...');
       const permission = await window.Notification.requestPermission();
+      console.log(`[Push Diagnostics] Permiso resultante: ${permission}`);
       setNotificationPermission(permission);
       if (permission === 'granted') {
         const vKey = appState.vapidKey
           || appState.providers?.firebase?.public_config?.vapidKey
           || (Array.isArray(apiConfigs) && apiConfigs[0]?.vapid_key)
           || null;
+        console.log(`[Push Diagnostics] VAPID Key encontrada: ${vKey ? 'SÍ (truncada: ' + vKey.substring(0,5) + '...)' : 'NO'}`);
         if (!vKey) {
-          // Try to fetch api configs first
+          console.log('[Push Diagnostics] Intentando hacer fetch de apiConfigs...');
           try {
             const configs = await appData.fetchApiConfigs({ accessToken, walletAddress: account });
             const fetchedKey = (configs || [])[0]?.vapid_key;
+            console.log(`[Push Diagnostics] Fetched VAPID Key: ${fetchedKey ? 'SÍ' : 'NO'}`);
             if (fetchedKey) {
               setApiConfigs(configs);
               try { await deleteToken(appState.firebase.messaging); } catch(e) {}
+              console.log('[Push Diagnostics] Solicitando token a Firebase con fetchedKey...');
               const token = await getToken(appState.firebase.messaging, { vapidKey: fetchedKey });
+              console.log(`[Push Diagnostics] Firebase retornó token: ${token ? 'SÍ' : 'NO'}`);
               const res = await appData.saveNotificationToken({
                 accessToken, walletAddress: account,
                 data: { token, device_type: 'web', permissions_granted: true }
               });
-              setSuccess(t('notifications.token_saved'));
+              localStorage.removeItem('push_opt_out');
+              setIsPushEnabled(true);
+              setSuccess(t('notifications.token_saved') || 'Notificaciones activadas exitosamente');
+              console.log('[Push Diagnostics] Token guardado en BD con éxito vía fetch.');
               return res;
             }
-          } catch {}
+          } catch (fetchErr) {
+            console.error('[Push Diagnostics] Error al hacer fetch de apiConfigs:', fetchErr);
+          }
+          console.warn('[Push Diagnostics] Terminando prematuro: VAPID Key no configurada en el servidor.');
           setError('VAPID Key no configurada. Ve a Settings → Paso 2 y agrega la VAPID Key.');
           return;
         }
         try { await deleteToken(appState.firebase.messaging); } catch(e) {}
+        console.log('[Push Diagnostics] Solicitando token a Firebase con vKey local...');
         const token = await getToken(appState.firebase.messaging, { vapidKey: vKey });
+        console.log(`[Push Diagnostics] Firebase retornó token: ${token ? 'SÍ' : 'NO'}`);
         const res = await appData.saveNotificationToken({
           accessToken,
           walletAddress: account,
@@ -214,18 +238,46 @@ const useNotifications = ({ accessToken, account, setError, setSuccess, appState
             permissions_granted: true
           }
         });
-        setSuccess(t('notifications.token_saved'));
+        localStorage.removeItem('push_opt_out');
+        setIsPushEnabled(true);
+        setSuccess(t('notifications.token_saved') || 'Notificaciones activadas exitosamente');
+        console.log('[Push Diagnostics] Token guardado en BD con éxito vía local VAPID.');
         return res;
       } else {
-        setError(t('notifications.permission_denied'));
+        console.warn('[Push Diagnostics] Permiso denegado.');
+        setError(t('notifications.permission_denied') || 'Permiso denegado por el navegador');
+        localStorage.setItem('push_opt_out', 'true');
+        setIsPushEnabled(false);
       }
     } catch (err) {
-      setError(t('notifications.error_saving_token'));
+      console.error('[Push Diagnostics] ERROR inesperado guardando token:', err);
+      setError(err?.message || 'Error guardando token');
       throw err;
+    } finally {
+      console.log('[Push Diagnostics] Terminando ejecución de saveNotificationToken.');
+      setIsLoading(false);
+    }
+  }, [accessToken, account, t, setError, setSuccess, appState.firebase.messaging, appState.vapidKey, appState.providers, apiConfigs]);
+
+  const disableNotifications = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      localStorage.setItem('push_opt_out', 'true');
+      setIsPushEnabled(false);
+      try {
+        const token = await getToken(appState.firebase.messaging);
+        if (token) {
+           await appData.deleteAudience({ accessToken, walletAddress: account, token });
+           await deleteToken(appState.firebase.messaging);
+        }
+      } catch (e) {}
+      setSuccess("Notificaciones desactivadas para este dispositivo.");
+    } catch(err) {
+      setError("Error al desactivar notificaciones.");
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken, account, t, setError, setSuccess, appState.firebase.messaging]);
+  }, [accessToken, account, appState.firebase.messaging, setError, setSuccess]);
 
   const updateNotificationType = useCallback(async (id, data) => {
     setIsLoading(true);
@@ -334,6 +386,8 @@ const useNotifications = ({ accessToken, account, setError, setSuccess, appState
     triggers,
     isLoading,
     notificationPermission,
+    isPushEnabled,
+    disableNotifications,
     loadTriggers,
     fetchNotificationTypes,
     fetchApiConfigs,
