@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "currency_default": "CLP",
+  "events": [
+    {
+      "key": "page_view",
+      "ga4_event": "page_view",
+      "meta_event": "PageView",
+      "google_ads_event": null,
+      "required_params": ["page_title", "page_location"],
+      "optional_params": ["page_referrer"],
+      "description": "Fired on every page navigation",
+      "applies_to": ["delivery", "carta", "admin"]
+    },
+    {
+      "key": "view_item",
+      "ga4_event": "view_item",
+      "meta_event": "ViewContent",
+      "google_ads_event": null,
+      "required_params": ["item_id", "item_name", "price", "currency"],
+      "optional_params": ["item_category", "item_variant", "index"],
+      "description": "Fired when a user views a product detail",
+      "applies_to": ["delivery", "carta"]
+    },
+    {
+      "key": "add_to_cart",
+      "ga4_event": "add_to_cart",
+      "meta_event": "AddToCart",
+      "google_ads_event": null,
+      "required_params": ["item_id", "item_name", "price", "quantity", "currency"],
+      "optional_params": ["item_category", "value"],
+      "description": "Fired when a user adds an item to cart",
+      "applies_to": ["delivery"]
+    },
+    {
+      "key": "remove_from_cart",
+      "ga4_event": "remove_from_cart",
+      "meta_event": null,
+      "google_ads_event": null,
+      "required_params": ["item_id", "item_name", "price", "quantity", "currency"],
+      "optional_params": [],
+      "description": "Fired when a user removes an item from cart",
+      "applies_to": ["delivery"]
+    },
+    {
+      "key": "begin_checkout",
+      "ga4_event": "begin_checkout",
+      "meta_event": "InitiateCheckout",
+      "google_ads_event": null,
+      "required_params": ["value", "currency", "items"],
+      "optional_params": ["coupon"],
+      "description": "Fired when a user starts the checkout process",
+      "applies_to": ["delivery"]
+    },
+    {
+      "key": "purchase",
+      "ga4_event": "purchase",
+      "meta_event": "Purchase",
+      "google_ads_event": "conversion",
+      "required_params": ["transaction_id", "value", "currency", "items"],
+      "optional_params": ["tax", "shipping", "coupon", "payment_type"],
+      "description": "Fired when a purchase is completed successfully",
+      "applies_to": ["delivery"]
+    },
+    {
+      "key": "search",
+      "ga4_event": "search",
+      "meta_event": "Search",
+      "google_ads_event": null,
+      "required_params": ["search_term"],
+      "optional_params": [],
+      "description": "Fired when a user performs a search",
+      "applies_to": ["delivery", "carta"]
+    },
+    {
+      "key": "lead",
+      "ga4_event": "generate_lead",
+      "meta_event": "Lead",
+      "google_ads_event": "conversion",
+      "required_params": [],
+      "optional_params": ["value", "currency", "lead_source"],
+      "description": "Fired when a user submits lead info (push prompt, newsletter)",
+      "applies_to": ["delivery", "carta"]
+    }
+  ]
+}

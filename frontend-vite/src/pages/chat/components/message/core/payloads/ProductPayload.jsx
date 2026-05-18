@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Package, ChefHat, Scale, ChevronDown, ChevronUp } from 'lucide-react';
 
-const ProductCard = ({ product, recipe = null }) => {
+const ProductPayload = ({ product, recipe = null }) => {
   if (!product) return null;
   
   const [showRecipe, setShowRecipe] = useState(true);
@@ -153,4 +153,4 @@ const ProductCard = ({ product, recipe = null }) => {
   );
 };
 
-export default ProductCard;
+export default ProductPayload;

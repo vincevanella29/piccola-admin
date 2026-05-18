@@ -81,9 +81,7 @@ const DonutChart = ({ data }) => {
   );
 };
 
-export default function DataTable({ 
-  title, subtitle, kpis = [], columns = [], rows = [], totals = null, charts = [], compact = true, onRowClick = null, pageSize = 10 
-}) {
+const DataTablePayload = ({ title, subtitle, kpis = [], columns = [], rows = [], totals = null, charts = [], compact = true, onRowClick = null, pageSize = 10 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [page, setPage] = useState(0);
   const [sortKey, setSortKey] = useState(columns[0]?.key || '');
@@ -237,7 +235,7 @@ export default function DataTable({
   };
 
   return (
-    <div ref={tableRef} className="flex flex-col w-full max-w-full bg-light-surface dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
+    <div ref={tableRef} className="flex flex-col w-full max-w-full min-w-0 bg-light-surface dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
       
       {/* --- CABECERA --- */}
       <div className="bg-gray-50/50 dark:bg-white/5 p-4">
@@ -389,4 +387,6 @@ export default function DataTable({
       )}
     </div>
   );
-}
+};
+
+export default DataTablePayload;

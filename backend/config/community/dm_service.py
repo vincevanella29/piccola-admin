@@ -73,6 +73,7 @@ def get_dm_messages(wallet: str, peer: str, limit: int = 50, before: Optional[st
             "peer_wallet": m.get("peer_wallet"),
             "peer_name": m.get("peer_name"),
             "text": m.get("text", ""),
+            "payload": m.get("payload"),
             "created_at": m.get("created_at").isoformat() if isinstance(m.get("created_at"), datetime) else m.get("created_at"),
         }
         for m in msgs

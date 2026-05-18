@@ -5,26 +5,17 @@ import { AnimatePresence, motion } from 'framer-motion';
 import ServerSidebar from './ServerSidebar';
 import GroupView from './GroupView';
 import MembersPanel from './MembersPanel';
-import SectionPermsModal from './SectionPermsModal';
-import GroupModal from './GroupModal';
-import MemberProfileModal from './MemberProfileModal';
-import { DmPickerModal } from './CreateModals';
+import SectionPermsModal from '../modals/SectionPermsModal';
+import GroupModal from '../modals/GroupModal';
+import MemberProfileModal from '../modals/MemberProfileModal';
+import { DmPickerModal } from '../modals/CreateModals';
 import { FaComments, FaPaperPlane, FaArrowLeft } from 'react-icons/fa';
 import useCommunityTab from '../../../../hooks/chat/useCommunityTab';
 import MessageList from '../message/core/MessageList';
+import ChatInput from '../common/ChatInput';
 
 // ─── Inline DM View (now with WS support) ────────────────────────
 const DmView = ({ peer, messages, connected, typingUsers = [], onSend, onTyping, onBack, myWallet }) => {
-  const [text, setText] = useState('');
-  const handleSend = () => {
-    if (!text.trim()) return;
-    onSend(text.trim());
-    setText('');
-  };
-  const handleChange = (val) => {
-    setText(val);
-    onTyping?.(!!val.trim());
-  };
 
   return (
     <div className="h-full flex flex-col">
@@ -64,20 +55,14 @@ const DmView = ({ peer, messages, connected, typingUsers = [], onSend, onTyping,
       )}
 
       {/* Input */}
-      <div className="shrink-0 px-4 py-3 border-t border-light-border/40 dark:border-dark-border/40">
-        <div className="flex items-center gap-2 bg-light-surface-secondary/60 dark:bg-dark-surface-secondary/60 rounded-xl border border-light-border/30 dark:border-dark-border/30 px-3 py-2">
-          <textarea
-            value={text}
-            onChange={e => handleChange(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={`Mensaje a ${peer?.name}...`}
-            rows={1}
-            className="flex-1 bg-transparent resize-none text-sm outline-none max-h-32 text-light-text-primary dark:text-dark-text-primary placeholder:text-light-text-tertiary/60"
-          />
-          <button onClick={handleSend} disabled={!text.trim()} className="p-1.5 rounded-lg bg-blue-500 text-white disabled:opacity-30 hover:bg-blue-600 transition">
-            <FaPaperPlane size={14} />
-          </button>
-        </div>
+      <div className="shrink-0 z-20">
+        <ChatInput
+          placeholder={`Mensaje a ${peer?.name}...`}
+          onSend={(text) => {
+            if (text.trim()) onSend(text.trim());
+          }}
+          onTyping={onTyping}
+        />
       </div>
     </div>
   );
@@ -226,6 +211,7 @@ const CommunityTab = ({ appState, isDesktop = true, showSidebar, setShowSidebar 
               activeDmPeer={mode === 'dm' ? dmPeer : null}
               onSelectDmConvo={(convo) => { handleSelectDmConvo(convo); closeMobileSidebar(); }}
               employeeMap={presence.employeeMap}
+              presenceMembers={presence.members}
               isMobile={!isDesktop}
               onClose={closeMobileSidebar}
             />

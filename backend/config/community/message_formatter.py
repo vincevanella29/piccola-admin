@@ -155,3 +155,91 @@ async def _nonna_group_reply(group_id: str, group: dict, text: str, sender: dict
 
     except Exception as e:
         logger.error(f"Error in group @nonna reply: {e}", exc_info=True)
+
+
+async def _nonna_dm_reply(conv_key: str, text: str, sender: dict):
+    """Generate an AI reply in a Direct Message context with Nonna."""
+    try:
+        from utils.bot.engine import chat_complete
+        from utils.chat.realtime import manager
+        from config.roles.access import compute_permissions_for_identity
+
+        recent = list(
+            db.chat_dm_messages.find({"conv_key": conv_key})
+            .sort("created_at", -1)
+            .limit(8)
+        )
+        recent.reverse()
+
+        messages = []
+        system_prompt = (
+            "Estás en un mensaje directo (DM) con un empleado de Piccola Italia. "
+            "Eres Nonna, la asistente de IA experta. Responde de forma concisa, amable y en español chileno. "
+            "Tu objetivo es asistir al usuario con cualquier consulta relacionada al ecosistema."
+        )
+
+        for m in recent:
+            role = "assistant" if m.get("sender_wallet") == "nonna" else "user"
+            msg_text = m.get("text", "")
+            messages.append({"role": role, "content": msg_text})
+
+        # Add the final trigger message if not already there
+        if not messages or messages[-1]["content"] != text:
+            messages.append({"role": "user", "content": text})
+
+        sender_wallet = sender.get("sender_wallet")
+        max_role_level = 7
+        if sender_wallet:
+            try:
+                m_perms = await asyncio.to_thread(compute_permissions_for_identity, sender_wallet)
+                m_rl = m_perms.get("role_level", -1)
+                if m_rl and 1 <= m_rl <= 7:
+                    max_role_level = m_rl
+            except Exception:
+                pass
+
+        ctx = {
+            "wallet": sender_wallet,
+            "privy_id": sender.get("sender_privy_id"),
+            "max_group_role_level": max_role_level
+        }
+        
+        system_prompt += f"\n\nUser context (JSON):\n{json.dumps(ctx)}"
+
+        messages.insert(0, {"role": "system", "content": system_prompt})
+
+        reply = await chat_complete(messages)
+        
+        reply_text, reply_payload = _format_bot_reply(reply)
+
+        from utils.time_utils import get_chile_time
+        now = get_chile_time()
+
+        bot_doc = {
+            "conv_key": conv_key,
+            "sender_wallet": "nonna",
+            "sender_name": "Nonna (AI)",
+            "peer_wallet": sender_wallet,
+            "peer_name": sender.get("sender_name", sender_wallet),
+            "text": reply_text,
+            "payload": reply_payload,
+            "created_at": now,
+        }
+        result = db.chat_dm_messages.insert_one(bot_doc)
+
+        out_msg = {
+            "type": "dm_message",
+            "id": str(result.inserted_id),
+            "conv_key": conv_key,
+            "sender_wallet": "nonna",
+            "sender_name": "Nonna (AI)",
+            "peer_wallet": sender_wallet,
+            "peer_name": sender.get("sender_name", sender_wallet),
+            "text": reply_text,
+            "payload": reply_payload,
+            "created_at": now.isoformat() if hasattr(now, 'isoformat') else str(now),
+        }
+        await manager.broadcast_dm(conv_key, out_msg)
+
+    except Exception as e:
+        logger.error(f"Error in DM nonna reply: {e}", exc_info=True)

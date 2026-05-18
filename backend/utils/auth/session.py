@@ -102,13 +102,16 @@ async def verify_session(request: Request) -> dict:
                 # so this is cheap (just a Mongo read + permissions compute).
                 last_verified = session.get("last_verified", 0)
                 needs_refresh = (current_time - last_verified) > ROLE_CACHE_TTL
+                # Force refresh if session has stale -1 level (from before the offchain fix)
+                stale_level = session.get("role_level") == -1
                 
-                if "role_level" not in session or session.get("role_level") is None or needs_refresh:
+                if "role_level" not in session or session.get("role_level") is None or needs_refresh or stale_level:
                     from config.roles.service import get_company_role_level
 
                     try:
-                        new_role_level = get_company_role_level(wallet)
                         new_permissions = compute_permissions_for_identity(wallet)
+                        # Use computed effective level (includes offchain 6/7 for workers with cargo/section policies)
+                        new_role_level = new_permissions.get("role_level", get_company_role_level(wallet))
                         logger.info(f"[SESSION] Role refreshed for {wallet}: level={new_role_level} (was {'missing' if 'role_level' not in session else session.get('role_level')})")
                     except Exception as role_err:
                         logger.warning(f"[SESSION] Role refresh failed for {wallet}: {role_err} — keeping existing cached role")

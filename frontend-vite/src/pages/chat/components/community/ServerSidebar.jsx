@@ -1,5 +1,5 @@
 // src/pages/chat/components/community/ServerSidebar.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaPlus, FaChevronDown,
@@ -77,7 +77,7 @@ const GroupRow = ({ group, isActive, onClick, onSettingsClick, canManage }) => (
 );
 
 // ─── DM Conversation Row ─────────────────────────────────────────
-const DmRow = ({ convo, isActive, onClick, employeeMap = {} }) => {
+const DmRow = ({ convo, isActive, onClick, employeeMap = {}, presenceStatus = 'offline' }) => {
   const peerWallet = (convo.peer_wallet || '').toLowerCase();
   const employee = peerWallet ? employeeMap[peerWallet] : null;
 
@@ -91,6 +91,8 @@ const DmRow = ({ convo, isActive, onClick, employeeMap = {} }) => {
     ? new Date(convo.last_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
     : '';
 
+  const statusColor = presenceStatus === 'online' ? 'bg-green-500' : presenceStatus === 'idle' ? 'bg-yellow-500' : 'bg-gray-500';
+
   return (
     <button
       onClick={() => onClick(convo)}
@@ -99,12 +101,15 @@ const DmRow = ({ convo, isActive, onClick, employeeMap = {} }) => {
         : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-surface-tertiary/50 dark:hover:bg-dark-surface-tertiary/50'
         }`}
     >
-      {/* Avatar */}
-      <div className="w-7 h-7 rounded-full bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden">
-        {avatarUrl
-          ? <img src={avatarUrl} className="w-7 h-7 rounded-full object-cover" alt="" />
-          : displayName[0]?.toUpperCase()
-        }
+      {/* Avatar with presence dot */}
+      <div className="relative shrink-0">
+        <div className="w-7 h-7 rounded-full bg-light-surface-tertiary dark:bg-dark-surface-tertiary flex items-center justify-center text-[11px] font-bold overflow-hidden">
+          {avatarUrl
+            ? <img src={avatarUrl} className="w-7 h-7 rounded-full object-cover" alt="" />
+            : displayName[0]?.toUpperCase()
+          }
+        </div>
+        <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${statusColor} border-2 border-light-surface-secondary dark:border-dark-surface-secondary`} />
       </div>
       {/* Name + preview */}
       <div className="flex-1 min-w-0 text-left">
@@ -141,10 +146,20 @@ const ServerSidebar = ({
   activeDmPeer = null,
   onSelectDmConvo,
   employeeMap = {},
+  presenceMembers = [],
   isMobile = false,
   onClose,
 }) => {
   const activeDmWallet = (activeDmPeer?.wallet || '').toLowerCase();
+
+  // Build wallet → status lookup from presence members
+  const presenceStatusMap = useMemo(() => {
+    const map = {};
+    presenceMembers.forEach(m => {
+      if (m.wallet) map[m.wallet.toLowerCase()] = m.status || 'offline';
+    });
+    return map;
+  }, [presenceMembers]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -212,6 +227,7 @@ const ServerSidebar = ({
               isActive={activeDmWallet === (convo.peer_wallet || '').toLowerCase()}
               onClick={onSelectDmConvo}
               employeeMap={employeeMap}
+              presenceStatus={presenceStatusMap[(convo.peer_wallet || '').toLowerCase()] || 'offline'}
             />
           ))}
           {dmConversations.length === 0 && (

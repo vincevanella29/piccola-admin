@@ -567,9 +567,13 @@ async def get_delivery_orders(
         except ValueError:
             pass
 
+    print(f"[ORDERS DIAGNOSTIC] allowed_slugs={allowed_slugs} own_suc={perms.get('own_id_sucursal')} query={query}")
+
     cursor = DELIVERY_COLL.find(query).sort("created_at", -1).skip(skip).limit(limit)
     orders = [_serialize_order(doc) for doc in cursor]
     total = DELIVERY_COLL.count_documents(query)
+
+    print(f"[ORDERS DIAGNOSTIC] Found {total} orders matching query.")
 
     return {
         "success": True,
@@ -800,7 +804,7 @@ async def get_kds_orders(user: dict = Depends(verify_session)):
     from apis.delivery.config import DEFAULT_STATUSES, DEFAULT_PICKUP_STATUSES
 
     # Active statuses for KDS — driven from MongoDB config (kds_controllable field)
-    config_doc = CONFIG_COLL.find_one({"_id": "delivery_config"}, {"internal_statuses": 1, "pickup_statuses": 1})
+    config_doc = CONFIG_COLL.find_one({"_id": "delivery_config"}, {"internal_statuses": 1, "pickup_statuses": 1, "kds_allowed_cargos": 1, "kds_allowed_secciones": 1})
     active_keys = set()
     
     int_statuses = config_doc.get("internal_statuses") if config_doc else None
@@ -821,18 +825,32 @@ async def get_kds_orders(user: dict = Depends(verify_session)):
         active_keys = {"pending", "confirmed", "preparing", "ready"}
     query = {"status": {"$in": list(active_keys)}}
 
+    def _map_internal_to_public_loc(internal_id: str) -> str:
+        """Map internal id_sucursal (e.g. 39) to public location _id (e.g. 15)."""
+        if not internal_id:
+            return ""
+        try:
+            ref = db.gastos_refs_sucursales.find_one({"id_sucursal": int(internal_id)})
+            if ref and ref.get("location") and ref["location"].get("_id"):
+                return str(ref["location"]["_id"])
+        except ValueError:
+            pass
+        return str(internal_id)
+
     # Level 6: filter by sucursal
     if rl == 6:
         allowed_sucs = perms.get("sucursal_ids", [])
         if allowed_sucs:
-            query["location_id"] = {"$in": [str(s) for s in allowed_sucs]}
+            public_ids = [_map_internal_to_public_loc(str(s)) for s in allowed_sucs]
+            query["location_id"] = {"$in": public_ids}
             
     # Level 7: filter by own sucursal and verify KDS access
     has_kds_override = False
     if rl == 7:
         own_suc = perms.get("own_id_sucursal")
         if own_suc is not None:
-            query["location_id"] = str(own_suc)
+            public_id = _map_internal_to_public_loc(str(own_suc))
+            query["location_id"] = public_id
         else:
             return {"success": True, "orders": [], "total": 0}
             
@@ -847,9 +865,12 @@ async def get_kds_orders(user: dict = Depends(verify_session)):
         if seccion and seccion.lower().strip() in kds_secciones:
             has_kds_override = True
 
+    print(f"[KDS DIAGNOSTIC] rl={rl} own_suc={perms.get('own_id_sucursal')} mapped_query={query}")
+
     # Fetch active orders
     cursor = DELIVERY_COLL.find(query).sort("created_at", 1)  # oldest first for KDS
     orders = list(cursor)
+    print(f"[KDS DIAGNOSTIC] Found {len(orders)} active orders matching query.")
 
     # Determine item filtering for level 7
     allowed_codes = None  # None = show all

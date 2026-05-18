@@ -30,7 +30,7 @@ from config.roles.access import compute_permissions_for_identity
 # Import logic from config
 from config.community.identity_manager import _user_identity, _get_user_perms, _enrich_sender
 from config.community.membership_manager import _is_group_member, _get_member_role
-from config.community.message_formatter import _msg_to_out, _nonna_group_reply
+from config.community.message_formatter import _msg_to_out, _nonna_group_reply, _nonna_dm_reply
 from config.community.dm_service import _dm_conv_key, get_dm_conversations, get_dm_messages, resolve_peer_name
 from config.community.directory_service import get_community_catalogs, get_community_members, get_community_presence
 from config.community.section_service import get_all_section_perms, update_section_permissions
@@ -584,6 +584,10 @@ async def dm_send(data: DmSendRequest, user: dict = Depends(verify_session)):
     except Exception as e:
         logger.error(f"Error general en el proceso de notificaciones Push para DMs: {e}")
 
+    # ─── Trigger Nonna DM Response ───
+    if peer_wallet == "nonna":
+        asyncio.create_task(_nonna_dm_reply(conv_key, data.text, sender))
+
     return {"ok": True, "id": str(result.inserted_id)}
 
 
@@ -728,6 +732,9 @@ async def ws_dm(websocket: WebSocket, wallet: str):
 async def ws_presence(websocket: WebSocket):
     manager.start_presence_cleanup()
     wallet = None
+    # Cache resolved identity so we don't query DB on every heartbeat
+    _identity_cache: dict = {}
+
     await manager.connect_presence(websocket)
     try:
         while True:
@@ -735,13 +742,74 @@ async def ws_presence(websocket: WebSocket):
             t = data.get("type")
             if t == "heartbeat":
                 wallet = (data.get("wallet") or "").lower()
-                if wallet:
-                    user_info = {
-                        "name": data.get("name", wallet),
-                        "cargo": data.get("cargo"),
-                        "seccion": data.get("seccion"),
-                        "profile_image_url": data.get("profile_image_url"),
-                    }
-                    await manager.heartbeat(wallet, user_info)
+                if not wallet:
+                    continue
+
+                # Resolve identity from DB on first heartbeat (source of truth)
+                if wallet not in _identity_cache:
+                    resolved = _resolve_presence_identity(wallet)
+                    _identity_cache[wallet] = resolved
+
+                identity = _identity_cache[wallet]
+                await manager.heartbeat(wallet, identity)
     except WebSocketDisconnect:
         await manager.disconnect_presence(websocket, wallet)
+
+
+def _resolve_presence_identity(wallet: str) -> dict:
+    """Resolve display name, cargo, seccion from DB for a wallet.
+    Source of truth: empleados_usuarios → trabajadores_vpn.
+    Fallback: community_users → wallet address.
+    """
+    from utils.web3mongo import db
+
+    display_name = wallet
+    cargo = None
+    seccion = None
+    profile_image_url = None
+
+    try:
+        # 1. Try empleados_usuarios → trabajadores_vpn (employee path)
+        eu = db.empleados_usuarios.find_one({"wallet": wallet})
+        if eu and eu.get("rut"):
+            rut = eu["rut"]
+            # Handle RUT type mismatch (int vs string)
+            tv = db.trabajadores_vpn.find_one({"rut": rut})
+            if not tv:
+                try:
+                    alt_rut = int(rut) if isinstance(rut, str) else str(rut)
+                    tv = db.trabajadores_vpn.find_one({"rut": alt_rut})
+                except (ValueError, TypeError):
+                    pass
+
+            if tv:
+                nombres = (tv.get("nombres") or "").strip()
+                ap_pat = (tv.get("apellidopaterno") or "").strip()
+                name = f"{nombres} {ap_pat}".strip()
+                if name:
+                    display_name = name
+                profile_image_url = tv.get("profile_image_url")
+                cargo = tv.get("cargo")
+                # Resolve seccion from cargos_intranet
+                if cargo:
+                    ci = db.cargos_intranet.find_one({"cargo": cargo})
+                    if ci:
+                        seccion = ci.get("seccion")
+
+        # 2. Fallback: community_users (non-employee registered users)
+        if display_name == wallet:
+            cu = db.community_users.find_one({"wallet": wallet})
+            if cu:
+                profile = cu.get("profile") or {}
+                display_name = profile.get("name") or cu.get("name") or cu.get("display_name") or wallet
+                profile_image_url = profile.get("profile_image_url") or cu.get("profile_image_url")
+
+    except Exception as e:
+        logger.error(f"Presence identity resolve error for {wallet[:10]}: {e}")
+
+    return {
+        "name": display_name,
+        "cargo": cargo,
+        "seccion": seccion,
+        "profile_image_url": profile_image_url,
+    }

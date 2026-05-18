@@ -53,6 +53,13 @@ def allowed_local_filter(perms: Dict[str, Any]) -> Optional[Set[str]]:
         return None  # acceso total → sin filtro
 
     suc_ids = _int_set(perms.get("sucursal_ids") or [])
+    own_id = perms.get("own_id_sucursal")
+    if own_id is not None:
+        try:
+            suc_ids.add(int(own_id))
+        except (ValueError, TypeError):
+            pass
+
     if not suc_ids:
         # No tiene all_suc ni sucursales específicas → nada
         return set()
@@ -171,6 +178,13 @@ def _allowed_siglas_from_perms(perms: Dict[str, Any]) -> Optional[Set[str]]:
         return None
 
     suc_ids = _int_set(perms.get("sucursal_ids") or [])
+    own_id = perms.get("own_id_sucursal")
+    if own_id is not None:
+        try:
+            suc_ids.add(int(own_id))
+        except (ValueError, TypeError):
+            pass
+
     if not suc_ids:
         return set()
 

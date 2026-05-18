@@ -156,6 +156,23 @@ def get_community_presence(presence_map: dict):
 
     workers = list(db.trabajadores_vpn.aggregate(pipeline))
 
+    # Fix RUT type mismatch: $lookup fails if rut types differ (int vs string).
+    # Manual fallback for workers where wallet is still None.
+    for w in workers:
+        if w.get("wallet"):
+            continue
+        rut = w.get("rut")
+        if rut is None:
+            continue
+        # Try alternate type (int ↔ string)
+        try:
+            alt_rut = int(rut) if isinstance(rut, str) else str(rut)
+        except (ValueError, TypeError):
+            continue
+        eu = db.empleados_usuarios.find_one({"rut": alt_rut}, {"wallet": 1})
+        if eu and eu.get("wallet"):
+            w["wallet"] = eu["wallet"]
+
     online = []
     idle = []
     offline = []

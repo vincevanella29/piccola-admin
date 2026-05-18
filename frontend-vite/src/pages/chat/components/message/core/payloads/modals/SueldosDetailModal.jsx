@@ -3,7 +3,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, DollarSign, FileText, AlertCircle } from 'lucide-react';
-import DataTable from '../common/DataTable';
+import DataTablePayload from '../DataTablePayload';
 
 export default function SueldosDetailModal({ open, onClose, payload }) {
   if (!open) return null;
@@ -64,7 +64,7 @@ export default function SueldosDetailModal({ open, onClose, payload }) {
                   <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {/* Renderizamos la DataTable existente */}
                     {/* Nota: Le pasamos null a title/subtitle porque ya los manejamos en el header del modal para que se vea integrado */}
-                    <DataTable
+                    <DataTablePayload
                       title={null}
                       subtitle={null}
                       kpis={kpis}

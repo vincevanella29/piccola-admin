@@ -477,7 +477,24 @@ const appData = {
       console.error('appData.jsx - Error confirming Telegram link:', err);
       throw new Error(err.message || 'Error confirming Telegram link');
     }
-  }
+  },
+
+  // ─── WhatsApp Cloud API ───────────────────────────────────────
+  waGetConfig: async ({ accessToken, wallet }) => api({ method: 'get', endpoint: '/whatsapp/config', headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waSaveConfig: async ({ accessToken, wallet, data }) => api({ method: 'post', endpoint: '/whatsapp/config', data, headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waSendMessage: async ({ accessToken, wallet, data }) => api({ method: 'post', endpoint: '/whatsapp/send', data, headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waSendBulk: async ({ accessToken, wallet, data }) => api({ method: 'post', endpoint: '/whatsapp/send-bulk', data, headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waGetTemplates: async ({ accessToken, wallet }) => api({ method: 'get', endpoint: '/whatsapp/templates', headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waCreateTemplate: async ({ accessToken, wallet, data }) => api({ method: 'post', endpoint: '/whatsapp/templates', data, headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waDeleteTemplate: async ({ accessToken, wallet, name }) => api({ method: 'delete', endpoint: `/whatsapp/templates/${name}`, headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waGetQuickReplies: async ({ accessToken, wallet }) => api({ method: 'get', endpoint: '/whatsapp/quick-replies', headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waSaveQuickReplies: async ({ accessToken, wallet, data }) => api({ method: 'post', endpoint: '/whatsapp/quick-replies', data, headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waGetConversations: async ({ accessToken, wallet }) => api({ method: 'get', endpoint: '/whatsapp/conversations', headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  waGetMessages: async ({ accessToken, wallet, phone }) => api({ method: 'get', endpoint: `/whatsapp/conversations/${phone}/messages`, headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+
+  // ─── Unified Marketing Audience ───────────────────────────────
+  marketingGetAudience: async ({ accessToken, wallet }) => api({ method: 'get', endpoint: '/marketing/audience', headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
+  marketingAddLead: async ({ accessToken, wallet, data }) => api({ method: 'post', endpoint: '/marketing/audience/lead', data, headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), 'X-Wallet-Address': wallet }, withCredentials: true }),
 };
 
 export default appData;

@@ -22,7 +22,7 @@ const VARIANT_CLASSES = {
   link: 'bg-transparent underline text-matrix-green hover:opacity-80',
 };
 
-export default function ClubSectionCard({ payload }) {
+const ClubSectionPayload = ({ payload }) => {
   const section = payload?.section || payload?.spec?.section || 'club';
   const title = payload?.title || payload?.spec?.title || 'Sección del Club';
   const text = payload?.text || payload?.base_text || '';
@@ -71,4 +71,6 @@ export default function ClubSectionCard({ payload }) {
       )}
     </div>
   );
-}
+};
+
+export default ClubSectionPayload;

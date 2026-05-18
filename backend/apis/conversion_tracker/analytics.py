@@ -40,6 +40,15 @@ class SourceRow(BaseModel):
     medium: str
     active_users: int
 
+class LocationRow(BaseModel):
+    city: str
+    country: str
+    active_users: int
+
+class EventRow(BaseModel):
+    event_name: str
+    active_users: int
+
 class RealtimeResponse(BaseModel):
     provider_id: str
     provider_name: str
@@ -49,6 +58,8 @@ class RealtimeResponse(BaseModel):
     countries: List[CountryRow]
     devices: List[DeviceRow]
     sources: List[SourceRow]
+    locations: List[LocationRow]
+    events: List[EventRow]
 
 class AnalyticsProviderInfo(BaseModel):
     id: str
@@ -256,6 +267,48 @@ async def get_realtime_analytics(
         except Exception as e:
             logger.warning(f"Failed to fetch sources: {e}")
         
+        # ─── Locations Report (City + Country) ───────────────
+        locations = []
+        try:
+            locs_request = RunRealtimeReportRequest(
+                property=f"properties/{property_id}",
+                dimensions=[Dimension(name="city"), Dimension(name="country")],
+                metrics=[Metric(name="activeUsers")],
+            )
+            locs_response = client.run_realtime_report(locs_request)
+            for row in locs_response.rows:
+                city = row.dimension_values[0].value or "(not set)"
+                country = row.dimension_values[1].value or "(not set)"
+                try:
+                    users = int(row.metric_values[0].value)
+                except ValueError:
+                    users = 0
+                if city != "(not set)":
+                    locations.append(LocationRow(city=city, country=country, active_users=users))
+            locations.sort(key=lambda x: x.active_users, reverse=True)
+        except Exception as e:
+            logger.warning(f"Failed to fetch locations: {e}")
+
+        # ─── Events Report ───────────────────────────────────
+        events = []
+        try:
+            events_request = RunRealtimeReportRequest(
+                property=f"properties/{property_id}",
+                dimensions=[Dimension(name="eventName")],
+                metrics=[Metric(name="eventCount")],
+            )
+            events_response = client.run_realtime_report(events_request)
+            for row in events_response.rows:
+                event_name = row.dimension_values[0].value
+                try:
+                    count = int(row.metric_values[0].value)
+                except ValueError:
+                    count = 0
+                events.append(EventRow(event_name=event_name, active_users=count))
+            events.sort(key=lambda x: x.active_users, reverse=True)
+        except Exception as e:
+            logger.warning(f"Failed to fetch events: {e}")
+
         return RealtimeResponse(
             provider_id=provider.get("id", ""),
             provider_name=provider.get("name", "Analytics"),
@@ -265,6 +318,8 @@ async def get_realtime_analytics(
             countries=countries,
             devices=devices,
             sources=sources,
+            locations=locations,
+            events=events,
         )
     except HTTPException:
         raise

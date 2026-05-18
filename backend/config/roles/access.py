@@ -503,9 +503,14 @@ def require_admin_level(user: Dict[str, Any], role: str):
     if not wallet:
         raise HTTPException(status_code=401, detail="No session")
 
-    # Use cached role if available and recent (within 1 hour)
-    if isinstance(user, dict) and time.time() - user.get("last_verified", 0) <= 3600:
-        level = user["role_level"]
+    # Use effective role_level from session or permissions (includes offchain 6/7 for scoped workers)
+    if isinstance(user, dict):
+        # Primary: session role_level (set by verify_session from computed permissions)
+        level = user.get("role_level")
+        # Fallback: permissions.role_level (always has the computed effective level)
+        if level is None or level == -1:
+            perms = user.get("permissions") or {}
+            level = perms.get("role_level", level or -1)
     else:
         from config.roles.service import get_company_role_level
         level = get_company_role_level(wallet)

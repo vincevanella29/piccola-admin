@@ -238,17 +238,31 @@ def _build_order_context(order: dict) -> dict:
     }
 
 
+def _map_internal_to_public_loc(internal_id: str) -> str:
+    """Map internal id_sucursal (e.g. 39) to public location _id (e.g. 15)."""
+    if not internal_id:
+        return ""
+    try:
+        ref = db.gastos_refs_sucursales.find_one({"id_sucursal": int(internal_id)})
+        if ref and ref.get("location") and ref["location"].get("_id"):
+            return str(ref["location"]["_id"])
+    except ValueError:
+        pass
+    return str(internal_id)
+
 def _get_admin_location_filter(user: dict, level: int) -> dict:
     """Build MongoDB query filter for level 6 and 7 admins (only their locations)."""
     perms = (user or {}).get("permissions") or {}
     if level == 6:
         allowed_sucs = perms.get("sucursal_ids", [])
         if allowed_sucs:
-            return {"location_id": {"$in": [str(s) for s in allowed_sucs]}}
+            public_ids = [_map_internal_to_public_loc(str(s)) for s in allowed_sucs]
+            return {"location_id": {"$in": public_ids}}
     elif level == 7:
         own_suc = perms.get("own_id_sucursal")
         if own_suc is not None:
-            return {"location_id": str(own_suc)}
+            public_id = _map_internal_to_public_loc(str(own_suc))
+            return {"location_id": public_id}
     return {}
 
 
@@ -263,13 +277,14 @@ def _verify_chat_access(user: dict, order_number: str):
         perms = (user or {}).get("permissions") or {}
         
         if rl == 6:
-            allowed_sucs = [str(s) for s in perms.get("sucursal_ids", [])]
+            allowed_sucs = [_map_internal_to_public_loc(str(s)) for s in perms.get("sucursal_ids", [])]
             if str(state.get("location_id")) not in allowed_sucs:
                 raise HTTPException(status_code=403, detail="No tienes acceso a este chat (local diferente)")
                 
         if rl == 7:
             own_suc = str(perms.get("own_id_sucursal", ""))
-            if str(state.get("location_id")) != own_suc:
+            public_id = _map_internal_to_public_loc(own_suc)
+            if str(state.get("location_id")) != public_id:
                 raise HTTPException(status_code=403, detail="No tienes acceso a este chat (local diferente)")
                 
             cargo = perms.get("cargo")
@@ -328,9 +343,13 @@ async def list_delivery_chats(
     user: dict = Depends(verify_session),
 ):
     rl = require_admin_level(user, "delivery_chat")
+    perms = (user or {}).get("permissions") or {}
+    
+    print(f"[DELIVERY_CHAT] list_delivery_chats: rl={rl} wallet={user.get('wallet', '?')[:10]}")
+    print(f"[DELIVERY_CHAT]   perms.cargo={perms.get('cargo')} perms.seccion={perms.get('seccion')}")
+    print(f"[DELIVERY_CHAT]   perms.own_id_sucursal={perms.get('own_id_sucursal')} perms.sucursal_ids={perms.get('sucursal_ids')}")
     
     if rl == 7:
-        perms = (user or {}).get("permissions") or {}
         cargo = perms.get("cargo")
         seccion = perms.get("seccion")
         config = db.delivery_config.find_one({}) or {}
@@ -340,7 +359,11 @@ async def list_delivery_chats(
         has_cargo_access = cargo and cargo.lower().strip() in allowed_cargos
         has_seccion_access = seccion and seccion.lower().strip() in allowed_secciones
         
+        print(f"[DELIVERY_CHAT]   L7 check: cargo={cargo} in allowed_cargos={allowed_cargos} => {has_cargo_access}")
+        print(f"[DELIVERY_CHAT]   L7 check: seccion={seccion} in allowed_secciones={allowed_secciones} => {has_seccion_access}")
+        
         if not (has_cargo_access or has_seccion_access):
+            print(f"[DELIVERY_CHAT]   L7 DENIED: no cargo/seccion match → returning empty")
             return {"success": True, "items": []}
 
     query = {}
@@ -350,8 +373,10 @@ async def list_delivery_chats(
     if status in ("open", "closed"):
         query["status"] = status
 
+    print(f"[DELIVERY_CHAT]   final query={query}")
     cursor = CHAT_STATE.find(query).sort("opened_at", -1).skip(max(0, offset)).limit(min(limit, 100))
     state_list = list(cursor)
+    print(f"[DELIVERY_CHAT]   results={len(state_list)} chats")
     order_numbers = [s["order_number"] for s in state_list]
     
     # 1. Fetch customer phones and order reviews

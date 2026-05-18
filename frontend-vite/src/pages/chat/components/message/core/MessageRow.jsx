@@ -105,7 +105,7 @@ const MessageRow = ({
         </div>
       )}
 
-      <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[75%]`}>
+      <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[75%] min-w-0`}>
         {/* Name Header */}
         {!isMine && !isSystem && senderName && (
           <span className="text-[11px] text-light-text-tertiary dark:text-dark-text-tertiary ml-1 mb-0.5 flex items-center gap-1">
@@ -114,7 +114,7 @@ const MessageRow = ({
         )}
 
         {/* Bubble */}
-        <div className={`relative px-4 py-2.5 shadow-sm transition-all duration-200 ${
+        <div className={`relative px-4 py-2.5 shadow-sm transition-all duration-200 min-w-0 w-full max-w-full ${
           isSystem 
             ? 'bg-light-surface-tertiary/50 dark:bg-dark-surface-tertiary/50 text-light-text-tertiary dark:text-dark-text-tertiary rounded-xl text-center text-xs mx-auto'
             : isMine
@@ -122,7 +122,7 @@ const MessageRow = ({
               : 'bg-light-surface dark:bg-dark-surface/60 backdrop-blur-md border border-light-border/50 dark:border-dark-border/50 text-light-text-primary dark:text-dark-text-primary rounded-2xl rounded-tl-sm'
         }`}>
           {replyPreviewSlot}
-          <div className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+          <div className="text-[15px] leading-relaxed break-words whitespace-pre-wrap min-w-0 max-w-full">
             {contentSlot}
           </div>
           {mediaSlot}

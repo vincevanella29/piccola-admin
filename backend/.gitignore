@@ -50,8 +50,7 @@ node_modules/
 *.json
 *.archive
 
-# Trackers config
-config/trackers/events_catalog.json
+!config/trackers/events_catalog.json
 
 # Evita accidentalmente subir archivos grandes
 *.zip

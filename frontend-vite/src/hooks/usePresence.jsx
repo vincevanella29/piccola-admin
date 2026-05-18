@@ -40,13 +40,14 @@ const usePresence = ({ appState, enabled = true }) => {
         cargo: data.cargo,
         seccion: data.seccion,
         profile_image_url: data.profile_image_url,
+        has_user: true, // Anyone sending heartbeats via WS is authenticated
       };
 
       if (data.status === 'offline') {
         // Keep in list but mark as offline (for "recently online" display)
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = entry;
+          next[idx] = { ...prev[idx], ...entry };
           return next;
         }
         return prev;
@@ -72,8 +73,10 @@ const usePresence = ({ appState, enabled = true }) => {
 
       ws.onopen = () => {
         setConnected(true);
+        const hb = buildHeartbeat();
+        console.log('[PRESENCE] 🟢 WS connected, sending heartbeat:', hb);
         // Send first heartbeat immediately
-        ws.send(JSON.stringify(buildHeartbeat()));
+        ws.send(JSON.stringify(hb));
         // Start interval
         heartbeatRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
@@ -86,19 +89,24 @@ const usePresence = ({ appState, enabled = true }) => {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'presence_sync') {
+            console.log('[PRESENCE] 📡 presence_sync received, members:', data.members?.length, data.members?.map(m => ({ w: m.wallet?.slice(0,8), s: m.status, name: m.name })));
             setMembers(prev => {
-              const incoming = new Map((data.members || []).map(m => [m.wallet, m]));
-              return prev.map(m => {
+              const incoming = new Map((data.members || []).map(m => [m.wallet, { ...m, has_user: true }]));
+              // Update existing members if found in sync, keep their current status otherwise
+              // (offline detection is handled by backend cleanup + individual presence_update events)
+              const result = prev.map(m => {
                 const updated = incoming.get(m.wallet);
                 if (updated) {
                   incoming.delete(m.wallet);
                   return { ...m, ...updated, status: updated.status };
-                } else {
-                  return { ...m, status: 'offline' };
                 }
+                return m; // Keep existing state — don't force offline
               }).concat(Array.from(incoming.values()));
+              console.log('[PRESENCE] 📡 presence_sync merged → total members:', result.length, 'online:', result.filter(m => m.status === 'online').length);
+              return result;
             });
           } else if (data.type === 'presence_update') {
+            console.log('[PRESENCE] 🔄 presence_update:', { w: data.wallet?.slice(0,8), s: data.status, name: data.name, has_user: data.has_user });
             handlePresenceUpdate(data);
           }
         } catch (e) {
@@ -151,6 +159,16 @@ const usePresence = ({ appState, enabled = true }) => {
   const idleMembers = useMemo(() => members.filter(m => m.status === 'idle'), [members]);
   const offlineMembers = useMemo(() => members.filter(m => m.status === 'offline'), [members]);
 
+  // Diagnostic: log derived counts when members change
+  useMemo(() => {
+    if (members.length > 0) {
+      const withUser = members.filter(m => m.has_user);
+      const noUser = members.filter(m => !m.has_user);
+      console.log('[PRESENCE] 📊 members:', members.length, '| online:', onlineMembers.length, '| idle:', idleMembers.length, '| offline:', offlineMembers.length, '| has_user:', withUser.length, '| no_user:', noUser.length);
+      noUser.forEach(m => console.log('[PRESENCE] ⚠️ no has_user:', { w: m.wallet?.slice(0,8), s: m.status, name: m.name }));
+    }
+  }, [members]);
+
   const groupBySection = useCallback((list) => {
     const map = {};
     list.forEach(m => {
@@ -181,9 +199,14 @@ const usePresence = ({ appState, enabled = true }) => {
           }
         }
         if (allFromRest.length > 0) {
+          console.log('[PRESENCE] 🌐 REST loaded:', allFromRest.length, 'members, real wallets:', allFromRest.filter(m => m.wallet && !m.wallet.startsWith('rut_')).length);
           setMembers(prev => {
             const walletSet = new Set(prev.map(m => m.wallet));
-            const newOnes = allFromRest.filter(m => !walletSet.has(m.wallet));
+            // Skip rut_ fake wallets — those workers show via unregisteredEmployees instead
+            // Mark real wallet entries as has_user (they have linked accounts)
+            const newOnes = allFromRest
+              .filter(m => m.wallet && !m.wallet.startsWith('rut_') && !walletSet.has(m.wallet))
+              .map(m => ({ ...m, has_user: true }));
             return [...prev, ...newOnes];
           });
         }

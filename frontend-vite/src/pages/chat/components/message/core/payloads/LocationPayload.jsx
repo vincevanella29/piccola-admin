@@ -1,7 +1,7 @@
 // src/pages/chat/components/common/LocationCard.jsx
 import React from 'react';
 
-const LocationCard = ({ location }) => {
+const LocationPayload = ({ location, isDeliveryLink = false }) => {
   if (!location) return null;
   const {
     id,
@@ -88,4 +88,4 @@ const LocationCard = ({ location }) => {
   );
 };
 
-export default LocationCard;
+export default LocationPayload;

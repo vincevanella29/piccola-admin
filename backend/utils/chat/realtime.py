@@ -101,23 +101,23 @@ class ConnectionManager:
             await self._broadcast_presence_update(wallet, STATUS_ONLINE, self.presence[wallet])
 
     async def heartbeat(self, wallet: str, user_info: dict = None) -> None:
-        """Update heartbeat timestamp. If user was idle, transition back to online."""
+        """Update heartbeat timestamp. If user was idle or offline, transition back to online."""
         wallet = wallet.lower()
         if wallet not in self.presence:
             await self.set_online(wallet, user_info or {})
             return
 
-        was_idle = self.presence[wallet].get("status") == STATUS_IDLE
+        was_not_online = self.presence[wallet].get("status") != STATUS_ONLINE
         async with self._lock:
             self.presence[wallet]["last_heartbeat"] = time.time()
             if user_info:
                 for k in ("name", "cargo", "seccion", "profile_image_url"):
                     if user_info.get(k):
                         self.presence[wallet][k] = user_info[k]
-            if was_idle:
+            if was_not_online:
                 self.presence[wallet]["status"] = STATUS_ONLINE
 
-        if was_idle:
+        if was_not_online:
             await self._broadcast_presence_update(wallet, STATUS_ONLINE, self.presence[wallet])
 
     async def set_offline(self, wallet: str) -> None:

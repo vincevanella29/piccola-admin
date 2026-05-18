@@ -123,30 +123,49 @@ const HistoricalGATab = ({ analyticsProviders, cacheManager }) => {
           <div className="md:col-span-3 rounded-3xl bg-light-surface/60 dark:bg-black/30 border border-light-border/20 dark:border-white/5 p-6 flex flex-col shadow-sm backdrop-blur-md">
             <h4 className="text-[10px] font-black text-light-text-secondary dark:text-gray-500 uppercase tracking-wider mb-6 flex items-center gap-2"><LineChart size={12} /> Users Over Time</h4>
             {usersByDate.length === 0 ? <div className="flex-1 flex items-center justify-center text-gray-500 text-xs italic">No data</div> : (
-              <div className="flex items-end gap-2 h-40 mt-auto">
-                {usersByDate.map((item, idx) => {
-                  const heightPct = Math.round((item.active_users / maxDateUsers) * 100);
-                  // Format YYYYMMDD to DD/MM
-                  const str = item.dimension;
-                  const label = str.length === 8 ? `${str.substring(6,8)}/${str.substring(4,6)}` : str;
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-2 group relative">
-                      {/* Tooltip on hover */}
-                      <div className="absolute -top-8 bg-black text-white text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap">
-                        {item.active_users} Users
-                      </div>
-                      <div className="w-full h-full bg-light-border/10 dark:bg-white/5 rounded-t-sm flex items-end justify-center relative overflow-hidden group-hover:bg-light-border/20 dark:group-hover:bg-white/10 transition-colors">
-                        <motion.div 
-                          initial={{ height: 0 }} 
-                          animate={{ height: `${heightPct}%` }} 
-                          transition={{ duration: 0.5, delay: idx * 0.05 }}
-                          className="w-full bg-gradient-to-t from-vanellix-cyan to-[#00f2fe] rounded-t-sm opacity-80 group-hover:opacity-100"
-                        />
-                      </div>
-                      <span className="text-[9px] font-mono text-light-text-tertiary dark:text-gray-500 -rotate-45 transform origin-top-left translate-y-1">{label}</span>
+              <div className="relative h-48 mt-auto flex flex-col">
+                
+                {/* Y-axis grid lines */}
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none z-0 pb-6">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center w-full">
+                      <span className="text-[9px] font-mono text-gray-400 dark:text-gray-500 w-8 text-right pr-2">
+                        {Math.round(maxDateUsers * (4 - i) / 4)}
+                      </span>
+                      <div className="flex-1 border-t border-dashed border-light-border/20 dark:border-white/10" />
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+
+                {/* Bars */}
+                <div className="flex items-end justify-between gap-1 sm:gap-2 flex-1 pl-8 pb-6 relative z-10">
+                  {usersByDate.map((item, idx) => {
+                    const heightPct = Math.max(Math.round((item.active_users / maxDateUsers) * 100), 2); // At least 2% height so it's visible
+                    const str = item.dimension;
+                    const label = str.length === 8 ? `${str.substring(6,8)}/${str.substring(4,6)}` : str;
+                    return (
+                      <div key={idx} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                        {/* Tooltip on hover */}
+                        <div className="absolute bottom-full mb-2 bg-black text-white text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap shadow-lg border border-white/10">
+                          {item.active_users} Users
+                        </div>
+                        {/* Bar Track */}
+                        <div className="w-full max-w-[28px] h-full flex items-end justify-center">
+                          <motion.div 
+                            initial={{ height: 0 }} 
+                            animate={{ height: `${heightPct}%` }} 
+                            transition={{ duration: 0.6, delay: idx * 0.05, type: 'spring', bounce: 0.4 }}
+                            className="w-full bg-gradient-to-t from-vanellix-cyan to-[#00f2fe] rounded-t-md opacity-80 group-hover:opacity-100 group-hover:shadow-[0_0_12px_rgba(0,242,254,0.4)] transition-all"
+                          />
+                        </div>
+                        {/* X-axis Label */}
+                        <span className="absolute -bottom-6 text-[9px] font-mono font-medium text-light-text-secondary dark:text-gray-400 whitespace-nowrap">
+                          {label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

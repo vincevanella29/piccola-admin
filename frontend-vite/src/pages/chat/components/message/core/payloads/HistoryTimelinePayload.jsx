@@ -87,7 +87,7 @@ const YearPanel = ({ items }) => (
   </div>
 );
 
-const HistoryTimeline = ({ payload }) => {
+const HistoryTimelinePayload = ({ payload }) => {
   const { title, intro, items, text } = payload || {};
   const sorted = useMemo(() => {
     const arr = Array.isArray(items) ? [...items] : [];
@@ -167,4 +167,4 @@ const HistoryTimeline = ({ payload }) => {
   );
 };
 
-export default HistoryTimeline;
+export default HistoryTimelinePayload;

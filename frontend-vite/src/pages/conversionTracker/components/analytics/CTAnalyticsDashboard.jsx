@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, Radio, LineChart, ListChecks, BarChart3 } from 'lucide-react';
+import { Layers, Radio, LineChart, ListChecks, BarChart3, Globe } from 'lucide-react';
 import { useMarketingAnalytics } from '../../../../hooks/marketing/useMarketingAnalytics.jsx';
 
 // Import Tabs
@@ -8,10 +8,12 @@ import EcosystemMapTab from './tabs/EcosystemMapTab.jsx';
 import RealtimeGATab from './tabs/RealtimeGATab.jsx';
 import HistoricalGATab from './tabs/HistoricalGATab.jsx';
 import ProviderEventsTab from './tabs/ProviderEventsTab.jsx';
+import RealtimeMapTab from './tabs/RealtimeMapTab.jsx';
 
 const SUB_TABS = [
   { key: 'ecosystem', label: 'Ecosystem', icon: Layers },
   { key: 'realtime', label: 'Real-time GA4', icon: Radio },
+  { key: 'map', label: 'Real-time Map', icon: Globe },
   { key: 'historical', label: 'Historical GA4', icon: LineChart },
   { key: 'events', label: 'Provider Events', icon: ListChecks },
 ];
@@ -84,6 +86,13 @@ const CTAnalyticsDashboard = ({
             {subTab === 'realtime' && (
               <RealtimeGATab 
                 analyticsProviders={analyticsProviders} 
+                cacheManager={cacheManager}
+              />
+            )}
+            
+            {subTab === 'map' && (
+              <RealtimeMapTab 
+                analyticsProviders={analyticsProviders}
                 cacheManager={cacheManager}
               />
             )}
