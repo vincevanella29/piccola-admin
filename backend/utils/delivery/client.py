@@ -27,6 +27,8 @@ async def _carrier_request(carrier: dict, method: str, path: str, json_data: dic
         headers = {"Authorization": f"Bearer {token}" if use_bearer else token}
 
     headers["Content-Type"] = "application/json"
+    # Añadimos un User-Agent estándar para evitar bloqueos de Cloudflare (Error 1010) en PedidosYa
+    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     # Log mode warning for non-test dispatches
     mode = carrier.get("mode", "test")
