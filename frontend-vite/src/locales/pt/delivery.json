@@ -16,6 +16,15 @@
   "carriers_label": "Transportadoras",
   "carriers_description": "Serviços de última milha (Uber, PedidosYa, GetJusto)",
   "carriers_title": "Transportadoras de Última Milha",
+  "carriers": {
+    "official_credentials": "Credenciais Oficiais",
+    "client_id": "Client ID",
+    "client_secret": "Client Secret",
+    "username": "Usuário / Email",
+    "password": "Password",
+    "customer_id": "Customer ID",
+    "api_key": "API Key"
+  },
   "providers_label": "Fornecedores",
   "providers_description": "Plataformas que enviam pedidos ao sistema",
   "providers_title": "Fornecedores de Pedidos",

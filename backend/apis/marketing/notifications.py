@@ -14,6 +14,19 @@ from firebase_admin import credentials, initialize_app, messaging
 import firebase_admin
 import os
 
+# Drop any unique index on user_notification_tokens that might prevent multiple devices
+try:
+    from pymongo.errors import OperationFailure
+    indexes = db.user_notification_tokens.index_information()
+    for name, info in indexes.items():
+        if info.get("unique"):
+            keys = dict(info.get("key", []))
+            if "wallet" in keys or "privy_id" in keys:
+                db.user_notification_tokens.drop_index(name)
+                logger.info(f"[notifications] Dropped unique index {name} to allow multiple devices per user")
+except Exception as e:
+    logger.debug(f"[notifications] Could not check/drop indexes on user_notification_tokens: {e}")
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -689,9 +702,13 @@ async def send_notification(data: SendNotificationRequest, user: dict = Depends(
         return {"success": True, "message": f"Enviado a {len(results)} dispositivos", "results": results}
 
     elif target_type == "user":
-        # Look up FCM token by wallet (case-insensitive), newest first
-        wallet_regex = {"$regex": f"^{target_value}$", "$options": "i"}
-        tokens = list(db.user_notification_tokens.find({"wallet": wallet_regex, "permissions_granted": True}).sort("_id", -1))
+        # Look up FCM token by wallet and privy_id, newest first
+        target_user = db.users.find_one({"wallet": {"$regex": f"^{target_value}$", "$options": "i"}})
+        query_conditions = [{"wallet": {"$regex": f"^{target_value}$", "$options": "i"}}]
+        if target_user and target_user.get("privy_id"):
+            query_conditions.append({"privy_id": target_user.get("privy_id")})
+            
+        tokens = list(db.user_notification_tokens.find({"$or": query_conditions, "permissions_granted": True}).sort("_id", -1))
         
         if not tokens:
             # Try to find ANY token as fallback for testing

@@ -555,12 +555,22 @@ async def dm_send(data: DmSendRequest, user: dict = Depends(verify_session)):
 
     # ─── Enviar Push Notification al peer ───
     try:
-        from apis.marketing.notifications import send_fcm_notification
-        api_config = db.notification_api_configs.find_one({"service": "firebase"})
-        if api_config:
-            wallet_regex = {"$regex": f"^{peer_wallet}$", "$options": "i"}
-            # Buscamos tokens del peer receptor
-            tokens = list(db.user_notification_tokens.find({"wallet": wallet_regex, "permissions_granted": True}).sort("_id", -1))
+        # Optimización: Solo enviar push si el usuario está desconectado (offline/idle) o no existe en presence
+        peer_presence = manager.presence.get((peer_wallet or "").lower(), {})
+        if peer_presence.get("status") == "online":
+            logger.info(f"Omitiendo Push DM: {peer_wallet} está online en la app.")
+        else:
+            from apis.marketing.notifications import send_fcm_notification
+            api_config = db.notification_api_configs.find_one({"service": "firebase"})
+            if api_config:
+                # Recuperar usuario para extraer privy_id y hacer una búsqueda más robusta en múltiples dispositivos
+                peer_user = db.users.find_one({"wallet": {"$regex": f"^{peer_wallet}$", "$options": "i"}})
+                query_conditions = [{"wallet": {"$regex": f"^{peer_wallet}$", "$options": "i"}}]
+                if peer_user and peer_user.get("privy_id"):
+                    query_conditions.append({"privy_id": peer_user.get("privy_id")})
+                
+            # Buscamos tokens del peer receptor (por wallet o privy_id)
+            tokens = list(db.user_notification_tokens.find({"$or": query_conditions, "permissions_granted": True}).sort("_id", -1))
             if tokens:
                 sender_display_name = sender.get("sender_name", wallet)
                 title = f"Nuevo mensaje de {sender_display_name}"

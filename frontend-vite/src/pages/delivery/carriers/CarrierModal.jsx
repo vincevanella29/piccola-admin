@@ -21,6 +21,7 @@ const EMPTY_FORM = {
     client_secret: '',
     customer_id: '',
     username: '',
+    password: '',
     api_key: '',
     header_name: 'Authorization',
     bearer_prefix: true,
@@ -223,6 +224,7 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
     if (!isOpen) return null;
 
     const isOAuth = form.auth_type === 'oauth2';
+    const isPreset = Object.values(presets).some(p => p.slug === form.slug);
 
     return (
         <AnimatePresence>
@@ -334,82 +336,195 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                                 </div>
                             </div>
 
-                            {/* Auth Type */}
-                            <div>
-                                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Autenticación</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {['oauth2', 'api_key'].map((at) => (
-                                        <button key={at} onClick={() => handleChange('auth_type', at)}
-                                            className={`px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                                                form.auth_type === at
-                                                    ? 'bg-matrix-green/10 border-matrix-green text-matrix-green'
-                                                    : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary'
-                                            }`}
-                                        >
-                                            {at === 'oauth2' ? '🔐 OAuth2' : '🔑 API Key'}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* OAuth2 fields */}
-                            {isOAuth && (
-                                <div className="space-y-3 p-3 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/10 dark:border-dark-border/10">
-                                    <input type="text" value={form.client_id} onChange={(e) => handleChange('client_id', e.target.value)} placeholder="Client ID *"
-                                        className={`w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40 ${errors.client_id ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20'}`}
-                                    />
-                                    <input type="password" value={form.client_secret} onChange={(e) => handleChange('client_secret', e.target.value)} placeholder="Client Secret *"
-                                        className={`w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40 ${errors.client_secret ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20'}`}
-                                    />
-                                    {/* Username + Password (PedidosYa password grant) */}
-                                    {form.grant_type === 'password' && (
-                                        <>
-                                            <input type="text" value={form.username} onChange={(e) => handleChange('username', e.target.value)} placeholder="Username *"
-                                                className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                            />
-                                            <input type="password" value={form.password} onChange={(e) => handleChange('password', e.target.value)} placeholder="Password *"
-                                                className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                            />
-                                        </>
-                                    )}
-                                    <input type="text" value={form.customer_id} onChange={(e) => handleChange('customer_id', e.target.value)} placeholder="Customer ID (Uber Direct)"
-                                        className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                    />
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <input type="text" value={form.token_url} onChange={(e) => handleChange('token_url', e.target.value)} placeholder="Token URL"
-                                            className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                        />
-                                        <input type="text" value={form.scope} onChange={(e) => handleChange('scope', e.target.value)} placeholder="Scope (eats.deliveries)"
-                                            className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                        />
+                            {/* Form Fields: Preset (Simple) vs Custom (Advanced) */}
+                            {isPreset ? (
+                                <div className="space-y-4 p-5 rounded-2xl bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 border border-light-border/10 dark:border-dark-border/10">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h3 className="text-[11px] font-bold text-light-text-secondary dark:text-dark-text-secondary uppercase tracking-widest">
+                                            {t?.('delivery.carriers.official_credentials') || 'Credenciales de Acceso'}
+                                        </h3>
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-matrix-green/10 text-matrix-green border border-matrix-green/20 font-medium flex items-center gap-1">
+                                            <FaCheckCircle size={8} /> Auto-Configurado
+                                        </span>
                                     </div>
-                                    {form.grant_type === 'password' && (
-                                        <p className="text-[10px] text-amber-500 flex items-center gap-1">⚠️ grant_type=password (PedidosYa Courier)</p>
+                                    
+                                    {form.slug === 'pedidosya' && (
+                                        <div className="grid gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary mb-1 ml-1">{t?.('delivery.carriers.client_id') || 'Client ID'}</label>
+                                                <input type="text" value={form.client_id} onChange={(e) => handleChange('client_id', e.target.value)} placeholder="courier_123456_cl"
+                                                    className={`w-full px-4 py-3 rounded-xl bg-light-surface dark:bg-dark-surface border text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/50 shadow-sm transition-all ${errors.client_id ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20 hover:border-matrix-green/30'}`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary mb-1 ml-1">{t?.('delivery.carriers.client_secret') || 'Client Secret'}</label>
+                                                <input type="password" value={form.client_secret} onChange={(e) => handleChange('client_secret', e.target.value)} placeholder="••••••••••••••••"
+                                                    className={`w-full px-4 py-3 rounded-xl bg-light-surface dark:bg-dark-surface border text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/50 shadow-sm transition-all ${errors.client_secret ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20 hover:border-matrix-green/30'}`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary mb-1 ml-1">{t?.('delivery.carriers.username') || 'Username / Correo'}</label>
+                                                <input type="text" value={form.username} onChange={(e) => handleChange('username', e.target.value)} placeholder="Ej: 404741-user@courierapi.com"
+                                                    className="w-full px-4 py-3 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/50 shadow-sm transition-all hover:border-matrix-green/30"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary mb-1 ml-1">{t?.('delivery.carriers.password') || 'Password'}</label>
+                                                <input type="password" value={form.password} onChange={(e) => handleChange('password', e.target.value)} placeholder="••••••••"
+                                                    className="w-full px-4 py-3 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/50 shadow-sm transition-all hover:border-matrix-green/30"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {form.slug === 'uber_direct' && (
+                                        <div className="grid gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary mb-1 ml-1">{t?.('delivery.carriers.client_id') || 'Client ID'}</label>
+                                                <input type="text" value={form.client_id} onChange={(e) => handleChange('client_id', e.target.value)} placeholder="Client ID"
+                                                    className={`w-full px-4 py-3 rounded-xl bg-light-surface dark:bg-dark-surface border text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/50 shadow-sm transition-all ${errors.client_id ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20 hover:border-matrix-green/30'}`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary mb-1 ml-1">{t?.('delivery.carriers.client_secret') || 'Client Secret'}</label>
+                                                <input type="password" value={form.client_secret} onChange={(e) => handleChange('client_secret', e.target.value)} placeholder="••••••••••••••••"
+                                                    className={`w-full px-4 py-3 rounded-xl bg-light-surface dark:bg-dark-surface border text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/50 shadow-sm transition-all ${errors.client_secret ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20 hover:border-matrix-green/30'}`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary mb-1 ml-1">{t?.('delivery.carriers.customer_id') || 'Customer ID'}</label>
+                                                <input type="text" value={form.customer_id} onChange={(e) => handleChange('customer_id', e.target.value)} placeholder="Customer ID"
+                                                    className="w-full px-4 py-3 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/50 shadow-sm transition-all hover:border-matrix-green/30"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {form.slug === 'getjusto' && (
+                                        <div className="grid gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-medium text-light-text-tertiary dark:text-dark-text-tertiary mb-1 ml-1">{t?.('delivery.carriers.api_key') || 'API Key'}</label>
+                                                <input type="password" value={form.api_key} onChange={(e) => handleChange('api_key', e.target.value)} placeholder="sk_live_..."
+                                                    className="w-full px-4 py-3 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/50 shadow-sm transition-all hover:border-matrix-green/30"
+                                                />
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
+                            ) : (
+                                <>
+                                    {/* Auth Type */}
+                                    <div>
+                                        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">Autenticación (Custom)</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {['oauth2', 'api_key'].map((at) => (
+                                                <button key={at} onClick={() => handleChange('auth_type', at)}
+                                                    className={`px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                                                        form.auth_type === at
+                                                            ? 'bg-matrix-green/10 border-matrix-green text-matrix-green'
+                                                            : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary'
+                                                    }`}
+                                                >
+                                                    {at === 'oauth2' ? '🔐 OAuth2' : '🔑 API Key'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* OAuth2 fields */}
+                                    {isOAuth && (
+                                        <div className="space-y-3 p-4 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/10 dark:border-dark-border/10">
+                                            <input type="text" value={form.client_id} onChange={(e) => handleChange('client_id', e.target.value)} placeholder="Client ID *"
+                                                className={`w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40 ${errors.client_id ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20'}`}
+                                            />
+                                            <input type="password" value={form.client_secret} onChange={(e) => handleChange('client_secret', e.target.value)} placeholder="Client Secret *"
+                                                className={`w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40 ${errors.client_secret ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20'}`}
+                                            />
+                                            {form.grant_type === 'password' && (
+                                                <>
+                                                    <input type="text" value={form.username} onChange={(e) => handleChange('username', e.target.value)} placeholder="Username *"
+                                                        className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                                    />
+                                                    <input type="password" value={form.password} onChange={(e) => handleChange('password', e.target.value)} placeholder="Password *"
+                                                        className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                                    />
+                                                </>
+                                            )}
+                                            <input type="text" value={form.customer_id} onChange={(e) => handleChange('customer_id', e.target.value)} placeholder="Customer ID"
+                                                className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                            />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="text" value={form.token_url} onChange={(e) => handleChange('token_url', e.target.value)} placeholder="Token URL"
+                                                    className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                                />
+                                                <input type="text" value={form.scope} onChange={(e) => handleChange('scope', e.target.value)} placeholder="Scope"
+                                                    className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* API Key fields */}
+                                    {!isOAuth && (
+                                        <div className="space-y-3 p-4 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/10 dark:border-dark-border/10">
+                                            <input type="password" value={form.api_key} onChange={(e) => handleChange('api_key', e.target.value)} placeholder="API Key *"
+                                                className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Advanced Headers */}
+                                    <div className="space-y-3 p-4 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/10 dark:border-dark-border/10">
+                                        <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">Headers & Payload Options</label>
+                                        <input type="text" value={form.header_name} onChange={(e) => handleChange('header_name', e.target.value)} placeholder="Header Name (Authorization)"
+                                            className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                        />
+                                        <label className="flex items-center gap-2 text-sm text-light-text-primary dark:text-dark-text-primary mt-2 cursor-pointer">
+                                            <input type="checkbox" checked={form.bearer_prefix} onChange={(e) => handleChange('bearer_prefix', e.target.checked)} className="rounded border-light-border/20 dark:border-dark-border/20 text-matrix-green focus:ring-matrix-green/40 bg-light-surface dark:bg-dark-surface" />
+                                            <span>Incluir prefijo "Bearer " en el header {form.header_name || 'Authorization'}</span>
+                                        </label>
+                                    </div>
+
+                                    {/* Endpoints */}
+                                    <details className="group">
+                                        <summary className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary cursor-pointer hover:text-matrix-green transition-colors">
+                                            📡 Endpoints API
+                                        </summary>
+                                        <div className="space-y-2 mt-2">
+                                            {[
+                                                { key: 'base_url', label: 'Base URL *', placeholder: 'https://api.uber.com' },
+                                                { key: 'create_delivery', label: 'Crear delivery *', placeholder: '/v1/customers/{customer_id}/deliveries' },
+                                                { key: 'create_quote', label: 'Cotizar', placeholder: '/v1/customers/{customer_id}/delivery_quotes' },
+                                                { key: 'cancel_delivery', label: 'Cancelar', placeholder: '/deliveries/{id}/cancel' },
+                                                { key: 'get_delivery', label: 'Consultar', placeholder: '/deliveries/{id}' },
+                                            ].map(({ key, label, placeholder }) => (
+                                                <div key={key}>
+                                                    <label className="block text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary mb-0.5">{label}</label>
+                                                    <input type="text" value={form[key]} onChange={(e) => handleChange(key, e.target.value)} placeholder={placeholder}
+                                                        className={`w-full px-3 py-1.5 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border text-xs font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40 ${errors[key] ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20'}`}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+
+                                    {/* Webhooks */}
+                                    <details className="group">
+                                        <summary className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary cursor-pointer hover:text-matrix-green transition-colors">
+                                            🔔 Webhook Config
+                                        </summary>
+                                        <div className="space-y-2 mt-2">
+                                            <input type="password" value={form.webhook_secret} onChange={(e) => handleChange('webhook_secret', e.target.value)} placeholder="Webhook Secret"
+                                                className="w-full px-3 py-1.5 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/20 dark:border-dark-border/20 text-xs font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                            />
+                                            <input type="text" value={form.signature_header} onChange={(e) => handleChange('signature_header', e.target.value)} placeholder="Signature Header"
+                                                className="w-full px-3 py-1.5 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/20 dark:border-dark-border/20 text-xs font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
+                                            />
+                                        </div>
+                                    </details>
+                                </>
                             )}
-
-                            {/* API Key fields */}
-                            {!isOAuth && (
-                                <div className="space-y-3 p-3 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/10 dark:border-dark-border/10">
-                                    <input type="password" value={form.api_key} onChange={(e) => handleChange('api_key', e.target.value)} placeholder="API Key *"
-                                        className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                    />
-                                </div>
-                            )}
-
-                            {/* Advanced Headers (for both API Key & OAuth2) */}
-                            <div className="space-y-3 p-3 rounded-xl bg-light-surface-secondary/50 dark:bg-dark-surface-secondary/50 border border-light-border/10 dark:border-dark-border/10">
-                                <label className="block text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">Headers & Payload Options</label>
-                                <input type="text" value={form.header_name} onChange={(e) => handleChange('header_name', e.target.value)} placeholder="Header Name (Authorization)"
-                                    className="w-full px-3 py-2 rounded-lg bg-light-surface dark:bg-dark-surface border border-light-border/20 dark:border-dark-border/20 text-sm font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                />
-                                <label className="flex items-center gap-2 text-sm text-light-text-primary dark:text-dark-text-primary mt-2">
-                                    <input type="checkbox" checked={form.bearer_prefix} onChange={(e) => handleChange('bearer_prefix', e.target.checked)} className="rounded border-light-border/20 dark:border-dark-border/20 text-matrix-green focus:ring-matrix-green/40 bg-light-surface dark:bg-dark-surface" />
-                                    <span>Incluir prefijo "Bearer " en el header {form.header_name || 'Authorization'}</span>
-                                </label>
-                            </div>
-
+                            
                             {/* Test Connection Button */}
                             <button
                                 onClick={handleTestConnection}
@@ -432,44 +547,6 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                             {testResult && !testResult.success && testResult.error && (
                                 <p className="text-xs text-red-500 -mt-2 px-1">{testResult.error}</p>
                             )}
-
-                            {/* Endpoints (collapsible feel — always visible) */}
-                            <details className="group">
-                                <summary className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary cursor-pointer hover:text-matrix-green transition-colors">
-                                    📡 Endpoints API (auto-configurados por preset)
-                                </summary>
-                                <div className="space-y-2 mt-2">
-                                    {[
-                                        { key: 'base_url', label: 'Base URL *', placeholder: 'https://api.uber.com' },
-                                        { key: 'create_delivery', label: 'Crear delivery *', placeholder: '/v1/customers/{customer_id}/deliveries' },
-                                        { key: 'create_quote', label: 'Cotizar', placeholder: '/v1/customers/{customer_id}/delivery_quotes' },
-                                        { key: 'cancel_delivery', label: 'Cancelar', placeholder: '/deliveries/{id}/cancel' },
-                                        { key: 'get_delivery', label: 'Consultar', placeholder: '/deliveries/{id}' },
-                                    ].map(({ key, label, placeholder }) => (
-                                        <div key={key}>
-                                            <label className="block text-[10px] text-light-text-tertiary dark:text-dark-text-tertiary mb-0.5">{label}</label>
-                                            <input type="text" value={form[key]} onChange={(e) => handleChange(key, e.target.value)} placeholder={placeholder}
-                                                className={`w-full px-3 py-1.5 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border text-xs font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40 ${errors[key] ? 'border-red-500' : 'border-light-border/20 dark:border-dark-border/20'}`}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </details>
-
-                            {/* Webhook config */}
-                            <details className="group">
-                                <summary className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary cursor-pointer hover:text-matrix-green transition-colors">
-                                    🔔 Webhook (recibir actualizaciones del carrier)
-                                </summary>
-                                <div className="space-y-2 mt-2">
-                                    <input type="password" value={form.webhook_secret} onChange={(e) => handleChange('webhook_secret', e.target.value)} placeholder="Webhook Secret"
-                                        className="w-full px-3 py-1.5 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/20 dark:border-dark-border/20 text-xs font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                    />
-                                    <input type="text" value={form.signature_header} onChange={(e) => handleChange('signature_header', e.target.value)} placeholder="Signature Header (X-Uber-Signature)"
-                                        className="w-full px-3 py-1.5 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/20 dark:border-dark-border/20 text-xs font-mono text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-matrix-green/40"
-                                    />
-                                </div>
-                            </details>
                         </div>
 
                         {/* Footer */}

@@ -16,6 +16,15 @@
   "carriers_label": "Corrieri",
   "carriers_description": "Servizi ultimo miglio (Uber, PedidosYa, GetJusto)",
   "carriers_title": "Corrieri Ultimo Miglio",
+  "carriers": {
+    "official_credentials": "Credenziali Ufficiali",
+    "client_id": "Client ID",
+    "client_secret": "Client Secret",
+    "username": "Username / Email",
+    "password": "Password",
+    "customer_id": "Customer ID",
+    "api_key": "API Key"
+  },
   "providers_label": "Fornitori",
   "providers_description": "Piattaforme che inviano ordini al sistema",
   "providers_title": "Fornitori di Ordini",

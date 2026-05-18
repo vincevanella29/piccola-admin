@@ -16,6 +16,15 @@
   "carriers_label": "Carriers",
   "carriers_description": "Last-mile services (Uber, PedidosYa, GetJusto)",
   "carriers_title": "Last-Mile Carriers",
+  "carriers": {
+    "official_credentials": "Official Credentials",
+    "client_id": "Client ID",
+    "client_secret": "Client Secret",
+    "username": "Username / Email",
+    "password": "Password",
+    "customer_id": "Customer ID",
+    "api_key": "API Key"
+  },
   "providers_label": "Providers",
   "providers_description": "Platforms that send orders to the system",
   "providers_title": "Order Providers",
