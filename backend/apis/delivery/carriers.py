@@ -89,14 +89,15 @@ CARRIER_PRESETS = {
         "logo_url": "/logos/pedidosya.svg",
         "mode": "test",
         "auth": {
-            "type": "api_key",
-            "api_key": "",
+            "type": "oauth2",
+            "grant_type": "password",
+            "token_url": "https://auth-api.pedidosya.com/v1/token",
+            "client_id": "",
+            "client_secret": "",
+            "username": "",
+            "password": "",
             "header_name": "Authorization",
             "bearer_prefix": False,
-            "customer_id": "",
-            # If PedidosYa gives OAuth2 creds, switch type to "oauth2" + grant_type "password"
-            "grant_type": "password",
-            "token_url": "https://auth-api.pedidosya.com/v3/token",
         },
         "endpoints": {
             "base_url": "https://courier-api.pedidosya.com",
@@ -483,13 +484,14 @@ async def test_carrier_connection(
             token_data["password"] = password
 
         try:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
             async with httpx.AsyncClient(timeout=15.0) as client:
                 # password grant (PedidosYa) requires JSON body; client_credentials uses form
                 use_json = auth.get("token_format") == "json" or grant_type == "password"
                 if use_json:
-                    resp = await client.post(token_url, json=token_data)
+                    resp = await client.post(token_url, json=token_data, headers=headers)
                 else:
-                    resp = await client.post(token_url, data=token_data)
+                    resp = await client.post(token_url, data=token_data, headers=headers)
 
             if resp.status_code == 200:
                 data = resp.json()

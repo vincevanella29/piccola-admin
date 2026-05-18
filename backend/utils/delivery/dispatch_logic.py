@@ -90,7 +90,8 @@ async def execute_cancel_dispatch(payload, user):
     if cancel_endpoint:
         cancel_path = cancel_endpoint.replace("{id}", order["carrier_delivery_id"])
         try:
-            await _carrier_request(carrier, "POST", cancel_path)
+            payload_data = {"reasonText": "Cancelled by admin", "reason": "Cancelled by admin"}
+            await _carrier_request(carrier, "POST", cancel_path, json_data=payload_data)
         except Exception as e:
             logger.warning(f"[last_mile] Cancel request to carrier failed: {e}")
 
