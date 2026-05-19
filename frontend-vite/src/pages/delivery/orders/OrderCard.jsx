@@ -90,6 +90,16 @@ const OrderCard = ({ order, onSelect, onStatusChange, nextStatus, statusColor, l
         </span>
       </div>
 
+      {/* Order Notes */}
+      {order.notes && (
+        <div className="flex items-start gap-1.5 mt-2 px-2 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
+          <span className="text-xs">📝</span>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium leading-tight line-clamp-2">
+            {order.notes}
+          </span>
+        </div>
+      )}
+
       {/* Carrier badge (if dispatched) */}
       {order.dispatch_failed && (
         <div className="flex items-center gap-1.5 mt-2 px-2 py-1 bg-red-500/10 rounded-lg border border-red-500/20">

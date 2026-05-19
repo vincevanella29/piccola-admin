@@ -27,22 +27,7 @@ def render_template(template: str, data: Dict) -> str:
     result = re.sub(r'\s+', ' ', result).strip()
     return result
 
-async def send_fcm_notification(api_config: Dict, title: str, body: str, image_url: Optional[str], target_type: str, target_value: str):
-    from apis.marketing.notifications import _ensure_firebase
-    if not _ensure_firebase():
-        raise Exception("Firebase Admin SDK could not be initialized")
-        
-    message = messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-                image=image_url
-            ),
-            topic=target_value if target_type == "topic" else None,
-            token=target_value if target_type == "user" else None
-        )
-    response = messaging.send(message)
-    return response
+from services.fcm_service import broadcast_and_log_fcm, send_and_log_single
 
 async def send_scheduled_notification(schedule_doc):
     notification_type = db.notification_types.find_one({"id": schedule_doc["notification_type_id"]})
@@ -102,11 +87,22 @@ async def send_scheduled_notification(schedule_doc):
     
     elif target_type == "topic":
         try:
-            response = await send_fcm_notification(api_config, title, body, image_url, "topic", target_value)
-            db.notification_schedules.update_one(
-                {"_id": schedule_doc["_id"]}, {"$set": {"status": "sent", "updated_at": datetime.now(timezone.utc)}}
+            res = await send_and_log_single(
+                title=title,
+                body=body,
+                target_type="topic",
+                target_value=target_value,
+                image_url=image_url,
+                sender_wallet="worker",
+                force_campaign_id=str(schedule_doc["_id"])
             )
-            logger.info(f"[push-worker] 🚀 Scheduled notification sent to topic {target_value}: {response}")
+            if res["success"]:
+                db.notification_schedules.update_one(
+                    {"_id": schedule_doc["_id"]}, {"$set": {"status": "sent", "updated_at": datetime.now(timezone.utc)}}
+                )
+                logger.info(f"[push-worker] 🚀 Scheduled notification sent to topic {target_value}")
+            else:
+                raise Exception(str(res.get("errors")))
             return
         except Exception as e:
             logger.error(f"[push-worker] ❌ Error sending to topic: {e}")
@@ -116,33 +112,38 @@ async def send_scheduled_notification(schedule_doc):
             return
 
     # Enviar a todos los tokens recolectados
-    success_count = 0
-    fail_count = 0
-    last_error = ""
-
-    for fcm_token in tokens_to_send:
-        try:
-            await send_fcm_notification(api_config, title, body, image_url, "user", fcm_token)
-            success_count += 1
-        except Exception as e:
-            fail_count += 1
-            err_str = str(e).lower()
-            last_error = err_str
-            if "senderid mismatch" in err_str or "notregistered" in err_str or "unregistered" in err_str or "invalid registration" in err_str:
-                logger.warning(f"[push-worker] Invalid token detected ({err_str}). Deleting from DB.")
-                db.user_notification_tokens.delete_one({"token": fcm_token})
-            else:
-                logger.error(f"[push-worker] ❌ Error sending to token: {e}")
-
-    if success_count > 0 or (fail_count == 0 and len(tokens_to_send) == 0):
-        # Consider it successful if at least one reached, or if there was simply no audience (no error)
+    if not tokens_to_send:
+        logger.warning(f"[push-worker] No valid tokens to send for target_type {target_type}")
         db.notification_schedules.update_one(
-            {"_id": schedule_doc["_id"]}, {"$set": {"status": "sent", "updated_at": datetime.now(timezone.utc)}}
+            {"_id": schedule_doc["_id"]}, {"$set": {"status": "failed", "error": "No valid tokens found", "updated_at": datetime.now(timezone.utc)}}
         )
-        logger.info(f"[push-worker] 🚀 Scheduled notification complete: {success_count} sent, {fail_count} failed.")
-    else:
+        return
+
+    try:
+        res = await broadcast_and_log_fcm(
+            tokens=tokens_to_send,
+            title=title,
+            body=body,
+            logical_target_type=target_type,
+            logical_target_value=target_value or "all",
+            image_url=image_url,
+            sender_wallet="worker",
+            force_campaign_id=str(schedule_doc["_id"])
+        )
+        
+        if res["success"]:
+            db.notification_schedules.update_one(
+                {"_id": schedule_doc["_id"]}, {"$set": {"status": "sent", "updated_at": datetime.now(timezone.utc)}}
+            )
+            logger.info(f"[push-worker] 🚀 Scheduled notification complete: {res.get('success_count')} sent, {res.get('error_count')} failed.")
+        else:
+            db.notification_schedules.update_one(
+                {"_id": schedule_doc["_id"]}, {"$set": {"status": "failed", "error": str(res.get("errors")), "updated_at": datetime.now(timezone.utc)}}
+            )
+    except Exception as e:
+        logger.error(f"[push-worker] ❌ Error broadcasting: {e}")
         db.notification_schedules.update_one(
-            {"_id": schedule_doc["_id"]}, {"$set": {"status": "failed", "error": last_error or "All tokens failed", "updated_at": datetime.now(timezone.utc)}}
+            {"_id": schedule_doc["_id"]}, {"$set": {"status": "failed", "error": str(e), "updated_at": datetime.now(timezone.utc)}}
         )
 
 async def check_scheduled_notifications():

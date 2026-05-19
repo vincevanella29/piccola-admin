@@ -41,9 +41,11 @@ build/
 *.bak
 *.old
 *.orig
+*.ovpn
 
 # Node (por si hay scripts JS)
 node_modules/
+utils/mtz.ovpn
 
 # MongoDB dumps/backups
 *.bson

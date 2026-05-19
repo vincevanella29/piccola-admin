@@ -31,39 +31,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # ─── Lazy Firebase Init (from MongoDB or fallback to file) ─────────────────
-def _ensure_firebase():
-    """Initialize Firebase Admin SDK lazily from MongoDB config or fallback JSON file."""
-    config = db.notification_api_configs.find_one({"service": "firebase", "service_account_json": {"$exists": True, "$ne": None}})
-    expected_project_id = None
-    sa_data = None
-    
-    if config and config.get("service_account_json"):
-        sa_data = config["service_account_json"]
-        if isinstance(sa_data, str):
-            sa_data = json.loads(sa_data)
-        expected_project_id = sa_data.get("project_id", config.get("project_id", ""))
-
-    if firebase_admin._apps:
-        app = firebase_admin.get_app()
-        current_project_id = app.project_id
-        if expected_project_id and current_project_id != expected_project_id:
-            logger.warning(f"[firebase] Project ID changed ({current_project_id} -> {expected_project_id}). Reinitializing...")
-            firebase_admin.delete_app(app)
-        else:
-            return True
-            
-    # Try from MongoDB (service_account_json stored via API)
-    if expected_project_id and sa_data:
-        try:
-            cred = credentials.Certificate(sa_data)
-            initialize_app(cred, {"storageBucket": f"{expected_project_id}.firebasestorage.app"})
-            logger.info(f"[firebase] Initialized from MongoDB config (project: {expected_project_id})")
-            return True
-        except Exception as e:
-            logger.error(f"[firebase] Error initializing from MongoDB: {e}")
-
-    logger.warning("[firebase] No Firebase credentials found in MongoDB. Upload via Admin Panel settings.")
-    return False
+from services.fcm_service import send_and_log_single, broadcast_and_log_fcm, log_campaign
 
 # Modelos Pydantic
 class NotificationTypeCreate(BaseModel):
@@ -149,64 +117,7 @@ def render_template(template: str, data: Dict) -> str:
     result = re.sub(r'\s+', ' ', result).strip()
     return result
 
-# Enviar notificación con FCM
-async def send_fcm_notification(api_config: Dict, title: str, body: str, icon_url: Optional[str] = None, image_url: Optional[str] = None, link_url: Optional[str] = None, target_type: str = "user", target_value: str = "", campaign_id: str = None):
-    if not _ensure_firebase():
-        raise HTTPException(status_code=500, detail="Firebase no configurado. Sube el Service Account JSON en Settings.")
-    
-    app = firebase_admin.get_app()
-    print("\n========== FIREBASE DIAGNOSTICS ==========", flush=True)
-    print(f"1. Backend Active Project ID: {app.project_id}", flush=True)
-    print(f"2. DB api_config Project ID: {api_config.get('project_id')}", flush=True)
-    print(f"3. Target FCM Token: {target_value[:15]}...{target_value[-10:] if len(target_value) > 25 else ''}", flush=True)
-    print("==========================================\n", flush=True)
 
-    try:
-        # Añadir data payload para tracking de clicks y ruteo en Service Worker
-        msg_data = {}
-        if campaign_id:
-            msg_data["campaign_id"] = campaign_id
-        if link_url:
-            msg_data["url"] = link_url
-        if icon_url:
-            msg_data["icon_url"] = icon_url
-
-        # Configuración webpush para navegadores
-        webpush_config = messaging.WebpushConfig(
-            notification=messaging.WebpushNotification(
-                icon=icon_url or "/favicon-piccola.png",
-                image=image_url
-            )
-        )
-
-        # Configuración android nativa
-        android_config = messaging.AndroidConfig(
-            notification=messaging.AndroidNotification(
-                icon="ic_notification", # Usará el recurso nativo si existe, sino fallback al default
-                color="#00ff00", # Vanellix / Matrix Green
-                image=image_url
-            )
-        )
-
-        message = messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-                image=image_url
-            ),
-            data=msg_data,
-            webpush=webpush_config,
-            android=android_config,
-            topic=target_value if target_type == "topic" else None,
-            token=target_value if target_type == "user" else None
-        )
-        response = messaging.send(message)
-        logger.info(f"\n[FCM BACKEND LOG] 🚀 Mensaje enviado con éxito a Firebase!")
-        logger.info(f"[FCM BACKEND LOG] 📦 Message ID retornado: {response}")
-        return response
-    except Exception as e:
-        logger.error(f"Error enviando notificación FCM: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error enviando notificación: {str(e)}")
 
 class TrackClickRequest(BaseModel):
     campaign_id: str
@@ -458,20 +369,7 @@ async def save_notification_token(data: NotificationTokenCreate, user: dict = De
     )
     return {"success": True, "message": "Token guardado"}
 
-def _log_campaign(campaign_id: str, title: str, body: str, target_type: str, target_value: str, success_count: int, error_count: int, errors: list, sender_wallet: str):
-    db.notification_logs.insert_one({
-        "id": campaign_id,
-        "title": title,
-        "body": body,
-        "target_type": target_type,
-        "target_value": target_value,
-        "success_count": success_count,
-        "error_count": error_count,
-        "opened_count": 0,
-        "errors": errors,
-        "created_at": get_chile_time(),
-        "created_by": sender_wallet
-    })
+
 
 # Enviar Notificación
 @router.get("/notifications/audience")
@@ -682,27 +580,25 @@ async def send_notification(data: SendNotificationRequest, user: dict = Depends(
     logger.info(f"[notifications] Sending: target_type={target_type}, target_value={target_value}, campaign_id={campaign_id}")
 
     if target_type == "all":
-        # Send to all users with tokens
         all_tokens = list(db.user_notification_tokens.find({"permissions_granted": True}))
         logger.info(f"[notifications] Broadcasting to {len(all_tokens)} devices")
-        results = []
-        success_count = 0
-        error_count = 0
-        error_msgs = []
-        for t in all_tokens:
-            try:
-                r = await send_fcm_notification(api_config, title, body, icon_url, image_url, link_url, "user", t["token"], campaign_id)
-                results.append({"wallet": t["wallet"], "status": "sent", "response": r})
-                success_count += 1
-            except Exception as e:
-                results.append({"wallet": t["wallet"], "status": "error", "error": str(e)})
-                error_count += 1
-                error_msgs.append(str(e))
-        _log_campaign(campaign_id, title, body, target_type, "all", success_count, error_count, error_msgs, user.get("wallet", "system"))
-        return {"success": True, "message": f"Enviado a {len(results)} dispositivos", "results": results}
+        token_strings = [t["token"] for t in all_tokens if t.get("token")]
+        
+        res = await broadcast_and_log_fcm(
+            tokens=token_strings,
+            title=title,
+            body=body,
+            logical_target_type="all",
+            logical_target_value="all",
+            icon_url=icon_url,
+            image_url=image_url,
+            link_url=link_url,
+            sender_wallet=user.get("wallet", "system"),
+            force_campaign_id=campaign_id
+        )
+        return {"success": res["success"], "message": f"Enviado a {res.get('success_count', 0)} dispositivos", "results": res}
 
     elif target_type == "user":
-        # Look up FCM token by wallet and privy_id, newest first
         target_user = db.users.find_one({"wallet": {"$regex": f"^{target_value}$", "$options": "i"}})
         query_conditions = [{"wallet": {"$regex": f"^{target_value}$", "$options": "i"}}]
         if target_user and target_user.get("privy_id"):
@@ -711,48 +607,47 @@ async def send_notification(data: SendNotificationRequest, user: dict = Depends(
         tokens = list(db.user_notification_tokens.find({"$or": query_conditions, "permissions_granted": True}).sort("_id", -1))
         
         if not tokens:
-            # Try to find ANY token as fallback for testing
             all_tokens = list(db.user_notification_tokens.find({"permissions_granted": True}).sort("_id", -1))
             if not all_tokens:
-                raise HTTPException(status_code=400, detail=f"Usuario sin token válido. No hay dispositivos registrados en general.")
+                raise HTTPException(status_code=400, detail=f"Usuario sin token válido. No hay dispositivos registrados.")
             tokens = [all_tokens[0]]
-            logger.info(f"[notifications] Fallback: using newest token from wallet {tokens[0]['wallet']}")
+            
+        token_strings = [t["token"] for t in tokens if t.get("token")]
         
-        last_error = None
-        success_count = 0
-        error_count = 0
-        error_msgs = []
+        res = await broadcast_and_log_fcm(
+            tokens=token_strings,
+            title=title,
+            body=body,
+            logical_target_type="user",
+            logical_target_value=target_value,
+            icon_url=icon_url,
+            image_url=image_url,
+            link_url=link_url,
+            sender_wallet=user.get("wallet", "system"),
+            force_campaign_id=campaign_id
+        )
         
-        for t_doc in tokens:
-            fcm_token = t_doc["token"]
-            try:
-                response = await send_fcm_notification(api_config, title, body, icon_url, image_url, link_url, "user", fcm_token, campaign_id)
-                success_count += 1
-            except Exception as e:
-                err_str = str(e).lower()
-                last_error = e
-                error_count += 1
-                error_msgs.append(str(e))
-                # Delete invalid tokens (SenderId mismatch usually means old project, NotRegistered means user uninstalled/cleared browser data)
-                if "senderid mismatch" in err_str or "notregistered" in err_str or "unregistered" in err_str or "invalid registration" in err_str:
-                    logger.warning(f"[notifications] Invalid token detected ({err_str}). Deleting from DB.")
-                    db.user_notification_tokens.delete_one({"_id": t_doc["_id"]})
-                    
-        _log_campaign(campaign_id, title, body, target_type, target_value, success_count, error_count, error_msgs, user.get("wallet", "system"))
-        
-        if success_count > 0:
-            return {"success": True, "message": f"Notificación enviada a {success_count} dispositivos"}
+        if res["success"]:
+            return {"success": True, "message": f"Notificación enviada a {res.get('success_count', 0)} dispositivos"}
         else:
-            raise HTTPException(status_code=500, detail=f"Error enviando notificación a dispositivos: {str(last_error)}")
+            raise HTTPException(status_code=500, detail=f"Error enviando notificación a dispositivos: {res.get('errors')}")
 
     elif target_type == "topic":
-        try:
-            response = await send_fcm_notification(api_config, title, body, icon_url, image_url, link_url, "topic", target_value, campaign_id)
-            _log_campaign(campaign_id, title, body, target_type, target_value, 1, 0, [], user.get("wallet", "system"))
-            return {"success": True, "message": "Notificación enviada al topic", "response": response}
-        except Exception as e:
-            _log_campaign(campaign_id, title, body, target_type, target_value, 0, 1, [str(e)], user.get("wallet", "system"))
-            raise HTTPException(status_code=500, detail=str(e))
+        res = await send_and_log_single(
+            title=title,
+            body=body,
+            target_type="topic",
+            target_value=target_value,
+            icon_url=icon_url,
+            image_url=image_url,
+            link_url=link_url,
+            sender_wallet=user.get("wallet", "system"),
+            force_campaign_id=campaign_id
+        )
+        if res["success"]:
+            return {"success": True, "message": "Notificación enviada al topic", "response": res.get("response")}
+        else:
+            raise HTTPException(status_code=500, detail=str(res.get("errors")))
 
     else:
         raise HTTPException(status_code=400, detail=f"target_type '{target_type}' no soportado")

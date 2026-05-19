@@ -368,6 +368,12 @@ const OrderDetailModal = ({ order, statusesMap = {}, allStatuses = [], pickupSta
                           <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-0.5">
                             {fmt(item.unit_price)} c/u
                           </p>
+                          {(item.notes || item.comment || item.nota) && (
+                            <p className="text-xs text-amber-500 font-bold mt-1 flex items-start gap-1">
+                              <FaStickyNote size={10} className="mt-0.5 shrink-0" />
+                              <span className="italic leading-tight">{item.notes || item.comment || item.nota}</span>
+                            </p>
+                          )}
                         </div>
                         
                         {/* Subtotal */}

@@ -8,6 +8,7 @@ from utils.auth.session import verify_session
 from config.roles.access import require_admin_level
 from utils.web3mongo import db
 from firebase_admin import messaging
+from services.fcm_service import send_and_log_single as send_fcm_notification
 
 
 router = APIRouter()
@@ -42,23 +43,6 @@ class ColorLevelResponse(BaseModel):
     updated_at: str
     created_by: str
 
-
-# Enviar notificación FCM
-async def send_fcm_notification(title: str, body: str, target_type: str, target_value: str):
-    try:
-        message = messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-            ),
-            topic=target_value if target_type == "topic" else None,
-            token=target_value if target_type == "user" else None,
-        )
-        response = messaging.send(message)
-        return response
-    except Exception as e:
-        logger.error(f"Error sending FCM notification: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error sending notification: {str(e)}")
 
 # CRUD Colores
 @router.post("/colors", response_model=ColorResponse)

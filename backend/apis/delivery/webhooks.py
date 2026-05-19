@@ -132,6 +132,18 @@ def render_webhook_payload(template_str: Optional[str], event: str, order_doc: d
     # Normalize order doc (ObjectId → str, datetime → iso)
     data = _serialize_for_template(order_doc)
 
+    # Inject translated status for POS integration (Alineado con sistema de terceros)
+    STATUS_MAP = {
+        "pending": "Pendiente",
+        "confirmed": "Aceptada",
+        "preparing": "Preparando",
+        "ready": "Lista",
+        "dispatched": "En camino",
+        "delivered": "Completa",
+        "cancelled": "Cancelada"
+    }
+    data["translated_status"] = STATUS_MAP.get(data.get("status"), data.get("status"))
+
     if not template_str or not template_str.strip():
         # Default: send everything
         return {

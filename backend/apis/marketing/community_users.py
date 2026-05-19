@@ -68,22 +68,7 @@ class CommunityRankingResponse(BaseModel):
     burns: Dict[str, TokenData]
     updated_at: str
 
-# Enviar notificación FCM (opcional)
-async def send_fcm_notification(title: str, body: str, target_type: str, target_value: str):
-    try:
-        message = messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-            ),
-            topic=target_value if target_type == "topic" else None,
-            token=target_value if target_type == "user" else None,
-        )
-        response = messaging.send(message)
-        return response
-    except Exception as e:
-        logger.error(f"Error sending FCM notification: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error sending notification: {str(e)}")
+
 
 @router.post("/community_users/profile", response_model=UserProfileResponse)
 async def create_or_update_profile(

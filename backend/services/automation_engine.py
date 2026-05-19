@@ -28,8 +28,22 @@ async def trigger_event(event_name: str, segment: str, payload: Dict[str, Any]):
     }))
     
     if not rules:
-        logger.info(f"[AutomationEngine] No hay reglas activas para '{event_name}' ({segment})")
-        return
+        # Sistema Fallback Transaccional: Si no hay regla, pero el evento es clave, forzamos un Push nativo.
+        transactional_events = ["delivery_chat_message", "community_chat_message", "order_status_change"]
+        if event_name in transactional_events:
+            logger.info(f"[AutomationEngine] No hay regla activa para '{event_name}', inyectando Fallback Transaccional.")
+            rules = [{
+                "id": f"system_fallback_{event_name}",
+                "name": "Fallback Transaccional",
+                "trigger_event": event_name,
+                "segment": segment,
+                "active": True,
+                "action_type": "push",
+                "notification_template_id": "original", # Usa el default del trigger plugin
+            }]
+        else:
+            logger.info(f"[AutomationEngine] No hay reglas activas para '{event_name}' ({segment})")
+            return
         
     for rule in rules:
         # 2. Get trigger plugin
@@ -104,7 +118,7 @@ def _user_opted_out(profile: dict, trigger_event: str) -> bool:
 
 async def _execute_push_action(rule: dict, payload: dict):
     # Evitar import circular
-    from apis.marketing.notifications import render_template, send_fcm_notification, _log_campaign
+    from apis.marketing.notifications import render_template
     
     template_id = rule.get("template_id")
     if not template_id:
@@ -201,46 +215,29 @@ async def _execute_push_action(rule: dict, payload: dict):
         logger.warning(f"[AutomationEngine] No hay tokens FCM registrados para el destinatario (sub: {target_sub}, wallet: {target_wallet}, email: {target_email})")
         return
         
-    for t_doc in tokens:
-        try:
-            await send_fcm_notification(
-                api_config=api_config, 
-                title=title, 
-                body=body, 
-                icon_url=icon_url,
-                image_url=image_url, 
-                link_url=link_url,
-                target_type="user", 
-                target_value=t_doc["token"], 
-                campaign_id=campaign_id
-            )
-            # Log successful automation push
-            _log_campaign(
-                campaign_id=campaign_id,
-                title=title,
-                body=body,
-                target_type="automation_push",
-                target_value=target_wallet or target_email or target_sub,
-                success_count=1,
-                error_count=0,
-                errors=[],
-                sender_wallet="automation_engine"
-            )
-            logger.info(f"[AutomationEngine] Push enviado a {target_wallet or target_email or target_sub}")
-            break # Enviar solo al dispositivo más reciente
-        except Exception as e:
-            logger.error(f"[AutomationEngine] Error enviando push: {str(e)}")
-            _log_campaign(
-                campaign_id=campaign_id,
-                title=title,
-                body=body,
-                target_type="automation_push",
-                target_value=target_wallet or target_email or target_sub,
-                success_count=0,
-                error_count=1,
-                errors=[str(e)],
-                sender_wallet="automation_engine"
-            )
+    token_strings = [t["token"] for t in tokens if t.get("token")]
+    
+    from services.fcm_service import broadcast_and_log_fcm
+    
+    try:
+        res = await broadcast_and_log_fcm(
+            tokens=token_strings,
+            title=title,
+            body=body,
+            logical_target_type="automation_push",
+            logical_target_value=target_wallet or target_email or target_sub,
+            icon_url=icon_url,
+            image_url=image_url,
+            link_url=link_url,
+            sender_wallet="automation_engine",
+            force_campaign_id=campaign_id
+        )
+        if res["success"]:
+            logger.info(f"[AutomationEngine] Push enviado a {res.get('success_count')} dispositivos de {target_wallet or target_email or target_sub}")
+        else:
+            logger.warning(f"[AutomationEngine] No se pudo enviar push a los dispositivos de {target_wallet or target_email or target_sub}. Errors: {res.get('errors')}")
+    except Exception as e:
+        logger.error(f"[AutomationEngine] Error general enviando push: {str(e)}")
 
 async def _execute_email_action(rule: dict, payload: dict):
     from workers.mail_worker import enqueue_automation

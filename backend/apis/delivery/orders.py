@@ -71,6 +71,7 @@ class OrderItem(BaseModel):
     codigo: str
     quantity: int = Field(..., ge=1)
     unit_price: float
+    comment: Optional[str] = None  # Per-item kitchen note from delivery app
     modifiers: List[ModifierItem] = []
 
 class DeliveryOrderCreate(BaseModel):
@@ -940,6 +941,7 @@ async def get_kds_orders(user: dict = Depends(verify_session)):
                 "nombre": db_item.get("nombre", codigo),
                 "quantity": item.get("quantity", 1),
                 "unit_price": item.get("unit_price", 0),
+                "comment": item.get("comment") or "",
                 "modifiers": item.get("modifiers", []),
                 "image_url": db_item.get("media_r2") or db_item.get("media_url") or (db_item.get("images") or [None])[0],
                 "done": item.get("done", False),

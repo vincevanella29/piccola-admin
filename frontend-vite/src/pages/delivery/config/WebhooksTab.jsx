@@ -24,7 +24,8 @@ const AVAILABLE_VARS = [
   { path: 'order.items', desc: 'Array de productos' },
   { path: 'order.total_amount', desc: 'Total' },
   { path: 'order.delivery_fee', desc: 'Costo envío' },
-  { path: 'order.status', desc: 'Estado actual' },
+  { path: 'order.status', desc: 'Estado interno (en, ej: confirmed)' },
+  { path: 'order.translated_status', desc: 'Estado POS (es, ej: aceptada)' },
   { path: 'order.order_type', desc: 'delivery/pickup' },
   { path: 'order.location_name', desc: 'Sucursal' },
   { path: 'order.notes', desc: 'Notas del cliente' },
@@ -53,55 +54,57 @@ const DEFAULT_TEMPLATE = `{
 }`;
 
 const PICCOLA_POS_TEMPLATE = `{
-  "action": "placed",
   "order": {
     "order_id": "{{order.order_number}}",
-    "customer_id": "{{order.customer.id}}",
+    "hash": "",
     "first_name": "{{order.customer.name}}",
     "last_name": "",
     "email": "{{order.customer.email}}",
+    "status": {
+      "color": "#32CD32",
+      "status_id": 2,
+      "created_at": "{{order.created_at}}",
+      "status_for": "order",
+      "updated_at": "{{order.created_at}}",
+      "status_name": "{{order.translated_status}}",
+      "status_comment": "",
+      "notify_customer": false
+    },
     "telephone": "{{order.customer.phone}}",
-    "location_id": "{{order.location_id}}",
-    "address_id": "",
-    "total_items": 1,
-    "comment": "{{order.notes}}",
-    "payment": "{{order.payment_method}}",
-    "order_type": "{{order.order_type}}",
+    "order_date_time": "{{order.created_at}}",
+    "order_date": "{{order.created_at}}",
+    "order_time": "",
     "created_at": "{{order.created_at}}",
     "updated_at": "{{order.created_at}}",
-    "order_time": "",
-    "order_date": "",
-    "order_total": {{order.total_amount}},
-    "status_id": 1,
+    "order_type": "{{order.order_type}}",
+    "payment": "{{order.payment_method}}",
+    "user_agent": "Vanellix",
     "ip_address": "",
-    "user_agent": "Vanellix Webhooks",
-    "hash": "",
-    "processed": true,
-    "order_time_is_asap": true,
-    "pedidosya_id": "",
-    "customer_name": "{{order.customer.name}}",
-    "order_type_name": "{{order.order_type}}",
-    "formatted_address": "{{order.customer.address}}",
-    "status": "{{order.status}}",
-    "status_name": "{{order.status}}"
+    "comment": "{{order.notes}}",
+    "location_id": "{{order.location_id}}",
+    "location": {
+      "location_id": "{{order.location_id}}",
+      "location_name": "{{order.location_name}}"
+    },
+    "customer_id": "",
+    "customer": {
+      "email": "{{order.customer.email}}",
+      "last_name": "",
+      "telephone": "{{order.customer.phone}}",
+      "first_name": "{{order.customer.name}}",
+      "customer_id": ""
+    },
+    "order_totals": [
+      {"code": "subtotal", "title": "Sub Total", "value": {{order.total_amount}}, "priority": 1},
+      {"code": "delivery", "title": "Envío", "value": {{order.delivery_fee}}, "priority": 2},
+      {"code": "total", "title": "Total", "value": {{order.total_amount}}, "priority": 99}
+    ]
   },
   "order_menus": {{order.items}},
   "order_totals": [
-    {
-      "code": "subtotal",
-      "title": "Sub-total",
-      "value": "{{order.total_amount}}"
-    },
-    {
-      "code": "delivery",
-      "title": "Entrega a Domicilio",
-      "value": "{{order.delivery_fee}}"
-    },
-    {
-      "code": "total",
-      "title": "Total del Pedido",
-      "value": "{{order.total_amount}}"
-    }
+    {"code": "subtotal", "title": "Sub Total", "value": {{order.total_amount}}, "priority": 1},
+    {"code": "delivery", "title": "Envío", "value": {{order.delivery_fee}}, "priority": 2},
+    {"code": "total", "title": "Total", "value": {{order.total_amount}}, "priority": 99}
   ]
 }`;
 

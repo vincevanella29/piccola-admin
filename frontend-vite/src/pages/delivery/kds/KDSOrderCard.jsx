@@ -182,6 +182,12 @@ const KDSOrderCard = forwardRef(({ order, statuses = [], onToggleItem, onStatusC
                   {item.modifiers.map(m => m.value_id || m.name || m.label).join(' · ')}
                 </p>
               )}
+              {(item.notes || item.comment || item.nota) && (
+                <p className={`text-[10px] font-bold mt-0.5 flex items-start gap-1 ${item.done ? 'text-emerald-500/50' : 'text-amber-500'}`}>
+                  <FaStickyNote size={9} className="mt-0.5 shrink-0" />
+                  <span className="italic leading-tight">{item.notes || item.comment || item.nota}</span>
+                </p>
+              )}
             </div>
 
             {/* Quantity badge */}
