@@ -8,7 +8,7 @@ from datetime import datetime
 # CONFIGURACIÓN DEL POS PICCOLA
 # ==============================================================================
 WEBHOOK_URL = "https://shopify.piccolaitalia.cl/api/ordenti_v2"
-API_TOKEN = "Bearer "
+API_TOKEN = "Bearer YOUR_TOKEN"
 HEADER_NAME = "Authorization"
 
 timestamp = datetime.now().isoformat()

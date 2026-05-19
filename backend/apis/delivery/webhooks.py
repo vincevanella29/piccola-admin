@@ -18,6 +18,7 @@ Endpoints:
 """
 
 import asyncio
+import random
 from utils.time_utils import get_chile_time
 import hashlib
 import hmac
@@ -143,6 +144,13 @@ def render_webhook_payload(template_str: Optional[str], event: str, order_doc: d
         "cancelled": "Cancelada"
     }
     data["translated_status"] = STATUS_MAP.get(data.get("status"), data.get("status"))
+
+    # Derive a purely numeric, deterministic ID from MongoDB _id for strict POS systems like Faster
+    _id_str = data.get("_id", "")
+    if len(_id_str) == 24:
+        data["pos_order_id"] = int(_id_str[-7:], 16)
+    else:
+        data["pos_order_id"] = int(hashlib.sha1(_id_str.encode()).hexdigest()[-7:], 16)
 
     if not template_str or not template_str.strip():
         # Default: send everything
@@ -299,28 +307,28 @@ EXAMPLE_ORDER = {
     "_id": "683b5a1f0000000000000000",
     "provider_slug": "piccola-delivery",
     "provider_name": "Piccola Delivery",
-    "location_id": "16",
-    "location_slug": "ALMLOC",
-    "location_name": "Piccola Alameda",
+    "location_id": "3",
+    "location_slug": "PANLOC",
+    "location_name": "PANLOC",
     "customer": {
-        "name": "Richard Soares",
-        "email": "cliente@ejemplo.com",
-        "phone": "+56954834418",
-        "address": "314 Diez de Julio, Santiago",
+        "name": "Test Alusa",
+        "email": "test@piccolaitalia.cl",
+        "phone": "+56900000000",
+        "address": "Direccion Test, Santiago",
         "depto": None,
     },
     "items": [
-        {"codigo": "0205005", "nombre": "Fontana Di Lasagna", "quantity": 1, "unit_price": 35999, "modifiers": []},
-        {"codigo": "9003180", "nombre": "Fontana Di Pasta Delivery", "quantity": 1, "unit_price": 13999, "modifiers": []},
-        {"codigo": "0205003", "nombre": "Fontana Di Fetuccini", "quantity": 1, "unit_price": 24999, "modifiers": []},
+        {"codigo": "9901900", "name": "9901900 ALUSA CHICA UN", "nombre": "9901900 ALUSA CHICA UN",
+         "quantity": 1, "unit_price": 750, "price": 750, "subtotal": 750,
+         "comment": "TEST WEBHOOK ALUSA $0", "modifiers": [], "menu_options": []},
     ],
-    "delivery_fee": 3688,
-    "total_amount": 78685,
-    "notes": "Por favor enviar bien embalado los envase",
+    "delivery_fee": 0,
+    "total_amount": 0,
+    "notes": "TEST WEBHOOK ALUSA LIFECYCLE — Descuento 100%",
     "order_type": "delivery",
-    "status": "pending",
-    "order_number": "PI-38236",
-    "payment_method": "card",
+    "status": "confirmed",
+    "order_number": "PI-TEST-0000",
+    "payment_method": "webpayrest",
     "payment_status": "paid",
     "created_at": get_chile_time().isoformat(),
     "updated_at": get_chile_time().isoformat(),
@@ -440,11 +448,16 @@ async def test_webhook(webhook_id: str, user: dict = Depends(verify_session)):
     # Use example order for test
     event = webhook.get("events", ["order.created"])[0]
 
+    test_order = dict(EXAMPLE_ORDER)
+    test_order["order_number"] = str(random.randint(100000000, 999999999))
+    test_order["_id"] = "683b5a1f" + f"{random.randint(1, 0xffffffffffffffff):016x}"
+    test_order["status"] = "confirmed"  # Ensures translated_status becomes 'Aceptada' which Maps to status_id 2 in the template
+
     try:
         payload = render_webhook_payload(
             webhook.get("payload_template"),
             event,
-            EXAMPLE_ORDER,
+            test_order,
         )
 
         body = json.dumps(payload, ensure_ascii=False, default=str)
@@ -478,7 +491,7 @@ async def test_webhook(webhook_id: str, user: dict = Depends(verify_session)):
             "success": success,
             "status_code": resp.status_code,
             "elapsed_ms": elapsed_ms,
-            "response_preview": resp.text[:300],
+            "response_preview": resp.text,
             "payload_sent": payload,
         }
 

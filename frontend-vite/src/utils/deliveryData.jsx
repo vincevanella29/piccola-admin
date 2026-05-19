@@ -318,6 +318,16 @@ export async function getDispatchStatus({ token, walletAddress, orderId }) {
 // Test Orders
 // =====================================================================
 
+export async function testInjectOrder({ token, walletAddress, locationId }) {
+  return api({
+    method: 'POST',
+    endpoint: '/delivery/orders/test-inject',
+    withCredentials: true,
+    headers: authHeaders({ token, walletAddress }),
+    data: { location_id: locationId },
+  });
+}
+
 export async function createTestOrder({ token, walletAddress, data }) {
   return api({
     method: 'POST',

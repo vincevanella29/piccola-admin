@@ -682,7 +682,8 @@ def _build_sync_payload(mnemonic: str, provider_slug: str = None) -> dict:
     raw_locations = list(locations_coll.find(
         {"status": True},
         {"nombre": 1, "direccion": 1, "city": 1, "lat": 1, "lng": 1,
-         "permalink_slug": 1, "opening_hours": 1, "telephone": 1, "prioridad": 1}
+         "permalink_slug": 1, "opening_hours": 1, "telephone": 1, "prioridad": 1,
+         "special_dates": 1}
     ).sort("prioridad", 1))
     
     # Derive the global schedule from the primary location to enforce a single source of truth without fallbacks

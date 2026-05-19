@@ -29,7 +29,6 @@ const TABS = [
   { id: 'schedule', label: 'Horarios', icon: FaClock },
   { id: 'payments', label: 'Pagos', icon: FaCreditCard },
   { id: 'delivery_fee', label: 'Tarifa', icon: FaTruck },
-  { id: 'scheduling', label: 'Programación', icon: FaCalendarAlt },
   { id: 'webhooks', label: 'Webhooks', icon: FaGlobe },
   { id: 'chat', label: 'Chat', icon: FaComments },
 ];
@@ -298,7 +297,11 @@ const DeliveryConfig = ({ appState }) => {
               )}
 
               {activeTab === 'schedule' && (
-                <DeliveryScheduleTab appState={appState} />
+                <DeliveryScheduleTab appState={appState} schedulingConfig={fullConfig?.scheduling_config} onSaveSchedulingConfig={async (data) => {
+                  await deliveryApi.updateSchedulingConfig({ ...getAuth(), data });
+                  toast.success('✅ Configuración de programación actualizada');
+                  fetchAll();
+                }} />
               )}
 
               {activeTab === 'payments' && (
@@ -309,9 +312,7 @@ const DeliveryConfig = ({ appState }) => {
                 <DeliveryFeeTab appState={appState} />
               )}
 
-              {activeTab === 'scheduling' && (
-                <SchedulingTab appState={appState} />
-              )}
+
 
               {activeTab === 'webhooks' && (
                 <WebhooksTab appState={appState} />
@@ -328,7 +329,7 @@ const DeliveryConfig = ({ appState }) => {
         <div className="w-[340px] border-l border-light-border/10 dark:border-dark-border/10 bg-light-surface/50 dark:bg-dark-surface/50 flex flex-col">
           <AIChatPanel
             title="Asistente Delivery"
-            welcomeMessage={'¡Hola! 👋 Soy tu asistente de delivery. Puedo ayudarte con:\n\n• **Horarios**: _"Pon delivery Lun-Vie de 12 a 22, Sáb 12 a 23"_\n• **Tarifas y Descuentos**: _"Pon delivery gratis sobre $20.000 en Vitacura"_\n• **Configuración**: _"¿Qué tenemos configurado?"_\n\n¿Qué necesitas?'}
+            welcomeMessage={'¡Hola! 👋 Soy tu asistente de delivery. Puedo ayudarte con:\n\n• **Horarios**: _"Pon delivery Lun-Vie de 12 a 22, Sáb 12 a 23"_\n• **Feriados**: _"Carga feriados chile 2026 en todas las sucursales"_\n• **Cierres**: _"Cierra 18 y 19 de septiembre"_\n• **Horario especial**: _"Horario especial navidad de 10 a 15"_\n• **Tarifas**: _"Pon delivery gratis sobre $20.000"_\n\n¿Qué necesitas?'}
             placeholder="Ej: Pon delivery Lun-Vie 12:00 a 22:00..."
             onSend={async (message, history) => {
               const context = {
@@ -386,11 +387,64 @@ const DeliveryConfig = ({ appState }) => {
                 toast.success('✅ Configuración de programación actualizada');
                 fetchAll();
               }
+
+              if (actionType === 'set_special_dates') {
+                const { location_ids, special_dates: newDates, mode = 'append' } = action;
+                const targetLocs = location_ids === 'all'
+                  ? locations
+                  : locations.filter(l => (location_ids || []).includes(String(l._id)));
+
+                for (const loc of targetLocs) {
+                  let existing = Array.isArray(loc.special_dates) ? [...loc.special_dates] : [];
+                  if (mode === 'replace') {
+                    existing = newDates;
+                  } else {
+                    // Append: merge, dedup by date
+                    const existingDates = new Set(existing.map(d => d.date));
+                    for (const nd of newDates) {
+                      if (!existingDates.has(nd.date)) existing.push(nd);
+                    }
+                  }
+                  existing.sort((a, b) => a.date.localeCompare(b.date));
+
+                  await updateLocation({
+                    locationId: loc._id,
+                    data: { special_dates: existing },
+                    walletAddress: appState?.account,
+                    token: appState?.token,
+                  });
+                }
+                toast.success(`📅 ${newDates.length} fecha(s) especial(es) aplicadas en ${targetLocs.length} sucursal(es)`);
+                fetchAll();
+              }
+
+              if (actionType === 'remove_special_dates') {
+                const { location_ids, dates_to_remove = [] } = action;
+                const targetLocs = location_ids === 'all'
+                  ? locations
+                  : locations.filter(l => (location_ids || []).includes(String(l._id)));
+
+                const removeSet = new Set(dates_to_remove);
+                for (const loc of targetLocs) {
+                  const existing = Array.isArray(loc.special_dates) ? loc.special_dates : [];
+                  const filtered = existing.filter(d => !removeSet.has(d.date));
+                  await updateLocation({
+                    locationId: loc._id,
+                    data: { special_dates: filtered },
+                    walletAddress: appState?.account,
+                    token: appState?.token,
+                  });
+                }
+                toast.success(`🗑️ ${dates_to_remove.length} fecha(s) eliminadas de ${targetLocs.length} sucursal(es)`);
+                fetchAll();
+              }
             }}
             actionLabel={(a) => {
               if (a.action === 'update_schedule') return '📅 Actualizar horarios';
               if (a.action === 'update_fee_config') return '🚚 Configurar tarifa / descuento';
               if (a.action === 'update_scheduling_config') return '⏱️ Actualizar programación';
+              if (a.action === 'set_special_dates') return '📅 Agregar fechas especiales';
+              if (a.action === 'remove_special_dates') return '🗑️ Eliminar fechas especiales';
               return a.action;
             }}
           />

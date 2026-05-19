@@ -315,7 +315,8 @@ async def get_api_configs(user: dict = Depends(verify_session)):
         c["has_service_account"] = "service_account_json" in c and c["service_account_json"] is not None
         
         # Verificar estado real de Firebase
-        _ensure_firebase()
+        from services.fcm_service import ensure_firebase
+        ensure_firebase()
         try:
             app = firebase_admin.get_app()
             c["firebase_initialized"] = (app.project_id == c.get("project_id"))

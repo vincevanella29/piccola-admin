@@ -442,6 +442,85 @@ async def create_delivery_order(
 # Endpoints (Admin API - Gestión Interna)
 # =====================================================================
 
+@router.post("/delivery/orders/test-inject", summary="Inyectar orden de prueba ALUSA (Playground)")
+async def inject_test_order(payload: dict, user: dict = Depends(verify_session)):
+    """
+    Crea una orden de prueba ($0 Alusa) para probar el ciclo de vida (KDS, POS Webhooks).
+    """
+    require_admin_level(user, "delivery")
+    
+    now = get_chile_time()
+    
+    # Resolver location (usar la que manda el frontend, o fallback a una segura)
+    loc_id = payload.get("location_id")
+    loc = db.locations.find_one({"_id": ObjectId(loc_id)}) if loc_id and ObjectId.is_valid(loc_id) else None
+    if not loc:
+        loc = db.locations.find_one({"permalink_slug": "PANLOC"}) # Fallback seguro
+    
+    order_doc = {
+        "order_number": f"PI-TEST-{int(now.timestamp())}",
+        "provider_slug": "vanellix-admin-test",
+        "order_type": "delivery",
+        "location_id": str(loc["_id"]) if loc else None,
+        "location_slug": loc.get("permalink_slug") if loc else None,
+        "location_name": loc.get("nombre") or loc.get("name") if loc else None,
+        
+        "customer": {
+            "name": "Test Alusa (Playground)",
+            "email": "test@piccolaitalia.cl",
+            "phone": "+56900000000",
+            "address": "Direccion Test, Santiago",
+            "rut": "1-9",
+        },
+        "items": [
+            {
+                "codigo": "9901900",
+                "nombre": "9901900 ALUSA CHICA UN",
+                "name": "9901900 ALUSA CHICA UN",
+                "quantity": 1,
+                "unit_price": 750,
+                "price": 750,
+                "subtotal": 750,
+                "modifiers": [],
+                "menu_options": [],
+                "comment": "TEST WEBHOOK ALUSA $0 (Descuento 100%)",
+            }
+        ],
+        "delivery_fee": 0,
+        "total_amount": 0,
+        "notes": "TEST WEBHOOK ALUSA LIFECYCLE — Descuento 100%",
+        
+        "status": "pending",
+        "carrier_status": None,
+        "carrier_slug": None,
+        "courier_info": None,
+        "payment_method": "webpayrest",
+        "payment_status": "paid",
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    result = DELIVERY_COLL.insert_one(order_doc)
+    order_id = str(result.inserted_id)
+
+    # Broadcast a KDS
+    if loc:
+        asyncio.create_task(kds_manager.broadcast(
+            {"type": "new_order", "order_id": order_id, "status": "pending",
+             "location_id": str(loc["_id"]), "provider": "vanellix-admin-test"},
+            location_id=str(loc["_id"]),
+        ))
+
+    # Disparar webhooks
+    try:
+        from apis.delivery.webhooks import fire_webhooks
+        order_doc["_id"] = order_id
+        asyncio.create_task(fire_webhooks("order.created", order_doc))
+    except Exception as e:
+        logger.warning(f"[test-inject] Falló disparo webhook: {e}")
+
+    return {"success": True, "order_id": order_id, "order_number": order_doc["order_number"]}
+
 @router.get("/delivery/locations", summary="Locations para mapa de despacho")
 async def get_delivery_locations(user: dict = Depends(verify_session)):
     """Return locations with geo data for the dispatch map. Filtered by user permissions."""
