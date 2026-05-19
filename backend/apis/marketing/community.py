@@ -560,30 +560,28 @@ async def dm_send(data: DmSendRequest, user: dict = Depends(verify_session)):
         if peer_presence.get("status") == "online":
             logger.info(f"Omitiendo Push DM: {peer_wallet} está online en la app.")
         else:
-            from apis.marketing.notifications import send_fcm_notification
-            api_config = db.notification_api_configs.find_one({"service": "firebase"})
-            if api_config:
-                # Recuperar usuario para extraer privy_id y hacer una búsqueda más robusta en múltiples dispositivos
-                peer_user = db.users.find_one({"wallet": {"$regex": f"^{peer_wallet}$", "$options": "i"}})
-                query_conditions = [{"wallet": {"$regex": f"^{peer_wallet}$", "$options": "i"}}]
-                if peer_user and peer_user.get("privy_id"):
-                    query_conditions.append({"privy_id": peer_user.get("privy_id")})
-                
+            from services.fcm_service import send_and_log_single
+
+            # Recuperar usuario para extraer privy_id y hacer búsqueda robusta en múltiples dispositivos
+            peer_user = db.users.find_one({"wallet": {"$regex": f"^{peer_wallet}$", "$options": "i"}})
+            query_conditions = [{"wallet": {"$regex": f"^{peer_wallet}$", "$options": "i"}}]
+            if peer_user and peer_user.get("privy_id"):
+                query_conditions.append({"privy_id": peer_user.get("privy_id")})
+
             # Buscamos tokens del peer receptor (por wallet o privy_id)
             tokens = list(db.user_notification_tokens.find({"$or": query_conditions, "permissions_granted": True}).sort("_id", -1))
             if tokens:
                 sender_display_name = sender.get("sender_name", wallet)
-                title = f"Nuevo mensaje de {sender_display_name}"
+                push_title = f"Nuevo mensaje de {sender_display_name}"
                 body_text = data.text[:100] + ("..." if len(data.text) > 100 else "")
                 for t_doc in tokens:
                     try:
-                        await send_fcm_notification(
-                            api_config=api_config,
-                            title=title,
+                        await send_and_log_single(
+                            title=push_title,
                             body=body_text,
-                            image_url=None,
                             target_type="user",
-                            target_value=t_doc["token"]
+                            target_value=t_doc["token"],
+                            sender_wallet="system",
                         )
                         logger.info(f"Push DM enviado exitosamente a {peer_wallet} (dispositivo {t_doc['token'][:10]}...)")
                     except Exception as e:
