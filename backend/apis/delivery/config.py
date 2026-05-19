@@ -682,8 +682,20 @@ def _build_sync_payload(mnemonic: str, provider_slug: str = None) -> dict:
     raw_locations = list(locations_coll.find(
         {"status": True},
         {"nombre": 1, "direccion": 1, "city": 1, "lat": 1, "lng": 1,
-         "permalink_slug": 1, "opening_hours": 1, "telephone": 1}
-    ))
+         "permalink_slug": 1, "opening_hours": 1, "telephone": 1, "prioridad": 1}
+    ).sort("prioridad", 1))
+    
+    # Derive the global schedule from the primary location to enforce a single source of truth without fallbacks
+    derived_schedule = config.get("schedule", {})
+    if raw_locations and raw_locations[0].get("opening_hours"):
+        primary_hours = raw_locations[0]["opening_hours"]
+        derived_schedule = primary_hours.get("delivery") or primary_hours.get("pickup") or derived_schedule
+        # Persist the alignment back to the admin configuration
+        CONFIG_COLL.update_one(
+            {"_id": "delivery_config"},
+            {"$set": {"schedule": derived_schedule}}
+        )
+
     locations_list = []
     for loc in raw_locations:
         loc["_id"] = str(loc["_id"])
@@ -693,7 +705,7 @@ def _build_sync_payload(mnemonic: str, provider_slug: str = None) -> dict:
         "transbank_blob": transbank_blob,
         "transbank_environment": env,
         "transbank_configured": transbank_blob is not None,
-        "schedule": config.get("schedule", {}),
+        "schedule": derived_schedule,
         "payment_methods": config.get("payment_methods", []),
         "internal_statuses": config.get("internal_statuses", []),
         "pickup_statuses": config.get("pickup_statuses", []),
