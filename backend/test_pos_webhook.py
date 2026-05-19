@@ -8,11 +8,11 @@ from datetime import datetime
 # CONFIGURACIÓN DEL POS PICCOLA
 # ==============================================================================
 WEBHOOK_URL = "https://shopify.piccolaitalia.cl/api/ordenti_v2"
-API_TOKEN = "Bearer YOUR_TOKEN"
+API_TOKEN = "Bearer ChupameLaCh0Ta500VecesViejaREKULIAmalparidaPuta"
 HEADER_NAME = "Authorization"
 
 timestamp = datetime.now().isoformat()
-fixed_order_id = 1779167782
+fixed_order_id = "F72E2321"
 
 def create_payload():
     return {
@@ -42,14 +42,14 @@ def create_payload():
             "payment": "webpayrest",
             "user_agent": "Vanellix",
             "ip_address": "127.0.0.1",
-            "comment": "TEST WEBHOOK ALUSA LIFECYCLE",
-            "location_id": 3,
+            "comment": "",
+            "location_id": 18,
             "location": {
-                "location_id": 3,
+                "location_id": 18,
                 "location_city": "Santiago",
-                "location_name": "PANLOC",
+                "location_name": "PJRLOC",
                 "location_state": "Región Metropolitana",
-                "permalink_slug": "PANLOC",
+                "permalink_slug": "PJRLOC",
                 "location_address": "Panamericana",
                 "location_telephone": "+56229942084",
                 "location_country_id": 43
@@ -87,7 +87,7 @@ def create_payload():
                 "quantity": 1,
                 "price": 750,
                 "subtotal": 750,
-                "comment": "SIN SAL!!! 000!!",
+                "comment": "",
                 "menu_options": []
             }
         ],

@@ -14,16 +14,32 @@ const DAYS = [
     { iso: '7', short: 'Dom', long: 'Domingo' },
 ];
 
-// ── DayRow ────────────────────────────────────────────────────────────────────
 const DayRow = ({ day, value, onChange, closedLabel }) => {
     const isOpen = !!value;
+    const handleTimeChange = (type, val) => {
+        let o = type === 'open' ? val : (value?.open || '12:00');
+        let c = type === 'close' ? val : (value?.close || '23:00');
+        if (o >= c) {
+            if (type === 'open') {
+                let mins = parseInt(o.split(':')[0])*60 + parseInt(o.split(':')[1]) + 30;
+                if (mins >= 1440) { mins = 1439; o = '23:29'; }
+                c = `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
+            } else {
+                let mins = parseInt(c.split(':')[0])*60 + parseInt(c.split(':')[1]) - 30;
+                if (mins < 0) { mins = 0; c = '00:30'; }
+                o = `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
+            }
+        }
+        onChange({ ...value, open: o, close: c });
+    };
+
     return (
         <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
             isOpen
                 ? 'border-light-accent/40 dark:border-dark-accent/40 bg-light-accent/4 dark:bg-dark-accent/4'
                 : 'border-light-border/40 dark:border-dark-border/40 bg-light-surface-secondary/30 dark:bg-dark-surface-secondary/30 opacity-60'
         }`}>
-            <button type="button" onClick={() => onChange(isOpen ? null : { open: '12:00', close: '23:00' })}
+            <button type="button" onClick={() => onChange(isOpen ? null : { open: '10:00', close: '23:00' })}
                 className={`shrink-0 w-9 h-5 rounded-full transition-all relative ${
                     isOpen ? 'bg-light-accent dark:bg-dark-accent' : 'bg-light-border dark:bg-dark-border'
                 }`}>
@@ -32,9 +48,9 @@ const DayRow = ({ day, value, onChange, closedLabel }) => {
             <span className="text-xs font-bold text-light-text-primary dark:text-dark-text-primary w-8 shrink-0">{day.short}</span>
             {isOpen ? (
                 <div className="flex items-center gap-2 flex-1">
-                    <input type="time" value={value?.open || '12:00'} onChange={e => onChange({ ...value, open: e.target.value })} className={timeCls} />
+                    <input type="time" value={value?.open || '10:00'} onChange={e => handleTimeChange('open', e.target.value)} className={timeCls} />
                     <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">→</span>
-                    <input type="time" value={value?.close || '23:00'} onChange={e => onChange({ ...value, close: e.target.value })} className={timeCls} />
+                    <input type="time" value={value?.close || '23:00'} onChange={e => handleTimeChange('close', e.target.value)} className={timeCls} />
                 </div>
             ) : (
                 <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary flex-1">{closedLabel}</span>
@@ -145,9 +161,25 @@ const SpecialDatesEditor = ({ dates, onChange, s }) => {
                         </span>
                         {!sd.closed && (
                             <div className="flex items-center gap-2 ml-auto">
-                                <input type="time" value={sd.open} onChange={e => update(i, { open: e.target.value })} className={timeCls} />
+                                <input type="time" value={sd.open} onChange={e => {
+                                    let o = e.target.value, c = sd.close;
+                                    if (o >= c) {
+                                        let mins = parseInt(o.split(':')[0])*60 + parseInt(o.split(':')[1]) + 30;
+                                        if (mins >= 1440) { mins = 1439; o = '23:29'; }
+                                        c = `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
+                                    }
+                                    update(i, { open: o, close: c });
+                                }} className={timeCls} />
                                 <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">→</span>
-                                <input type="time" value={sd.close} onChange={e => update(i, { close: e.target.value })} className={timeCls} />
+                                <input type="time" value={sd.close} onChange={e => {
+                                    let c = e.target.value, o = sd.open;
+                                    if (o >= c) {
+                                        let mins = parseInt(c.split(':')[0])*60 + parseInt(c.split(':')[1]) - 30;
+                                        if (mins < 0) { mins = 0; c = '00:30'; }
+                                        o = `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
+                                    }
+                                    update(i, { open: o, close: c });
+                                }} className={timeCls} />
                             </div>
                         )}
                     </div>

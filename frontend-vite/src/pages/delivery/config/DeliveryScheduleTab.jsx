@@ -28,12 +28,29 @@ const SCHED_DEFAULTS = {
 const DayRow = ({ dayLabel, value, onChange, closedLabel }) => {
   const isOpen = !!value;
   const timeCls = "px-2 py-1 rounded-lg bg-light-surface-secondary dark:bg-dark-surface-secondary border border-light-border/15 dark:border-dark-border/15 text-[11px] text-light-text-primary dark:text-dark-text-primary outline-none focus:ring-2 focus:ring-light-accent/30 dark:focus:ring-dark-accent/30 w-[90px]";
+  const handleTimeChange = (type, val) => {
+    let o = type === 'open' ? val : (value?.open || '12:00');
+    let c = type === 'close' ? val : (value?.close || '23:00');
+    if (o >= c) {
+      if (type === 'open') {
+        let mins = parseInt(o.split(':')[0])*60 + parseInt(o.split(':')[1]) + 30;
+        if (mins >= 1440) { mins = 1439; o = '23:29'; }
+        c = `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
+      } else {
+        let mins = parseInt(c.split(':')[0])*60 + parseInt(c.split(':')[1]) - 30;
+        if (mins < 0) { mins = 0; c = '00:30'; }
+        o = `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
+      }
+    }
+    onChange({ ...value, open: o, close: c });
+  };
+
   return (
     <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all ${
       isOpen ? 'bg-light-accent/4 dark:bg-dark-accent/4 border border-light-accent/20 dark:border-dark-accent/20'
              : 'bg-light-surface-secondary/20 dark:bg-dark-surface-secondary/20 border border-transparent opacity-50'
     }`}>
-      <button onClick={() => onChange(isOpen ? null : { open: '12:00', close: '23:00' })}
+      <button onClick={() => onChange(isOpen ? null : { open: '10:00', close: '23:00' })}
         className={`relative w-9 h-5 rounded-full transition-all duration-300 shrink-0 ${isOpen ? 'bg-matrix-green' : 'bg-light-border dark:bg-dark-border'}`}>
         <motion.span layout className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm ${isOpen ? 'left-[18px]' : 'left-0.5'}`}
           transition={{ type: 'spring', stiffness: 500, damping: 30 }} />
@@ -41,9 +58,9 @@ const DayRow = ({ dayLabel, value, onChange, closedLabel }) => {
       <span className="text-[11px] font-bold text-light-text-primary dark:text-dark-text-primary w-12 shrink-0 truncate">{dayLabel}</span>
       {isOpen ? (
         <div className="flex items-center gap-1.5 flex-1">
-          <input type="time" value={value?.open || '12:00'} onChange={e => onChange({ ...value, open: e.target.value })} className={timeCls} />
+          <input type="time" value={value?.open || '10:00'} onChange={e => handleTimeChange('open', e.target.value)} className={timeCls} />
           <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">→</span>
-          <input type="time" value={value?.close || '23:00'} onChange={e => onChange({ ...value, close: e.target.value })} className={timeCls} />
+          <input type="time" value={value?.close || '23:00'} onChange={e => handleTimeChange('close', e.target.value)} className={timeCls} />
         </div>
       ) : (
         <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary flex-1">{closedLabel}</span>

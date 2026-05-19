@@ -51,8 +51,8 @@ const SpecialDatesManager = ({ locations = [], specialDatesByLocation = {}, onSa
 
   return (
     <div className="rounded-2xl border border-light-border/10 dark:border-dark-border/10 overflow-hidden bg-light-surface/60 dark:bg-dark-surface/60 backdrop-blur-xl">
-      <button onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-light-surface-secondary/30 dark:hover:bg-dark-surface-secondary/30 transition-colors">
+      <div onClick={() => setExpanded(!expanded)}
+        className="w-full cursor-pointer flex items-center justify-between px-5 py-4 hover:bg-light-surface-secondary/30 dark:hover:bg-dark-surface-secondary/30 transition-colors">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-light-error/10 dark:bg-dark-error/10 flex items-center justify-center">
             <CalendarX2 className="w-4 h-4 text-light-error dark:text-dark-error" />
@@ -72,7 +72,7 @@ const SpecialDatesManager = ({ locations = [], specialDatesByLocation = {}, onSa
           </motion.button>
           {expanded ? <ChevronUp className="w-4 h-4 text-light-text-secondary" /> : <ChevronDown className="w-4 h-4 text-light-text-secondary" />}
         </div>
-      </button>
+      </div>
 
       <AnimatePresence>
         {expanded && (
@@ -84,31 +84,47 @@ const SpecialDatesManager = ({ locations = [], specialDatesByLocation = {}, onSa
                 {adding && (
                   <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                     className="p-4 rounded-xl bg-light-error/5 dark:bg-dark-error/5 border border-light-error/15 dark:border-dark-error/15 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-light-error dark:text-dark-error">{s('newSpecialDate')}</span>
-                      <button onClick={() => setAdding(false)} className="p-1 rounded-lg hover:bg-light-error/10 dark:hover:bg-dark-error/10 text-light-error dark:text-dark-error"><X className="w-3.5 h-3.5" /></button>
-                    </div>
-                    <div className="flex gap-2">
-                      <input type="date" value={draft.date} onChange={e => setDraft(d => ({ ...d, date: e.target.value }))} className={`flex-1 ${inputCls}`} />
-                      <input type="text" placeholder={s('datePlaceholder')} value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))} className={`flex-1 ${inputCls}`} />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => setDraft(d => ({ ...d, closed: !d.closed }))}
-                        className={`relative w-10 h-5 rounded-full transition-all ${draft.closed ? 'bg-light-error dark:bg-dark-error' : 'bg-light-success dark:bg-dark-success'}`}>
-                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${draft.closed ? '' : 'translate-x-5'}`} />
-                      </button>
-                      <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary">
-                        {draft.closed ? s('closedAllDay') : s('specialHours')}
-                      </span>
-                      {!draft.closed && (
-                        <div className="flex items-center gap-1.5 ml-auto">
-                          <Clock className="w-3 h-3 text-light-success dark:text-dark-success" />
-                          <input type="time" value={draft.open} onChange={e => setDraft(d => ({ ...d, open: e.target.value }))} className={timeCls} />
-                          <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">→</span>
-                          <input type="time" value={draft.close} onChange={e => setDraft(d => ({ ...d, close: e.target.value }))} className={timeCls} />
-                        </div>
-                      )}
-                    </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-light-error dark:text-dark-error">{s('newSpecialDate')}</span>
+                        <button onClick={() => setAdding(false)} className="p-1 rounded-lg hover:bg-light-error/10 dark:hover:bg-dark-error/10 text-light-error dark:text-dark-error"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                      <div className="flex gap-2">
+                        <input type="date" value={draft.date} onChange={e => setDraft(d => ({ ...d, date: e.target.value }))} className={`flex-1 ${inputCls}`} />
+                        <input type="text" placeholder={s('datePlaceholder')} value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))} className={`flex-1 ${inputCls}`} />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => setDraft(d => ({ ...d, closed: !d.closed }))}
+                          className={`relative w-10 h-5 rounded-full transition-all ${draft.closed ? 'bg-light-error dark:bg-dark-error' : 'bg-light-success dark:bg-dark-success'}`}>
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${draft.closed ? '' : 'translate-x-5'}`} />
+                        </button>
+                        <span className="text-xs font-semibold text-light-text-secondary dark:text-dark-text-secondary">
+                          {draft.closed ? s('closedAllDay') : s('specialHours')}
+                        </span>
+                        {!draft.closed && (
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            <Clock className="w-3 h-3 text-light-success dark:text-dark-success" />
+                            <input type="time" value={draft.open} onChange={e => {
+                                let o = e.target.value, c = draft.close;
+                                if (o >= c) {
+                                    let mins = parseInt(o.split(':')[0])*60 + parseInt(o.split(':')[1]) + 30;
+                                    if (mins >= 1440) { mins = 1439; o = '23:29'; }
+                                    c = `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
+                                }
+                                setDraft(d => ({ ...d, open: o, close: c }));
+                            }} className={timeCls} />
+                            <span className="text-[10px] text-light-text-secondary dark:text-dark-text-secondary">→</span>
+                            <input type="time" value={draft.close} onChange={e => {
+                                let c = e.target.value, o = draft.open;
+                                if (o >= c) {
+                                    let mins = parseInt(c.split(':')[0])*60 + parseInt(c.split(':')[1]) - 30;
+                                    if (mins < 0) { mins = 0; c = '00:30'; }
+                                    o = `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
+                                }
+                                setDraft(d => ({ ...d, open: o, close: c }));
+                            }} className={timeCls} />
+                          </div>
+                        )}
+                      </div>
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-light-text-secondary dark:text-dark-text-secondary">{s('applyTo')}</span>

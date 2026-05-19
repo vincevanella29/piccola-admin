@@ -66,6 +66,8 @@ class ModifierItem(BaseModel):
     option_id: str
     value_id: str
     price: float = 0.0
+    name: Optional[str] = None
+    codigo: Optional[str] = None
 
 class OrderItem(BaseModel):
     codigo: str

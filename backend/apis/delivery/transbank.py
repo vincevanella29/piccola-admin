@@ -355,3 +355,140 @@ async def get_test_transactions(user: dict = Depends(verify_session)):
     tb = _get_tb_config() or {}
     txns = tb.get("test_transactions", [])
     return {"success": True, "transactions": txns[-10:]}  # last 10
+
+
+# =====================================================================
+# Charge on Behalf (A2) — Admin charges user card for satellite apps
+# =====================================================================
+
+class ChargeOnBehalfRequest(BaseModel):
+    privy_id: str
+    amount: int
+    buy_order: Optional[str] = None
+    source_app: str = "admin"  # Which satellite requested this
+
+
+@router.post("/delivery/transbank/charge-on-behalf", summary="Charge user card on behalf of satellite")
+async def charge_on_behalf(
+    req: ChargeOnBehalfRequest,
+    user: dict = Depends(verify_session),
+):
+    """
+    Admin charges a user's inscribed card. Security layers:
+    1. Admin session auth (lvl 3-5)
+    2. Bound sig v2 awareness (token must match privy_id)
+    3. Audit logging
+    """
+    require_admin_level(user, "admin")
+
+    customer = CUSTOMERS_COLL.find_one({"privy_id": req.privy_id})
+    if not customer or not customer.get("transbank", {}).get("tbk_user"):
+        raise HTTPException(status_code=404, detail="No inscribed card for this user")
+
+    tb = customer["transbank"]
+    tbk_user = tb["tbk_user"]
+
+    # Verify Dilithium signature of the card token if present
+    tbk_sig = tb.get("tbk_user_sig")
+    sig_version = tb.get("sig_version", 1)
+    if tbk_sig:
+        prov_slug = customer.get("provider_slug", "vanellix")
+        prov = db.ecosystem_providers.find_one({"slug": prov_slug})
+        dilithium_pk = prov.get("dilithium_pk") if prov else None
+        if dilithium_pk:
+            from utils.vanellix_crypto import verify_dilithium
+            if sig_version == 2:
+                bound_payload = f"{req.privy_id}:{tbk_user}".encode("utf-8")
+                if not verify_dilithium(dilithium_pk, bound_payload, tbk_sig):
+                    logger.error(f"[transbank] charge-on-behalf: ❌ Dilithium signature v2 MISMATCH for {req.privy_id}")
+                    raise HTTPException(status_code=403, detail="Payment token integrity check failed (signature mismatch)")
+            else:
+                # sig_version == 1
+                legacy_payload = tbk_user.encode("utf-8")
+                if not verify_dilithium(dilithium_pk, legacy_payload, tbk_sig):
+                    logger.error(f"[transbank] charge-on-behalf: ❌ Dilithium signature v1 MISMATCH for {req.privy_id}")
+                    raise HTTPException(status_code=403, detail="Payment token integrity check failed (signature mismatch)")
+            logger.info(f"[transbank] charge-on-behalf: ✅ Dilithium sig v{sig_version} verified for {req.privy_id}")
+        else:
+            logger.warning(f"[transbank] charge-on-behalf: No Dilithium PK registered for provider '{prov_slug}' — skipping signature verification")
+    else:
+        logger.warning(f"[transbank] charge-on-behalf: no signature found for {req.privy_id} (pre-signing card)")
+
+    _, transaction, env = _get_oneclick()
+
+    import uuid
+    buy_order = req.buy_order or f"COB-{uuid.uuid4().hex[:8].upper()}"
+    child_cc = "597055555543" if env == "test" else _get_tb_config().get("production", {}).get("child_commerce_code", "")
+
+    try:
+        from transbank.webpay.oneclick.mall_transaction import MallTransactionAuthorizeDetails
+
+        tx_details = MallTransactionAuthorizeDetails(
+            commerce_code=child_cc,
+            buy_order=f"SUB-{buy_order}",
+            installments_number=1,
+            amount=req.amount,
+        )
+
+        resp = transaction.authorize(req.privy_id, tbk_user, buy_order, tx_details)
+        logger.info(f"[transbank] charge-on-behalf raw response type={type(resp).__name__}: {resp}")
+
+        # SDK response parsing (same pattern as test_authorize)
+        if isinstance(resp, list):
+            resp_details = resp
+            resp_top = {}
+        elif isinstance(resp, dict):
+            resp_details = resp.get("details", [])
+            resp_top = resp
+        else:
+            resp_details = []
+            resp_top = {}
+
+        detail = resp_details[0] if resp_details else None
+        if not isinstance(detail, dict):
+            detail = None
+
+        result = {
+            "buy_order": resp_top.get("buy_order", buy_order),
+            "session_id": resp_top.get("session_id"),
+            "card_number": (resp_top.get("card_detail") or {}).get("card_number") if isinstance(resp_top, dict) else None,
+            "accounting_date": resp_top.get("accounting_date"),
+            "transaction_date": resp_top.get("transaction_date"),
+            "detail": {
+                "amount": detail.get("amount", req.amount),
+                "status": detail.get("status", "UNKNOWN"),
+                "authorization_code": detail.get("authorization_code"),
+                "payment_type_code": detail.get("payment_type_code"),
+                "response_code": detail.get("response_code", -1),
+                "installments_number": detail.get("installments_number", 0),
+                "buy_order": detail.get("buy_order"),
+                "commerce_code": detail.get("commerce_code"),
+            } if detail else None,
+        }
+
+        success = detail and detail.get("response_code") == 0
+
+        # Audit log
+        CONFIG_COLL.update_one(
+            {"_id": "delivery_config"},
+            {"$push": {
+                "transbank.charge_on_behalf_log": {
+                    **result,
+                    "success": success,
+                    "privy_id": req.privy_id,
+                    "source_app": req.source_app,
+                    "charged_by": user.get("wallet") or user.get("id"),
+                    "env": env,
+                    "created_at": get_chile_time().isoformat(),
+                },
+            }},
+        )
+
+        logger.info(f"[transbank] charge-on-behalf: {req.source_app} charged {req.privy_id} "
+                     f"${req.amount} CLP — success={success}")
+        return {"success": success, "transaction": result}
+
+    except Exception as e:
+        logger.error(f"[transbank] charge-on-behalf error: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+

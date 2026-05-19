@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 CUSTOMERS_COLL = db.delivery_customers
 PROVIDERS_COLL = db.ecosystem_providers
+CONSENT_COLL = db.payment_consents
 
 # =====================================================================
 # Auth helpers (same pattern as orders.py)
@@ -375,3 +376,72 @@ async def customer_stats(user: dict = Depends(verify_session)):
             "active_this_week": active_this_week,
         }
     }
+
+
+# =====================================================================
+# Payment Token Relay (A1) — Satellite apps request bound tokens
+# =====================================================================
+
+@router.get("/delivery/customers/{privy_id}/card-token", summary="Get bound card token for satellite apps")
+async def get_card_token(
+    privy_id: str,
+    provider: dict = Depends(verify_satellite_webhook)  # Dilithium auth
+):
+    """
+    Return the bound tbk_user token for a customer.
+    Only accessible by authenticated satellite apps (Carta, etc.) via Dilithium.
+    The requesting satellite MUST verify user identity before calling.
+    """
+    customer = CUSTOMERS_COLL.find_one({"privy_id": privy_id})
+    if not customer or not customer.get("transbank"):
+        raise HTTPException(status_code=404, detail="No card found for this customer")
+
+    tb = customer["transbank"]
+    logger.info(f"[customers] Card token relayed for {privy_id} to {provider.get('slug')}")
+    return {
+        "success": True,
+        "tbk_user": tb["tbk_user"],
+        "tbk_user_sig": tb.get("tbk_user_sig"),
+        "sig_version": tb.get("sig_version", 1),
+        "card_type": tb.get("card_type"),
+        "card_last4": str(tb.get("card_number", ""))[-4:],
+    }
+
+
+# =====================================================================
+# Consent Viewer (A3) — Admin views consent history
+# =====================================================================
+
+@router.get("/delivery/customers/{privy_id}/consents", summary="View consent history (admin)")
+async def get_customer_consents(
+    privy_id: str,
+    user: dict = Depends(verify_session)
+):
+    """View payment consent history. Admin lvl 3-5."""
+    require_admin_level(user, "delivery")
+    consents = list(CONSENT_COLL.find({"privy_id": privy_id}).sort("accepted_at", -1))
+    for c in consents:
+        c["_id"] = str(c["_id"])
+        # Serialize datetime fields
+        for dt_field in ("accepted_at", "received_at"):
+            if c.get(dt_field) and isinstance(c[dt_field], datetime):
+                c[dt_field] = c[dt_field].isoformat()
+    return {"success": True, "consents": consents}
+
+
+# =====================================================================
+# Consent Sync Webhook (A4) — Receive consent records from satellites
+# =====================================================================
+
+@router.post("/delivery/customers/consent", summary="Receive consent record from satellite")
+async def receive_consent_webhook(
+    request: Request,
+    provider: dict = Depends(verify_satellite_webhook)  # Dilithium auth
+):
+    """Receive and store consent records from satellite apps."""
+    body = await request.json()
+    body["received_at"] = get_chile_time()
+    body["source_provider"] = provider.get("slug", "unknown")
+    CONSENT_COLL.insert_one(body)
+    logger.info(f"[customers] Consent received for {body.get('privy_id')} from {provider.get('slug')}")
+    return {"success": True}

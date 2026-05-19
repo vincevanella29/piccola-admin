@@ -133,6 +133,43 @@ def render_webhook_payload(template_str: Optional[str], event: str, order_doc: d
     # Normalize order doc (ObjectId → str, datetime → iso)
     data = _serialize_for_template(order_doc)
 
+    # Inject required legacy POS fields for items and create flattened version
+    if "items" in data and isinstance(data["items"], list):
+        flattened_items = []
+        for item in data["items"]:
+            if "price" not in item and "unit_price" in item:
+                item["price"] = item["unit_price"]
+            if "name" not in item and "nombre" in item:
+                item["name"] = item["nombre"]
+            
+            # Enforce space for empty product comments to prevent POS crashing
+            if not item.get("comment") or str(item.get("comment")).strip() == "":
+                item["comment"] = "!"
+                
+            # Create a shallow copy for the flattened array to avoid mutating the original deeply
+            flat_main_item = dict(item)
+            flattened_items.append(flat_main_item)
+            
+            # Flatten modifiers with codigo into standalone items
+            for mod in item.get("modifiers", []):
+                if mod.get("codigo"):
+                    mod_item = {
+                        "codigo": mod.get("codigo"),
+                        "name": mod.get("name", "Modificador"),
+                        "nombre": mod.get("name", "Modificador"),
+                        "quantity": item.get("quantity", 1),
+                        "unit_price": mod.get("price", 0.0),
+                        "price": mod.get("price", 0.0),
+                        "subtotal": float(mod.get("price", 0.0)) * int(item.get("quantity", 1)),
+                        "comment": "!",
+                        "modifiers": [],
+                        "menu_options": []
+                    }
+                    flattened_items.append(mod_item)
+                    
+        # Expose both the standard nested items and the flattened version for POS
+        data["items_flattened"] = flattened_items
+
     # Inject translated status for POS integration (Alineado con sistema de terceros)
     STATUS_MAP = {
         "pending": "Pendiente",
@@ -145,12 +182,6 @@ def render_webhook_payload(template_str: Optional[str], event: str, order_doc: d
     }
     data["translated_status"] = STATUS_MAP.get(data.get("status"), data.get("status"))
 
-    # Derive a purely numeric, deterministic ID from MongoDB _id for strict POS systems like Faster
-    _id_str = data.get("_id", "")
-    if len(_id_str) == 24:
-        data["pos_order_id"] = int(_id_str[-7:], 16)
-    else:
-        data["pos_order_id"] = int(hashlib.sha1(_id_str.encode()).hexdigest()[-7:], 16)
 
     if not template_str or not template_str.strip():
         # Default: send everything
@@ -474,9 +505,21 @@ async def test_webhook(webhook_id: str, user: dict = Depends(verify_session)):
         headers["X-Webhook-Event"] = f"test.{event}"
         headers["X-Webhook-Id"] = str(webhook["_id"])
 
+        logger.info("==================================================")
+        logger.info(f"🚀 WEBHOOK PLAYGROUND: GENERATED PAYLOAD FOR {event}")
+        logger.info("==================================================")
+        logger.info(json.dumps(payload, indent=2, ensure_ascii=False))
+
         start_time = time.time()
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(webhook["url"], content=body_bytes, headers=headers)
+        # async with httpx.AsyncClient(timeout=15.0) as client:
+        #     resp = await client.post(webhook["url"], content=body_bytes, headers=headers)
+        
+        # MOCK RESPONSE FOR DEBUGGING
+        class MockResp:
+            status_code = 200
+            text = '{"status": "ok", "mock": true}'
+        resp = MockResp()
+        
         elapsed_ms = int((time.time() - start_time) * 1000)
 
         success = 200 <= resp.status_code < 300

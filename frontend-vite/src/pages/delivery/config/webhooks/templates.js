@@ -12,7 +12,8 @@ export const AVAILABLE_VARS = [
   { path: 'order.customer.email', desc: 'Email' },
   { path: 'order.customer.phone', desc: 'Teléfono' },
   { path: 'order.customer.address', desc: 'Dirección' },
-  { path: 'order.items', desc: 'Productos (array)' },
+  { path: 'order.items', desc: 'Productos anidados (array)' },
+  { path: 'order.items_flattened', desc: 'Productos + Modificadores aplanados (array)' },
   { path: 'order.total_amount', desc: 'Total' },
   { path: 'order.delivery_fee', desc: 'Costo envío' },
   { path: 'order.status', desc: 'Estado (en)' },
@@ -29,7 +30,6 @@ export const AVAILABLE_VARS = [
 export const DEFAULT_TEMPLATE = `{
   "event": "{{event}}",
   "order_number": "{{order.order_number}}",
-  "pos_order_id": {{order.pos_order_id}},
   "customer": {
     "name": "{{order.customer.name}}",
     "phone": "{{order.customer.phone}}",
@@ -48,7 +48,7 @@ export const DEFAULT_TEMPLATE = `{
 
 export const PICCOLA_POS_TEMPLATE = `{
   "order": {
-    "order_id": {{order.pos_order_id}},
+    "order_id": "{{order.order_number}}",
     "hash": "",
     "first_name": "{{order.customer.name}}",
     "last_name": "",
@@ -93,7 +93,7 @@ export const PICCOLA_POS_TEMPLATE = `{
       {"code": "total", "title": "Total", "value": {{order.total_amount}}, "priority": 99}
     ]
   },
-  "order_menus": {{order.items}},
+  "order_menus": {{order.items_flattened}},
   "order_totals": [
     {"code": "subtotal", "title": "Sub Total", "value": {{order.total_amount}}, "priority": 1},
     {"code": "delivery", "title": "Envío", "value": {{order.delivery_fee}}, "priority": 2},

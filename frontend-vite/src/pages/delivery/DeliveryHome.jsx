@@ -144,6 +144,7 @@ const DeliveryHome = ({ appState }) => {
               <AnnouncementEditor
                 announcement={api.config?.announcement || {}}
                 onUpdate={api.updateAnnouncement}
+                appState={appState}
               />
             )}
             {activeTab === 'assets' && (

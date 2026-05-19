@@ -174,6 +174,7 @@ class FeaturedPromo(BaseModel):
 
 class Announcement(BaseModel):
     text: str = ""
+    link: Optional[str] = None
     active: bool = False
 
 

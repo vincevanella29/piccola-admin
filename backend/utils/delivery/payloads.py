@@ -21,19 +21,19 @@ def _build_uber_body(order: dict, loc: dict) -> dict:
     if not loc:
         loc = {}
     pickup_address = loc.get("direccion") or loc.get("address", "")
-    pickup_city = loc.get("city", "Santiago")
+    pickup_city = loc.get("city", "")
     pickup_lat = loc.get("lat", 0)
     pickup_lng = loc.get("lng", 0)
-    pickup_name = loc.get("nombre", "La Piccola Italia")
-    pickup_phone = _normalize_phone(loc.get("telefono", "")) or "+56900000000"
+    pickup_name = loc.get("nombre", "")
+    pickup_phone = _normalize_phone(loc.get("telephone") or loc.get("telefono", ""))
 
     customer = order.get("customer") or {}
     delivery_info = order.get("delivery_info", {})
     dropoff_address = delivery_info.get("address", "")
     dropoff_lat = delivery_info.get("lat", 0)
     dropoff_lng = delivery_info.get("lng", 0)
-    dropoff_name = customer.get("name", "Cliente")
-    dropoff_phone = _normalize_phone(customer.get("phone", "")) or "+56900000001"
+    dropoff_name = customer.get("name", "")
+    dropoff_phone = _normalize_phone(customer.get("phone", ""))
 
     # Build manifest_items from order items (REQUIRED by Uber)
     items = order.get("items", [])
@@ -45,7 +45,7 @@ def _build_uber_body(order: dict, loc: dict) -> dict:
         for it in items
     ]
     if not manifest_items:
-        manifest_items = [{"name": "Pedido delivery", "quantity": 1}]
+        manifest_items = [{"name": "", "quantity": 1}]
 
     total_amount = order.get("total_amount", 0)
 
@@ -86,19 +86,19 @@ def _build_pedidosya_body(order: dict, loc: dict, is_test: bool = False) -> dict
     if not loc:
         loc = {}
     pickup_address = loc.get("direccion") or loc.get("address", "")
-    pickup_city = loc.get("city", "Santiago")
+    pickup_city = loc.get("city", "")
     pickup_lat = loc.get("lat", 0)
     pickup_lng = loc.get("lng", 0)
-    pickup_name = loc.get("nombre", "La Piccola Italia")
-    pickup_phone = _normalize_phone(loc.get("telefono", "")) or "+56900000000"
+    pickup_name = loc.get("nombre", "")
+    pickup_phone = _normalize_phone(loc.get("telephone") or loc.get("telefono", ""))
 
     customer = order.get("customer") or {}
     delivery_info = order.get("delivery_info", {})
     dropoff_address = delivery_info.get("address", "")
     dropoff_lat = delivery_info.get("lat", 0)
     dropoff_lng = delivery_info.get("lng", 0)
-    dropoff_name = customer.get("name", "Cliente")
-    dropoff_phone = _normalize_phone(customer.get("phone", "")) or "+56900000001"
+    dropoff_name = customer.get("name", "")
+    dropoff_phone = _normalize_phone(customer.get("phone", ""))
 
     items = order.get("items", [])
     
@@ -115,7 +115,7 @@ def _build_pedidosya_body(order: dict, loc: dict, is_test: bool = False) -> dict
         for it in items
     ]
     if not pya_items:
-        pya_items = [{"description": "Pedido delivery", "quantity": 1, "value": 1000}]
+        pya_items = [{"description": "", "quantity": 1, "value": 1000}]
 
     body = {
         "referenceId": str(order.get("_id", "")),
