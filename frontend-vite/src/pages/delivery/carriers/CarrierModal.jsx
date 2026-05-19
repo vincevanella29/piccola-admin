@@ -60,6 +60,7 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                     client_id: auth.client_id || '',
                     client_secret: auth.client_secret || '',
                     customer_id: auth.customer_id || '',
+                    username: auth.username || '',
                     password: auth.password || '',
                     api_key: auth.api_key || '',
                     header_name: auth.header_name || 'Authorization',
@@ -104,6 +105,7 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
             client_id: '',
             client_secret: '',
             customer_id: '',
+            username: '',
             password: '',
             api_key: '',
             header_name: auth.header_name || 'Authorization',
@@ -134,6 +136,15 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
         return Object.keys(errs).length === 0;
     };
 
+    const ensureProtocol = (url) => {
+        if (!url) return url;
+        const trimmed = url.trim();
+        if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+            return `https://${trimmed}`;
+        }
+        return trimmed;
+    };
+
     const buildPayload = () => ({
         name: form.name.trim(),
         slug: form.slug.trim(),
@@ -145,18 +156,18 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
             bearer_prefix: form.bearer_prefix,
             ...(form.auth_type === 'oauth2' ? {
                 grant_type: form.grant_type,
-                token_url: form.token_url.trim(),
-                scope: form.scope.trim(),
-                client_id: form.client_id.trim(),
-                client_secret: form.client_secret.trim(),
-                customer_id: form.customer_id.trim() || null,
+                token_url: ensureProtocol(form.token_url),
+                scope: (form.scope || '').trim(),
+                client_id: (form.client_id || '').trim(),
+                client_secret: (form.client_secret || '').trim(),
+                customer_id: form.customer_id ? form.customer_id.trim() : null,
                 ...(form.grant_type === 'password' ? {
-                    username: form.username.trim(),
-                    password: form.password.trim(),
+                    username: (form.username || '').trim(),
+                    password: (form.password || '').trim(),
                 } : {}),
             } : {
-                api_key: form.api_key.trim(),
-                customer_id: form.customer_id.trim() || null,
+                api_key: (form.api_key || '').trim(),
+                customer_id: form.customer_id ? form.customer_id.trim() : null,
             }),
         },
         endpoints: {
@@ -197,16 +208,16 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                 type: form.auth_type,
                 ...(form.auth_type === 'oauth2' ? {
                     grant_type: form.grant_type,
-                    token_url: form.token_url.trim(),
-                    scope: form.scope.trim(),
-                    client_id: form.client_id.trim(),
-                    client_secret: form.client_secret.trim(),
+                    token_url: ensureProtocol(form.token_url),
+                    scope: (form.scope || '').trim(),
+                    client_id: (form.client_id || '').trim(),
+                    client_secret: (form.client_secret || '').trim(),
                     ...(form.grant_type === 'password' ? {
-                        username: form.username.trim(),
-                        password: form.password.trim(),
+                        username: (form.username || '').trim(),
+                        password: (form.password || '').trim(),
                     } : {}),
                 } : {
-                    api_key: form.api_key.trim(),
+                    api_key: (form.api_key || '').trim(),
                 }),
             };
             const res = await onTestConnection({
@@ -268,11 +279,10 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                                         <button
                                             key={key}
                                             onClick={() => applyPreset(key)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                                                form.slug === preset.slug
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${form.slug === preset.slug
                                                     ? 'bg-matrix-green/20 border-matrix-green text-matrix-green'
                                                     : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary hover:border-matrix-green/50'
-                                            }`}
+                                                }`}
                                         >
                                             {preset.name}
                                         </button>
@@ -289,11 +299,10 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
                                         onClick={() => handleChange('mode', 'test')}
-                                        className={`px-3 py-2.5 rounded-xl border text-left transition-all flex items-center gap-2 ${
-                                            form.mode === 'test'
+                                        className={`px-3 py-2.5 rounded-xl border text-left transition-all flex items-center gap-2 ${form.mode === 'test'
                                                 ? 'bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400'
                                                 : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary hover:border-amber-500/30'
-                                        }`}
+                                            }`}
                                     >
                                         <FaFlask size={14} />
                                         <div>
@@ -303,11 +312,10 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                                     </button>
                                     <button
                                         onClick={() => handleChange('mode', 'production')}
-                                        className={`px-3 py-2.5 rounded-xl border text-left transition-all flex items-center gap-2 ${
-                                            form.mode === 'production'
+                                        className={`px-3 py-2.5 rounded-xl border text-left transition-all flex items-center gap-2 ${form.mode === 'production'
                                                 ? 'bg-green-500/10 border-green-500 text-green-600 dark:text-green-400'
                                                 : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary hover:border-green-500/30'
-                                        }`}
+                                            }`}
                                     >
                                         <FaRocket size={14} />
                                         <div>
@@ -347,7 +355,7 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                                             <FaCheckCircle size={8} /> Auto-Configurado
                                         </span>
                                     </div>
-                                    
+
                                     {form.slug === 'pedidosya' && (
                                         <div className="grid gap-3">
                                             <div>
@@ -419,11 +427,10 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                                         <div className="grid grid-cols-2 gap-2">
                                             {['oauth2', 'api_key'].map((at) => (
                                                 <button key={at} onClick={() => handleChange('auth_type', at)}
-                                                    className={`px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                                                        form.auth_type === at
+                                                    className={`px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${form.auth_type === at
                                                             ? 'bg-matrix-green/10 border-matrix-green text-matrix-green'
                                                             : 'bg-light-surface-secondary dark:bg-dark-surface-secondary border-light-border/10 dark:border-dark-border/10 text-light-text-primary dark:text-dark-text-primary'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {at === 'oauth2' ? '🔐 OAuth2' : '🔑 API Key'}
                                                 </button>
@@ -524,7 +531,7 @@ const CarrierModal = ({ isOpen, onClose, onSave, onTestConnection, carrier = nul
                                     </details>
                                 </>
                             )}
-                            
+
                             {/* Test Connection Button */}
                             <button
                                 onClick={handleTestConnection}

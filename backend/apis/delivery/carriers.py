@@ -458,7 +458,10 @@ async def test_carrier_connection(
         }
 
     if auth_type == "oauth2":
-        token_url = auth.get("token_url", "")
+        token_url = auth.get("token_url", "").strip()
+        if token_url and not token_url.startswith(("http://", "https://")):
+            token_url = f"https://{token_url}"
+            
         client_id = auth.get("client_id", "")
         client_secret = auth.get("client_secret", "")
         scope = auth.get("scope", "")

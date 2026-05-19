@@ -82,6 +82,7 @@ const PICCOLA_POS_TEMPLATE = `{
     "customer_name": "{{order.customer.name}}",
     "order_type_name": "{{order.order_type}}",
     "formatted_address": "{{order.customer.address}}",
+    "status": "{{order.status}}",
     "status_name": "{{order.status}}"
   },
   "order_menus": {{order.items}},
