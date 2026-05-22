@@ -1,0 +1,11 @@
+# Firebase admin keys
+vanellix-adcf0-firebase-adminsdk-fbsvc-81e29122cf.json
+vanellix-adcf0-firebase-adminsdk-fbsvc-81e29122cf_copia.json
+
+# Environment variables
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
